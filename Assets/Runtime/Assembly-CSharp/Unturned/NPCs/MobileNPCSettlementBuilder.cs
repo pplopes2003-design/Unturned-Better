@@ -22,7 +22,7 @@ namespace SDG.Unturned
 		[SerializeField, Min(2f)] private float buildInterval = 18f;
 		[SerializeField, Range(1, 8)] private int maximumPieces = 4;
 		[SerializeField, Min(1f)] private float pieceSpacing = 2.4f;
-		[SerializeField, Min(0.5f)] private float clearanceRadius = 1.1f;
+		[SerializeField, Min(0.5f)] private float clearanceRadius = 0.8f;
 		[SerializeField, Min(1f)] private float searchHeight = 40f;
 		[SerializeField, Min(0f)] private float maximumDrop = 45f;
 		[SerializeField, Range(0f, 60f)] private float maximumSlope = 25f;
@@ -91,8 +91,8 @@ namespace SDG.Unturned
 				}
 
 				Vector3 placePosition = ground + Vector3.up * Mathf.Clamp(asset.offset, -0.5f, 1.5f);
-				if (Physics.CheckSphere(placePosition + Vector3.up * 0.8f,
-					Mathf.Clamp(clearanceRadius, 0.5f, 2f), obstructionMask, QueryTriggerInteraction.Ignore))
+				if (Physics.CheckSphere(placePosition + Vector3.up * 1.4f,
+					Mathf.Clamp(clearanceRadius, 0.4f, 1.2f), obstructionMask, QueryTriggerInteraction.Ignore))
 				{
 					continue;
 				}
