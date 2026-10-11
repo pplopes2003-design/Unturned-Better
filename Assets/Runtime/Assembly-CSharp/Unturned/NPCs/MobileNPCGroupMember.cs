@@ -19,6 +19,7 @@ namespace SDG.Unturned
 		private static readonly Dictionary<int, GroupRecord> groups = new Dictionary<int, GroupRecord>();
 		private static int nextGroupId = 1;
 		private const float GroupJoinRadius = 140f;
+		private const int MaximumGroupSize = 4;
 
 		private sealed class GroupRecord
 		{
@@ -27,10 +28,12 @@ namespace SDG.Unturned
 			public readonly HashSet<MobileNPCGroupMember> Members = new HashSet<MobileNPCGroupMember>();
 			public MobileNPCGroupMember Leader;
 			public bool HasSettlement;
+			public MobileNPCHumanoidDisposition.Role Role;
 		}
 
 		private MobileNPCHumanoidVitals vitals;
 		private MobileNPCHumanoidMotor motor;
+		private MobileNPCHumanoidDisposition disposition;
 		private bool initialized;
 		private bool leftGroup;
 
@@ -45,6 +48,7 @@ namespace SDG.Unturned
 		{
 			vitals = GetComponent<MobileNPCHumanoidVitals>();
 			motor = GetComponent<MobileNPCHumanoidMotor>();
+			disposition = GetComponent<MobileNPCHumanoidDisposition>();
 		}
 
 		/// <summary>Assigns this newly spawned individual to the nearest living group, or creates one.</summary>
@@ -54,13 +58,16 @@ namespace SDG.Unturned
 				return;
 
 			initialized = true;
-			GroupRecord group = FindNearestGroup(transform.position);
+			MobileNPCHumanoidDisposition.Role role = disposition != null
+				? disposition.CurrentRole : MobileNPCHumanoidDisposition.Role.Neutral;
+			GroupRecord group = FindNearestGroup(transform.position, role);
 			if (group == null)
 			{
 				group = new GroupRecord
 				{
 					Id = nextGroupId++,
-					Anchor = motor.HomePosition
+					Anchor = motor.HomePosition,
+					Role = role
 				};
 				groups.Add(group.Id, group);
 			}
@@ -72,6 +79,9 @@ namespace SDG.Unturned
 				group.Leader = this;
 			if (motor != null && (group.Anchor - motor.HomePosition).sqrMagnitude > 0.25f)
 				motor.TrySetHomePositionServer(group.Anchor);
+
+			Debug.Log("[MobileNPCGroupMember] NPC " + name + " assigned to group " + GroupId
+				+ " (" + group.Members.Count + "/" + MaximumGroupSize + ", role " + role + ").");
 
 			if (vitals != null)
 				vitals.Died += OnDied;
@@ -99,13 +109,14 @@ namespace SDG.Unturned
 			}
 		}
 
-		private static GroupRecord FindNearestGroup(Vector3 position)
+		private static GroupRecord FindNearestGroup(Vector3 position, MobileNPCHumanoidDisposition.Role role)
 		{
 			GroupRecord nearest = null;
 			float bestDistanceSquared = GroupJoinRadius * GroupJoinRadius;
 			foreach (GroupRecord group in groups.Values)
 			{
-				if (group.Members.Count == 0)
+				PruneDeadMembers(group);
+				if (group.Members.Count == 0 || group.Members.Count >= MaximumGroupSize || group.Role != role)
 					continue;
 
 				Vector3 offset = group.Anchor - position;
@@ -175,6 +186,7 @@ namespace SDG.Unturned
 			if (!Provider.isServer)
 				return;
 			groups.Clear();
+			nextGroupId = 1;
 		}
 	}
 }
