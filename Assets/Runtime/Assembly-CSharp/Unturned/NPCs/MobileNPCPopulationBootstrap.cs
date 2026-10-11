@@ -76,6 +76,8 @@ namespace SDG.Unturned
             template.AddComponent<MobileNPCHumanoidCombat>();
             template.AddComponent<MobileNPCHumanoidRangedCombat>();
             template.AddComponent<MobileNPCVisualAnimation>();
+            template.AddComponent<MobileNPCInventory>();
+            template.AddComponent<MobileNPCLooting>();
 
             // Reuse the game's existing humanoid visual hierarchy without modifying its
             // legacy prefab or retaining its player/NPC-specific gameplay behaviours.
