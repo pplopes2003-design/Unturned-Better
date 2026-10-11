@@ -26,6 +26,7 @@ namespace SDG.Unturned
 		[SerializeField, Min(0.0f)] private float leadTime = 0.12f;
 
 		private MobileNPCBrainDriver brainDriver;
+		private MobileNPCHumanoidPerception perception;
 		private Transform trackedTarget;
 		private Vector3 lastTargetPosition;
 		private Vector3 estimatedTargetVelocity;
@@ -39,6 +40,7 @@ namespace SDG.Unturned
 		private void Awake()
 		{
 			brainDriver = GetComponent<MobileNPCBrainDriver>();
+			perception = GetComponent<MobileNPCHumanoidPerception>();
 		}
 
 		private void Update()
@@ -53,7 +55,9 @@ namespace SDG.Unturned
 			lastAimUpdateTime = now;
 			accumulatedShotSpread = Mathf.Max(0.0f, accumulatedShotSpread - shotSpreadRecoveryPerSecond * delta);
 
-			Transform currentTarget = brainDriver.Target;
+			Transform currentTarget = perception != null
+				? (perception.VisiblePlayer != null ? perception.VisiblePlayer.transform : null)
+				: brainDriver.Target;
 			if (currentTarget == null)
 			{
 				ClearTarget();
