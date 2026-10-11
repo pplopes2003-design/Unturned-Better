@@ -1812,10 +1812,11 @@ namespace SDG.Unturned
 			}
 
 			int alerted = 0;
+			int maxHordeSize = LightingManager.isFullMoon ? 16 : AMBIENT_HORDE_MAX_SIZE;
 			float groupRadiusSquared = AMBIENT_HORDE_SEARCH_RADIUS * AMBIENT_HORDE_SEARCH_RADIUS;
 			// The same destination makes the group converge naturally; pathfinding remains
 			// responsible for routing around buildings and terrain.
-			for (int offset = 0; offset < AllZombies.Count && alerted < AMBIENT_HORDE_MAX_SIZE; ++offset)
+			for (int offset = 0; offset < AllZombies.Count && alerted < maxHordeSize; ++offset)
 			{
 				Zombie member = AllZombies[(startIndex + offset) % AllZombies.Count];
 				if (member == null || member.isDead || member.isHunting || member.isIdleAfterInvestigation || member.bound != leader.bound)
