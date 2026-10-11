@@ -1076,6 +1076,12 @@ namespace SDG.Unturned
 
 		public void alert(Player newPlayer)
 		{
+			if (isInvestigationIdle)
+			{
+				isInvestigationIdle = false;
+				isReturningToSpawn = false;
+			}
+
 			if (isDead)
 			{
 				return;
