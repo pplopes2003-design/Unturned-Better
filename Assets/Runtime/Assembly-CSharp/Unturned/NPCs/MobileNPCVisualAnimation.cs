@@ -15,6 +15,9 @@ namespace SDG.Unturned
     public sealed class MobileNPCVisualAnimation : MonoBehaviour
     {
         [SerializeField, Min(0f)] private float crossFadeDuration = 0.15f;
+        [SerializeField, Min(0.1f)] private float walkingFootstepInterval = 0.48f;
+        [SerializeField, Min(0.1f)] private float runningFootstepInterval = 0.32f;
+        [SerializeField, Min(0.1f)] private float groundProbeDistance = 1.35f;
 
         private MobileNPCHumanoidMotor motor;
         private MobileNPCBrainDriver brain;
@@ -23,6 +26,7 @@ namespace SDG.Unturned
         private string walkClip;
         private string runClip;
         private string currentClip;
+        private float nextFootstepTime;
 
         private void Awake()
         {
@@ -53,9 +57,61 @@ namespace SDG.Unturned
                 {
                     desired = runClip;
                 }
+                PlayFootstepIfDue(pursuing);
+            }
+            else
+            {
+                nextFootstepTime = 0f;
             }
 
             PlayIfAvailable(desired);
+        }
+
+        private void PlayFootstepIfDue(bool isRunning)
+        {
+#if !DEDICATED_SERVER
+            if (Time.time < nextFootstepTime)
+            {
+                return;
+            }
+
+            float interval = isRunning ? runningFootstepInterval : walkingFootstepInterval;
+            nextFootstepTime = Time.time + Mathf.Max(0.1f, interval) * Random.Range(0.92f, 1.08f);
+
+            Vector3 rayOrigin = transform.position + Vector3.up * 0.2f;
+            if (!Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit ground,
+                Mathf.Max(0.1f, groundProbeDistance), ~0, QueryTriggerInteraction.Ignore))
+            {
+                return;
+            }
+
+            string materialName = ground.transform != null && ground.transform.CompareTag("Ground")
+                ? PhysicsTool.GetTerrainMaterialName(transform.position)
+                : ground.collider != null ? ground.collider.sharedMaterial?.name : null;
+            if (string.IsNullOrEmpty(materialName))
+            {
+                return;
+            }
+
+            string key = isRunning ? "FootstepRun" : "FootstepWalk";
+            OneShotAudioDefinition audioDef = PhysicMaterialCustomData.GetAudioDef(materialName, key);
+            if (audioDef == null)
+            {
+                return;
+            }
+
+            AudioClip clip = audioDef.GetRandomClip();
+            if (clip == null)
+            {
+                return;
+            }
+
+            OneShotAudioParameters parameters = new OneShotAudioParameters(transform, clip);
+            parameters.volume = 0.125f * audioDef.volumeMultiplier;
+            parameters.RandomizePitch(audioDef.minPitch, audioDef.maxPitch);
+            parameters.SetLinearRolloff(1f, 32f);
+            parameters.Play();
+#endif
         }
 
         private void ResolveClips()
