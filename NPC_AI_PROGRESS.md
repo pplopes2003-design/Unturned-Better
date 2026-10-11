@@ -520,3 +520,12 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - O diretor mantém o atraso de reposição configurado em 60 s por padrão, separado do tempo de remoção do corpo de 30 s. A tentativa real de spawn pode ocorrer no próximo ciclo do diretor (intervalo padrão de 18 s) e pode atrasar mais se não houver jogador vivo ou posição segura.
 - Limites importantes: grupos e âncoras existem apenas em memória; não sobrevivem a troca/recarregamento de mapa ou reinício. Associação é por proximidade, não por memória social real; não existe ainda replicação multiplayer.
 - Verificação desta etapa: revisão estática do fluxo de criação/adesão, eleição de líder, dissolução e fila de reposição. Unity/Unturned não foi compilado nem executado nesta sessão.
+
+
+## Reposição vinculada ao grupo de origem (atualização)
+
+- Cada morte agora agenda uma reposição com prazo individual e guarda o ID do grupo do membro morto. O atraso de reposição continua independente do tempo de limpeza do corpo.
+- Quando o prazo vence e o spawn é bem-sucedido, o novo NPC tenta entrar no grupo de origem, mas somente se esse grupo ainda existir, tiver membros vivos, pertencer à mesma função/facção e tiver vaga. Nesse caso ele recebe a âncora compartilhada e passa a usar a base sobrevivente.
+- Se todos os membros morrerem, o registro do grupo é dissolvido imediatamente. Uma reposição pendente não recria esse grupo antigo: o NPC entra em outro grupo elegível ou cria um grupo novo.
+- A atribuição é uma tentativa condicionada ao grupo ainda ser elegível. Se ele ficar cheio ou desaparecer antes da reposição, o NPC mantém a associação que recebeu no spawn normal. O registro de grupos continua volátil e não sobrevive a troca/recarregamento de mapa ou reinício.
+- Verificação desta etapa: revisão estática das chamadas de inicialização, saída de grupo, reassociação e fila de reposição; chaves balanceadas nos dois arquivos modificados. Não houve compilação nem teste dentro do Unity/Unturned.
