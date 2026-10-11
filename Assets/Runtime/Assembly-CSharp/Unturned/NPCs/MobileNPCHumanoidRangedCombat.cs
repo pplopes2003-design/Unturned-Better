@@ -32,9 +32,17 @@ namespace SDG.Unturned
 		private int roundsRemaining;
 		private float nextShotTime;
 		private float reloadFinishedAt;
+		private bool reloadPending;
+
+		/// <summary>Raised on the server when a shot is committed. Hook prefab audio/animation here.</summary>
+		public event System.Action ShotFired;
+		/// <summary>Raised on the server when an empty magazine starts reloading.</summary>
+		public event System.Action ReloadStarted;
+		/// <summary>Raised on the server when the reload finishes.</summary>
+		public event System.Action ReloadFinished;
 
 		public int RoundsRemaining => roundsRemaining;
-		public bool IsReloading => Provider.isServer && Time.time < reloadFinishedAt;
+		public bool IsReloading => Provider.isServer && reloadPending;
 
 		private void Awake()
 		{
@@ -45,13 +53,24 @@ namespace SDG.Unturned
 
 		private void Update()
 		{
-			if (!Provider.isServer || brain == null || aim == null
-				|| brain.CurrentState != MobileNPCBrain.State.Pursuing)
+			if (!Provider.isServer || brain == null || aim == null)
 			{
 				return;
 			}
 
-			if (Time.time < reloadFinishedAt || Time.time < nextShotTime)
+			if (reloadPending)
+			{
+				if (Time.time < reloadFinishedAt)
+				{
+					return;
+				}
+
+				reloadPending = false;
+				roundsRemaining = Mathf.Max(1, magazineCapacity);
+				ReloadFinished?.Invoke();
+			}
+
+			if (brain.CurrentState != MobileNPCBrain.State.Pursuing || Time.time < nextShotTime)
 			{
 				return;
 			}
@@ -75,17 +94,27 @@ namespace SDG.Unturned
 				return;
 			}
 
-			nextShotTime = Time.time + Mathf.Max(0.05f, secondsPerShot);
 			if (roundsRemaining <= 0)
 			{
-				reloadFinishedAt = Time.time + Mathf.Max(0.1f, reloadDuration);
-				roundsRemaining = Mathf.Max(1, magazineCapacity);
+				BeginReload();
 				return;
 			}
 
+			nextShotTime = Time.time + Mathf.Max(0.05f, secondsPerShot);
 			roundsRemaining--;
-			if (Physics.Raycast(muzzle, shotDirection, out RaycastHit hit, effectiveRange, hitMask, QueryTriggerInteraction.Ignore))
+			ShotFired?.Invoke();
+
+			// Ignore this NPC's own colliders, then process the first external obstruction/hit.
+			RaycastHit[] hits = Physics.RaycastAll(muzzle, shotDirection, effectiveRange, hitMask, QueryTriggerInteraction.Ignore);
+			System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+			for (int i = 0; i < hits.Length; ++i)
 			{
+				RaycastHit hit = hits[i];
+				if (hit.transform == transform || hit.transform.IsChildOf(transform))
+				{
+					continue;
+				}
+
 				Player hitPlayer = hit.transform.GetComponent<Player>();
 				if (hitPlayer == null)
 				{
@@ -104,13 +133,26 @@ namespace SDG.Unturned
 					EPlayerKill kill;
 					DamageTool.damagePlayer(parameters, out kill);
 				}
+
+				break;
 			}
 
 			if (roundsRemaining == 0)
 			{
-				reloadFinishedAt = Time.time + Mathf.Max(0.1f, reloadDuration);
-				roundsRemaining = Mathf.Max(1, magazineCapacity);
+				BeginReload();
 			}
+		}
+
+		private void BeginReload()
+		{
+			if (reloadPending)
+			{
+				return;
+			}
+
+			reloadPending = true;
+			reloadFinishedAt = Time.time + Mathf.Max(0.1f, reloadDuration);
+			ReloadStarted?.Invoke();
 		}
 
 		private bool IsMoving()
