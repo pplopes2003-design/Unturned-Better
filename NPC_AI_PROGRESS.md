@@ -262,3 +262,10 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Isso reduz buscas globais e alocações repetidas no caminho de combate entre facções; não muda a seleção de alvo nem resolve ainda o custo da busca de jogadores, que continua sendo uma etapa separada.
 - Commit: https://github.com/pplopes2003-design/Unturned-Better/commit/7dd6e02775fa8f1f7f861e4eb69b1f9f35128d49
 - Validação pendente: compilar no Unity e medir custo com múltiplos NPCs ativos. O uso da lista compartilhada pressupõe o fluxo normal de atualização de gameplay na thread principal do Unity.
+
+
+### 2026-10-11 — otimização do acerto dos disparos
+- O combate à distância agora reutiliza um buffer de `RaycastNonAlloc` e escolhe o colisor externo mais próximo sem ordenar todos os impactos a cada tiro.
+- Para preservar a correção quando o buffer de 64 colisões fica cheio, usa-se a consulta completa alocadora apenas nesse caso de saturação.
+- Commits: https://github.com/pplopes2003-design/Unturned-Better/commit/db216815c1ddbf1c845e343658b66720144717f6 e https://github.com/pplopes2003-design/Unturned-Better/commit/ee4cce56b608f07bf509fbf80260a653cc30f16e
+- Validação pendente: compilação Unity e teste de tiro contra jogador/NPC com obstruções e colliders sobrepostos. A otimização não altera a precisão humana configurada pela dispersão e pelo tempo de reação.
