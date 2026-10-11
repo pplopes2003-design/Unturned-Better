@@ -482,3 +482,11 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - A chamada usa o ponto de entrada vanilla para manter hooks de implantação e replicação de barricadas. O item é removido do inventário apenas se a colocação retornar sucesso.
 - **Limites importantes:** a verificação de colisão é aproximada e não replica todo o sistema vanilla de pré-visualização, claim, snapping e suporte. Propriedade/owner fica no valor neutro 0; não há salvamento explícito da identidade do assentamento. O limite de peças e o contador são apenas em memória e reiniciam com a entidade. A construção de estruturas `STRUCTURE` (paredes/pisos/pilares), armazenamento efetivamente acessível pelo NPC e persistência continuam pendentes.
 - Teste estático do código-fonte apenas; ainda não compilado/testado dentro do Unity. Se houver falhas de posicionamento, desative o componente até ajustar a lógica no mapa de teste.
+
+
+### Ajuste de ordem e distribuição da construção
+
+- O construtor agora escolhe primeiro barricadas do tipo `STORAGE`, depois fortificações/segmentos de perímetro e, em seguida, outros itens permitidos, em vez de simplesmente usar o primeiro item encontrado no inventário.
+- As quatro peças iniciais usam posições cardeais a uma distância constante do ponto de assentamento; tentativas alternativas variam levemente o ângulo se o terreno/colisão bloquear a posição principal.
+- Isso melhora a distribuição inicial, mas ainda não garante um perímetro fechado: o tamanho e o pivô variam por prefab, não há alinhamento por snapping, nem validação completa de suportes e regras de claim. O armazenamento é colocado como barricada vanilla, mas o NPC ainda não transfere itens para dentro dele.
+- Verificação de API estática: os métodos/construtores chamados foram localizados no código do projeto (`BarricadeManager.dropBarricade`, `new Barricade(ItemBarricadeAsset)`, e métodos do inventário). Isso não substitui compilação nem teste no Unity.
