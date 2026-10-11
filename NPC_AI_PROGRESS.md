@@ -106,3 +106,10 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - A solicitação pública #5541 descreve a mesma lacuna de arquitetura: o cliente vanilla identifica alvos por tipos de raycast conhecidos, e o servidor valida e resolve o tipo antes de aplicar dano. Fonte: https://github.com/SmartlyDressedGames/U3-SDK/issues/5541
 - Decisão: não adicionar uma classe de “NPC combatente” isolada que pareça funcional, mas não receba acertos legítimos dos clientes. A próxima mudança deve conectar identidade, spawn/despawn e snapshots com o caminho de raycast/dano, ou começar por uma melhoria de IA que opere sobre entidades já suportadas.
 - Estado de teste: inspeção estática do código via GitHub; nenhuma compilação ou teste em Unity/Unturned foi executado.
+
+
+### 2026-10-11 — proteção contra regiões de zumbis indisponíveis
+- A revisão do agendador de hordas identificou uma condição de inicialização em que `AllZombies` poderia estar disponível antes de `regions`; o código acessava `regions.Length` sem verificar o array.
+- `UpdateAmbientHordes()` agora retorna com segurança quando o array de regiões é nulo ou vazio, antes de procurar líder ou membros da horda.
+- Commit: https://github.com/pplopes2003-design/Unturned-Better/commit/5dd858b8c45087c019dc1f1bb14c689ac92c390b
+- É uma correção defensiva de NRE identificada por inspeção estática; não confirma que seja a causa do erro de inicialização da dev build do usuário. Logs ainda necessários para associar a exceção a uma linha concreta.
