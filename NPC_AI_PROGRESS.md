@@ -187,3 +187,11 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - **Ainda não é uma build jogável pronta:** a implementação atual não tem spawner próprio, ciclo de vida de entidade nem replicação de movimento para clientes; amizade por enquanto significa não hostil, não escolta ou diálogo. Não é possível afirmar que o próximo build conterá NPCs funcionais até implementar essas ligações e compilar/testar no Unity.
 - Adicionados arquivos `.meta` estáveis para todos os scripts do protótipo móvel, evitando GUIDs regenerados pelo Unity durante importação.
 - Revisão estática final desta etapa: os cinco parâmetros de cadência de rajadas estão declarados; equilíbrio de chaves/parênteses nos componentes principais conferido. Isso não substitui a compilação do Unity.
+
+
+### 2026-10-11 — registro de ciclo de vida (preparação para facções)
+- Adicionado `MobileNPCRegistry`, registro em memória somente do servidor para enumerar os `MobileNPCBrainDriver` móveis ativos.
+- O driver registra-se após `InitializeServer` e é removido ao ser desativado; entradas Unity destruídas/inativas são filtradas ao copiar a lista.
+- O registro é apenas infraestrutura de gestão: **não cria NPCs, não replica movimento e não altera NPCs estáticos**. Serve como base para futuras populações e facções sem acoplar esses sistemas ao diálogo legado.
+- O arquivo `.meta` foi criado. Compilação Unity e teste no jogo continuam pendentes.
+- Próxima etapa correta continua sendo a integração com o ciclo de vida de entidades e o Net Gen oficial; não adicionar RPC manual sem a geração correspondente.
