@@ -61,6 +61,7 @@ namespace SDG.Unturned
 			MobileNPCHumanoidDisposition.Role role = disposition != null
 				? disposition.CurrentRole : MobileNPCHumanoidDisposition.Role.Neutral;
 			GroupRecord group = FindNearestGroup(transform.position, role);
+			bool createdGroup = group == null;
 			if (group == null)
 			{
 				group = new GroupRecord
@@ -80,7 +81,7 @@ namespace SDG.Unturned
 			if (motor != null && (group.Anchor - motor.HomePosition).sqrMagnitude > 0.25f)
 				motor.TrySetHomePositionServer(group.Anchor);
 
-			Debug.Log("[MobileNPCGroupMember] NPC " + name + " assigned to group " + GroupId
+			Debug.Log("[MobileNPCGroupMember] NPC " + name + (createdGroup ? " created group " : " joined group ") + GroupId
 				+ " (" + group.Members.Count + "/" + MaximumGroupSize + ", role " + role + ").");
 
 			if (vitals != null)
