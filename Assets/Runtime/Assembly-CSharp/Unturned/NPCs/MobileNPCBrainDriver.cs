@@ -23,7 +23,7 @@ namespace SDG.Unturned
 		private MobileNPCBrain.State lastState;
 		private MobileNPCTactics.Goal lastGoal;
 
-		public event Action<MobileNPCBrain.State, MobileNPCTactics.Goal, bool, Vector3> DecisionUpdated;
+		public event System.Action<MobileNPCBrain.State, MobileNPCTactics.Goal, bool, Vector3> DecisionUpdated;
 
 		public MobileNPCBrain.State CurrentState => brain != null ? brain.CurrentState : MobileNPCBrain.State.Idle;
 		public MobileNPCTactics.Goal CurrentGoal => tactics != null ? tactics.CurrentGoal : MobileNPCTactics.Goal.None;
