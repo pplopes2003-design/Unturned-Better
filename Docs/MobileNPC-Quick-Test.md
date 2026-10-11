@@ -8,6 +8,7 @@ The opt-in humanoid prototype is under `Assets/Runtime/Assembly-CSharp/Unturned/
 
 - `MobileNPCBrain` / `MobileNPCBrainDriver`: server-side state, target memory, tactical goals and decision events.
 - `MobileNPCHumanoidPerception`: nearest living player within sight range, field of view and unobstructed line of sight.
+- `MobileNPCHumanoidDisposition`: opt-in `Hostile`, `Friendly` or `Neutral` role. Only `Hostile` NPCs acquire players as combat targets in this prototype.
 - `MobileNPCHumanoidMotor`: server-side CharacterController movement.
 - `MobileNPCHumanoidAim`: variable reaction time, movement/shot spread and suppression penalty.
 - `MobileNPCHumanoidCombat`: server-authoritative melee damage.
@@ -17,7 +18,7 @@ The opt-in humanoid prototype is under `Assets/Runtime/Assembly-CSharp/Unturned/
 ## Quick smoke test
 
 1. Open the project with its configured Unity editor and wait for script import. Check the Console before launching the build.
-2. In a disposable test scene, create a humanoid GameObject with a valid visual/model, collider, `CharacterController`, and these components: `MobileNPCBrainDriver`, `MobileNPCHumanoidMotor`, `MobileNPCHumanoidPerception`, `MobileNPCHumanoidAim`, and either or both combat components.
+2. In a disposable test scene, create a humanoid GameObject with a valid visual/model, collider, `CharacterController`, and these components: `MobileNPCBrainDriver`, `MobileNPCHumanoidMotor`, `MobileNPCHumanoidPerception`, `MobileNPCHumanoidDisposition`, `MobileNPCHumanoidAim`, `MobileNPCHumanoidVitals`, and either or both combat components. Set the disposition to `Hostile` for combat tests; `Friendly` and `Neutral` should remain non-aggressive.
 3. Make sure the NPC prefab has appropriate colliders and layer masks, the scene has a floor, and the player is a normal Unturned `Player`.
 4. Run as a server. The NPC should detect a living player within 32 m and its field of view, then pursue using local collision-aware movement. Break line of sight: ranged combat must stop firing, aim tracking must clear, and the brain should investigate the last known position before returning.
 5. For ranged combat, confirm variable reaction delays, misses, burst pauses, ammunition depletion and reload events. The damage model is a prototype hitscan implementation, not a fully integrated vanilla gun/inventory/projectile simulation.
@@ -25,6 +26,7 @@ The opt-in humanoid prototype is under `Assets/Runtime/Assembly-CSharp/Unturned/
 
 ## Important limits
 
+- The role component only defines basic hostility toward players. Friendly following, dialogue, squad behavior, and inter-NPC relationships are not implemented yet; these belong to later behavior/faction work.
 - **Multiplayer replication is not finished.** The motor currently moves the NPC on the server; a dedicated spawn/lifecycle and client snapshot/interpolation path is still required before remote clients can reliably see movement.
 - Local movement is collision-aware but is not full pathfinding around obstacles.
 - The ranged component uses server-side hit detection and damage, but is not yet bound to a real item gun, attachments, physical ammo inventory, native muzzle effects, or all vanilla gun sounds.
