@@ -122,3 +122,12 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Deliberadamente não move Transform, não aplica dano e não afirma replicação de rede: esses são contratos da futura entidade móvel e da camada de locomoção/rede.
 - Commits: https://github.com/pplopes2003-design/Unturned-Better/commit/ec1f5e40a33ea04fc9e7d90a0cc4b5ef592ddec3, https://github.com/pplopes2003-design/Unturned-Better/commit/1e8e544d842582fcbdfd3118d7ab8e5896843dbd, https://github.com/pplopes2003-design/Unturned-Better/commit/5cc059ca4fbc3b18fd52e516f1dd877c01049edb
 - Estado de validação: revisão estática apenas; ainda não compilado nem testado no Unity. Próximo passo: ligar essa máquina de estados a uma entidade móvel com navegação e snapshots, sem alterar os NPCs estáticos existentes.
+
+
+### 2026-10-11 — adaptador entre a IA de NPC e a entidade hospedeira
+- Criado `MobileNPCBrainDriver.cs`, um componente opt-in que instancia e controla `MobileNPCBrain` somente quando inicializado no servidor.
+- O adaptador expõe operações explícitas para registrar alvo validado, ruído, chegada ao destino, atualização de visibilidade e reset. A entidade hospedeira recebe `DecisionUpdated` quando estado/destino mudam, sem reiniciar a navegação a cada tick.
+- O componente não é anexado automaticamente a `InteractableObjectNPC`; NPCs estáticos e diálogos existentes permanecem inalterados.
+- Limite deliberado: o host ainda precisa fornecer percepção, navegação, ciclo de vida, replicação e dano. O adaptador é o ponto de conexão da decisão, não uma entidade móvel completa.
+- Commits: https://github.com/pplopes2003-design/Unturned-Better/commit/5454e5c04829a7a82fb8d064f5e3e1cf608a85f1 e https://github.com/pplopes2003-design/Unturned-Better/commit/7634bff4678ec2bb44aabeb6798a15bf6656f0a2
+- Validação: inspeção estática apenas; sem compilação Unity ou teste em jogo.
