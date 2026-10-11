@@ -25,6 +25,7 @@ namespace SDG.Unturned
 			public int Id;
 			public Vector3 Anchor;
 			public readonly HashSet<MobileNPCGroupMember> Members = new HashSet<MobileNPCGroupMember>();
+			public MobileNPCGroupMember Leader;
 		}
 
 		private MobileNPCHumanoidVitals vitals;
@@ -34,6 +35,8 @@ namespace SDG.Unturned
 
 		public int GroupId { get; private set; }
 		public Vector3 GroupAnchor { get; private set; }
+		public bool CanPlanSettlement => initialized && !leftGroup && GroupId > 0
+			&& groups.TryGetValue(GroupId, out GroupRecord currentGroup) && currentGroup.Leader == this;
 
 		private void Awake()
 		{
@@ -62,6 +65,8 @@ namespace SDG.Unturned
 			GroupId = group.Id;
 			GroupAnchor = group.Anchor;
 			group.Members.Add(this);
+			if (group.Leader == null)
+				group.Leader = this;
 			if (motor != null && (group.Anchor - motor.HomePosition).sqrMagnitude > 0.25f)
 				motor.TrySetHomePositionServer(group.Anchor);
 
@@ -139,6 +144,18 @@ namespace SDG.Unturned
 			{
 				group.Members.Remove(this);
 				PruneDeadMembers(group);
+				if (group.Leader == this || group.Leader == null || group.Leader.vitals != null && group.Leader.vitals.IsDead)
+				{
+					group.Leader = null;
+					foreach (MobileNPCGroupMember candidate in group.Members)
+					{
+						if (candidate != null && !candidate.leftGroup && (candidate.vitals == null || !candidate.vitals.IsDead))
+						{
+							group.Leader = candidate;
+							break;
+						}
+					}
+				}
 				if (group.Members.Count == 0)
 				{
 					groups.Remove(group.Id);
