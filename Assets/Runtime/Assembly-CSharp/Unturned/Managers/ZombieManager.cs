@@ -1731,7 +1731,7 @@ namespace SDG.Unturned
 			for (int offset = 0; offset < AllZombies.Count; ++offset)
 			{
 				Zombie candidate = AllZombies[(startIndex + offset) % AllZombies.Count];
-				if (candidate == null || candidate.isDead || candidate.isHunting || candidate.bound >= regions.Length)
+				if (candidate == null || candidate.isDead || candidate.isHunting || candidate.isIdleAfterInvestigation || candidate.bound >= regions.Length)
 				{
 					continue;
 				}
@@ -1778,7 +1778,7 @@ namespace SDG.Unturned
 			for (int offset = 0; offset < AllZombies.Count && alerted < AMBIENT_HORDE_MAX_SIZE; ++offset)
 			{
 				Zombie member = AllZombies[(startIndex + offset) % AllZombies.Count];
-				if (member == null || member.isDead || member.isHunting || member.bound != leader.bound)
+				if (member == null || member.isDead || member.isHunting || member.isIdleAfterInvestigation || member.bound != leader.bound)
 				{
 					continue;
 				}
