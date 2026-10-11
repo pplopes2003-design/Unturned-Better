@@ -7,7 +7,8 @@ Branch: `feature/npc-ai-foundation`
 The opt-in humanoid prototype is under `Assets/Runtime/Assembly-CSharp/Unturned/NPCs/`:
 
 - `MobileNPCBrain` / `MobileNPCBrainDriver`: server-side state, target memory, tactical goals and decision events.
-- `MobileNPCRegistry`: server-only registry of enabled mobile brain drivers for future faction/population systems; it does not spawn or replicate entities.
+- `MobileNPCRegistry`: server-only registry of enabled mobile brain drivers for future faction/population systems.
+- `MobileNPCSpawnService`: validates an explicitly supplied mobile humanoid prefab and creates it on the server with a selected role. This is **not network replication**; do not treat it as a multiplayer-ready spawn.
 - `MobileNPCHumanoidPerception`: nearest living player within sight range, field of view and unobstructed line of sight.
 - `MobileNPCHumanoidDisposition`: opt-in `Hostile`, `Friendly` or `Neutral` role. Only `Hostile` NPCs acquire players as combat targets in this prototype.
 - `MobileNPCHumanoidMotor`: server-side CharacterController movement.
@@ -15,6 +16,10 @@ The opt-in humanoid prototype is under `Assets/Runtime/Assembly-CSharp/Unturned/
 - `MobileNPCHumanoidCombat`: server-authoritative melee damage.
 - `MobileNPCHumanoidRangedCombat`: baseline hitscan damage, ammunition/reload simulation, variable bursts and pauses.
 - `MobileNPCHumanoidVitals` / `MobileNPCTactics`: health-related tactical decisions, retreat/cover/loot goal helpers.
+
+## Spawn service contract
+
+`MobileNPCSpawnService.TrySpawnServer(...)` accepts only a prefab with a root `CharacterController`, `MobileNPCBrainDriver`, `MobileNPCHumanoidMotor`, `MobileNPCHumanoidPerception`, and `MobileNPCHumanoidDisposition`. It rejects client-side calls, null prefabs, and positions outside safe level bounds. The caller must supply a dedicated mobile prefab; do not pass `NPC_Server`, `NPC_Client`, or a legacy static-NPC prefab. The service initializes the server-side brain/motor only. It intentionally does not claim client replication, persistent saving, or full pathfinding.
 
 ## Quick smoke test
 
