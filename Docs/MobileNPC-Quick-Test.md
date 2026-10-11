@@ -89,3 +89,12 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 - [ ] NPCs can build, defend, repair and persist bases/settlements in claimed regions.
 - [ ] Hostile and Friendly factions fight one another using server-authoritative damage.
 - [ ] Vanilla zombies can perceive, pursue and damage both mobile NPC factions, not merely investigate their gunfire.
+
+## Testes adicionais — recuperação de bloqueio e passos
+- [ ] Caminhe perto de uma parede/canto: o NPC tenta direções laterais mais amplas em vez de insistir apenas no primeiro ângulo.
+- [ ] Observe um NPC que ficou preso durante exploração: após detectar pouco deslocamento, ele abandona somente o waypoint de exploração e tenta outro depois de uma pausa.
+- [ ] Durante perseguição/investigação, verifique que a recuperação não apaga o destino tático do cérebro.
+- [ ] Caminhe sobre materiais diferentes (terra/grama, concreto, madeira, metal quando disponíveis): os passos devem usar as definições vanilla do material (FootstepWalk/FootstepRun) quando existirem.
+- [ ] Confirme que os passos não se repetem continuamente quando o NPC está parado e que a compilação dedicada não depende do código de áudio.
+
+**Limite:** os testes acima ainda não foram executados no Unity/Unturned. A recuperação é heurística local, não pathfinding; vocalizações, sons de dano/morte e áudio de armas ainda não estão ligados.
