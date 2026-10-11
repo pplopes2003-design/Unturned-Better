@@ -46,6 +46,7 @@ namespace SDG.Unturned
                 return;
             }
 
+            MobileNPCGroupMember.ResetAllServerGroups();
             DestroyExistingRuntimeObjects();
 
             GameObject visualPrefab = Resources.Load<GameObject>(VisualResourcePath);
