@@ -248,3 +248,15 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 4. Sem itens de construção, confirme que não escolhe um novo local.
 5. Este teste valida apenas o planejamento do ponto. Nenhuma estrutura é construída nesta etapa; não marcar como construção funcional de base.
 6. O teste não foi executado no Unity.
+
+
+## Colocação de barricadas do assentamento (teste manual pendente)
+
+1. Use ambiente de teste/single-player e dê ao NPC um item de barricada permitido (por exemplo, uma fortificação ou armazenamento) no inventário.
+2. Confirme que o NPC primeiro escolhe um local e que não constrói enquanto está em combate ou executando outra tarefa tática.
+3. Observe se uma barricada aparece no mundo, é replicada para o cliente e o item correspondente é removido do inventário uma única vez.
+4. Confirme que o limite configurado de peças e o intervalo de construção são respeitados.
+5. Teste perto de paredes, árvores, objetos, terreno inclinado, regiões não válidas e zonas protegidas. A checagem é aproximada; se surgirem colocações inválidas, interrompa o teste e corrija antes de usar em servidores públicos.
+6. Confirme que sentries, charges, safezones e outros tipos excluídos não são colocados.
+7. A contagem não persiste após recriação do NPC e não há ainda persistência do assentamento.
+8. O teste não foi executado no Unity.
