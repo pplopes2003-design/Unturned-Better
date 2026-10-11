@@ -15,6 +15,7 @@ namespace SDG.Unturned
 	[DisallowMultipleComponent]
 	[RequireComponent(typeof(MobileNPCBrainDriver))]
 	[RequireComponent(typeof(MobileNPCHumanoidAim))]
+	[RequireComponent(typeof(MobileNPCHumanoidPerception))]
 	public sealed class MobileNPCHumanoidRangedCombat : MonoBehaviour
 	{
 		[SerializeField, Min(1f)] private float effectiveRange = 45f;
