@@ -145,3 +145,14 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 - [ ] Confirmar que este componente sozinho não faz pickup de drops, não salva em disco e não sincroniza inventário para clientes.
 
 **Limite:** ainda não conectar a inserção à coleta de mundo antes de existir transferência atômica server-authoritative de drops.
+
+
+## Teste adicional — coleta autoritativa de item
+- [ ] Em single-player, deixar um item registrado no mundo a poucos metros de um NPC com espaço livre.
+- [ ] Invocar `TryPickupWorldItemServer` com o `instanceID` real e confirmar que o item aparece em um slot do inventário NPC e desaparece do chão.
+- [ ] Confirmar que clientes/região não recriam o drop após a sincronização vanilla.
+- [ ] Repetir com inventário cheio, ID inexistente, NPC longe e servidor desativado: a operação deve retornar `false` sem remover o item.
+- [ ] Testar dois pedidos para o mesmo `instanceID`: somente o primeiro pode transferir.
+- [ ] Confirmar que item simulado sem `ItemData` autoritativo não é coletado.
+
+**Limite:** operação de transferência existe, mas a IA ainda não procura itens nem chama automaticamente o método ao chegar ao destino.
