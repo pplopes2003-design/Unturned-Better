@@ -27,9 +27,11 @@ namespace SDG.Unturned
 		private MobileNPCHumanoidDisposition disposition;
 		private float nextScanTime;
 		private Player visiblePlayer;
+		private MobileNPCHumanoidDisposition visibleNPC;
 		private readonly RaycastHit[] sightHits = new RaycastHit[16];
 
 		public Player VisiblePlayer => Provider.isServer ? visiblePlayer : null;
+		public MobileNPCHumanoidDisposition VisibleNPC => Provider.isServer ? visibleNPC : null;
 
 		private void Awake()
 		{
@@ -46,9 +48,10 @@ namespace SDG.Unturned
 			}
 
 			nextScanTime = Time.time + Mathf.Max(0.02f, scanInterval);
-			if (disposition != null && !disposition.CanEngagePlayers)
+			if (disposition == null || !disposition.CanEngageMobileNPCs && !disposition.CanEngagePlayers)
 			{
 				visiblePlayer = null;
+				visibleNPC = null;
 				brain.ResetServer();
 				if (motor != null)
 				{
@@ -57,18 +60,104 @@ namespace SDG.Unturned
 				return;
 			}
 
-			Player candidate = FindVisiblePlayer();
-			visiblePlayer = candidate;
-
-			if (candidate != null)
+			Player playerCandidate = disposition.CanEngagePlayers ? FindVisiblePlayer() : null;
+			MobileNPCHumanoidDisposition npcCandidate = disposition.CanEngageMobileNPCs ? FindVisibleNPC() : null;
+			if (npcCandidate != null && (playerCandidate == null
+				|| (npcCandidate.transform.position - transform.position).sqrMagnitude
+				< (playerCandidate.transform.position - transform.position).sqrMagnitude))
 			{
-				brain.ReportVisibleTarget(candidate.transform);
+				visiblePlayer = null;
+				visibleNPC = npcCandidate;
+				brain.ReportVisibleTarget(npcCandidate.transform);
+			}
+			else
+			{
+				visiblePlayer = playerCandidate;
+				visibleNPC = null;
+				if (playerCandidate != null)
+				{
+					brain.ReportVisibleTarget(playerCandidate.transform);
+				}
 			}
 
 			if (motor != null)
 			{
-				motor.SetTargetVisibleFromServer(candidate != null);
+				motor.SetTargetVisibleFromServer(visiblePlayer != null || visibleNPC != null);
 			}
+		}
+
+		private MobileNPCHumanoidDisposition FindVisibleNPC()
+		{
+			MobileNPCHumanoidDisposition[] candidates = FindObjectsOfType<MobileNPCHumanoidDisposition>();
+			MobileNPCHumanoidDisposition best = null;
+			float bestDistanceSquared = sightRange * sightRange;
+			Vector3 eye = transform.position + Vector3.up * eyeHeight;
+
+			for (int i = 0; i < candidates.Length; ++i)
+			{
+				MobileNPCHumanoidDisposition candidate = candidates[i];
+				if (candidate == null || candidate == disposition || !candidate.isActiveAndEnabled
+					|| !candidate.gameObject.activeInHierarchy || !disposition.IsHostileTo(candidate))
+				{
+					continue;
+				}
+
+				MobileNPCHumanoidVitals vitals = candidate.GetComponent<MobileNPCHumanoidVitals>();
+				if (vitals != null && vitals.IsDead)
+				{
+					continue;
+				}
+
+				Vector3 target = candidate.transform.position + Vector3.up * targetHeight;
+				Vector3 offset = target - eye;
+				float distanceSquared = offset.sqrMagnitude;
+				if (distanceSquared < 0.01f || distanceSquared > bestDistanceSquared)
+				{
+					continue;
+				}
+
+				Vector3 direction = offset.normalized;
+				if (Vector3.Angle(transform.forward, direction) > fieldOfView * 0.5f)
+				{
+					continue;
+				}
+
+				int hitCount = Physics.RaycastNonAlloc(eye, direction, sightHits, Mathf.Sqrt(distanceSquared),
+					obstructionMask, QueryTriggerInteraction.Ignore);
+				float nearestDistance = float.PositiveInfinity;
+				Transform nearestTransform = null;
+				for (int hitIndex = 0; hitIndex < hitCount; ++hitIndex)
+				{
+					Transform hitTransform = sightHits[hitIndex].transform;
+					if (hitTransform == null || hitTransform == transform || hitTransform.IsChildOf(transform))
+					{
+						continue;
+					}
+					if (sightHits[hitIndex].distance < nearestDistance)
+					{
+						nearestDistance = sightHits[hitIndex].distance;
+						nearestTransform = hitTransform;
+					}
+				}
+
+				if (nearestTransform != null)
+				{
+					MobileNPCHumanoidDisposition hitNPC = nearestTransform.GetComponent<MobileNPCHumanoidDisposition>();
+					if (hitNPC == null)
+					{
+						hitNPC = nearestTransform.GetComponentInParent<MobileNPCHumanoidDisposition>();
+					}
+					if (hitNPC != candidate)
+					{
+						continue;
+					}
+				}
+
+				best = candidate;
+				bestDistanceSquared = distanceSquared;
+			}
+
+			return best;
 		}
 
 		private Player FindVisiblePlayer()
