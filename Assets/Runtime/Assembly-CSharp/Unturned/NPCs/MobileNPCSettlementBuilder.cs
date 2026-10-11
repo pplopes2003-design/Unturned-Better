@@ -72,6 +72,12 @@ namespace SDG.Unturned
 
 		private void TryPlaceOneBarricade()
 		{
+			int selectedSlot = -1;
+			ItemBarricadeAsset selectedAsset = null;
+			int bestPriority = int.MinValue;
+
+			// Prefer a storage unit first, then defensive perimeter pieces. This makes the
+			// initial settlement more useful than consuming arbitrary buildables in slot order.
 			for (int slot = 0; slot < inventory.UsedSlots; ++slot)
 			{
 				if (!inventory.TryGetItemSnapshot(slot, out Item item) || item == null)
@@ -81,42 +87,85 @@ namespace SDG.Unturned
 				if (asset == null || !IsAllowedBuildType(asset.build) || asset.barricade == null)
 					continue;
 
-				float angle = (placedPieces * 90f) + Random.Range(-12f, 12f);
+				int priority = GetBuildPriority(asset.build);
+				if (priority <= bestPriority)
+					continue;
+
+				bestPriority = priority;
+				selectedSlot = slot;
+				selectedAsset = asset;
+			}
+
+			if (selectedSlot < 0 || selectedAsset == null)
+				return;
+
+			// Four pieces are distributed evenly around the chosen site. A constant radius
+			// avoids the uneven cross-shaped pattern from the initial prototype.
+			float baseAngle = placedPieces * 90f;
+			for (int attempt = 0; attempt < 4; ++attempt)
+			{
+				float angle = baseAngle + (attempt == 0 ? 0f : Random.Range(-18f, 18f));
 				Vector3 radial = Quaternion.Euler(0f, angle, 0f) * Vector3.forward;
-				Vector3 candidate = planner.ChosenSite + radial * (pieceSpacing * (1 + placedPieces / 2));
+				Vector3 candidate = planner.ChosenSite + radial * Mathf.Max(1f, pieceSpacing);
 				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, searchHeight, maximumDrop,
 					groundMask, maximumSlope, out Vector3 ground, out _))
 				{
 					continue;
 				}
 
-				Vector3 placePosition = ground + Vector3.up * Mathf.Clamp(asset.offset, -0.5f, 1.5f);
+				Vector3 placePosition = ground + Vector3.up * Mathf.Clamp(selectedAsset.offset, -0.5f, 1.5f);
 				if (Physics.CheckSphere(placePosition + Vector3.up * 1.4f,
 					Mathf.Clamp(clearanceRadius, 0.4f, 1.2f), obstructionMask, QueryTriggerInteraction.Ignore))
 				{
 					continue;
 				}
 
-				// Call the vanilla server deployment entry point so normal deploy hooks and
-				// replication are retained. The conservative checks above are not a full
-				// replacement for every vanilla placement rule.
-				Barricade barricade = new Barricade(asset);
+				// Use vanilla's server deployment entry point for deploy hooks and replication.
+				// This is still an approximation of vanilla preview/support/claim validation.
+				Barricade barricade = new Barricade(selectedAsset);
 				Transform placed = BarricadeManager.dropBarricade(barricade, null, placePosition, 0f, angle, 0f, 0UL, 0UL);
 				if (placed == null)
 					continue;
 
-				if (!inventory.TryTakeItemServer(slot, out _))
+				if (!inventory.TryTakeItemServer(selectedSlot, out _))
 				{
-					// The placement API succeeded but inventory changed unexpectedly. Avoid
-					// trying to salvage automatically; log the anomaly for investigation.
 					UnturnedLog.warn("[MobileNPCSettlementBuilder] Placed a barricade but could not remove its inventory item.");
 					return;
 				}
 
 				placedPieces++;
-				Debug.Log("[MobileNPCSettlementBuilder] Mobile NPC placed settlement barricade " + asset.name
+				Debug.Log("[MobileNPCSettlementBuilder] Mobile NPC placed settlement barricade " + selectedAsset.name
 					+ " (" + placedPieces + "/" + maximumPieces + ").");
 				return;
+			}
+		}
+
+		private static int GetBuildPriority(EBuild build)
+		{
+			switch (build)
+			{
+				case EBuild.STORAGE:
+					return 100;
+				case EBuild.FORTIFICATION:
+				case EBuild.BARRICADE_WALL:
+					return 80;
+				case EBuild.BARRICADE:
+					return 70;
+				case EBuild.DOOR:
+				case EBuild.GATE:
+				case EBuild.SHUTTER:
+				case EBuild.HATCH:
+					return 60;
+				case EBuild.BED:
+					return 50;
+				case EBuild.STORAGE_WALL:
+					return 40;
+				case EBuild.LADDER:
+					return 30;
+				case EBuild.GLASS:
+					return 20;
+				default:
+					return 0;
 			}
 		}
 
