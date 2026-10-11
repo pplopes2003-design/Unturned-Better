@@ -2,6 +2,7 @@
 // This file is part of the U3 SDK: https://github.com/smartlydressedgames/u3-sdk/    //
 // Please refer to the included LICENSE.txt for copyright notice and license details. //
 ////////////////////////////////////////////////////////////////////////////////////////
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace SDG.Unturned
@@ -14,6 +15,9 @@ namespace SDG.Unturned
 	/// </summary>
 	public static class MobileNPCSpawnService
 	{
+		// Reused scratch list for main-thread server spawn checks; never exposed to callers.
+		private static readonly List<MobileNPCBrainDriver> activeDriverScratch = new List<MobileNPCBrainDriver>(32);
+
 		/// <summary>
 		/// Resolves a candidate point to walkable ground on the current map. This is a
 		/// map-agnostic placement primitive for a future population director, not an
@@ -226,25 +230,27 @@ namespace SDG.Unturned
 					continue;
 				}
 
-				bool tooCloseToBatchMember = false;
-				for (int i = 0; i < spawnedInstances.Count; ++i)
+				bool tooCloseToExistingNPC = false;
+				MobileNPCRegistry.CopyActiveDrivers(activeDriverScratch);
+				for (int i = 0; i < activeDriverScratch.Count; ++i)
 				{
-					GameObject existing = spawnedInstances[i];
-					if (existing == null)
+					MobileNPCBrainDriver existingDriver = activeDriverScratch[i];
+					if (existingDriver == null || existingDriver.gameObject == null
+						|| !existingDriver.gameObject.activeInHierarchy)
 					{
 						continue;
 					}
 
-					Vector3 offset = existing.transform.position - groundPosition;
+					Vector3 offset = existingDriver.transform.position - groundPosition;
 					offset.y = 0f;
 					if (offset.sqrMagnitude < minimumSpacingSquared)
 					{
-						tooCloseToBatchMember = true;
+						tooCloseToExistingNPC = true;
 						break;
 					}
 				}
 
-				if (tooCloseToBatchMember)
+				if (tooCloseToExistingNPC)
 				{
 					error = "Candidate position was rejected because it is too close to another NPC in this batch.";
 					continue;
