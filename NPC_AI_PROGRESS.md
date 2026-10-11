@@ -230,3 +230,11 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Added server-side `DeathPresentationRequested(position, rotation, impulse)` event, emitted once during the death transition before the legacy `Died` event. This provides the death pose and lethal-hit impulse to a future presentation/network layer.
 - Important: this is an integration hook only. It does not replicate the NPC, send an RPC, or spawn a ragdoll. Unturned's generated network methods are project-level generated code; correct multiplayer ragdolls require a stable replicated NPC identity and spawn/state replication first. See the SDK networking overview: https://docs.smartlydressedgames.com/en/latest/u3-sdk/unity-project.html
 - Validation status: source reviewed; Unity compilation and multiplayer playtest not run.
+
+
+## Spawn/death lifecycle hardening (2026-10-11)
+
+- `MobileNPCSpawnService.TrySpawnServer` now initializes optional `MobileNPCHumanoidVitals` synchronously, so callers do not receive a successful spawn before server health initialization.
+- On death, `MobileNPCHumanoidVitals` disables the brain driver after publishing the final reset. Its `OnDisable` unregisters the driver from `MobileNPCRegistry`, preventing dead NPCs from remaining in active-agent enumeration.
+- Existing static NPC prefabs and code paths remain untouched.
+- Validation status: source-level review only; Unity compilation, dedicated-server test, and multiplayer client test remain pending.
