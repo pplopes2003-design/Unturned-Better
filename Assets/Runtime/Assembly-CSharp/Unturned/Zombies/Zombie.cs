@@ -1323,6 +1323,20 @@ namespace SDG.Unturned
 					seeker.CanSearch = true;
 					seeker.CanMove = true;
 				}
+				else if (isInvestigationWanderTarget)
+				{
+					// Internal search legs must be allowed to move away from the previous
+					// target; otherwise the vanilla "closer target only" rule can discard
+					// most of the investigation sweep.
+					target.position = newPosition;
+					lastHunted = Time.time;
+					lastStuck = Time.time;
+					stuckSearchTimer = 0.0f;
+					isMoving = false;
+					isStuck = false;
+					seeker.CanSearch = true;
+					seeker.CanMove = true;
+				}
 				else
 				{
 					if ((newPosition - transform.position).sqrMagnitude < (target.position - transform.position).sqrMagnitude)
