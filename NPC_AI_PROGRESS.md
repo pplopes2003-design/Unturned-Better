@@ -317,3 +317,14 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Documentada a decisão em `Docs/MobileNPC-Prefab-Recon.md`: não ativar bootstrap automático nem apontar o diretor para um prefab legado antes de criar e validar um prefab móvel dedicado.
 - Próxima tarefa: criar o prefab dedicado reutilizando apenas a hierarquia visual compatível; configurar colisão, rig/Animator, componentes de IA e sons; depois integrar o bootstrap ao evento de carregamento de mapa.
 - Validação: revisão estática via GitHub. Não houve compilação ou execução no Unity/Unturned; NPCs estáticos e zumbis não foram alterados nesta etapa.
+
+
+### 2026-10-11 — bootstrap de população e adaptação visual em runtime
+
+- Criado `MobileNPCPopulationBootstrap`, que se registra em `Level.onPostLevelLoaded` e tenta inicializar a população apenas em sessão server local, não em servidor dedicado.
+- O bootstrap carrega `Resources/Characters/NPC_Client` apenas como hierarquia visual de um template runtime; não altera o prefab original. Os colliders e o Rigidbody do modelo são desativados e os MonoBehaviours legados do modelo ficam desabilitados.
+- O template recebe os componentes de vida, percepção, movimento, disposição, mira e combate. O diretor é configurado em runtime e o serviço de spawn ativa cada cópia do template antes de inicializar seus componentes.
+- Adicionado `MobileNPCVisualAnimation`, adaptador best-effort para reutilizar clipes do componente `Animation` legado, escolhendo estados com nomes relacionados a idle/walk/run quando disponíveis.
+- Commits recentes: bootstrap `a930529b`, metadados `d7a23cc1`, animação `009d8025` / `8f42a42a`, conexão com diretor/spawn `ab5a991d` / `96897f6f` / `e5cf75d0` / `8efefb34`.
+- Limites conhecidos: o spawn é local e não replicado; a navegação não faz pathfinding; não há persistência, exploração autônoma ou construção de bases. A população inicial é centrada no jogador. A seleção de animação é heurística e sons ainda precisam de integração/validação.
+- Validação: revisão estática via GitHub; Unity não foi compilado nem executado. O teste de fumaça no Editor/Unturned é obrigatório antes de tratar o bootstrap como funcional.
