@@ -85,3 +85,9 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Agora, durante uma investigação por ponto, um novo alerta externo substitui o destino atual e reinicia os temporizadores de travamento e busca. Perseguições a jogadores não usam esse caminho; etapas internas de busca e retorno ao surgimento preservam as próprias regras.
 - Commit: https://github.com/pplopes2003-design/Unturned-Better/commit/c01d5393461b3c98102ce74784bc8517f08d3cb1
 - Pendente: validar no Unity se sons sucessivos redirecionam corretamente a IA e se o reinício de navegação funciona com o pathfinder usado no projeto.
+
+### 2026-10-11 — ignorar alertas antes de alterar zumbis mortos
+- A revisão encontrou que `alert(Vector3, bool)` atualizava o estado de investigação antes de verificar `isDead`. Alertas sonoros próximos podiam, portanto, alterar campos de uma entidade morta, embora ela retornasse sem iniciar movimento.
+- A verificação de morte foi movida para o início do método, evitando mutações desnecessárias e deixando explícito que entidades mortas não recebem novas ordens de investigação.
+- Commit: https://github.com/pplopes2003-design/Unturned-Better/commit/8041277bbc959b53fbdc53087e9e46f23bf32a9e
+- Pendente: compilação e teste no Unity/Unturned; confirmar que não há outro fluxo que dependa de chamar `alert` em zumbis mortos.
