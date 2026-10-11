@@ -328,3 +328,11 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Commits recentes: bootstrap `a930529b`, metadados `d7a23cc1`, animação `009d8025` / `8f42a42a`, conexão com diretor/spawn `ab5a991d` / `96897f6f` / `e5cf75d0` / `8efefb34`.
 - Limites conhecidos: o spawn é local e não replicado; a navegação não faz pathfinding; não há persistência, exploração autônoma ou construção de bases. A população inicial é centrada no jogador. A seleção de animação é heurística e sons ainda precisam de integração/validação.
 - Validação: revisão estática via GitHub; Unity não foi compilado nem executado. O teste de fumaça no Editor/Unturned é obrigatório antes de tratar o bootstrap como funcional.
+
+### 2026-10-11 — primeiros waypoints de exploração autônoma
+- `MobileNPCHumanoidMotor` agora escolhe pontos de caminhada aleatórios dentro de um raio configurável da posição inicial quando o cérebro não tem destino de combate, investigação ou objetivo tático.
+- Os candidatos são limitados a oito tentativas por escolha e usam `MobileNPCSpawnService.TryFindSafeGroundPosition` para validar superfície, inclinação e limites/clip volumes do mapa. Após chegar, o NPC faz uma pausa aleatória antes de escolher outro ponto; falhas também aplicam espera, evitando busca contínua a cada frame.
+- Destinos do cérebro/táticas sempre têm prioridade e cancelam o waypoint de exploração. O comportamento é servidor-local e não modifica NPCs estáticos nem zumbis.
+- Limite importante: isto é navegação por direção direta entre waypoints, **não pathfinding**. Muros, edifícios e obstáculos podem bloquear o trajeto; o terreno/máscara de colisão padrão ainda precisa ser verificado em mapas reais. Construção de bases, coleta de recursos e persistência continuam pendentes.
+- Guia de smoke test atualizado para verificar a exploração e as pausas.
+- Validação feita nesta etapa: revisão estática dos símbolos usados e atualização de código/documentação no GitHub. **Não houve compilação Unity nem execução no jogo**, então a funcionalidade ainda precisa de teste real.
