@@ -127,23 +127,7 @@ namespace SDG.Unturned
 					continue;
 				}
 
-				int hitCount = Physics.RaycastNonAlloc(eye, direction, sightHits, Mathf.Sqrt(distanceSquared),
-					obstructionMask, QueryTriggerInteraction.Ignore);
-				float nearestDistance = float.PositiveInfinity;
-				Transform nearestTransform = null;
-				for (int hitIndex = 0; hitIndex < hitCount; ++hitIndex)
-				{
-					Transform hitTransform = sightHits[hitIndex].transform;
-					if (hitTransform == null || hitTransform == transform || hitTransform.IsChildOf(transform))
-					{
-						continue;
-					}
-					if (sightHits[hitIndex].distance < nearestDistance)
-					{
-						nearestDistance = sightHits[hitIndex].distance;
-						nearestTransform = hitTransform;
-					}
-				}
+				Transform nearestTransform = FindNearestSightTransform(eye, direction, Mathf.Sqrt(distanceSquared));
 
 				// Fail closed when the ray did not confirm a collider before the target.
 				// Treating an empty result as visible can make agents shoot through walls
@@ -204,25 +188,7 @@ namespace SDG.Unturned
 					continue;
 				}
 
-				int hitCount = Physics.RaycastNonAlloc(eye, direction, sightHits, Mathf.Sqrt(distanceSquared),
-					obstructionMask, QueryTriggerInteraction.Ignore);
-				float nearestDistance = float.PositiveInfinity;
-				Transform nearestTransform = null;
-
-				for (int hitIndex = 0; hitIndex < hitCount; ++hitIndex)
-				{
-					Transform hitTransform = sightHits[hitIndex].transform;
-					if (hitTransform == null || hitTransform == transform || hitTransform.IsChildOf(transform))
-					{
-						continue;
-					}
-
-					if (sightHits[hitIndex].distance < nearestDistance)
-					{
-						nearestDistance = sightHits[hitIndex].distance;
-						nearestTransform = hitTransform;
-					}
-				}
+				Transform nearestTransform = FindNearestSightTransform(eye, direction, Mathf.Sqrt(distanceSquared));
 
 				// Require positive line-of-sight evidence instead of accepting a target
 				// when the ray query returns no colliders.
@@ -251,5 +217,53 @@ namespace SDG.Unturned
 
 			return best;
 		}
+		/// <summary>
+		/// Returns the nearest collider along the sight ray, excluding this NPC's own rig.
+		/// The allocating fallback is used only when the reusable hit buffer saturates,
+		/// because a full NonAlloc buffer does not guarantee it contains the nearest hit.
+		/// </summary>
+		private Transform FindNearestSightTransform(Vector3 origin, Vector3 direction, float distance)
+		{
+			int hitCount = Physics.RaycastNonAlloc(origin, direction, sightHits, distance,
+				obstructionMask, QueryTriggerInteraction.Ignore);
+			float nearestDistance = float.PositiveInfinity;
+			Transform nearestTransform = null;
+
+			if (hitCount == sightHits.Length)
+			{
+				RaycastHit[] overflowHits = Physics.RaycastAll(origin, direction, distance,
+					obstructionMask, QueryTriggerInteraction.Ignore);
+				for (int i = 0; i < overflowHits.Length; ++i)
+				{
+					Transform hitTransform = overflowHits[i].transform;
+					if (hitTransform == null || hitTransform == transform || hitTransform.IsChildOf(transform))
+					{
+						continue;
+					}
+					if (overflowHits[i].distance < nearestDistance)
+					{
+						nearestDistance = overflowHits[i].distance;
+						nearestTransform = hitTransform;
+					}
+				}
+				return nearestTransform;
+			}
+
+			for (int i = 0; i < hitCount; ++i)
+			{
+				Transform hitTransform = sightHits[i].transform;
+				if (hitTransform == null || hitTransform == transform || hitTransform.IsChildOf(transform))
+				{
+					continue;
+				}
+				if (sightHits[i].distance < nearestDistance)
+				{
+					nearestDistance = sightHits[i].distance;
+					nearestTransform = hitTransform;
+				}
+			}
+			return nearestTransform;
+		}
+
 	}
 }
