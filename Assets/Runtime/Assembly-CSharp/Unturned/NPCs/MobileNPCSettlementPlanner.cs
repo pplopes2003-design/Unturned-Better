@@ -52,11 +52,29 @@ namespace SDG.Unturned
 
 		private void Update()
 		{
-			if (!Provider.isServer || !Level.isLoaded || siteChosen || driver == null || motor == null || inventory == null
-				|| !motor.IsInitialized || Time.time < nextAttemptTime)
+			if (!Provider.isServer || !Level.isLoaded || driver == null || motor == null || inventory == null
+				|| !motor.IsInitialized)
 			{
 				return;
 			}
+
+			MobileNPCGroupMember groupMember = GetComponent<MobileNPCGroupMember>();
+			if (groupMember != null)
+			{
+				// Only the elected living leader chooses the group's settlement site.
+				// If a previous leader died, the successor reuses the existing anchor.
+				if (!groupMember.CanPlanSettlement)
+					return;
+				if (groupMember.HasSettlement)
+				{
+					ChosenSite = groupMember.GroupAnchor;
+					siteChosen = true;
+					return;
+				}
+			}
+
+			if (siteChosen || Time.time < nextAttemptTime)
+				return;
 
 			nextAttemptTime = Time.time + Mathf.Max(1f, retryInterval);
 			if (driver.Target != null || driver.CurrentGoal != MobileNPCTactics.Goal.None || !HasConstructionSupplies())
