@@ -317,3 +317,16 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 7. Faça um teste com mais de quatro NPCs próximos e confirme que o sistema cria outro grupo em vez de exceder o limite. Não exija que o grupo seja persistido após reiniciar/trocar de mapa: essa função ainda não existe.
 
 **O código foi revisado estaticamente; os passos acima ainda precisam ser executados na dev build.**
+
+
+## Reposição que tenta preservar o grupo original (atualização)
+
+1. Espere até um grupo ter pelo menos dois NPCs vivos e anote o ID do grupo nos logs.
+2. Mate um membro e confirme que a reposição fica agendada para 60 segundos depois da morte, independentemente da remoção do corpo aos 30 segundos.
+3. Não mate os sobreviventes. Depois do prazo, aguarde também o próximo ciclo de spawn (até aproximadamente 18 segundos, além de tentativas de terreno seguro).
+4. Confirme nos logs que o novo NPC tenta reentrar no ID original e que o total de membros não passa de quatro. Se conseguir entrar, confira que recebe a âncora compartilhada do grupo.
+5. Em outro teste, mate todos os membros do grupo antes de vencer o prazo. O log deve registrar dissolução; a reposição não pode reativar o ID dissolvido.
+6. Se o grupo ficar cheio, mudar de função/facção ou for dissolvido antes do respawn, o novo NPC pode permanecer no grupo atribuído pelo spawn normal. Não considerar persistência entre sessões: os registros continuam em memória.
+7. Repetir com duas mortes em momentos diferentes: cada reposição deve respeitar seu próprio relógio e a tentativa malsucedida de spawn não deve consumir a reposição pendente.
+
+**Ainda não executado no Unity/Unturned; validar em dev build antes de considerar concluído.**
