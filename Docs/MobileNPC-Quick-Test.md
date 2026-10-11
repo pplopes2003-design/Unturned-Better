@@ -219,3 +219,12 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 3. Compare uma arma com espalhamento baixo e outra com espalhamento alto à mesma habilidade do NPC; a arma mais dispersa deve produzir maior variabilidade, sem remover o erro humano.
 4. Confirme que zumbis investigam disparos dentro do alcance efetivo calculado para a arma.
 5. Estes testes ainda não foram executados no Unity; registrar resultados antes de marcar como validados.
+
+
+## Persistência de munição entre trocas de arma
+
+1. Dê ao NPC duas armas com estados de item válidos e munições compatíveis.
+2. Faça a primeira arma disparar algumas vezes; force a troca para a segunda arma e depois volte à primeira.
+3. Confirme que a primeira arma mantém a quantidade simulada restante, sem restaurar munição já disparada.
+4. Faça uma recarga e confira que o ID do carregador e a quantidade simulada permanecem no estado do item após trocar de arma.
+5. O teste depende de estado de arma com pelo menos 11 bytes e permanece pendente de execução no Unity.
