@@ -419,3 +419,12 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - `MobileNPCInventory.TryConsumeFirstItemOfType` remove o item do armazenamento do NPC e devolve uma cópia defensiva.
 - Limites deliberados: a arma não é equipada/renderizada como arma vanilla, o tipo de carregador não é comparado com a arma, capacidade/dano/alcance ainda vêm das configurações do componente e a munição não é lida dos dados nativos do carregador. O combate segue hitscan protótipo, não `UseableGun`.
 - Sem compilação Unity ou teste em jogo; validar especialmente consumo de carregadores e comportamento de NPC sem arma.
+
+
+## Seleção de arma e compatibilidade de carregador
+- O inventário seleciona a melhor arma armazenada por uma pontuação heurística baseada em alcance vanilla, atraso de tiro e condição do item; não se trata de DPS completo nem de arma visualmente equipada.
+- O estado vanilla da arma é consultado para reconhecer carregador já inserido e munição inicial, quando o estado tem o formato esperado e o carregador é compatível.
+- Ao recarregar, o NPC procura um item `ItemMagazineAsset` cujos calibres intersectem `ItemGunAsset.magazineCalibers`; carregadores incompatíveis ficam no inventário.
+- O carregador compatível é consumido ao iniciar a recarga; a quantidade de munição é simulada a partir de `Item.amount`, limitada pela capacidade configurada e pela capacidade do asset.
+- Limites: o componente ainda não escreve a munição restante de volta no estado do item arma, não instancia modelo de arma nem usa `UseableGun`; dano, alcance efetivo e cadência do hitscan continuam parcialmente configurados no componente. Validar o significado de `Item.amount` para magazines reais no runtime antes de considerar a lógica final.
+- Sem build ou execução Unity neste ambiente.
