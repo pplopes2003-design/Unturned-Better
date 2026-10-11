@@ -17,6 +17,7 @@ namespace SDG.Unturned
 	{
 		// Reused scratch list for main-thread server spawn checks; never exposed to callers.
 		private static readonly List<MobileNPCBrainDriver> activeDriverScratch = new List<MobileNPCBrainDriver>(32);
+		private static readonly Collider[] spawnOverlapScratch = new Collider[32];
 
 		/// <summary>
 		/// Resolves a candidate point to walkable ground on the current map. This is a
@@ -76,6 +77,49 @@ namespace SDG.Unturned
 		private static bool IsFinite(float value)
 		{
 			return !float.IsNaN(value) && !float.IsInfinity(value);
+		}
+
+		/// <summary>
+		/// Rejects candidate locations whose humanoid capsule intersects existing colliders.
+		/// This is an additional placement guard; it does not replace map bounds or nav checks.
+		/// </summary>
+		private static bool IsSpawnCapsuleClear(CharacterController prefabController, Vector3 position, out string error)
+		{
+			error = null;
+			if (prefabController == null)
+			{
+				error = "A root CharacterController is required for spawn occupancy checks.";
+				return false;
+			}
+
+			float radius = Mathf.Max(0.05f, prefabController.radius);
+			float height = Mathf.Max(radius * 2f, prefabController.height);
+			Vector3 center = position + prefabController.center;
+			float halfSegment = Mathf.Max(0f, height * 0.5f - radius);
+			Vector3 bottom = center - Vector3.up * halfSegment;
+			Vector3 top = center + Vector3.up * halfSegment;
+
+			int hitCount = Physics.OverlapCapsuleNonAlloc(bottom, top, radius, spawnOverlapScratch,
+				~0, QueryTriggerInteraction.Ignore);
+			if (hitCount == spawnOverlapScratch.Length)
+			{
+				// Saturation can hide colliders, so prefer a rare allocation over accepting
+				// a potentially occupied spawn point.
+				Collider[] overflow = Physics.OverlapCapsule(bottom, top, radius, ~0, QueryTriggerInteraction.Ignore);
+				if (overflow.Length > 0)
+				{
+					error = "Candidate position intersects an existing collider.";
+					return false;
+				}
+				return true;
+			}
+
+			if (hitCount > 0)
+			{
+				error = "Candidate position intersects an existing collider.";
+				return false;
+			}
+			return true;
 		}
 		public static bool TrySpawnServer(GameObject prefab, Vector3 position, Quaternion rotation,
 			MobileNPCHumanoidDisposition.Role role, out GameObject instance, out string error)
@@ -227,6 +271,12 @@ namespace SDG.Unturned
 					groundMask, maximumSlopeAngle, out Vector3 groundPosition, out string groundError))
 				{
 					error = groundError;
+					continue;
+				}
+
+				if (!IsSpawnCapsuleClear(prefabController, groundPosition, out string occupancyError))
+				{
+					error = occupancyError;
 					continue;
 				}
 
