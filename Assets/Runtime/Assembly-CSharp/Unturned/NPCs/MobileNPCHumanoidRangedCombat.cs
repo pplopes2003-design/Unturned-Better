@@ -16,6 +16,7 @@ namespace SDG.Unturned
 	[RequireComponent(typeof(MobileNPCBrainDriver))]
 	[RequireComponent(typeof(MobileNPCHumanoidAim))]
 	[RequireComponent(typeof(MobileNPCHumanoidPerception))]
+	[RequireComponent(typeof(MobileNPCInventory))]
 	public sealed class MobileNPCHumanoidRangedCombat : MonoBehaviour
 	{
 		[SerializeField, Min(1f)] private float effectiveRange = 45f;
@@ -36,6 +37,7 @@ namespace SDG.Unturned
 		private MobileNPCBrainDriver brain;
 		private MobileNPCHumanoidAim aim;
 		private MobileNPCHumanoidPerception perception;
+		private MobileNPCInventory inventory;
 		private int roundsRemaining;
 		private float nextShotTime;
 		private float reloadFinishedAt;
@@ -60,13 +62,14 @@ namespace SDG.Unturned
 			brain = GetComponent<MobileNPCBrainDriver>();
 			aim = GetComponent<MobileNPCHumanoidAim>();
 			perception = GetComponent<MobileNPCHumanoidPerception>();
-			roundsRemaining = Mathf.Max(1, magazineCapacity);
+			inventory = GetComponent<MobileNPCInventory>();
+			roundsRemaining = 0;
 			shotsRemainingInBurst = RollBurstSize();
 		}
 
 		private void Update()
 		{
-			if (!Provider.isServer || brain == null || aim == null)
+			if (!Provider.isServer || brain == null || aim == null || inventory == null)
 			{
 				return;
 			}
@@ -83,6 +86,12 @@ namespace SDG.Unturned
 				shotsRemainingInBurst = RollBurstSize();
 				waitingForBurstPause = false;
 				ReloadFinished?.Invoke();
+			}
+
+			// The prototype only fires while it owns a gun item. It does not create a free weapon.
+			if (inventory.CountItemType(EItemType.GUN) == 0)
+			{
+				return;
 			}
 
 			if (brain.CurrentState != MobileNPCBrain.State.Pursuing || Time.time < nextShotTime)
@@ -247,8 +256,16 @@ namespace SDG.Unturned
 
 		private void BeginReload()
 		{
-			if (reloadPending)
+			if (reloadPending || inventory == null || inventory.CountItemType(EItemType.GUN) == 0)
 			{
+				return;
+			}
+
+			// A reload consumes one stored magazine. Compatibility with the selected gun is
+			// not yet modeled, so this remains a prototype resource gate rather than native ballistics.
+			if (!inventory.TryConsumeFirstItemOfType(EItemType.MAGAZINE, out Item consumedMagazine))
+			{
+				roundsRemaining = 0;
 				return;
 			}
 
