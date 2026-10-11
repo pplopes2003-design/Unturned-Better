@@ -242,7 +242,7 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 
 ## Planejamento de local de assentamento (teste manual pendente)
 
-1. Dê a um NPC móvel pelo menos um item da categoria `BARRICADE`, `STORAGE` ou `STRUCTURE` no inventário de teste.
+1. Dê a um NPC móvel pelo menos um item da categoria `BARRICADE`, `STORAGE` ou `STRUCTURE` no inventário de teste. Também deixe alguns desses itens como drops próximos para testar a prioridade de coleta.
 2. Deixe-o sem alvo e sem objetivo tático; após o atraso configurado, confira se ele escolhe uma posição de terreno seguro próxima e atualiza sua âncora de retorno.
 3. Teste terreno plano, declive forte, locais próximos a paredes/objetos e locais sem espaço suficiente. A seleção deve rejeitar pontos inválidos e tentar novamente mais tarde.
 4. Sem itens de construção, confirme que não escolhe um novo local.
