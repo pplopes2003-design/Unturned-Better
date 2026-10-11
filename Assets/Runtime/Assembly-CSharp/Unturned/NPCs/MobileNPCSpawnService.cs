@@ -91,6 +91,27 @@ namespace SDG.Unturned
 				return false;
 			}
 
+			if (!IsFinite(position.x) || !IsFinite(position.y) || !IsFinite(position.z))
+			{
+				error = "The requested NPC position must contain finite coordinates.";
+				return false;
+			}
+
+			if (!IsFinite(rotation.x) || !IsFinite(rotation.y) || !IsFinite(rotation.z) || !IsFinite(rotation.w)
+				|| rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z + rotation.w * rotation.w < 0.0001f)
+			{
+				error = "The requested NPC rotation must be a finite, non-zero quaternion.";
+				return false;
+			}
+
+			if (role != MobileNPCHumanoidDisposition.Role.Hostile
+				&& role != MobileNPCHumanoidDisposition.Role.Friendly
+				&& role != MobileNPCHumanoidDisposition.Role.Neutral)
+			{
+				error = "The requested mobile NPC faction role is invalid.";
+				return false;
+			}
+
 			if (!Level.checkSafeIncludingClipVolumes(position))
 			{
 				error = "The requested NPC position is outside safe level bounds or inside a player clip volume.";
