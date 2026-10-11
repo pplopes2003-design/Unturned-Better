@@ -79,27 +79,37 @@ namespace SDG.Unturned
                 return;
             }
 
-            // Spawn outside immediate combat range. The batch service randomizes candidates
-            // inside this small region and validates map bounds, slope, occupancy and spacing.
-            float angle = Random.Range(0f, Mathf.PI * 2f);
-            Vector3 regionCenter = player.transform.position
-                + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * Mathf.Max(10f, spawnDistance);
+            // A single failed sector should not stall population on a steep or obstructed map.
+            // Try a bounded number of different sectors per interval; every candidate still passes
+            // the spawn service's ground, slope, occupancy, bounds and spacing checks.
+            int spawnedCount = 0;
+            string error = null;
+            int sectorAttempts = Mathf.Clamp(Mathf.Min(4, maximumAttemptsPerSpawn), 1, 4);
+            for (int sector = 0; sector < sectorAttempts && spawnedCount == 0; ++sector)
+            {
+                float angle = Random.Range(0f, Mathf.PI * 2f);
+                float distance = Random.Range(
+                    Mathf.Max(10f, spawnDistance * 0.85f),
+                    Mathf.Max(12f, spawnDistance * 1.45f));
+                Vector3 regionCenter = player.transform.position
+                    + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * distance;
 
-            spawnedThisAttempt.Clear();
-            MobileNPCSpawnService.TrySpawnBatchAroundServer(
-                mobileNpcPrefab,
-                regionCenter,
-                Mathf.Max(1f, spawnRegionRadius),
-                1,
-                Mathf.Clamp(maximumAttemptsPerSpawn, 1, 1000),
-                Mathf.Max(1f, groundSearchHeight),
-                Mathf.Max(0f, maximumDropDistance),
-                groundMask,
-                maximumSlopeAngle,
-                role,
-                spawnedThisAttempt,
-                out int spawnedCount,
-                out string error);
+                spawnedThisAttempt.Clear();
+                MobileNPCSpawnService.TrySpawnBatchAroundServer(
+                    mobileNpcPrefab,
+                    regionCenter,
+                    Mathf.Max(1f, spawnRegionRadius),
+                    1,
+                    Mathf.Clamp(maximumAttemptsPerSpawn / sectorAttempts, 1, 1000),
+                    Mathf.Max(1f, groundSearchHeight),
+                    Mathf.Max(0f, maximumDropDistance),
+                    groundMask,
+                    maximumSlopeAngle,
+                    role,
+                    spawnedThisAttempt,
+                    out spawnedCount,
+                    out error);
+            }
 
             if (spawnedCount > 0)
             {
@@ -121,8 +131,8 @@ namespace SDG.Unturned
             }
             else if (!string.IsNullOrEmpty(error))
             {
-                // Skip this region until the next interval; never retry every frame.
-                Debug.LogWarning("[MobileNPCPopulationDirector] No safe spawn found: " + error, this);
+                // Retry only after the normal interval; never run spawn searches every frame.
+                Debug.LogWarning("[MobileNPCPopulationDirector] No safe spawn found after trying multiple sectors: " + error, this);
             }
         }
 
