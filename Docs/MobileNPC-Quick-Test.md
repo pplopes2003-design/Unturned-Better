@@ -115,3 +115,13 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 - [ ] Se todos os candidatos estiverem visíveis, confirmar que não há aparição seguida de destruição e que o diretor aguarda o próximo intervalo.
 
 **Limite:** a ocultação é uma heurística de raio/collider, não uma avaliação da câmera nem do sistema visual completo. Ainda sem compilação Unity ou execução no jogo.
+
+
+## Teste adicional — âncora de território doméstico
+- [ ] Depois da inicialização, confirmar que `HomePosition` corresponde à posição de spawn e `IsWithinHomeTerritory` retorna verdadeiro.
+- [ ] Chamar `TrySetHomePositionServer` com uma posição em terreno seguro: a âncora muda e o waypoint de roaming antigo é descartado.
+- [ ] Fornecer uma posição sobre terreno íngreme/sem chão válido: a mudança deve falhar e preservar a âncora anterior.
+- [ ] Confirmar que novos waypoints de exploração permanecem dentro do raio doméstico configurado.
+- [ ] Confirmar que o recurso não é tratado como persistência: ao reiniciar/recriar a entidade, a âncora volta a ser capturada do spawn.
+
+**Limite:** ainda não há construção, reivindicação de território, salvamento ou coleta real de itens.
