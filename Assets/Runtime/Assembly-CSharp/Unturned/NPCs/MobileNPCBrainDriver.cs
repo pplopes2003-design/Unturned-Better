@@ -76,6 +76,18 @@ namespace SDG.Unturned
 			PublishDecisionIfChanged();
 		}
 
+		/// <summary>Update server-authoritative health without implying a new damage event.</summary>
+		public void ReportHealth(float currentHealth, float maximumHealth)
+		{
+			if (!CanAcceptServerInput)
+			{
+				return;
+			}
+
+			tactics.ReportHealth(currentHealth, maximumHealth);
+			PublishDecisionIfChanged();
+		}
+
 		/// <summary>Call only after server damage handling has updated health.</summary>
 		public void ReportDamage(float currentHealth, float maximumHealth)
 		{
