@@ -1241,6 +1241,11 @@ namespace SDG.Unturned
 
 		public void alert(Vector3 newPosition, bool isStartling)
 		{
+			if (isDead)
+			{
+				return;
+			}
+
 			if (isInvestigationIdle)
 			{
 				isInvestigationIdle = false;
@@ -1255,11 +1260,6 @@ namespace SDG.Unturned
 				investigationCenter = newPosition;
 				investigationUntil = Time.time + 55.0f;
 				investigationWandersRemaining = INVESTIGATION_MAX_WANDERS;
-			}
-
-			if (isDead)
-			{
-				return;
 			}
 
 			if (player == null)
