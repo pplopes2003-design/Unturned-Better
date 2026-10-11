@@ -437,3 +437,13 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - O bootstrap anexa o adaptador à entidade móvel, sem alterar NPCs estáticos ou prefabs vanilla.
 - O adaptador também tenta anexar o modelo vanilla da arma ao gancho ósseo correspondente (mão direita/esquerda ou coluna), atualizando-o quando a arma selecionada muda.
 - Limitações conhecidas: não foram implementadas animações específicas de disparo/recarga nem replicação de eventos para clientes multiplayer. A criação do modelo e a apresentação sonora precisam de teste em jogo; não há compilação Unity disponível neste ambiente.
+
+
+## Ajuste do ritmo de tiro e precisão por arma (rodada atual)
+
+- O intervalo entre disparos agora usa `ItemGunAsset.CalculateRoundsPerSecond()` quando existe uma arma selecionada, preservando a variação humana e o fallback configurado no componente.
+- A duração da recarga usa `ItemGunAsset.reloadTime` quando positiva, com fallback configurável.
+- O espalhamento de tiro passa a somar o ângulo base do asset da arma ao perfil humanoizado do NPC (tempo de reação, movimento, supressão e recuperação de precisão).
+- O alcance usado para alertar zumbis agora acompanha o alcance efetivo calculado para a arma.
+- O overload anterior de `TryGetShotDirection` foi preservado para compatibilidade com outros chamadores.
+- Validação estática apenas; os valores e a resposta em combate precisam de teste dentro do Unity.
