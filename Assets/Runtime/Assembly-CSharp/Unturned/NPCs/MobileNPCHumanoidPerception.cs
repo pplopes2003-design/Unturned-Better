@@ -2,6 +2,7 @@
 // This file is part of the U3 SDK: https://github.com/smartlydressedgames/u3-sdk/    //
 // Please refer to the included LICENSE.txt for copyright notice and license details. //
 ////////////////////////////////////////////////////////////////////////////////////////
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace SDG.Unturned
@@ -29,6 +30,9 @@ namespace SDG.Unturned
 		private Player visiblePlayer;
 		private MobileNPCHumanoidDisposition visibleNPC;
 		private readonly RaycastHit[] sightHits = new RaycastHit[16];
+		// Shared scratch storage avoids FindObjectsOfType allocations for every NPC scan.
+		// Unity gameplay updates run on the main thread, so this list is not concurrently accessed.
+		private static readonly List<MobileNPCBrainDriver> candidateDrivers = new List<MobileNPCBrainDriver>(32);
 
 		public Player VisiblePlayer => Provider.isServer ? visiblePlayer : null;
 		public MobileNPCHumanoidDisposition VisibleNPC => Provider.isServer ? visibleNPC : null;
@@ -88,14 +92,15 @@ namespace SDG.Unturned
 
 		private MobileNPCHumanoidDisposition FindVisibleNPC()
 		{
-			MobileNPCHumanoidDisposition[] candidates = FindObjectsOfType<MobileNPCHumanoidDisposition>();
+			MobileNPCRegistry.CopyActiveDrivers(candidateDrivers);
 			MobileNPCHumanoidDisposition best = null;
 			float bestDistanceSquared = sightRange * sightRange;
 			Vector3 eye = transform.position + Vector3.up * eyeHeight;
 
-			for (int i = 0; i < candidates.Length; ++i)
+			for (int i = 0; i < candidateDrivers.Count; ++i)
 			{
-				MobileNPCHumanoidDisposition candidate = candidates[i];
+				MobileNPCBrainDriver candidateDriver = candidateDrivers[i];
+				MobileNPCHumanoidDisposition candidate = candidateDriver != null ? candidateDriver.GetComponent<MobileNPCHumanoidDisposition>() : null;
 				if (candidate == null || candidate == disposition || !candidate.isActiveAndEnabled
 					|| !candidate.gameObject.activeInHierarchy || !disposition.IsHostileTo(candidate))
 				{
