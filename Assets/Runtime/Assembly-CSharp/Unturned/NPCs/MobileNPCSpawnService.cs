@@ -190,6 +190,12 @@ namespace SDG.Unturned
 			}
 
 			GameObject spawned = Object.Instantiate(prefab, position, rotation);
+			// Runtime bootstrap templates stay inactive so they never appear in the world.
+			// Activate the clone before initialization so Awake and OnEnable run normally.
+			if (!spawned.activeSelf)
+			{
+				spawned.SetActive(true);
+			}
 			MobileNPCHumanoidDisposition disposition = spawned.GetComponent<MobileNPCHumanoidDisposition>();
 			MobileNPCHumanoidMotor motor = spawned.GetComponent<MobileNPCHumanoidMotor>();
 			MobileNPCHumanoidVitals vitals = spawned.GetComponent<MobileNPCHumanoidVitals>();
