@@ -271,3 +271,22 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 5. Verifique se o NPC não consome item quando `dropBarricade` falha e se consome apenas uma unidade quando a colocação é confirmada.
 6. Repetir em terreno irregular e próximo de regiões protegidas; interromper se o jogo aceitar colocações inválidas.
 7. Ainda não há snapping, validação integral de claim/suporte, interação do NPC com o inventário do armazenamento, ou persistência das peças.
+
+
+## Padrão fixo de posto (teste manual pendente)
+
+1. Em ambiente de teste, forneça ao NPC uma unidade de armazenamento e pelo menos quatro peças de barricada/fortificação permitidas.
+2. Confirme que ele tenta colocar o armazenamento no centro do local escolhido antes do perímetro.
+3. Confirme que as peças defensivas são tentadas em posições cardeais com raio semelhante, sem inventar posições aleatórias quando um ponto está bloqueado.
+4. Sem armazenamento, confirme que o NPC só tenta peças de perímetro permitidas. Itens não permitidos (porta, cama, escada, vidro, sentry, explosivo ou estrutura) não devem ser consumidos pelo construtor.
+5. Verifique que um item só é removido do inventário quando a colocação retorna sucesso. Inspecione especialmente pontos próximos de paredes, terreno irregular e zonas protegidas.
+6. Este padrão ainda não tem persistência: recriar a instância reinicia a contagem e não restaura a base.
+
+## Morte, reposição e identidade de grupo (comportamento atual)
+
+1. Mate um NPC e aguarde a limpeza do corpo e a reposição da população.
+2. Confirme que a nova instância é individual e não herda automaticamente o grupo, a base ou o inventário do NPC morto.
+3. Registre se o planner escolhe um novo ponto; isso é a limitação atual, não um comportamento de grupo esperado.
+4. Não considerar continuidade validada até existir registro persistente de assentamento/grupo e atribuição explícita do novo NPC a esse registro.
+
+**Não executado no Unity/Unturned; roteiro para validação posterior.**
