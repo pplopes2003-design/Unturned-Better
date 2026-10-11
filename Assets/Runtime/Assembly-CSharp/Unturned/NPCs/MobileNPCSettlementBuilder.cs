@@ -1,15 +1,15 @@
 ////////////////////////////////////////////////////////////////////////////////////////
 // This file is part of the U3 SDK: https://github.com/smartlydressedgames/u3-sdk/    //
-// Please refer to the included LICENSE.txt for copyright notice and license details. //
+// Please refer to the included LICENSE.txt file for copyright notice and license details. //
 ////////////////////////////////////////////////////////////////////////////////////////
 using UnityEngine;
 
 namespace SDG.Unturned
 {
 	/// <summary>
-	/// Server-authoritative first construction step for mobile settlements. Places safe
-	/// fortification/storage-style barricades from the NPC's inventory. This intentionally
-	/// avoids structures requiring pillars and dangerous placeables such as charges/sentries.
+	/// Server-authoritative, deliberately constrained settlement pattern:
+	/// one central storage barricade when available, followed by up to four
+	/// defensive pieces on cardinal points. This is not free-form construction.
 	/// </summary>
 	[DisallowMultipleComponent]
 	[RequireComponent(typeof(MobileNPCSettlementPlanner))]
@@ -20,8 +20,8 @@ namespace SDG.Unturned
 	{
 		[SerializeField, Min(1f)] private float initialBuildDelay = 12f;
 		[SerializeField, Min(2f)] private float buildInterval = 18f;
-		[SerializeField, Range(1, 8)] private int maximumPieces = 4;
-		[SerializeField, Min(1f)] private float pieceSpacing = 2.4f;
+		[SerializeField, Range(1, 5)] private int maximumPieces = 5;
+		[SerializeField, Min(2f)] private float perimeterRadius = 3f;
 		[SerializeField, Min(0.5f)] private float clearanceRadius = 0.8f;
 		[SerializeField, Min(1f)] private float searchHeight = 40f;
 		[SerializeField, Min(0f)] private float maximumDrop = 45f;
@@ -35,6 +35,8 @@ namespace SDG.Unturned
 		private MobileNPCBrainDriver driver;
 		private float nextBuildTime;
 		private int placedPieces;
+		private bool centralStoragePlaced;
+		private int perimeterPiecesPlaced;
 
 		public int PlacedPieces => placedPieces;
 
@@ -55,139 +57,129 @@ namespace SDG.Unturned
 		{
 			if (!Provider.isServer || !Level.isLoaded || planner == null || !planner.HasChosenSite
 				|| inventory == null || motor == null || driver == null || !motor.IsInitialized
-				|| placedPieces >= Mathf.Clamp(maximumPieces, 1, 8) || Time.time < nextBuildTime)
-			{
+				|| placedPieces >= Mathf.Clamp(maximumPieces, 1, 5) || Time.time < nextBuildTime)
 				return;
-			}
 
 			nextBuildTime = Time.time + Mathf.Max(2f, buildInterval);
 			if (driver.Target != null || driver.CurrentGoal != MobileNPCTactics.Goal.None
 				|| Vector3.Distance(motor.transform.position, planner.ChosenSite) > motor.HomeTerritoryRadius)
+				return;
+
+			TryPlaceNextPatternPiece();
+		}
+
+		private void TryPlaceNextPatternPiece()
+		{
+			// Pattern: central storage, then four cardinal defensive positions.
+			// If no storage item exists, use only the perimeter pattern.
+			bool placeStorage = !centralStoragePlaced && HasStorageBuildable();
+			int selectedSlot;
+			ItemBarricadeAsset selectedAsset;
+			if (!TrySelectBuildable(placeStorage, out selectedSlot, out selectedAsset))
+				return;
+
+			Vector3 candidate;
+			float angle;
+			if (placeStorage)
 			{
+				candidate = planner.ChosenSite;
+				angle = 0f;
+			}
+			else
+			{
+				if (perimeterPiecesPlaced >= 4)
+					return;
+				angle = perimeterPiecesPlaced * 90f;
+				Vector3 radial = Quaternion.Euler(0f, angle, 0f) * Vector3.forward;
+				candidate = planner.ChosenSite + radial * Mathf.Max(2f, perimeterRadius);
+			}
+
+			// A blocked pattern point is retried next interval instead of inventing
+			// a completely new base layout.
+			if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, searchHeight, maximumDrop,
+				groundMask, maximumSlope, out Vector3 ground, out _))
+				return;
+
+			Vector3 placePosition = ground + Vector3.up * Mathf.Clamp(selectedAsset.offset, -0.5f, 1.5f);
+			if (Physics.CheckSphere(placePosition + Vector3.up * 1.4f,
+				Mathf.Clamp(clearanceRadius, 0.4f, 1.2f), obstructionMask, QueryTriggerInteraction.Ignore))
+				return;
+
+			Barricade barricade = new Barricade(selectedAsset);
+			Transform placed = BarricadeManager.dropBarricade(
+				barricade, null, placePosition, 0f, angle, 0f, 0UL, 0UL);
+			if (placed == null)
+				return;
+
+			if (!inventory.TryTakeItemServer(selectedSlot, out _))
+			{
+				UnturnedLog.warn("[MobileNPCSettlementBuilder] Placed a barricade but could not remove its inventory item.");
 				return;
 			}
 
-			TryPlaceOneBarricade();
+			placedPieces++;
+			if (placeStorage)
+				centralStoragePlaced = true;
+			else
+				perimeterPiecesPlaced++;
+
+			Debug.Log("[MobileNPCSettlementBuilder] Placed fixed-pattern settlement piece "
+				+ selectedAsset.name + " (" + placedPieces + "/" + Mathf.Clamp(maximumPieces, 1, 5) + ").");
 		}
 
-		private void TryPlaceOneBarricade()
+		private bool HasStorageBuildable()
 		{
-			int selectedSlot = -1;
-			ItemBarricadeAsset selectedAsset = null;
-			int bestPriority = int.MinValue;
-
-			// Prefer a storage unit first, then defensive perimeter pieces. This makes the
-			// initial settlement more useful than consuming arbitrary buildables in slot order.
 			for (int slot = 0; slot < inventory.UsedSlots; ++slot)
 			{
 				if (!inventory.TryGetItemSnapshot(slot, out Item item) || item == null)
 					continue;
-
 				ItemBarricadeAsset asset = Assets.find(EAssetType.ITEM, item.id) as ItemBarricadeAsset;
-				if (asset == null || !IsAllowedBuildType(asset.build) || asset.barricade == null)
+				if (asset != null && asset.barricade != null && asset.build == EBuild.STORAGE)
+					return true;
+			}
+			return false;
+		}
+
+		private bool TrySelectBuildable(bool storageOnly, out int selectedSlot, out ItemBarricadeAsset selectedAsset)
+		{
+			selectedSlot = -1;
+			selectedAsset = null;
+			int bestPriority = int.MinValue;
+			for (int slot = 0; slot < inventory.UsedSlots; ++slot)
+			{
+				if (!inventory.TryGetItemSnapshot(slot, out Item item) || item == null)
+					continue;
+				ItemBarricadeAsset asset = Assets.find(EAssetType.ITEM, item.id) as ItemBarricadeAsset;
+				if (asset == null || asset.barricade == null)
 					continue;
 
-				int priority = GetBuildPriority(asset.build);
+				int priority = GetBuildPriority(asset.build, storageOnly);
 				if (priority <= bestPriority)
 					continue;
-
 				bestPriority = priority;
 				selectedSlot = slot;
 				selectedAsset = asset;
 			}
-
-			if (selectedSlot < 0 || selectedAsset == null)
-				return;
-
-			// Four pieces are distributed evenly around the chosen site. A constant radius
-			// avoids the uneven cross-shaped pattern from the initial prototype.
-			float baseAngle = placedPieces * 90f;
-			for (int attempt = 0; attempt < 4; ++attempt)
-			{
-				float angle = baseAngle + (attempt == 0 ? 0f : Random.Range(-18f, 18f));
-				Vector3 radial = Quaternion.Euler(0f, angle, 0f) * Vector3.forward;
-				Vector3 candidate = planner.ChosenSite + radial * Mathf.Max(1f, pieceSpacing);
-				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, searchHeight, maximumDrop,
-					groundMask, maximumSlope, out Vector3 ground, out _))
-				{
-					continue;
-				}
-
-				Vector3 placePosition = ground + Vector3.up * Mathf.Clamp(selectedAsset.offset, -0.5f, 1.5f);
-				if (Physics.CheckSphere(placePosition + Vector3.up * 1.4f,
-					Mathf.Clamp(clearanceRadius, 0.4f, 1.2f), obstructionMask, QueryTriggerInteraction.Ignore))
-				{
-					continue;
-				}
-
-				// Use vanilla's server deployment entry point for deploy hooks and replication.
-				// This is still an approximation of vanilla preview/support/claim validation.
-				Barricade barricade = new Barricade(selectedAsset);
-				Transform placed = BarricadeManager.dropBarricade(barricade, null, placePosition, 0f, angle, 0f, 0UL, 0UL);
-				if (placed == null)
-					continue;
-
-				if (!inventory.TryTakeItemServer(selectedSlot, out _))
-				{
-					UnturnedLog.warn("[MobileNPCSettlementBuilder] Placed a barricade but could not remove its inventory item.");
-					return;
-				}
-
-				placedPieces++;
-				Debug.Log("[MobileNPCSettlementBuilder] Mobile NPC placed settlement barricade " + selectedAsset.name
-					+ " (" + placedPieces + "/" + maximumPieces + ").");
-				return;
-			}
+			return selectedSlot >= 0 && selectedAsset != null;
 		}
 
-		private static int GetBuildPriority(EBuild build)
+		private static int GetBuildPriority(EBuild build, bool storageOnly)
 		{
+			if (storageOnly)
+				return build == EBuild.STORAGE ? 100 : 0;
+
+			// Deliberately narrow allow-list: no doors, beds, ladders, glass,
+			// sentries, explosives, or arbitrary structure/foundation placement.
 			switch (build)
 			{
-				case EBuild.STORAGE:
-					return 100;
 				case EBuild.FORTIFICATION:
-				case EBuild.BARRICADE_WALL:
 					return 80;
-				case EBuild.BARRICADE:
+				case EBuild.BARRICADE_WALL:
 					return 70;
-				case EBuild.DOOR:
-				case EBuild.GATE:
-				case EBuild.SHUTTER:
-				case EBuild.HATCH:
+				case EBuild.BARRICADE:
 					return 60;
-				case EBuild.BED:
-					return 50;
-				case EBuild.STORAGE_WALL:
-					return 40;
-				case EBuild.LADDER:
-					return 30;
-				case EBuild.GLASS:
-					return 20;
 				default:
 					return 0;
-			}
-		}
-
-		private static bool IsAllowedBuildType(EBuild build)
-		{
-			switch (build)
-			{
-				case EBuild.FORTIFICATION:
-				case EBuild.BARRICADE:
-				case EBuild.DOOR:
-				case EBuild.GATE:
-				case EBuild.BED:
-				case EBuild.LADDER:
-				case EBuild.STORAGE:
-				case EBuild.STORAGE_WALL:
-				case EBuild.SHUTTER:
-				case EBuild.HATCH:
-				case EBuild.BARRICADE_WALL:
-				case EBuild.GLASS:
-					return true;
-				default:
-					return false;
 			}
 		}
 	}
