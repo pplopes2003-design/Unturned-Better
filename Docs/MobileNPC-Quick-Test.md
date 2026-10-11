@@ -177,3 +177,14 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 - [ ] Confirmar que o fator distância desempata candidatos, mas não supera necessidades críticas.
 
 **Observação:** comida e água recebem prioridade genérica porque ainda não existem medidores de fome/sede para NPCs; a compatibilidade de munição e a comparação real de equipamentos ainda não são calculadas.
+
+
+## Teste — inventário ligado ao combate à distância
+- [ ] Com inventário vazio, provocar um alvo hostil: o NPC não deve disparar nem gerar tiros gratuitos.
+- [ ] Arma armazenada sem carregador: o NPC reconhece o alvo, mas não dispara enquanto estiver sem munição.
+- [ ] Arma + item `MAGAZINE` no inventário: confirmar que o recarregamento consome um carregador e só depois permite disparar.
+- [ ] Esgotar o carregador simulado sem outro carregador: o NPC para de disparar e não recria munição.
+- [ ] Recolher outro carregador: confirmar que volta a recarregar quando estiver em combate.
+- [ ] Confirmar que combate corpo a corpo continua disponível independentemente de arma/munição.
+- [ ] Testar categorias de carregador incompatíveis com a arma; esse caso ainda não é filtrado e deve ser registrado como limitação conhecida.
+- [ ] Confirmar que armas e carregadores permanecem no inventário quando não foram usados/consumidos.
