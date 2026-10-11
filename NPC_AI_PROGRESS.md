@@ -158,3 +158,11 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Commit: https://github.com/pplopes2003-design/Unturned-Better/commit/17008a2fe45d76541d260415ae77fb1dc423671c
 - Próximo bloqueio técnico: loot exige uma operação de servidor própria para adicionar ao inventário de um agente não-Player e remover o drop/replicar sua remoção. O fluxo existente `ReceiveTakeItemRequest` está ligado a `Player.inventory`, portanto não será reutilizado artificialmente para um NPC.
 - Validação: inspeção estática do contrato de dano e do fluxo de pickup; não compilado nem testado no Unity/Unturned.
+
+
+### 2026-10-11 — vida e morte autoritativas do humanoide
+- Criado `MobileNPCHumanoidVitals.cs`: vida máxima configurável, dano/cura validados no servidor, eventos de mudança de vida e morte única, e notificação de dano ao cérebro/táticas para permitir recuo por ferimentos.
+- Ao morrer, o componente limpa a decisão de IA e desativa movimento e combate. A entidade ainda precisa de um host para animação de morte, remoção/despawn e replicação desse estado aos clientes.
+- Importante: o componente recebe dano após validação do acerto; não foi ligado diretamente a `DamageTool`, cujas rotinas existentes são específicas de Player/zumbi/animal. Também não há ainda sistema genérico de projéteis que detecte e encaminhe impactos a NPCs.
+- Commit: https://github.com/pplopes2003-design/Unturned-Better/commit/5c965b2740e7c399b267bec273cd9480a7d849e4
+- Validação: revisão estática via GitHub; não compilado nem testado no Unity/Unturned.
