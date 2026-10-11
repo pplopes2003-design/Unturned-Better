@@ -26,6 +26,7 @@ namespace SDG.Unturned
 		private MobileNPCHumanoidMotor motor;
 		private float nextScanTime;
 		private Player visiblePlayer;
+		private readonly RaycastHit[] sightHits = new RaycastHit[16];
 
 		public Player VisiblePlayer => Provider.isServer ? visiblePlayer : null;
 
@@ -88,13 +89,32 @@ namespace SDG.Unturned
 					continue;
 				}
 
-				if (Physics.Raycast(eye, direction, out RaycastHit hit, Mathf.Sqrt(distanceSquared),
-					obstructionMask, QueryTriggerInteraction.Ignore))
+				int hitCount = Physics.RaycastNonAlloc(eye, direction, sightHits, Mathf.Sqrt(distanceSquared),
+					obstructionMask, QueryTriggerInteraction.Ignore);
+				float nearestDistance = float.PositiveInfinity;
+				Transform nearestTransform = null;
+
+				for (int hitIndex = 0; hitIndex < hitCount; ++hitIndex)
 				{
-					Player hitPlayer = hit.transform.GetComponent<Player>();
+					Transform hitTransform = sightHits[hitIndex].transform;
+					if (hitTransform == null || hitTransform == transform || hitTransform.IsChildOf(transform))
+					{
+						continue;
+					}
+
+					if (sightHits[hitIndex].distance < nearestDistance)
+					{
+						nearestDistance = sightHits[hitIndex].distance;
+						nearestTransform = hitTransform;
+					}
+				}
+
+				if (nearestTransform != null)
+				{
+					Player hitPlayer = nearestTransform.GetComponent<Player>();
 					if (hitPlayer == null)
 					{
-						hitPlayer = hit.transform.GetComponentInParent<Player>();
+						hitPlayer = nearestTransform.GetComponentInParent<Player>();
 					}
 
 					if (hitPlayer != candidate)
