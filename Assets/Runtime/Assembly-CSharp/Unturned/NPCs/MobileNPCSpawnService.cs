@@ -53,8 +53,15 @@ namespace SDG.Unturned
 			GameObject spawned = Object.Instantiate(prefab, position, rotation);
 			MobileNPCHumanoidDisposition disposition = spawned.GetComponent<MobileNPCHumanoidDisposition>();
 			MobileNPCHumanoidMotor motor = spawned.GetComponent<MobileNPCHumanoidMotor>();
+			MobileNPCHumanoidVitals vitals = spawned.GetComponent<MobileNPCHumanoidVitals>();
 			disposition.SetRoleServer(role);
 			motor.InitializeServer();
+			// Initialize health synchronously so callers never receive a spawned NPC with
+			// uninitialized server vitals while waiting for Unity's Start callback.
+			if (vitals != null)
+			{
+				vitals.InitializeServer();
+			}
 
 			if (!motor.IsInitialized)
 			{
