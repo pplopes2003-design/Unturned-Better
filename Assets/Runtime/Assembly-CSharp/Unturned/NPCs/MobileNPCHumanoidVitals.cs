@@ -25,8 +25,8 @@ namespace SDG.Unturned
 		private bool initialized;
 		private bool isDead;
 
-		public event Action<float, float> HealthChanged;
-		public event Action Died;
+		public event System.Action<float, float> HealthChanged;
+		public event System.Action Died;
 
 		public float MaximumHealth => maximumHealth;
 		public float CurrentHealth { get; private set; }
@@ -63,7 +63,7 @@ namespace SDG.Unturned
 			{
 				motor.InitializeServer();
 			}
-			brainDriver?.ReportDamage(CurrentHealth, maximumHealth);
+			brainDriver?.ReportHealth(CurrentHealth, maximumHealth);
 			HealthChanged?.Invoke(CurrentHealth, maximumHealth);
 		}
 
