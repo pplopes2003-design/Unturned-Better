@@ -454,3 +454,12 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - `MobileNPCInventory.TryUpdateGunAmmoServer` atualiza uma cópia defensiva do estado da arma no inventário local, preservando os demais bytes.
 - A munição restante é registrada após cada disparo; ao terminar uma recarga, o ID do carregador consumido e a quantidade simulada são gravados no estado da arma.
 - Isso evita que uma arma volte ao número antigo de balas quando o NPC alterna entre armas durante o combate. A operação depende de o estado do asset ter pelo menos 11 bytes, conforme o layout já usado para leitura do carregador e munição; falha de persistência em estados fora desse formato não foi validada em runtime.
+
+
+## Uso conservador de itens médicos (rodada atual)
+
+- Novo componente `MobileNPCMedicalUse` permite que NPCs móveis consumam um item da categoria médica guardado no inventário local quando a saúde cai abaixo do limiar configurado (55% por padrão).
+- A cura simulada restaura 30% da saúde máxima por uso, com intervalo de 12 s entre usos bem-sucedidos. Os valores são configuráveis e não dependem de propriedades específicas de um item médico, porque os efeitos individuais dos assets ainda não foram integrados.
+- O NPC não interrompe combate nem objetivos táticos para se curar; se não conseguir aplicar a cura, tenta devolver o item ao inventário.
+- O bootstrap anexa o componente às entidades móveis. Não usa APIs de cura exclusivas de Player e não altera NPCs estáticos.
+- Limitação: todos os itens classificados como `MEDICAL` recebem o mesmo efeito simulado; não há animação, consumo vanilla específico por item nem replicação multiplayer. Validação estática apenas; teste no Unity pendente.
