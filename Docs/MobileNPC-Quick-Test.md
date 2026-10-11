@@ -7,9 +7,13 @@ Branch: `feature/npc-ai-foundation`
 - Periodically searches active `SDG.Unturned.Player` objects and selects the nearest visible player inside its sight range and field of view.
 - Tracks a visible target, investigates the last known position after losing sight, and can return to its spawn point.
 - Accepts explicit sound notifications through `NotifyNoise(position, loudnessRadius)`.
+- Uses last-known-position investigation instead of tracking a hidden target through walls.
+- Includes `MobileNPCCombatProfile`, a server-side adapter helper for reaction delays, variable bursts, distance/movement/suppression penalties, and probabilistic misses.
 
 ## Important prototype limitations
-This is an isolated prototype component, not a complete NPC prefab or a production-ready AI. It does not yet use Unturned's native pathfinding, weapon/inventory/damage systems, animations, or audio event pipeline. Movement currently requires a `CharacterController`; it will not move if one is absent. Do not merge this branch into the release branch yet.
+This is an isolated prototype, not a complete NPC prefab or production-ready AI. The combat profile only calculates shot timing and aim decisions; it does not itself consume ammunition, play weapon effects, or apply damage. Native pathfinding, a real weapon/damage adapter, animations, and audio-event integration remain pending. Movement currently requires a `CharacterController`; it will not move if one is absent. Do not merge this branch into the release branch yet.
+
+The Unity-imported source is under `Assets/Runtime/Assembly-CSharp/Unturned/MobileNPC/`. The mirrored `Runtime/Assembly-CSharp/Unturned/MobileNPC/` files are kept for the repository's runtime source layout.
 
 ## Quick in-Unity smoke test
 1. Open the project using the Unity version configured by the repository.
