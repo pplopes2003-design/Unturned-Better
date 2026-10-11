@@ -168,12 +168,13 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Validação: revisão estática via GitHub; não compilado nem testado no Unity/Unturned.
 
 
-### 2026-10-11 — protótipo de NPC móvel isolado
-- Adicionado `MobileNPCBrain` em `Assets/Runtime/Assembly-CSharp/Unturned/MobileNPC/`, para ser importado pelo Unity; mantida cópia na árvore `Runtime/Assembly-CSharp/` do repositório.
-- O cérebro executa decisões no servidor, procura jogadores visíveis, persegue, investiga a última posição conhecida e retorna ao ponto de surgimento. Movimento requer `CharacterController`.
-- Corrigido o comportamento de visão: quando perde linha de visão, o NPC investiga a última posição conhecida em vez de acompanhar a posição atual do jogador através de paredes. O teste de linha de visão ignora os próprios colisores.
-- Adicionado `MobileNPCCombatProfile`: atraso de reação variável, rajadas, pausas, penalidades por distância/movimento/supressão e decisões probabilísticas de acerto/erro. É um perfil de decisão, não um sistema de disparo: ainda precisa de adaptador para arma, munição, efeitos e dano do Unturned.
-- Atualizado `Docs/MobileNPC-Quick-Test.md` com limitações e passos de validação.
-- Commits recentes: `05d530fa` (memória/visão), `9b72b8da` (fonte Unity), `f28eb11b` (perfil de combate), `709a173c` (documentação).
-- **Não compilado nem testado no Unity.** A tentativa de iniciar o build termina em `Steam API initialization failed`; resolver a inicialização da Steam é uma tarefa separada da compilação.
-- Próxima prioridade: validar compilação no Unity; depois implementar entidade móvel replicada para clientes, integrar pathfinding/movimento e ligar o perfil de combate à arma/dano e sons humanoides existentes sem alterar NPCs estáticos.
+### 2026-10-11 — avanço do protótipo humanoide móvel
+- Mantida a implementação modular existente em `Assets/Runtime/Assembly-CSharp/Unturned/NPCs/`: brain/driver, percepção, motor, mira, combate corpo a corpo e à distância, vitals e táticas. NPCs estáticos continuam separados.
+- Corrigida a percepção para ignorar os próprios colisores do NPC ao escolher o obstáculo mais próximo na linha de visão.
+- O combate à distância agora exige um jogador atualmente visível pela camada de percepção; não deve continuar atirando durante a memória de um alvo escondido. A mira também deixa de acompanhar o Transform de um alvo que saiu do campo visual.
+- Humanizada a cadência de tiros: rajadas de tamanho variável, intervalos com jitter e pausas variáveis entre rajadas. A mira sorteia atraso de reação por alvo e aumenta o espalhamento por movimento, tiros anteriores e supressão.
+- Ligado o relato de fogo recebido à penalidade de supressão da mira.
+- Corrigida a verificação de linha de visão do combate corpo a corpo para ignorar os próprios colisores.
+- Atualizado o guia de smoke test. A compilação Unity continua pendente; o build executado ainda encerra por `Steam API initialization failed`, uma falha de inicialização separada.
+- **Limitações restantes:** spawn/ciclo de vida da entidade, replicação e interpolação nos clientes, pathfinding real, integração completa com arma/inventário/efeitos/sons do jogo e teste em singleplayer/servidor dedicado. Os eventos de disparo/recarga permitem conectar áudio e animação existentes, mas essa integração ainda não foi validada.
+- Commits recentes incluem `5577a414` (rajadas/cadência), `96b31b40` (percepção), `b95f8388` (reação/supressão), `254c0c16` (ligação da supressão), `2dc0311c` (visibilidade no combate à distância) e `0ec9c956` (linha de visão corpo a corpo).
