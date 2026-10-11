@@ -54,6 +54,13 @@ namespace SDG.Unturned
 				&& ItemManager.TryTransferWorldItemToMobileNPCServer(instanceID, npcPosition, maximumDistance, this);
 		}
 
+		/// <summary>Attempts to pick up a nearby, still-authoritative world drop.</summary>
+		public bool TryPickupWorldItemServer(uint instanceID, Vector3 npcPosition, float maximumDistance)
+		{
+			return Provider.isServer && HasSpace
+				&& ItemManager.TryTransferWorldItemToMobileNPCServer(instanceID, npcPosition, maximumDistance, this);
+		}
+
 		/// <summary>Returns a defensive copy so callers cannot mutate stored state.</summary>
 		public bool TryGetItemSnapshot(int slot, out Item snapshot)
 		{
