@@ -250,6 +250,9 @@ namespace SDG.Unturned
 				}
 			}
 
+			// Explosions attract nearby zombies into the existing investigation state.
+			ZombieManager.alertZombiesToNoise(explosionParameters.point, Mathf.Clamp(explosionParameters.damageRadius * 4.0f, 48.0f, 160.0f));
+
 			if (explosionParameters.playImpactEffect)
 			{
 				EffectAsset fleshEffect = isRadioactive ? DamageTool.AlienDynamicRef.Find() : DamageTool.FleshDynamicRef.Find();
