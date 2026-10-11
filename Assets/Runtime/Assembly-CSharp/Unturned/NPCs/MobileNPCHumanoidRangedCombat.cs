@@ -21,6 +21,11 @@ namespace SDG.Unturned
 		[SerializeField, Min(1f)] private float effectiveRange = 45f;
 		[SerializeField, Min(0.1f)] private float damage = 18f;
 		[SerializeField, Min(0.05f)] private float secondsPerShot = 0.22f;
+		[SerializeField, Range(0f, 0.35f)] private float shotIntervalJitter = 0.12f;
+		[SerializeField, Min(1)] private int minimumBurstSize = 2;
+		[SerializeField, Min(1)] private int maximumBurstSize = 5;
+		[SerializeField, Min(0f)] private float minimumBurstPause = 0.45f;
+		[SerializeField, Min(0f)] private float maximumBurstPause = 1.15f;
 		[SerializeField, Min(0.1f)] private float reloadDuration = 2.1f;
 		[SerializeField, Min(1)] private int magazineCapacity = 24;
 		[SerializeField, Min(0.1f)] private float muzzleHeight = 1.45f;
