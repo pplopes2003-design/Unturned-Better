@@ -285,3 +285,11 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Validação: revisão estática do fluxo; ainda faltam compilação Unity, teste de servidor dedicado e teste multiplayer. Isso não confirma que o NPC esteja pronto.
 
 - Complemento: quaternions válidos são normalizados antes da instanciação para evitar que pequenos desvios numéricos contaminem a transformação inicial. Commit: https://github.com/pplopes2003-design/Unturned-Better/commit/5acad989cb9bd9e459c8bc56b9050e9edc5e65bb
+
+
+### 2026-10-11 — lote limitado de spawn em uma região
+- Adicionado `MobileNPCSpawnService.TrySpawnBatchAroundServer`: recebe um centro regional explícito, raio, quantidade desejada, limite de tentativas, máscara de terreno e papel de facção; sorteia candidatos em distribuição circular e reutiliza a resolução de solo seguro antes de cada spawn.
+- A API exige servidor, lista de saída fornecida pelo chamador, raio positivo e limite de tentativas de no máximo 1000. Informa quantidade realmente criada e aceita sucesso parcial para que o chamador possa decidir se tenta completar o lote depois.
+- Limites deliberados: ainda é spawn local no servidor, sem replicação de rede; o centro regional e a máscara de terreno ainda precisam ser fornecidos por uma integração de mapa. A primitiva não verifica ocupação completa do capsule nem espaçamento entre os NPCs, não escolhe sozinha regiões do mapa e não mantém população ao longo do tempo.
+- Commits: https://github.com/pplopes2003-design/Unturned-Better/commit/9a91e86f331c6f034d78c9948bc2a3bcd33185d8 e https://github.com/pplopes2003-design/Unturned-Better/commit/b774d680b559f3071e88a6bf7e34da5c8e005d39
+- Validação: revisão estática apenas; sem compilação Unity ou teste dentro do jogo.
