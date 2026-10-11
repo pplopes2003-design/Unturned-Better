@@ -54,6 +54,21 @@ namespace SDG.Unturned
 				&& ItemManager.TryTransferWorldItemToMobileNPCServer(instanceID, npcPosition, maximumDistance, this);
 		}
 
+		/// <summary>Counts stored items by vanilla item category.</summary>
+		public int CountItemType(EItemType type)
+		{
+			if (!Provider.isServer) return 0;
+			int count = 0;
+			for (int i = 0; i < slots.Count; ++i)
+			{
+				Item stored = slots[i];
+				if (stored == null) continue;
+				ItemAsset asset = Assets.find(EAssetType.ITEM, stored.id) as ItemAsset;
+				if (asset != null && asset.type == type) count++;
+			}
+			return count;
+		}
+
 		/// <summary>Returns whether an item with this legacy ID is already stored.</summary>
 		public bool ContainsItemID(ushort itemID)
 		{
