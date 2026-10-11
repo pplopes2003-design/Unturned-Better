@@ -60,6 +60,7 @@ namespace SDG.Unturned
 
 		public static int wanderingCount;
 		private static int tickIndex;
+		private static bool hasWarnedMissingTickZombie;
 		private static List<Zombie> _tickingZombies;
 		public static List<Zombie> tickingZombies => _tickingZombies;
 
@@ -1902,7 +1903,14 @@ namespace SDG.Unturned
 
 				if (zombie == null)
 				{
-					UnturnedLog.error("Missing zombie " + index);
+					// Self-heal stale entries left by destroyed or externally removed zombies.
+					// Iterate backwards, so removing the current entry does not skip earlier entries.
+					tickingZombies.RemoveAt(index);
+					if (!hasWarnedMissingTickZombie)
+					{
+						hasWarnedMissingTickZombie = true;
+						UnturnedLog.warning("Removed a missing zombie reference from tickingZombies. Further occurrences will be suppressed.");
+					}
 					continue;
 				}
 
