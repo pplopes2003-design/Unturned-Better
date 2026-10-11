@@ -134,3 +134,14 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 - [ ] Colocar uma parede ou estrutura entre NPC e âncora: documentar que a evasão local pode não encontrar rota em torno de obstáculos grandes.
 
 **Limite:** teste ainda não executado no Unity/Unturned; a recuperação depende de steering local, não de pathfinding global.
+
+
+## Teste adicional — armazenamento virtual de NPC
+- [ ] Anexar `MobileNPCInventory` a um NPC móvel e confirmar capacidade inicial/slots livres.
+- [ ] No servidor, armazenar um item já transferido e verificar que o snapshot preserva ID, quantidade, qualidade e estado.
+- [ ] Alterar o array `state` do snapshot retornado e confirmar que o item armazenado não é alterado (cópia defensiva).
+- [ ] Preencher todos os slots e confirmar que novas inserções falham sem alterar os slots existentes.
+- [ ] Remover um slot e confirmar que o item sai uma única vez.
+- [ ] Confirmar que este componente sozinho não faz pickup de drops, não salva em disco e não sincroniza inventário para clientes.
+
+**Limite:** ainda não conectar a inserção à coleta de mundo antes de existir transferência atômica server-authoritative de drops.
