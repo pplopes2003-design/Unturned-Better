@@ -54,6 +54,17 @@ namespace SDG.Unturned
 				&& ItemManager.TryTransferWorldItemToMobileNPCServer(instanceID, npcPosition, maximumDistance, this);
 		}
 
+		/// <summary>Returns whether an item with this legacy ID is already stored.</summary>
+		public bool ContainsItemID(ushort itemID)
+		{
+			if (!Provider.isServer || itemID == 0) return false;
+			for (int i = 0; i < slots.Count; ++i)
+			{
+				if (slots[i] != null && slots[i].id == itemID) return true;
+			}
+			return false;
+		}
+
 		/// <summary>Returns a defensive copy so callers cannot mutate stored state.</summary>
 		public bool TryGetItemSnapshot(int slot, out Item snapshot)
 		{
