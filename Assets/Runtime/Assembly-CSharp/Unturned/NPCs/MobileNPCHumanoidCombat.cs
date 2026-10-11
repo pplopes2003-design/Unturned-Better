@@ -170,7 +170,9 @@ namespace SDG.Unturned
 		/// <summary>Can also be called by an animation event, but only on the server.</summary>
 		public bool TryAttack(Player targetPlayer, Vector3 attackDirection)
 		{
-			if (!Provider.isServer || targetPlayer == null || targetPlayer.life == null || targetPlayer.life.isDead
+			MobileNPCHumanoidDisposition ownDisposition = GetComponent<MobileNPCHumanoidDisposition>();
+			if (!Provider.isServer || ownDisposition == null || !ownDisposition.CanEngagePlayers
+				|| targetPlayer == null || targetPlayer.life == null || targetPlayer.life.isDead
 				|| Time.time < nextAttackTime)
 			{
 				return false;
