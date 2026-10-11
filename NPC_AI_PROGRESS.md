@@ -395,3 +395,10 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - A operação usa o `ItemData` autoritativo da região do NPC. Não coleta `InteractableItem` apenas simulado localmente se não houver registo no `ItemManager`; isso evita criar itens a partir de objetos visuais sem posse autoritativa.
 - Risco residual a verificar no runtime: a atualização do modelo local e a sincronização da região dependem do comportamento de `SendDestroyItem` no servidor listen-host. A transferência não é transacional contra exceções inesperadas após inserir o snapshot; não existem callbacks entre a inserção e a remoção, mas o teste de jogo é obrigatório.
 - Sem compilação Unity/teste em jogo; revisão estática apenas.
+
+
+### 2026-10-11 — ciclo inicial de coleta automática
+- Adicionado `MobileNPCLooting` ao template runtime: em intervalos configuráveis procura drops físicos próximos, valida a instância no registro autoritativo, escolhe o item mais próximo, pede ao cérebro o objetivo de saque e tenta transferir o item ao chegar perto.
+- A coleta não substitui combate ou outros objetivos táticos e para quando o inventário fica cheio. O item precisa existir como drop registrado no `ItemManager`; objetos visuais sem instância autoritativa não são coletados.
+- A transferência procura o `instanceID` nos registros de itens das regiões, então não exige que o NPC e o drop estejam na mesma região. Essa busca percorre a grade de regiões no momento da coleta; avaliar desempenho em teste com populações maiores.
+- Limitações: ainda não prioriza comida, munição, armas ou materiais; não consome/empunha itens; não persiste inventário ou constrói bases. Sem compilação Unity ou teste em jogo; sincronização do drop e comportamento ao chegar precisam de validação prática.
