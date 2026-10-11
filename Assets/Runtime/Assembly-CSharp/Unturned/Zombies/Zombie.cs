@@ -2363,7 +2363,9 @@ namespace SDG.Unturned
 
 			if (!isWandering)
 			{
-				if (sqrHorizontalDistanceFromTarget > 4096 && (player == null || !zombieRegion.HasInfiniteAgroRange))
+				// Keep player targets across region boundaries and long distances. Non-player targets
+				// retain the vanilla leash so zombies do not chase stale objects indefinitely.
+				if (sqrHorizontalDistanceFromTarget > 4096 && player == null && !zombieRegion.HasInfiniteAgroRange)
 				{
 					leave(false);
 
