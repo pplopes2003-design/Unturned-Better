@@ -276,3 +276,10 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - É independente do nome ou tamanho do mapa carregado, desde que o chamador forneça coordenadas candidatas e uma `groundMask` adequada. Não escolhe sozinho posições pelo mapa, não valida ocupação completa do capsule e não faz spawn automático; isso continua sendo responsabilidade do futuro population director.
 - Commit: https://github.com/pplopes2003-design/Unturned-Better/commit/c88ed83da6425f3d80c486856a2a78282d8a6f2b
 - Validação pendente: testar máscaras de colisão em mapas diferentes, declives, bordas/clip volumes, terreno e estruturas. Ainda não houve compilação Unity nem teste em jogo.
+
+
+### 2026-10-11 — validação defensiva antes de instanciar NPC móvel
+- `MobileNPCSpawnService.TrySpawnServer` rejeita coordenadas não finitas, quaternions inválidos/zerados e valores de facção fora do enum antes de chamar `Instantiate`.
+- A validação ocorre antes da criação do objeto, reduzindo o risco de instâncias malformadas ou configurações de facção inválidas deixarem entidades parciais no mundo. O fluxo de NPCs estáticos não é tocado.
+- Commit: https://github.com/pplopes2003-design/Unturned-Better/commit/54643483996d2254ec72b588e962a14d8876855f
+- Validação: revisão estática do fluxo; ainda faltam compilação Unity, teste de servidor dedicado e teste multiplayer. Isso não confirma que o NPC esteja pronto.
