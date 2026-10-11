@@ -248,6 +248,13 @@ namespace SDG.Unturned
 				vitals.InitializeServer();
 			}
 
+			MobileNPCGroupMember groupMember = spawned.GetComponent<MobileNPCGroupMember>();
+			if (groupMember == null)
+			{
+				groupMember = spawned.AddComponent<MobileNPCGroupMember>();
+			}
+			groupMember.InitializeServer();
+
 			if (!motor.IsInitialized)
 			{
 				Object.Destroy(spawned);
