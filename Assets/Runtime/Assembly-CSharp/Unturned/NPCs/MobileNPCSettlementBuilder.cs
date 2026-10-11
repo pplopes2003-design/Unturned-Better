@@ -154,7 +154,7 @@ namespace SDG.Unturned
 					continue;
 
 				int priority = GetBuildPriority(asset.build, storageOnly);
-				if (priority <= bestPriority)
+				if (priority <= 0 || priority <= bestPriority)
 					continue;
 				bestPriority = priority;
 				selectedSlot = slot;
