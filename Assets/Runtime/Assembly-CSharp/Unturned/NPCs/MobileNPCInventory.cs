@@ -44,6 +44,16 @@ namespace SDG.Unturned
 			return true;
 		}
 
+		/// <summary>
+		/// Transfers a nearby world drop by its server instance ID. The item must still
+		/// exist in the authoritative item region and be within the requested distance.
+		/// </summary>
+		public bool TryPickupWorldItemServer(uint instanceID, Vector3 npcPosition, float maximumDistance)
+		{
+			return Provider.isServer && HasSpace
+				&& ItemManager.TryTransferWorldItemToMobileNPCServer(instanceID, npcPosition, maximumDistance, this);
+		}
+
 		/// <summary>Returns a defensive copy so callers cannot mutate stored state.</summary>
 		public bool TryGetItemSnapshot(int slot, out Item snapshot)
 		{
