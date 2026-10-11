@@ -1909,7 +1909,7 @@ namespace SDG.Unturned
 					if (!hasWarnedMissingTickZombie)
 					{
 						hasWarnedMissingTickZombie = true;
-						UnturnedLog.warning("Removed a missing zombie reference from tickingZombies. Further occurrences will be suppressed.");
+						UnturnedLog.warn("Removed a missing zombie reference from tickingZombies. Further occurrences will be suppressed.");
 					}
 					continue;
 				}
