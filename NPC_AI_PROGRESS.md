@@ -255,3 +255,10 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Requisitos do usuário registrados como critérios de aceitação no guia: spawn em qualquer mapa compatível, assentamentos regionais, guerra entre facções e zumbis capazes de perceber/perseguir/danificar ambas as facções.
 - Commits de código: https://github.com/pplopes2003-design/Unturned-Better/commit/8d6d1fd3152a95f32cb5311282ea3945de23e34b, https://github.com/pplopes2003-design/Unturned-Better/commit/cb8bfb9ebcd9f840c201dd5bfe571122578235d8, https://github.com/pplopes2003-design/Unturned-Better/commit/8f23b3fab993f2e2d0e577af8fe44caec5c27590, https://github.com/pplopes2003-design/Unturned-Better/commit/a88064ec6a1119968998d62612685a82512f9245, https://github.com/pplopes2003-design/Unturned-Better/commit/f3e2c7d902f72110fde6fe5794a12d66d8fd2352, https://github.com/pplopes2003-design/Unturned-Better/commit/99ab6bee32233f47a3f2fd12ffd24ff8b69f07dc
 - Validação: revisão estática e balanceamento de delimitadores; não houve compilação Unity nem teste em jogo. Esses commits são implementação inicial, não confirmação de NPC pronto.
+
+
+### 2026-10-11 — redução de alocações na percepção entre facções
+- A varredura de inimigos móveis não usa mais `FindObjectsOfType<MobileNPCHumanoidDisposition>()` a cada ciclo de percepção de cada agente. Agora consulta os drivers ativos já registrados em `MobileNPCRegistry`, reutilizando uma lista temporária compartilhada.
+- Isso reduz buscas globais e alocações repetidas no caminho de combate entre facções; não muda a seleção de alvo nem resolve ainda o custo da busca de jogadores, que continua sendo uma etapa separada.
+- Commit: https://github.com/pplopes2003-design/Unturned-Better/commit/7dd6e02775fa8f1f7f861e4eb69b1f9f35128d49
+- Validação pendente: compilar no Unity e medir custo com múltiplos NPCs ativos. O uso da lista compartilhada pressupõe o fluxo normal de atualização de gameplay na thread principal do Unity.
