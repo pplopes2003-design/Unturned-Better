@@ -201,6 +201,18 @@ namespace SDG.Unturned
 				return false;
 			}
 
+			CharacterController prefabController = prefab.GetComponent<CharacterController>();
+			if (prefabController == null)
+			{
+				error = "Prefab must include a root CharacterController.";
+				return false;
+			}
+
+			// Keep agents in the same batch from being created on top of one another.
+			// This is a horizontal spacing check, not a full capsule/obstacle overlap test.
+			float minimumSpacing = Mathf.Max(1.25f, prefabController.radius * 2f + 0.5f);
+			float minimumSpacingSquared = minimumSpacing * minimumSpacing;
+
 			for (int attempt = 0; attempt < maximumAttempts && spawnedCount < desiredCount; ++attempt)
 			{
 				float angle = Random.Range(0f, Mathf.PI * 2f);
@@ -211,6 +223,30 @@ namespace SDG.Unturned
 					groundMask, maximumSlopeAngle, out Vector3 groundPosition, out string groundError))
 				{
 					error = groundError;
+					continue;
+				}
+
+				bool tooCloseToBatchMember = false;
+				for (int i = 0; i < spawnedInstances.Count; ++i)
+				{
+					GameObject existing = spawnedInstances[i];
+					if (existing == null)
+					{
+						continue;
+					}
+
+					Vector3 offset = existing.transform.position - groundPosition;
+					offset.y = 0f;
+					if (offset.sqrMagnitude < minimumSpacingSquared)
+					{
+						tooCloseToBatchMember = true;
+						break;
+					}
+				}
+
+				if (tooCloseToBatchMember)
+				{
+					error = "Candidate position was rejected because it is too close to another NPC in this batch.";
 					continue;
 				}
 
