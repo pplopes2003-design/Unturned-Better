@@ -159,7 +159,7 @@ namespace SDG.Unturned
 
 			// Find the nearest external collider without allocating a per-shot array or sorting all hits.
 			int hitCount = Physics.RaycastNonAlloc(muzzle, shotDirection, shotHits, effectiveRange, hitMask, QueryTriggerInteraction.Ignore);
-			int nearestHitIndex = -1;
+			RaycastHit nearestHit = default(RaycastHit);
 			float nearestHitDistance = float.PositiveInfinity;
 			for (int i = 0; i < hitCount; ++i)
 			{
@@ -171,13 +171,31 @@ namespace SDG.Unturned
 				if (shotHits[i].distance < nearestHitDistance)
 				{
 					nearestHitDistance = shotHits[i].distance;
-					nearestHitIndex = i;
+					nearestHit = shotHits[i];
 				}
 			}
 
-			if (nearestHitIndex >= 0)
+			// A full non-alloc buffer may have omitted closer colliders. Fall back to the
+			// allocating query only in this uncommon saturation case to preserve hit correctness.
+			if (hitCount == shotHits.Length)
 			{
-				RaycastHit hit = shotHits[nearestHitIndex];
+				RaycastHit[] overflowHits = Physics.RaycastAll(muzzle, shotDirection, effectiveRange, hitMask, QueryTriggerInteraction.Ignore);
+				nearestHitDistance = float.PositiveInfinity;
+				for (int i = 0; i < overflowHits.Length; ++i)
+				{
+					Transform hitTransform = overflowHits[i].transform;
+					if (hitTransform == null || hitTransform == transform || hitTransform.IsChildOf(transform)) continue;
+					if (overflowHits[i].distance < nearestHitDistance)
+					{
+						nearestHitDistance = overflowHits[i].distance;
+						nearestHit = overflowHits[i];
+					}
+				}
+			}
+
+			if (!float.IsPositiveInfinity(nearestHitDistance))
+			{
+				RaycastHit hit = nearestHit;
 
 				Player hitPlayer = hit.transform.GetComponent<Player>();
 				if (hitPlayer == null)
