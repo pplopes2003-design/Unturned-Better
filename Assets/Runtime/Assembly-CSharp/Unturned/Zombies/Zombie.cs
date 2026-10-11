@@ -359,6 +359,12 @@ namespace SDG.Unturned
 		public bool isIdleAfterInvestigation => isInvestigationIdle;
 		private bool isReturningToSpawn;
 		private float investigationIdleUntil;
+		private Vector3 investigationCenter;
+		private float investigationUntil;
+		private int investigationWandersRemaining;
+		private bool isInvestigationWanderTarget;
+		private const float INVESTIGATION_WANDER_RADIUS = 18.0f;
+		private const int INVESTIGATION_MAX_WANDERS = 3;
 		private bool isStunned;
 		private bool isStuck;
 		private Vector3 leaveTo;
@@ -1079,11 +1085,9 @@ namespace SDG.Unturned
 
 		public void alert(Player newPlayer)
 		{
-			if (isInvestigationIdle)
-			{
-				isInvestigationIdle = false;
-				isReturningToSpawn = false;
-			}
+			isInvestigationIdle = false;
+			isReturningToSpawn = false;
+			investigationWandersRemaining = 0;
 
 			if (isDead)
 			{
@@ -1241,6 +1245,15 @@ namespace SDG.Unturned
 			{
 				isInvestigationIdle = false;
 				isReturningToSpawn = false;
+			}
+
+			// Start a fresh investigation for external alerts. Internal wander targets
+			// retain the original sound location and remaining search budget.
+			if (!isHunting && !isInvestigationWanderTarget)
+			{
+				investigationCenter = newPosition;
+				investigationUntil = Time.time + 55.0f;
+				investigationWandersRemaining = INVESTIGATION_MAX_WANDERS;
 			}
 
 			if (isDead)
@@ -2023,7 +2036,8 @@ namespace SDG.Unturned
 				return;
 			}
 
-			// After giving up a point investigation, pause before navigating back to a spawnpoint.
+			// Pause briefly between search legs, then sweep nearby points around the
+			// original sound location instead of standing still for the whole investigation.
 			if (isInvestigationIdle)
 			{
 				if (Time.time < investigationIdleUntil)
@@ -2032,6 +2046,27 @@ namespace SDG.Unturned
 				}
 
 				isInvestigationIdle = false;
+				if (Time.time < investigationUntil && investigationWandersRemaining > 0)
+				{
+					for (int attempt = 0; attempt < 8; ++attempt)
+					{
+						float angle = Random.value * Mathf.PI * 2.0f;
+						float distance = Random.Range(5.0f, INVESTIGATION_WANDER_RADIUS);
+						Vector3 searchPoint = investigationCenter + new Vector3(Mathf.Cos(angle) * distance, 0.0f, Mathf.Sin(angle) * distance);
+						if (!LevelNavigation.checkNavigation(searchPoint))
+						{
+							continue;
+						}
+
+						--investigationWandersRemaining;
+						isInvestigationWanderTarget = true;
+						alert(searchPoint, false);
+						isInvestigationWanderTarget = false;
+						return;
+					}
+				}
+
+				investigationWandersRemaining = 0;
 				if (bound < LevelZombies.zombies.Length && LevelZombies.zombies[bound] != null && LevelZombies.zombies[bound].Count > 0)
 				{
 					List<ZombieSpawnpoint> spawnpoints = LevelZombies.zombies[bound];
@@ -2079,7 +2114,7 @@ namespace SDG.Unturned
 					else
 					{
 						isInvestigationIdle = true;
-						investigationIdleUntil = Time.time + Random.Range(12.0f, 25.0f);
+						investigationIdleUntil = Time.time + Random.Range(2.0f, 5.0f);
 						setTicking(true);
 					}
 					return;
