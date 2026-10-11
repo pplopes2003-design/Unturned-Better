@@ -2,7 +2,7 @@
 
 ## Estado atual
 
-**Fase:** arquitetura de movimento e sincronização  
+**Fase:** protótipo de percepção/movimento local; integração de rede e combate real pendentes  
 **Branch:** `feature/npc-ai-foundation`  
 **Base:** `perfomance-baseline`  
 **Implementação de IA móvel:** ainda não concluída  
@@ -166,3 +166,14 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Importante: o componente recebe dano após validação do acerto; não foi ligado diretamente a `DamageTool`, cujas rotinas existentes são específicas de Player/zumbi/animal. Também não há ainda sistema genérico de projéteis que detecte e encaminhe impactos a NPCs.
 - Commit: https://github.com/pplopes2003-design/Unturned-Better/commit/5c965b2740e7c399b267bec273cd9480a7d849e4
 - Validação: revisão estática via GitHub; não compilado nem testado no Unity/Unturned.
+
+
+### 2026-10-11 — protótipo de NPC móvel isolado
+- Adicionado `MobileNPCBrain` em `Assets/Runtime/Assembly-CSharp/Unturned/MobileNPC/`, para ser importado pelo Unity; mantida cópia na árvore `Runtime/Assembly-CSharp/` do repositório.
+- O cérebro executa decisões no servidor, procura jogadores visíveis, persegue, investiga a última posição conhecida e retorna ao ponto de surgimento. Movimento requer `CharacterController`.
+- Corrigido o comportamento de visão: quando perde linha de visão, o NPC investiga a última posição conhecida em vez de acompanhar a posição atual do jogador através de paredes. O teste de linha de visão ignora os próprios colisores.
+- Adicionado `MobileNPCCombatProfile`: atraso de reação variável, rajadas, pausas, penalidades por distância/movimento/supressão e decisões probabilísticas de acerto/erro. É um perfil de decisão, não um sistema de disparo: ainda precisa de adaptador para arma, munição, efeitos e dano do Unturned.
+- Atualizado `Docs/MobileNPC-Quick-Test.md` com limitações e passos de validação.
+- Commits recentes: `05d530fa` (memória/visão), `9b72b8da` (fonte Unity), `f28eb11b` (perfil de combate), `709a173c` (documentação).
+- **Não compilado nem testado no Unity.** A tentativa de iniciar o build termina em `Steam API initialization failed`; resolver a inicialização da Steam é uma tarefa separada da compilação.
+- Próxima prioridade: validar compilação no Unity; depois implementar entidade móvel replicada para clientes, integrar pathfinding/movimento e ligar o perfil de combate à arma/dano e sons humanoides existentes sem alterar NPCs estáticos.
