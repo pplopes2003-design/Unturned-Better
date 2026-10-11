@@ -1340,7 +1340,21 @@ namespace SDG.Unturned
 				}
 				else
 				{
-					if ((newPosition - transform.position).sqrMagnitude < (target.position - transform.position).sqrMagnitude)
+					// A fresh external point alert should redirect an existing point
+					// investigation even when the new sound is farther from the zombie
+					// than its previous destination. Player hunts never enter this branch.
+					if (huntType == EHuntType.POINT && !isReturningToSpawn && !isInvestigationWanderTarget)
+					{
+						target.position = newPosition;
+						lastHunted = Time.time;
+						lastStuck = Time.time;
+						stuckSearchTimer = 0.0f;
+						isMoving = false;
+						isStuck = false;
+						seeker.CanSearch = true;
+						seeker.CanMove = true;
+					}
+					else if ((newPosition - transform.position).sqrMagnitude < (target.position - transform.position).sqrMagnitude)
 					{
 						target.position = newPosition;
 					}
