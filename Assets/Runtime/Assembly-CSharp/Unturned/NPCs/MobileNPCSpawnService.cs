@@ -83,7 +83,8 @@ namespace SDG.Unturned
 		/// Rejects candidate locations whose humanoid capsule intersects existing colliders.
 		/// This is an additional placement guard; it does not replace map bounds or nav checks.
 		/// </summary>
-		private static bool IsSpawnCapsuleClear(CharacterController prefabController, Vector3 position, out string error)
+		private static bool IsSpawnCapsuleClear(CharacterController prefabController, Vector3 position,
+			Quaternion rotation, out string error)
 		{
 			error = null;
 			if (prefabController == null)
@@ -92,9 +93,15 @@ namespace SDG.Unturned
 				return false;
 			}
 
-			float radius = Mathf.Max(0.05f, prefabController.radius);
-			float height = Mathf.Max(radius * 2f, prefabController.height);
-			Vector3 center = position + prefabController.center;
+			// CharacterController dimensions are local-space values. Account for the
+			// prefab's scale and the candidate yaw so occupancy matches the spawned rig.
+			Vector3 scale = prefabController.transform.lossyScale;
+			float horizontalScale = Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.z));
+			float verticalScale = Mathf.Abs(scale.y);
+			float radius = Mathf.Max(0.05f, prefabController.radius * horizontalScale);
+			float height = Mathf.Max(radius * 2f, prefabController.height * verticalScale);
+			Vector3 scaledCenter = Vector3.Scale(prefabController.center, scale);
+			Vector3 center = position + rotation * scaledCenter;
 			float halfSegment = Mathf.Max(0f, height * 0.5f - radius);
 			Vector3 bottom = center - Vector3.up * halfSegment;
 			Vector3 top = center + Vector3.up * halfSegment;
@@ -274,7 +281,8 @@ namespace SDG.Unturned
 					continue;
 				}
 
-				if (!IsSpawnCapsuleClear(prefabController, groundPosition, out string occupancyError))
+				Quaternion rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+				if (!IsSpawnCapsuleClear(prefabController, groundPosition, rotation, out string occupancyError))
 				{
 					error = occupancyError;
 					continue;
@@ -302,11 +310,10 @@ namespace SDG.Unturned
 
 				if (tooCloseToExistingNPC)
 				{
-					error = "Candidate position was rejected because it is too close to another NPC in this batch.";
+					error = "Candidate position was rejected because it is too close to another active mobile NPC.";
 					continue;
 				}
 
-				Quaternion rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
 				if (!TrySpawnServer(prefab, groundPosition, rotation, role, out GameObject instance, out string spawnError))
 				{
 					error = spawnError;
