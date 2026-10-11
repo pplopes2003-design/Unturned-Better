@@ -145,6 +145,14 @@ namespace SDG.Unturned
 					}
 				}
 
+				// Fail closed when the ray did not confirm a collider before the target.
+				// Treating an empty result as visible can make agents shoot through walls
+				// when the prefab's obstruction mask is misconfigured.
+				if (nearestTransform == null)
+				{
+					continue;
+				}
+
 				if (nearestTransform != null)
 				{
 					MobileNPCHumanoidDisposition hitNPC = nearestTransform.GetComponent<MobileNPCHumanoidDisposition>();
@@ -214,6 +222,13 @@ namespace SDG.Unturned
 						nearestDistance = sightHits[hitIndex].distance;
 						nearestTransform = hitTransform;
 					}
+				}
+
+				// Require positive line-of-sight evidence instead of accepting a target
+				// when the ray query returns no colliders.
+				if (nearestTransform == null)
+				{
+					continue;
 				}
 
 				if (nearestTransform != null)
