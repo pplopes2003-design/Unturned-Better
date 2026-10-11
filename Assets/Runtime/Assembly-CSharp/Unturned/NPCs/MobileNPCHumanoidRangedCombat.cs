@@ -178,7 +178,7 @@ namespace SDG.Unturned
 			}
 
 			// Find the nearest external collider without allocating a per-shot array or sorting all hits.
-			int hitCount = Physics.RaycastNonAlloc(muzzle, shotDirection, shotHits, effectiveRange, hitMask, QueryTriggerInteraction.Ignore);
+			int hitCount = Physics.RaycastNonAlloc(muzzle, shotDirection, shotHits, weaponRange, hitMask, QueryTriggerInteraction.Ignore);
 			RaycastHit nearestHit = default(RaycastHit);
 			float nearestHitDistance = float.PositiveInfinity;
 			for (int i = 0; i < hitCount; ++i)
@@ -199,7 +199,7 @@ namespace SDG.Unturned
 			// allocating query only in this uncommon saturation case to preserve hit correctness.
 			if (hitCount == shotHits.Length)
 			{
-				RaycastHit[] overflowHits = Physics.RaycastAll(muzzle, shotDirection, effectiveRange, hitMask, QueryTriggerInteraction.Ignore);
+				RaycastHit[] overflowHits = Physics.RaycastAll(muzzle, shotDirection, weaponRange, hitMask, QueryTriggerInteraction.Ignore);
 				nearestHitDistance = float.PositiveInfinity;
 				for (int i = 0; i < overflowHits.Length; ++i)
 				{
