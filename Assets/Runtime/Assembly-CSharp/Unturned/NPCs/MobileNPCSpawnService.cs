@@ -74,6 +74,46 @@ namespace SDG.Unturned
 			return true;
 		}
 
+		private static bool IsVisibleFromObserver(Transform observer, Vector3 targetPosition)
+		{
+			if (observer == null)
+			{
+				return false;
+			}
+
+			Vector3 origin = observer.position + Vector3.up * 1.6f;
+			Vector3 target = targetPosition + Vector3.up * 1.1f;
+			Vector3 offset = target - origin;
+			float distance = offset.magnitude;
+			if (distance <= 1.25f)
+			{
+				return true;
+			}
+
+			Vector3 direction = offset / distance;
+			float rayDistance = distance - 0.75f;
+			if (!Physics.Raycast(origin, direction, out RaycastHit hit, rayDistance,
+				~0, QueryTriggerInteraction.Ignore))
+			{
+				return true;
+			}
+
+			if (hit.transform == observer || hit.transform.IsChildOf(observer))
+			{
+				float advance = Mathf.Min(hit.distance + 0.15f, rayDistance);
+				origin += direction * advance;
+				rayDistance -= advance;
+				if (rayDistance <= 0.1f)
+				{
+					return true;
+				}
+
+				return !Physics.Raycast(origin, direction, rayDistance, ~0, QueryTriggerInteraction.Ignore);
+			}
+
+			return false;
+		}
+
 		private static bool IsFinite(float value)
 		{
 			return !float.IsNaN(value) && !float.IsInfinity(value);
@@ -232,6 +272,22 @@ namespace SDG.Unturned
 			MobileNPCHumanoidDisposition.Role role, System.Collections.Generic.List<GameObject> spawnedInstances,
 			out int spawnedCount, out string error)
 		{
+			return TrySpawnBatchAroundServer(prefab, center, radius, desiredCount, maximumAttempts,
+				searchHeight, maximumDropDistance, groundMask, maximumSlopeAngle, role,
+				spawnedInstances, null, out spawnedCount, out error);
+		}
+
+		/// <summary>
+		/// Optional visibility-aware overload. When an observer is supplied, candidate points
+		/// with a clear ray from the observer's approximate eye position are rejected before
+		/// instantiation, preventing visible spawn flashes without spawn-then-despawn.
+		/// </summary>
+		public static bool TrySpawnBatchAroundServer(GameObject prefab, Vector3 center,
+			float radius, int desiredCount, int maximumAttempts, float searchHeight,
+			float maximumDropDistance, LayerMask groundMask, float maximumSlopeAngle,
+			MobileNPCHumanoidDisposition.Role role, System.Collections.Generic.List<GameObject> spawnedInstances,
+			Transform avoidVisibleFrom, out int spawnedCount, out string error)
+		{
 			spawnedCount = 0;
 			error = null;
 
@@ -284,6 +340,12 @@ namespace SDG.Unturned
 					groundMask, maximumSlopeAngle, out Vector3 groundPosition, out string groundError))
 				{
 					error = groundError;
+					continue;
+				}
+
+				if (avoidVisibleFrom != null && IsVisibleFromObserver(avoidVisibleFrom, groundPosition))
+				{
+					error = "Candidate position was rejected because it is visible from the player.";
 					continue;
 				}
 
