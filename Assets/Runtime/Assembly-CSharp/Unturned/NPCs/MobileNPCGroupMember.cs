@@ -150,12 +150,51 @@ namespace SDG.Unturned
 			LeaveGroupServer();
 		}
 
+		/// <summary>
+		/// Reassigns a newly spawned individual to the group whose member triggered this
+		/// replacement. Returns false when that group has dissolved, changed role, or is full.
+		/// </summary>
+		public bool TryJoinExistingGroupServer(int preferredGroupId)
+		{
+			if (!Provider.isServer || !initialized || leftGroup || preferredGroupId <= 0)
+				return false;
+			if (GroupId == preferredGroupId)
+				return true;
+			if (!groups.TryGetValue(preferredGroupId, out GroupRecord target))
+				return false;
+
+			PruneDeadMembers(target);
+			MobileNPCHumanoidDisposition.Role role = disposition != null
+				? disposition.CurrentRole : MobileNPCHumanoidDisposition.Role.Neutral;
+			if (target.Members.Count == 0 || target.Members.Count >= MaximumGroupSize || target.Role != role)
+				return false;
+
+			RemoveFromCurrentGroupServer(false);
+			GroupId = target.Id;
+			GroupAnchor = target.Anchor;
+			target.Members.Add(this);
+			if (target.Leader == null)
+				target.Leader = this;
+			if (motor != null)
+				motor.TrySetHomePositionServer(target.Anchor);
+
+			Debug.Log("[MobileNPCGroupMember] NPC " + name + " rejoined surviving group " + GroupId
+				+ " after a delayed population replacement (" + target.Members.Count + "/" + MaximumGroupSize + ").");
+			return true;
+		}
+
 		private void LeaveGroupServer()
 		{
 			if (!Provider.isServer || leftGroup)
 				return;
+			RemoveFromCurrentGroupServer(true);
+		}
 
-			leftGroup = true;
+		private void RemoveFromCurrentGroupServer(bool permanently)
+		{
+			if (permanently)
+				leftGroup = true;
+
 			if (groups.TryGetValue(GroupId, out GroupRecord group))
 			{
 				group.Members.Remove(this);
