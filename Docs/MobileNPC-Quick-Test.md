@@ -156,3 +156,13 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 - [ ] Confirmar que item simulado sem `ItemData` autoritativo não é coletado.
 
 **Limite:** operação de transferência existe, mas a IA ainda não procura itens nem chama automaticamente o método ao chegar ao destino.
+
+
+## Coleta automática (protótipo)
+- [ ] Criar NPC com espaço livre no inventário e deixar um item físico registrado no mundo dentro do raio de busca.
+- [ ] Confirmar que o NPC escolhe o drop mais próximo e caminha até ele.
+- [ ] Confirmar que, ao chegar, o drop desaparece e `MobileNPCInventory.UsedSlots` aumenta.
+- [ ] Repetir com inventário cheio, item já recolhido, alvo de combate ativo e item próximo à fronteira de região.
+- [ ] Confirmar que o NPC não abandona um combate para recolher item e que não há exceções no console.
+
+**Ainda sem validação em execução Unity.**
