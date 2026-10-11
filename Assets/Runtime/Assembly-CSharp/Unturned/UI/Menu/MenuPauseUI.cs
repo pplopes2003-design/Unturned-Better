@@ -126,8 +126,12 @@ namespace SDG.Unturned
 			buttonsContainer.AddChild(returnButton);
 			offset += 60;
 
-			foreach (CustomMenuLink customMenuLink in Provider.statusData.Menu.Custom_Menu_Links)
+			// Status data can be older than this SDK or omit optional custom menu links.
+			// Do not abort construction of the entire main menu when that optional list is absent.
+			if (Provider.statusData?.Menu?.Custom_Menu_Links != null)
 			{
+				foreach (CustomMenuLink customMenuLink in Provider.statusData.Menu.Custom_Menu_Links)
+				{
 				CustomMenuLinkButton supportButton = new CustomMenuLinkButton(icons.load<Texture2D>(customMenuLink.Icon), 40);
 				supportButton.PositionOffset_X = -100;
 				supportButton.PositionOffset_Y = offset;
@@ -139,8 +143,9 @@ namespace SDG.Unturned
 				supportButton.url = customMenuLink.Web_Link;
 				supportButton.fontSize = ESleekFontSize.Medium;
 				supportButton.iconColor = ESleekTint.FOREGROUND;
-				buttonsContainer.AddChild(supportButton);
-				offset += 60;
+					buttonsContainer.AddChild(supportButton);
+					offset += 60;
+				}
 			}
 
 			creditsButton = new SleekButtonIcon(icons.load<Texture2D>("Credits"));
