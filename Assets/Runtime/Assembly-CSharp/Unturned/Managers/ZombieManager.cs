@@ -60,6 +60,7 @@ namespace SDG.Unturned
 
 		public static int wanderingCount;
 		private static int tickIndex;
+		private static bool hasWarnedMissingTickZombie;
 		private static List<Zombie> _tickingZombies;
 		public static List<Zombie> tickingZombies => _tickingZombies;
 
@@ -1701,6 +1702,138 @@ namespace SDG.Unturned
 			}
 		}
 
+		// Route loud explosions through the existing point-investigation AI. A short
+		// spatial cooldown avoids alerting the region repeatedly for one blast.
+		private static float lastNoiseAlertTime = -1000.0f;
+		private static Vector3 lastNoiseAlertPosition;
+		private const float NOISE_ALERT_COOLDOWN = 0.75f;
+
+		public static void alertZombiesToNoise(Vector3 position, float radius)
+		{
+			byte nav;
+			if (!Provider.isServer || regions == null || radius <= 0.0f || AllZombies == null || !LevelNavigation.tryGetNavigation(position, out nav) || nav >= regions.Length)
+			{
+				return;
+			}
+
+			// Validate the source before consuming the cooldown, so an invalid or
+			// temporarily unavailable navigation region cannot suppress a real shot.
+			if (Time.time - lastNoiseAlertTime < NOISE_ALERT_COOLDOWN && (position - lastNoiseAlertPosition).sqrMagnitude < 64.0f)
+			{
+				return;
+			}
+
+			lastNoiseAlertTime = Time.time;
+			lastNoiseAlertPosition = position;
+
+			// Noise can be heard across navigation-region boundaries. Use the global
+			// zombie list and the real 3D distance instead of checking only the source region.
+			float sqrRadius = radius * radius;
+			for (int index = 0; index < AllZombies.Count; ++index)
+			{
+				Zombie zombie = AllZombies[index];
+				if (zombie == null || zombie.isDead || (zombie.transform.position - position).sqrMagnitude > sqrRadius)
+				{
+					continue;
+				}
+
+				zombie.alert(position, false);
+			}
+		}
+
+		// Ambient migration and horde formation are server-authoritative. They reuse the
+		// existing zombie pathfinder and never move a zombie by teleporting it.
+		private static float nextAmbientHordeUpdate;
+		private const float AMBIENT_HORDE_UPDATE_INTERVAL = 8.0f;
+		private const float AMBIENT_HORDE_SEARCH_RADIUS = 32.0f;
+		private const float AMBIENT_HORDE_MIN_TRAVEL_DISTANCE = 38.0f;
+		private const float AMBIENT_HORDE_MAX_TRAVEL_DISTANCE = 78.0f;
+		private const int AMBIENT_HORDE_MIN_SIZE = 3;
+		private const int AMBIENT_HORDE_MAX_SIZE = 8;
+
+		private static void UpdateAmbientHordes()
+		{
+			if (!Provider.isServer || Level.info.type == ELevelType.HORDE || regions == null || regions.Length == 0 || AllZombies == null || AllZombies.Count < AMBIENT_HORDE_MIN_SIZE)
+			{
+				return;
+			}
+
+			if (Time.time < nextAmbientHordeUpdate)
+			{
+				return;
+			}
+
+			nextAmbientHordeUpdate = Time.time + AMBIENT_HORDE_UPDATE_INTERVAL;
+
+			// Randomize the starting point so the same region is not always favored.
+			int startIndex = Random.Range(0, AllZombies.Count);
+			Zombie leader = null;
+			for (int offset = 0; offset < AllZombies.Count; ++offset)
+			{
+				Zombie candidate = AllZombies[(startIndex + offset) % AllZombies.Count];
+				if (candidate == null || candidate.isDead || candidate.isHunting || candidate.isIdleAfterInvestigation || candidate.bound >= regions.Length)
+				{
+					continue;
+				}
+
+				// Do not pull zombies away from a player or from a special encounter.
+				if (regions[candidate.bound] == null || regions[candidate.bound].PlayerCountInRegion <= 0)
+				{
+					continue;
+				}
+
+				leader = candidate;
+				break;
+			}
+
+			if (leader == null)
+			{
+				return;
+			}
+
+			Vector3 destination = leader.transform.position;
+			bool foundDestination = false;
+			for (int attempt = 0; attempt < 8; ++attempt)
+			{
+				float angle = Random.value * Mathf.PI * 2.0f;
+				float distance = Random.Range(AMBIENT_HORDE_MIN_TRAVEL_DISTANCE, AMBIENT_HORDE_MAX_TRAVEL_DISTANCE);
+				Vector3 candidatePoint = leader.transform.position + new Vector3(Mathf.Cos(angle) * distance, 0.0f, Mathf.Sin(angle) * distance);
+				if (LevelNavigation.checkNavigation(candidatePoint))
+				{
+					destination = candidatePoint;
+					foundDestination = true;
+					break;
+				}
+			}
+
+			if (!foundDestination)
+			{
+				return;
+			}
+
+			int alerted = 0;
+			int maxHordeSize = LightingManager.isFullMoon ? 16 : AMBIENT_HORDE_MAX_SIZE;
+			float groupRadiusSquared = AMBIENT_HORDE_SEARCH_RADIUS * AMBIENT_HORDE_SEARCH_RADIUS;
+			// The same destination makes the group converge naturally; pathfinding remains
+			// responsible for routing around buildings and terrain.
+			for (int offset = 0; offset < AllZombies.Count && alerted < maxHordeSize; ++offset)
+			{
+				Zombie member = AllZombies[(startIndex + offset) % AllZombies.Count];
+				if (member == null || member.isDead || member.isHunting || member.isIdleAfterInvestigation || member.bound != leader.bound)
+				{
+					continue;
+				}
+
+				if ((member.transform.position - leader.transform.position).sqrMagnitude > groupRadiusSquared)
+				{
+					continue;
+				}
+
+				member.alert(destination, false);
+				++alerted;
+			}
+		}
+
 		private void Update()
 		{
 			if (!Level.isLoaded)
@@ -1736,6 +1869,8 @@ namespace SDG.Unturned
 				return;
 			}
 
+			UpdateAmbientHordes();
+
 			int start;
 			int end;
 
@@ -1768,7 +1903,14 @@ namespace SDG.Unturned
 
 				if (zombie == null)
 				{
-					UnturnedLog.error("Missing zombie " + index);
+					// Self-heal stale entries left by destroyed or externally removed zombies.
+					// Iterate backwards, so removing the current entry does not skip earlier entries.
+					tickingZombies.RemoveAt(index);
+					if (!hasWarnedMissingTickZombie)
+					{
+						hasWarnedMissingTickZombie = true;
+						UnturnedLog.warn("Removed a missing zombie reference from tickingZombies. Further occurrences will be suppressed.");
+					}
 					continue;
 				}
 

@@ -229,14 +229,19 @@ namespace SDG.Unturned
 				return;
 			}
 
-			if (!damageParameters.shouldAffectZombies)
+			Vector3 offset = damageParameters.closestPoint - explosionParameters.point;
+			float range = offset.magnitude;
+			if (range > explosionParameters.damageRadius)
 			{
 				return;
 			}
 
-			Vector3 offset = damageParameters.closestPoint - explosionParameters.point;
-			float range = offset.magnitude;
-			if (range > explosionParameters.damageRadius)
+			// Hearing is independent of whether this explosion is configured to damage zombies
+			// and should not require line of sight. Keep the range gate so this per-zombie
+			// callback does not broadcast noise for every zombie in the world.
+			ZombieManager.alertZombiesToNoise(explosionParameters.point, Mathf.Clamp(explosionParameters.damageRadius * 4.0f, 48.0f, 160.0f));
+
+			if (!damageParameters.shouldAffectZombies)
 			{
 				return;
 			}
@@ -249,6 +254,7 @@ namespace SDG.Unturned
 					return;
 				}
 			}
+
 
 			if (explosionParameters.playImpactEffect)
 			{
@@ -352,6 +358,16 @@ namespace SDG.Unturned
 		private EHuntType huntType;
 
 		private bool isLeaving;
+		private bool isInvestigationIdle;
+		public bool isIdleAfterInvestigation => isInvestigationIdle;
+		private bool isReturningToSpawn;
+		private float investigationIdleUntil;
+		private Vector3 investigationCenter;
+		private float investigationUntil;
+		private int investigationWandersRemaining;
+		private bool isInvestigationWanderTarget;
+		private const float INVESTIGATION_WANDER_RADIUS = 18.0f;
+		private const int INVESTIGATION_MAX_WANDERS = 3;
 		private bool isStunned;
 		private bool isStuck;
 		private Vector3 leaveTo;
@@ -1072,6 +1088,10 @@ namespace SDG.Unturned
 
 		public void alert(Player newPlayer)
 		{
+			isInvestigationIdle = false;
+			isReturningToSpawn = false;
+			investigationWandersRemaining = 0;
+
 			if (isDead)
 			{
 				return;
@@ -1229,6 +1249,22 @@ namespace SDG.Unturned
 				return;
 			}
 
+			if (isInvestigationIdle)
+			{
+				isInvestigationIdle = false;
+				isReturningToSpawn = false;
+			}
+
+			// Start or refresh an investigation for external point alerts. A second
+			// sound can redirect a zombie already investigating, but player pursuit,
+			// internal search legs, and the return-to-spawn leg keep their own state.
+			if (!isInvestigationWanderTarget && !isReturningToSpawn && (!isHunting || huntType == EHuntType.POINT))
+			{
+				investigationCenter = newPosition;
+				investigationUntil = Time.time + 55.0f;
+				investigationWandersRemaining = INVESTIGATION_MAX_WANDERS;
+			}
+
 			if (player == null)
 			{
 				if (!isHunting)
@@ -1291,9 +1327,37 @@ namespace SDG.Unturned
 					seeker.CanSearch = true;
 					seeker.CanMove = true;
 				}
+				else if (isInvestigationWanderTarget)
+				{
+					// Internal search legs must be allowed to move away from the previous
+					// target; otherwise the vanilla "closer target only" rule can discard
+					// most of the investigation sweep.
+					target.position = newPosition;
+					lastHunted = Time.time;
+					lastStuck = Time.time;
+					stuckSearchTimer = 0.0f;
+					isMoving = false;
+					isStuck = false;
+					seeker.CanSearch = true;
+					seeker.CanMove = true;
+				}
 				else
 				{
-					if ((newPosition - transform.position).sqrMagnitude < (target.position - transform.position).sqrMagnitude)
+					// A fresh external point alert should redirect an existing point
+					// investigation even when the new sound is farther from the zombie
+					// than its previous destination. Player hunts never enter this branch.
+					if (huntType == EHuntType.POINT && !isReturningToSpawn && !isInvestigationWanderTarget)
+					{
+						target.position = newPosition;
+						lastHunted = Time.time;
+						lastStuck = Time.time;
+						stuckSearchTimer = 0.0f;
+						isMoving = false;
+						isStuck = false;
+						seeker.CanSearch = true;
+						seeker.CanMove = true;
+					}
+					else if ((newPosition - transform.position).sqrMagnitude < (target.position - transform.position).sqrMagnitude)
 					{
 						target.position = newPosition;
 					}
@@ -2004,6 +2068,51 @@ namespace SDG.Unturned
 				return;
 			}
 
+			// Pause briefly between search legs, then sweep nearby points around the
+			// original sound location instead of standing still for the whole investigation.
+			if (isInvestigationIdle)
+			{
+				if (Time.time < investigationIdleUntil)
+				{
+					return;
+				}
+
+				isInvestigationIdle = false;
+				if (Time.time < investigationUntil && investigationWandersRemaining > 0)
+				{
+					for (int attempt = 0; attempt < 8; ++attempt)
+					{
+						float angle = Random.value * Mathf.PI * 2.0f;
+						float distance = Random.Range(5.0f, INVESTIGATION_WANDER_RADIUS);
+						Vector3 searchPoint = investigationCenter + new Vector3(Mathf.Cos(angle) * distance, 0.0f, Mathf.Sin(angle) * distance);
+						if (!LevelNavigation.checkNavigation(searchPoint))
+						{
+							continue;
+						}
+
+						--investigationWandersRemaining;
+						isInvestigationWanderTarget = true;
+						alert(searchPoint, false);
+						isInvestigationWanderTarget = false;
+						return;
+					}
+				}
+
+				investigationWandersRemaining = 0;
+				if (bound < LevelZombies.zombies.Length && LevelZombies.zombies[bound] != null && LevelZombies.zombies[bound].Count > 0)
+				{
+					List<ZombieSpawnpoint> spawnpoints = LevelZombies.zombies[bound];
+					ZombieSpawnpoint spawnpoint = spawnpoints[Random.Range(0, spawnpoints.Count)];
+					isReturningToSpawn = true;
+					alert(spawnpoint.point, false);
+				}
+				else
+				{
+					setTicking(false);
+				}
+				return;
+			}
+
 			undergroundTestTimer -= delta;
 			if (undergroundTestTimer < 0.0f)
 			{
@@ -2020,15 +2129,43 @@ namespace SDG.Unturned
 			{
 				if (player == null)
 				{
+					// The player reference can disappear when a player disconnects or is
+					// removed from the world. Preserve the last pursuit destination and
+					// investigate it instead of immediately abandoning the hunt.
+					Vector3 lastKnownPosition = target.position;
+					if (!LevelNavigation.checkNavigation(lastKnownPosition))
+					{
+						lastKnownPosition = transform.position;
+					}
+
 					stop();
+					if ((lastKnownPosition - transform.position).sqrMagnitude > 1.0f)
+					{
+						alert(lastKnownPosition, false);
+					}
+					else
+					{
+						setTicking(false);
+					}
 					return;
 				}
 			}
 			else if (huntType == EHuntType.POINT)
 			{
-				if ((!isMoving || isStuck) && Time.time - lastHunted > 3f)
+				if ((!isMoving || isStuck) && Time.time - lastHunted > 10f)
 				{
+					bool wasReturningToSpawn = isReturningToSpawn;
 					stop();
+					if (wasReturningToSpawn)
+					{
+						isReturningToSpawn = false;
+					}
+					else
+					{
+						isInvestigationIdle = true;
+						investigationIdleUntil = Time.time + Random.Range(2.0f, 5.0f);
+						setTicking(true);
+					}
 					return;
 				}
 			}
@@ -2310,7 +2447,9 @@ namespace SDG.Unturned
 
 			if (!isWandering)
 			{
-				if (sqrHorizontalDistanceFromTarget > 4096 && (player == null || !zombieRegion.HasInfiniteAgroRange))
+				// Keep player targets across region boundaries and long distances. Non-player targets
+				// retain the vanilla leash so zombies do not chase stale objects indefinitely.
+				if (sqrHorizontalDistanceFromTarget > 4096 && player == null && !zombieRegion.HasInfiniteAgroRange)
 				{
 					leave(false);
 
@@ -3296,6 +3435,9 @@ namespace SDG.Unturned
 			if (Provider.isServer)
 			{
 				isHunting = false;
+				// A destroyed zombie must never remain in the manager's per-frame tick list.
+				// isHunting can already be false while the zombie is still ticking for placement.
+				setTicking(false);
 			}
 
 			if (!Dedicator.IsDedicatedServer)

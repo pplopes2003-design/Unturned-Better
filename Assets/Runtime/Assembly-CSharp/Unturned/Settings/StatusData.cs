@@ -36,6 +36,12 @@ namespace SDG.Unturned
 
 		public bool canBeGrantedByNPC(string id)
 		{
+			// Older or incomplete status data may not define this optional allowlist.
+			if (string.IsNullOrEmpty(id) || NPC_Achievement_IDs == null)
+			{
+				return false;
+			}
+
 			foreach (string testID in NPC_Achievement_IDs)
 			{
 				if (string.Equals(testID, id))

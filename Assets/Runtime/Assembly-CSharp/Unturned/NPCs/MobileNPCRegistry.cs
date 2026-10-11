@@ -1,0 +1,58 @@
+////////////////////////////////////////////////////////////////////////////////////////
+// This file is part of the U3 SDK: https://github.com/smartlydressedgames/u3-sdk/    //
+// Please refer to the included LICENSE.txt for copyright notice and license details. //
+////////////////////////////////////////////////////////////////////////////////////////
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace SDG.Unturned
+{
+	/// <summary>
+	/// Server-only registry for explicitly configured mobile NPC brain drivers.
+	/// This does not spawn, replicate, or modify legacy/static NPCs. It gives future
+	/// faction, population, and cleanup systems a safe way to enumerate mobile agents.
+	/// </summary>
+	public static class MobileNPCRegistry
+	{
+		private static readonly HashSet<MobileNPCBrainDriver> activeDrivers = new HashSet<MobileNPCBrainDriver>();
+
+		public static int Count => activeDrivers.Count;
+
+		internal static void Register(MobileNPCBrainDriver driver)
+		{
+			if (Provider.isServer && driver != null && driver.isActiveAndEnabled)
+			{
+				activeDrivers.Add(driver);
+			}
+		}
+
+		internal static void Unregister(MobileNPCBrainDriver driver)
+		{
+			if (driver != null)
+			{
+				activeDrivers.Remove(driver);
+			}
+		}
+
+		/// <summary>
+		/// Copies currently active server drivers into a caller-owned list. Stale Unity
+		/// objects are pruned, and the registry's internal collection is never exposed.
+		/// </summary>
+		public static void CopyActiveDrivers(List<MobileNPCBrainDriver> destination)
+		{
+			if (destination == null)
+			{
+				return;
+			}
+
+			destination.Clear();
+			if (!Provider.isServer)
+			{
+				return;
+			}
+
+			activeDrivers.RemoveWhere(driver => driver == null || !driver.isActiveAndEnabled);
+			destination.AddRange(activeDrivers);
+		}
+	}
+}

@@ -126,21 +126,26 @@ namespace SDG.Unturned
 			buttonsContainer.AddChild(returnButton);
 			offset += 60;
 
-			foreach (CustomMenuLink customMenuLink in Provider.statusData.Menu.Custom_Menu_Links)
+			// Status data can be older than this SDK or omit optional custom menu links.
+			// Do not abort construction of the entire main menu when that optional list is absent.
+			if (Provider.statusData?.Menu?.Custom_Menu_Links != null)
 			{
-				CustomMenuLinkButton supportButton = new CustomMenuLinkButton(icons.load<Texture2D>(customMenuLink.Icon), 40);
-				supportButton.PositionOffset_X = -100;
-				supportButton.PositionOffset_Y = offset;
-				supportButton.PositionScale_X = 0.5f;
-				supportButton.SizeOffset_X = 200;
-				supportButton.SizeOffset_Y = 50;
-				supportButton.text = localization.format(customMenuLink.Label_Key);
-				supportButton.tooltip = localization.format(customMenuLink.Tooltip_Key);
-				supportButton.url = customMenuLink.Web_Link;
-				supportButton.fontSize = ESleekFontSize.Medium;
-				supportButton.iconColor = ESleekTint.FOREGROUND;
-				buttonsContainer.AddChild(supportButton);
-				offset += 60;
+				foreach (CustomMenuLink customMenuLink in Provider.statusData.Menu.Custom_Menu_Links)
+				{
+					CustomMenuLinkButton supportButton = new CustomMenuLinkButton(icons.load<Texture2D>(customMenuLink.Icon), 40);
+					supportButton.PositionOffset_X = -100;
+					supportButton.PositionOffset_Y = offset;
+					supportButton.PositionScale_X = 0.5f;
+					supportButton.SizeOffset_X = 200;
+					supportButton.SizeOffset_Y = 50;
+					supportButton.text = localization.format(customMenuLink.Label_Key);
+					supportButton.tooltip = localization.format(customMenuLink.Tooltip_Key);
+					supportButton.url = customMenuLink.Web_Link;
+					supportButton.fontSize = ESleekFontSize.Medium;
+					supportButton.iconColor = ESleekTint.FOREGROUND;
+					buttonsContainer.AddChild(supportButton);
+					offset += 60;
+				}
 			}
 
 			creditsButton = new SleekButtonIcon(icons.load<Texture2D>("Credits"));

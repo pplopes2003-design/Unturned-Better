@@ -21,14 +21,18 @@ namespace SDG.Unturned
 		{
 			get
 			{
-				if (Provider.streamerNames != null)
+
+				if (Provider.streamerNames != null && Provider.streamerNames.Count > 0)
 				{
-					return Provider.streamerNames[(int) (steamID.m_SteamID % (ulong) Provider.streamerNames.Count)];
+					return Provider.streamerNames[
+						(int) (steamID.m_SteamID % (ulong) Provider.streamerNames.Count)
+					];
 				}
 				else
 				{
 					return string.Empty;
 				}
+
 			}
 		}
 
