@@ -2026,7 +2026,7 @@ namespace SDG.Unturned
 			}
 			else if (huntType == EHuntType.POINT)
 			{
-				if ((!isMoving || isStuck) && Time.time - lastHunted > 3f)
+				if ((!isMoving || isStuck) && Time.time - lastHunted > 10f)
 				{
 					stop();
 					return;
