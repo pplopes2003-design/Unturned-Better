@@ -2129,7 +2129,24 @@ namespace SDG.Unturned
 			{
 				if (player == null)
 				{
+					// The player reference can disappear when a player disconnects or is
+					// removed from the world. Preserve the last pursuit destination and
+					// investigate it instead of immediately abandoning the hunt.
+					Vector3 lastKnownPosition = target.position;
+					if (!LevelNavigation.checkNavigation(lastKnownPosition))
+					{
+						lastKnownPosition = transform.position;
+					}
+
 					stop();
+					if ((lastKnownPosition - transform.position).sqrMagnitude > 1.0f)
+					{
+						alert(lastKnownPosition, false);
+					}
+					else
+					{
+						setTicking(false);
+					}
 					return;
 				}
 			}
