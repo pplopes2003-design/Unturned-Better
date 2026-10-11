@@ -10,7 +10,7 @@ The opt-in humanoid prototype is under `Assets/Runtime/Assembly-CSharp/Unturned/
 - `MobileNPCRegistry`: server-only registry of enabled mobile brain drivers for future faction/population systems.
 - `MobileNPCSpawnService`: validates an explicitly supplied mobile humanoid prefab and creates it on the server with a selected role. This is **not network replication**; do not treat it as a multiplayer-ready spawn.
 - `MobileNPCHumanoidPerception`: nearest living player within sight range, field of view and unobstructed line of sight.
-- `MobileNPCHumanoidDisposition`: opt-in `Hostile`, `Friendly` or `Neutral` role. Only `Hostile` NPCs acquire players as combat targets in this prototype.
+- `MobileNPCHumanoidDisposition`: opt-in `Hostile`, `Friendly` or `Neutral` role. Hostile NPCs can engage players and opposing Friendly NPCs; Friendly NPCs engage Hostile NPCs but not players; Neutral NPCs engage neither faction.
 - `MobileNPCHumanoidMotor`: server-side CharacterController movement.
 - `MobileNPCHumanoidAim`: variable reaction time, movement/shot spread and suppression penalty.
 - `MobileNPCHumanoidCombat`: server-authoritative melee damage.
@@ -31,6 +31,20 @@ The opt-in humanoid prototype is under `Assets/Runtime/Assembly-CSharp/Unturned/
 6. Test NPC death by applying server-validated damage through `MobileNPCHumanoidVitals.ApplyDamage(...)`: health must reach zero once, the brain must reset, movement/collision and combat/perception must stop, the driver must leave the active registry, and the `Died` event must fire once. Healing and repeated damage after death must be rejected.
 7. Exercise `TryDespawnServer(...)` with a live mobile NPC: on the server it should destroy the instance and remove its driver from the active registry; a client-side call and a non-mobile GameObject must be rejected. This checks server-local cleanup only, not network despawn.
 8. Verify dedicated-server and client behavior separately.
+
+## Faction smoke test
+
+1. Spawn one Hostile and one Friendly mobile prefab with vitals and melee or ranged combat enabled. Confirm each acquires the opposing NPC only with line of sight, and damage is applied through the target's server-side vitals.
+2. Spawn two NPCs from the same faction and confirm they do not acquire or damage one another. Neutral NPCs should not join faction combat.
+3. Fire a mobile NPC's ranged weapon and confirm nearby vanilla zombies investigate the gunfire position. This is a noise reaction only; zombies do not yet treat mobile NPCs as full living attack targets.
+4. Repeat with a Hostile shooter and a Friendly shooter. Both should produce the same zombie-noise stimulus.
+
+## World population, settlement and war status
+
+- Mobile NPC spawning is still an explicit server-side call at a supplied position. **Automatic spawning across arbitrary maps is not implemented yet.**
+- Persistent regional populations, claiming territory, building/maintaining bases, resource gathering, storage, and long-term settlement are not implemented.
+- Hostile-versus-Friendly acquisition and prototype melee/hitscan damage are now connected. Full native weapon integration and replication remain incomplete.
+- Zombies currently react to mobile NPC gunfire by investigating its position. They do **not** yet select, chase, and attack mobile NPCs as full targets; that requires integrating NPC perception/health into the native zombie target and damage pipeline.
 
 ## Death and ragdoll status
 
@@ -58,3 +72,7 @@ The opt-in humanoid prototype is under `Assets/Runtime/Assembly-CSharp/Unturned/
 - [ ] Server cleanup rejects clients and non-mobile objects; network despawn remains a separate acceptance item.
 - [ ] Existing static NPCs, vanilla zombies and sentries retain their current behavior.
 - [ ] Server-to-client spawn and movement replication are implemented and tested before multiplayer acceptance.
+- [ ] Population spawning works on arbitrary supported maps without hand-placed NPCs.
+- [ ] NPCs can build, defend, repair and persist bases/settlements in claimed regions.
+- [ ] Hostile and Friendly factions fight one another using server-authoritative damage.
+- [ ] Vanilla zombies can perceive, pursue and damage both mobile NPC factions, not merely investigate their gunfire.
