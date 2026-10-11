@@ -80,6 +80,7 @@ namespace SDG.Unturned
             template.AddComponent<MobileNPCInventory>();
             template.AddComponent<MobileNPCLooting>();
             template.AddComponent<MobileNPCMedicalUse>();
+            template.AddComponent<MobileNPCSettlementPlanner>();
 
             // Reuse the game's existing humanoid visual hierarchy without modifying its
             // legacy prefab or retaining its player/NPC-specific gameplay behaviours.
