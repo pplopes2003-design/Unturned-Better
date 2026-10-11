@@ -435,4 +435,5 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - `MobileNPCRangedPresentation` escuta os eventos de disparo e início de recarga e reutiliza os clips `shoot` e `reload` do `ItemGunAsset` selecionado, com volume espacializado e proteção para dedicated server.
 - O combate limita a distância de tiro ao menor valor entre o alcance configurado do NPC e o alcance positivo da arma; o dano base usa `playerDamageMultiplier.damage` quando disponível, mantendo o valor configurado como fallback.
 - O bootstrap anexa o adaptador à entidade móvel, sem alterar NPCs estáticos ou prefabs vanilla.
-- Limitação conhecida: a arma ainda não é anexada à mão do esqueleto e não há replicação de eventos para clientes multiplayer. A apresentação sonora precisa de teste em jogo; não há compilação Unity disponível neste ambiente.
+- O adaptador também tenta anexar o modelo vanilla da arma ao gancho ósseo correspondente (mão direita/esquerda ou coluna), atualizando-o quando a arma selecionada muda.
+- Limitações conhecidas: não foram implementadas animações específicas de disparo/recarga nem replicação de eventos para clientes multiplayer. A criação do modelo e a apresentação sonora precisam de teste em jogo; não há compilação Unity disponível neste ambiente.
