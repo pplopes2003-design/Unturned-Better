@@ -20,6 +20,10 @@ namespace SDG.Unturned
         [SerializeField, Min(2f)] private float maximumRolloffDistance = 64f;
 
         private MobileNPCHumanoidRangedCombat combat;
+        private Transform skeleton;
+        private Transform equippedWeaponModel;
+        private ushort displayedGunID;
+        private float nextVisualRefreshTime;
 
         private void Awake()
         {
@@ -40,9 +44,88 @@ namespace SDG.Unturned
 
         private void OnDisable()
         {
+            DestroyWeaponModel();
             if (combat == null) return;
             combat.ShotFired -= HandleShotFired;
             combat.ReloadStarted -= HandleReloadStarted;
+        }
+
+        private void Update()
+        {
+#if !DEDICATED_SERVER
+            if (Dedicator.IsDedicatedServer || Time.time < nextVisualRefreshTime) return;
+            nextVisualRefreshTime = Time.time + 0.5f;
+            RefreshWeaponModel();
+#endif
+        }
+
+        private void RefreshWeaponModel()
+        {
+            ItemGunAsset gun = combat != null ? combat.SelectedGunAsset : null;
+            ushort desiredID = gun != null ? gun.id : (ushort)0;
+            if (desiredID == displayedGunID && equippedWeaponModel != null) return;
+            if (desiredID == displayedGunID && desiredID == 0) return;
+
+            DestroyWeaponModel();
+            displayedGunID = desiredID;
+            if (gun == null || Dedicator.IsDedicatedServer) return;
+
+            if (skeleton == null)
+            {
+                Transform[] transforms = GetComponentsInChildren<Transform>(true);
+                for (int i = 0; i < transforms.Length; ++i)
+                {
+                    if (transforms[i] != null && transforms[i].name == "Skeleton")
+                    {
+                        skeleton = transforms[i];
+                        break;
+                    }
+                }
+            }
+            if (skeleton == null) return;
+
+            Transform spine = skeleton.Find("Spine");
+            if (spine == null) return;
+            Transform rightHook = spine.Find("Right_Shoulder/Right_Arm/Right_Hand/Right_Hook");
+            Transform leftHook = spine.Find("Left_Shoulder/Left_Arm/Left_Hand/Left_Hook");
+            Transform spineHook = spine.Find("Spine_Hook");
+            Transform parent = rightHook != null ? rightHook : (spineHook != null ? spineHook : spine);
+            switch (gun.EquipableModelParent)
+            {
+                case EEquipableModelParent.LeftHook:
+                    if (leftHook != null) parent = leftHook;
+                    break;
+                case EEquipableModelParent.Spine:
+                    parent = spine;
+                    break;
+                case EEquipableModelParent.SpineHook:
+                    if (spineHook != null) parent = spineHook;
+                    break;
+            }
+
+            GameObject prefab = gun.equipablePrefab != null ? gun.equipablePrefab : gun.item;
+            if (prefab == null) return;
+            Material temporaryMaterial;
+            Transform model = ItemTool.InstantiateItem(100, gun.getState(), false, gun, null, true,
+                null, out temporaryMaterial, null, prefabOverride: prefab);
+            if (model == null) return;
+            model.SetParent(parent, false);
+            model.localPosition = Vector3.zero;
+            model.localRotation = Quaternion.Euler(0f, 0f, 90f);
+            model.localScale = Vector3.one;
+            model.DestroyRigidbody();
+            Layerer.enemy(model);
+            equippedWeaponModel = model;
+        }
+
+        private void DestroyWeaponModel()
+        {
+            if (equippedWeaponModel != null)
+            {
+                Destroy(equippedWeaponModel.gameObject);
+                equippedWeaponModel = null;
+            }
+            displayedGunID = 0;
         }
 
         private void HandleShotFired()
