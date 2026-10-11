@@ -96,7 +96,6 @@ namespace SDG.Unturned
 			float bestDistanceSquared = GroupJoinRadius * GroupJoinRadius;
 			foreach (GroupRecord group in groups.Values)
 			{
-				PruneDeadMembers(group);
 				if (group.Members.Count == 0)
 					continue;
 
@@ -155,7 +154,6 @@ namespace SDG.Unturned
 			if (!Provider.isServer)
 				return;
 			groups.Clear();
-			nextGroupId = 1;
 		}
 	}
 }
