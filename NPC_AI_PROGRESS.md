@@ -24,6 +24,7 @@ Não alterar a posição dos NPCs estáticos existentes nem adicionar movimento 
 
 - [ ] Mapear o protocolo de mensagens e o ciclo de vida das entidades móveis existentes.
 - [ ] Escolher a integração mínima de replicação compatível com o SDK disponível.
+- [ ] Verificar os pontos de extensão disponíveis para mensagens de rede sem depender de código privado ausente no SDK público.
 - [ ] Implementar uma primeira capacidade isolada de patrulha/percepção, desativada por padrão para NPCs atuais.
 - [ ] Revisar impacto no diálogo, salvamento, regiões e multiplayer.
 - [ ] Solicitar teste no jogo quando houver alteração concreta.
@@ -40,4 +41,6 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Mapeado o componente de NPC estático e sua dependência de diálogo/NetIdRegistry.
 - Confirmado que o registro de Transform não equivale à replicação de movimento.
 - Confirmado que o SDK público usa uma implementação de movimento de zumbi de fallback sem pathfinding completo.
+- O movimento de veículos é replicado por um protocolo dedicado em NetPak, com sequência de atualizações, posição, rotação e estado físico; não é um componente genérico que possamos simplesmente anexar a um NPC.
+- O movimento dos jogadores usa snapshots/interpolação próprios. Reutilizar apenas o registro de NetId ou o componente de movimento de zumbi não replica um NPC por esse protocolo.
 - Evitada uma alteração insegura que moveria NPCs apenas no servidor e causaria divergência visual entre clientes.
