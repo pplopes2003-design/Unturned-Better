@@ -7,6 +7,7 @@ Branch: `feature/npc-ai-foundation`
 The opt-in humanoid prototype is under `Assets/Runtime/Assembly-CSharp/Unturned/NPCs/`:
 
 - `MobileNPCBrain` / `MobileNPCBrainDriver`: server-side state, target memory, tactical goals and decision events.
+- `MobileNPCRegistry`: server-only registry of enabled mobile brain drivers for future faction/population systems; it does not spawn or replicate entities.
 - `MobileNPCHumanoidPerception`: nearest living player within sight range, field of view and unobstructed line of sight.
 - `MobileNPCHumanoidDisposition`: opt-in `Hostile`, `Friendly` or `Neutral` role. Only `Hostile` NPCs acquire players as combat targets in this prototype.
 - `MobileNPCHumanoidMotor`: server-side CharacterController movement.
