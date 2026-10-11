@@ -107,6 +107,7 @@ namespace SDG.Unturned
                     maximumSlopeAngle,
                     role,
                     spawnedThisAttempt,
+                    player.transform,
                     out spawnedCount,
                     out error);
             }
