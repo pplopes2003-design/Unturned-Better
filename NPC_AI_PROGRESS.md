@@ -2,25 +2,29 @@
 
 ## Estado atual
 
-**Fase:** investigação técnica e desenho da implementação  
+**Fase:** arquitetura de movimento e sincronização  
 **Branch:** `feature/npc-ai-foundation`  
 **Base:** `perfomance-baseline`  
-**Implementação de IA de NPC:** ainda não concluída  
+**Implementação de IA móvel:** ainda não concluída  
 **Build/teste no Unity:** pendente — este ambiente não executa o Editor nem compila o projeto Unity.
 
 ## Descobertas confirmadas
 
-- `InteractableObjectNPC` representa NPCs colocados como objetos estáticos do mapa.
-- O componente atual já trata diálogo, roupas, armas visuais, animações de espera e acompanhamento da cabeça do jogador.
-- A identidade do alvo de diálogo usa `NetIdRegistry` e a posição do objeto do mapa.
-- Mover diretamente esses objetos pode afetar a validação de distância do diálogo e a sincronização entre servidor e clientes.
-- A implementação deve manter os NPCs de mapa existentes funcionando sem alterações inesperadas.
+- `InteractableObjectNPC` representa NPCs colocados como objetos estáticos do mapa; o componente cuida de diálogo, roupas, armas visuais, animações e olhar para o jogador.
+- A posição do NPC é usada como posição-alvo do diálogo, e sua identidade usa `NetIdRegistry`.
+- `NetIdRegistry.AssignTransform` registra uma referência a um Transform; não é, por si só, um mecanismo de replicação de posição.
+- O movimento de zumbis usa uma interface específica de pathfinding/movimento. Na configuração pública do SDK, o fallback `UnturnedPathfinding_Empty` cria `NonPathfindingZombieMovementComponent`, que movimenta um `CharacterController` diretamente; isso não fornece automaticamente uma solução geral de navegação para NPCs.
+- Portanto, mover um NPC estático apenas no servidor não basta: é necessário um fluxo explícito de sincronização para clientes, além de manter válido o alvo de diálogo e a checagem de distância do servidor.
+
+## Decisão técnica tomada
+
+Não alterar a posição dos NPCs estáticos existentes nem adicionar movimento automático a todos eles. A primeira implementação móvel deve ser opt-in e usar autoridade do servidor e sincronização explícita. Isso reduz o risco de quebrar mapas, diálogos e multiplayer.
 
 ## Próximas etapas
 
-- [ ] Mapear o ciclo de vida e a replicação de entidades móveis existentes.
-- [ ] Definir uma base de NPC móvel que use movimento validado e autoridade do servidor.
-- [ ] Implementar uma primeira capacidade pequena e isolada (patrulha/percepção), sem mudar os NPCs estáticos por padrão.
+- [ ] Mapear o protocolo de mensagens e o ciclo de vida das entidades móveis existentes.
+- [ ] Escolher a integração mínima de replicação compatível com o SDK disponível.
+- [ ] Implementar uma primeira capacidade isolada de patrulha/percepção, desativada por padrão para NPCs atuais.
 - [ ] Revisar impacto no diálogo, salvamento, regiões e multiplayer.
 - [ ] Solicitar teste no jogo quando houver alteração concreta.
 - [ ] Registrar feedback, bugs encontrados e correções.
@@ -33,5 +37,7 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 
 ### 2026-10-11
 - Criada branch de trabalho `feature/npc-ai-foundation`, separada da branch de referência.
-- Confirmada a arquitetura atual de NPCs estáticos e os pontos de integração com diálogo.
-- Nenhuma IA móvel foi implementada ainda.
+- Mapeado o componente de NPC estático e sua dependência de diálogo/NetIdRegistry.
+- Confirmado que o registro de Transform não equivale à replicação de movimento.
+- Confirmado que o SDK público usa uma implementação de movimento de zumbi de fallback sem pathfinding completo.
+- Evitada uma alteração insegura que moveria NPCs apenas no servidor e causaria divergência visual entre clientes.
