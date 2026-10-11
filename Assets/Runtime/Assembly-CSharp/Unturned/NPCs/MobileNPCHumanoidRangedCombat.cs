@@ -257,6 +257,15 @@ namespace SDG.Unturned
 
 		private void RefreshSelectedGun()
 		{
+			// Keep the current weapon while it has rounds or a compatible reload available;
+			// otherwise a newly looted gun could silently discard a magazine mid-reload.
+			if (inventory != null && selectedGunID != 0 && selectedGunAsset != null
+				&& inventory.ContainsItemID(selectedGunID)
+				&& (roundsRemaining > 0 || inventory.TryFindCompatibleMagazine(selectedGunAsset, out int ignoredSlot, out ItemMagazineAsset ignoredMagazine)))
+			{
+				return;
+			}
+
 			if (inventory == null || !inventory.TryGetBestGun(out Item gun, out ItemGunAsset gunAsset))
 			{
 				selectedGunID = 0;
@@ -277,6 +286,7 @@ namespace SDG.Unturned
 			ushort loadedMagazineID = System.BitConverter.ToUInt16(gun.state, 8);
 			ItemMagazineAsset loadedMagazine = Assets.find(EAssetType.ITEM, loadedMagazineID) as ItemMagazineAsset;
 			if (loadedMagazine == null || loadedMagazine.calibers == null
+				|| gunAsset.magazineCalibers == null || gunAsset.magazineCalibers.Length == 0
 				|| !loadedMagazine.CalibersContainAnyOfIds(gunAsset.magazineCalibers)) return;
 			roundsRemaining = Mathf.Clamp(gun.state[10], 0, Mathf.Max(1, magazineCapacity));
 		}
