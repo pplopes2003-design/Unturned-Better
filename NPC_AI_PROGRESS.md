@@ -473,3 +473,12 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - O componente é anexado no bootstrap de NPCs móveis. A escolha é única por instância durante sua vida atual; se não encontrar local válido, tenta novamente após o intervalo configurado.
 - **Limite explícito:** isto é apenas seleção de local/âncora provisória. Ainda não coloca barricadas, estruturas ou armazenamento no mundo; não consome materiais, não salva assentamentos em disco e não replica em multiplayer. A consulta de colisão é heurística e precisa ser testada em mapas reais.
 - Validação estática apenas; execução dentro do Unity pendente.
+
+
+## Primeira colocação de barricadas (rodada atual)
+
+- Novo `MobileNPCSettlementBuilder` permite colocar, pelo servidor, até quatro barricadas por instância como protótipo inicial, usando itens carregados no inventário do NPC.
+- O componente espera que o planejador escolha um local e que o NPC esteja sem alvo/objetivo tático. Procura um item de barricada de tipos conservadores (fortificação, barricada, porta/portão, cama, escada, armazenamento e tipos próximos), valida terreno e faz uma checagem aproximada de espaço antes de chamar `BarricadeManager.dropBarricade`.
+- A chamada usa o ponto de entrada vanilla para manter hooks de implantação e replicação de barricadas. O item é removido do inventário apenas se a colocação retornar sucesso.
+- **Limites importantes:** a verificação de colisão é aproximada e não replica todo o sistema vanilla de pré-visualização, claim, snapping e suporte. Propriedade/owner fica no valor neutro 0; não há salvamento explícito da identidade do assentamento. O limite de peças e o contador são apenas em memória e reiniciam com a entidade. A construção de estruturas `STRUCTURE` (paredes/pisos/pilares), armazenamento efetivamente acessível pelo NPC e persistência continuam pendentes.
+- Teste estático do código-fonte apenas; ainda não compilado/testado dentro do Unity. Se houver falhas de posicionamento, desative o componente até ajustar a lógica no mapa de teste.
