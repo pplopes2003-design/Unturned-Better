@@ -131,3 +131,12 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Limite deliberado: o host ainda precisa fornecer percepção, navegação, ciclo de vida, replicação e dano. O adaptador é o ponto de conexão da decisão, não uma entidade móvel completa.
 - Commits: https://github.com/pplopes2003-design/Unturned-Better/commit/5454e5c04829a7a82fb8d064f5e3e1cf608a85f1 e https://github.com/pplopes2003-design/Unturned-Better/commit/7634bff4678ec2bb44aabeb6798a15bf6656f0a2
 - Validação: inspeção estática apenas; sem compilação Unity ou teste em jogo.
+
+
+### 2026-10-11 — táticas defensivas e objetivo de loot
+- Criado `MobileNPCTactics.cs` com seleção de objetivos de defesa e coleta: procurar cobertura após tiros, recuar quando a saúde fica crítica/baixa com dano recente, e aceitar um destino de loot quando não há uma ordem defensiva urgente.
+- `MobileNPCBrainDriver.cs` agora mantém a máquina de estados e as táticas juntas e publica o objetivo efetivo ao host. A ordem defensiva tem prioridade sobre o deslocamento para loot.
+- Contratos importantes para a futura entidade: o host precisa detectar tiros/dano no servidor; validar cobertura por linha de visão e navegação; calcular um ponto de recuo seguro; verificar capacidade do inventário; e executar a coleta por uma operação autoritativa do servidor. O código atual não concede itens automaticamente nem presume que qualquer ponto seja cobertura segura.
+- Ainda não conectado a uma entidade humanoide concreta: spawn/despawn, navegação real, snapshots de rede, acertos/dano e pickup continuam sendo a próxima integração. Os NPCs de diálogo estáticos permanecem sem alteração.
+- Commits: https://github.com/pplopes2003-design/Unturned-Better/commit/cb976354f12e0a24541e574310b8a6b9bea77da0 e https://github.com/pplopes2003-design/Unturned-Better/commit/1b18b94340c0bbd70b4f3e05ef8c54cdd1d9ddcc
+- Validação: revisão estática via GitHub; não compilado nem testado no Unity/Unturned.
