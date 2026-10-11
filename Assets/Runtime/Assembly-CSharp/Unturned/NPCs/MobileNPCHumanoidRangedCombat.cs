@@ -149,7 +149,8 @@ namespace SDG.Unturned
 				return;
 			}
 
-			if (!aim.TryGetShotDirection(muzzle, IsMoving(), skill, out Vector3 shotDirection))
+			float weaponSpreadDegrees = selectedGunAsset != null ? selectedGunAsset.baseSpreadAngleRadians * Mathf.Rad2Deg : 0f;
+			if (!aim.TryGetShotDirection(muzzle, IsMoving(), skill, weaponSpreadDegrees, out Vector3 shotDirection))
 			{
 				return;
 			}
@@ -174,7 +175,7 @@ namespace SDG.Unturned
 			else
 			{
 				float intervalScale = Random.Range(1f - shotIntervalJitter, 1f + shotIntervalJitter);
-				nextShotTime = Time.time + Mathf.Max(0.05f, secondsPerShot * intervalScale);
+				nextShotTime = Time.time + Mathf.Max(0.05f, GetSecondsPerShot() * intervalScale);
 			}
 
 			// Find the nearest external collider without allocating a per-shot array or sorting all hits.
@@ -251,7 +252,7 @@ namespace SDG.Unturned
 
 			// Gunfire is a world stimulus: vanilla zombies investigate the shot position
 			// regardless of which mobile faction fired it.
-			ZombieManager.alertZombiesToNoise(transform.position, Mathf.Max(20f, effectiveRange));
+			ZombieManager.alertZombiesToNoise(transform.position, Mathf.Max(20f, weaponRange));
 
 			if (roundsRemaining == 0)
 			{
@@ -295,6 +296,19 @@ namespace SDG.Unturned
 			roundsRemaining = Mathf.Clamp(gun.state[10], 0, Mathf.Max(1, magazineCapacity));
 		}
 
+		private float GetSecondsPerShot()
+		{
+			if (selectedGunAsset != null)
+			{
+				float roundsPerSecond = selectedGunAsset.CalculateRoundsPerSecond();
+				if (roundsPerSecond > 0f && !float.IsNaN(roundsPerSecond) && !float.IsInfinity(roundsPerSecond))
+				{
+					return 1f / roundsPerSecond;
+				}
+			}
+			return secondsPerShot;
+		}
+
 		private float GetWeaponDamage()
 		{
 			if (selectedGunAsset != null && selectedGunAsset.playerDamageMultiplier.damage > 0f)
@@ -331,7 +345,8 @@ namespace SDG.Unturned
 			// Caliber compatibility is real asset metadata; ballistics remain simulated.
 			pendingReloadRounds = Mathf.Clamp(consumedMagazine.amount, 1, Mathf.Max(1, Mathf.Min(magazineCapacity, magazineAsset.MaxAmount)));
 			reloadPending = true;
-			reloadFinishedAt = Time.time + Mathf.Max(0.1f, reloadDuration);
+			float weaponReloadDuration = selectedGunAsset.reloadTime > 0f ? selectedGunAsset.reloadTime : reloadDuration;
+			reloadFinishedAt = Time.time + Mathf.Max(0.1f, weaponReloadDuration);
 			ReloadStarted?.Invoke();
 		}
 
