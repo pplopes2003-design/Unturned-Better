@@ -19,9 +19,11 @@ namespace SDG.Unturned
 		[SerializeField, Min(0.1f)] private float attackCooldown = 1.4f;
 		[SerializeField, Min(0.1f)] private float lineOfSightHeight = 1.1f;
 		[SerializeField] private LayerMask lineOfSightMask = ~0;
+		[SerializeField, Min(0.02f)] private float combatCheckInterval = 0.1f;
 
 		private MobileNPCBrainDriver brainDriver;
 		private float nextAttackTime;
+		private float nextCombatCheckTime;
 
 		public bool IsAttackReady => Provider.isServer && Time.time >= nextAttackTime;
 
@@ -36,6 +38,12 @@ namespace SDG.Unturned
 			{
 				return;
 			}
+
+			if (Time.time < nextCombatCheckTime)
+			{
+				return;
+			}
+			nextCombatCheckTime = Time.time + Mathf.Max(0.02f, combatCheckInterval);
 
 			Player targetPlayer = ResolveTargetPlayer();
 			if (targetPlayer == null || targetPlayer.life == null || targetPlayer.life.isDead)
