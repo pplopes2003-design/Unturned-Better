@@ -52,8 +52,8 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 
 ## World population, settlement and war status
 
-- Mobile NPC spawning is still an explicit server-side call at a supplied position. **Automatic spawning across arbitrary maps is not implemented yet.**
-- Persistent regional populations, claiming territory, building/maintaining bases, resource gathering, storage, and long-term settlement are not implemented.
+- A single-player runtime bootstrap now attempts automatic local spawning around the living player on each loaded map. This is source-level integration only and has not been compiled or tested; map-wide sampling and multiplayer replication are not implemented.
+- Persistent regional populations, autonomous roaming, claiming territory, building/maintaining bases, resource gathering, storage, and long-term settlement are not implemented.
 - Hostile-versus-Friendly acquisition and prototype melee/hitscan damage are now connected. Full native weapon integration and replication remain incomplete.
 - Zombies currently react to mobile NPC gunfire by investigating its position. They do **not** yet select, chase, and attack mobile NPCs as full targets; that requires integrating NPC perception/health into the native zombie target and damage pipeline.
 
