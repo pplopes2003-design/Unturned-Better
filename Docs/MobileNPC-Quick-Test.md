@@ -290,3 +290,17 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 4. Não considerar continuidade validada até existir registro persistente de assentamento/grupo e atribuição explícita do novo NPC a esse registro.
 
 **Não executado no Unity/Unturned; roteiro para validação posterior.**
+
+
+## Grupo temporário e reposição com atraso (teste manual pendente)
+
+1. Em sessão de teste, observe o log de IDs de grupo ou inspecione `MobileNPCGroupMember.GroupId` nos NPCs vivos próximos.
+2. Mate um membro de um grupo com pelo menos outro membro vivo. Confirme que o grupo permanece e que a reposição só aparece depois do atraso configurado (60 s por padrão, podendo haver espera adicional até o próximo ciclo de spawn).
+3. Confirme que o novo NPC, se surgir dentro do raio de associação de 140 m do grupo sobrevivente, recebe o mesmo `GroupId` e a âncora compartilhada.
+4. Mate todos os membros do grupo antes da reposição. Confirme que o grupo é dissolvido; a próxima instância deve criar/entrar em outro grupo, não recuperar a identidade dissolvida.
+5. Confirme que o tempo de remoção do corpo (30 s por padrão) é independente do atraso de reposição (60 s).
+6. Mate dois NPCs em instantes diferentes e confirme que cada morte mantém seu próprio prazo de reposição, sem a segunda morte reiniciar o relógio da primeira.
+7. Repita sem jogador vivo, em terreno inválido e perto de limites do mapa; a reposição deve aguardar uma condição de spawn válida.
+8. Este sistema é volátil: trocar/recarregar o mapa ou reiniciar o processo não preserva grupos ou bases.
+
+**Não executado no Unity/Unturned; estes itens são testes manuais pendentes.**
