@@ -199,3 +199,13 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 - [ ] Trocar por uma arma de maior pontuação durante o combate; confirmar que o estado da arma selecionada é atualizado sem consumir carregadores incorretos.
 - [ ] Conferir no jogo se `Item.amount` representa a quantidade de munição esperada para os carregadores usados nos drops.
 - [ ] Registrar exceções de estado nulo/curto e IDs de carregador inválidos.
+
+
+## Arma móvel: áudio e estatísticas (teste manual pendente)
+
+1. Inicie uma sessão single-player com NPC móvel e um item de arma válido no inventário do NPC.
+2. Provoque combate com um alvo hostil: confirme que o som de disparo da arma é ouvido e tem atenuação espacial.
+3. Espere a munição acabar: confirme que o som de recarga é reproduzido ao iniciar a recarga.
+4. Compare duas armas com alcances diferentes: a distância máxima de tiro não deve exceder o alcance positivo definido no asset nem o limite configurado no componente.
+5. Confirme que arma sem clip de disparo/recarga continua funcional silenciosamente e que o bootstrap não altera NPCs estáticos.
+6. Este teste não foi executado no Unity; registre exceções, áudio duplicado ou diferenças de API antes de marcar a etapa como validada.
