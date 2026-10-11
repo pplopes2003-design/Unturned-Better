@@ -134,57 +134,55 @@ namespace SDG.Unturned
 			}
 		}
 
-		/// <summary>
-		/// Atomically transfers a nearby world item into a mobile NPC's server-local
-		/// inventory and replicates the world-drop removal. Does not use Player.inventory.
-		/// </summary>
+		/// <summary>Finds the authoritative ID for a physical item drop.</summary>
+		public static bool TryGetWorldItemInstanceID(InteractableItem item, out uint instanceID)
+		{
+			instanceID = 0;
+			if (!Provider.isServer || regions == null || item == null || item.transform == null
+				|| !Regions.tryGetCoordinate(item.transform.position, out byte x, out byte y))
+			{
+				return false;
+			}
+			ItemRegion region = regions[x, y];
+			if (region == null) return false;
+			for (int i = 0; i < region.drops.Count; ++i)
+			{
+				ItemDrop drop = region.drops[i];
+				if (drop != null && drop.interactableItem == item && drop.model != null)
+				{
+					instanceID = drop.instanceID;
+					return true;
+				}
+			}
+			return false;
+		}
+
+		/// <summary>Transfers a nearby world item into NPC storage and replicates its removal.</summary>
 		public static bool TryTransferWorldItemToMobileNPCServer(uint instanceID, Vector3 npcPosition, float maximumDistance, MobileNPCInventory inventory)
 		{
 			if (!Provider.isServer || regions == null || inventory == null || !inventory.HasSpace
-				|| float.IsNaN(maximumDistance) || float.IsInfinity(maximumDistance) || maximumDistance < 0.0f)
-			{
-				return false;
-			}
-
-			byte x;
-			byte y;
-			if (!Regions.tryGetCoordinate(npcPosition, out x, out y) || !Regions.checkSafe(x, y))
-			{
-				return false;
-			}
-
-			ItemRegion region = regions[x, y];
-			if (region == null)
-			{
-				return false;
-			}
+				|| float.IsNaN(maximumDistance) || float.IsInfinity(maximumDistance) || maximumDistance < 0.0f
+				|| !Regions.checkSafe(npcPosition)) return false;
 
 			float maximumDistanceSqr = maximumDistance * maximumDistance;
-			for (int index = 0; index < region.items.Count; ++index)
+			for (byte x = 0; x < Regions.WORLD_SIZE; ++x)
 			{
-				ItemData itemData = region.items[index];
-				if (itemData == null || itemData.instanceID != instanceID)
+				for (byte y = 0; y < Regions.WORLD_SIZE; ++y)
 				{
-					continue;
+					ItemRegion region = regions[x, y];
+					if (region == null) continue;
+					for (int index = 0; index < region.items.Count; ++index)
+					{
+						ItemData data = region.items[index];
+						if (data == null || data.instanceID != instanceID) continue;
+						if ((data.point - npcPosition).sqrMagnitude > maximumDistanceSqr) return false;
+						if (!inventory.TryStoreTransferredItem(data.item)) return false;
+						region.items.RemoveAt(index);
+						SendDestroyItem.Invoke(ENetReliability.Reliable, Regions.GatherClientConnections(x, y, ITEM_REGIONS), x, y, instanceID, false);
+						return true;
+					}
 				}
-
-				if ((itemData.point - npcPosition).sqrMagnitude > maximumDistanceSqr)
-				{
-					return false;
-				}
-
-				// Store first; if capacity/validation rejects the item, the world drop is untouched.
-				if (!inventory.TryStoreTransferredItem(itemData.item))
-				{
-					return false;
-				}
-
-				region.items.RemoveAt(index);
-				SendDestroyItem.Invoke(ENetReliability.Reliable,
-					Regions.GatherClientConnections(x, y, ITEM_REGIONS), x, y, instanceID, false);
-				return true;
 			}
-
 			return false;
 		}
 
