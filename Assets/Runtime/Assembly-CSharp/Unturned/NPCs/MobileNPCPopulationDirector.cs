@@ -24,6 +24,12 @@ namespace SDG.Unturned
             public bool DeathObserved;
         }
 
+        private sealed class PendingRespawn
+        {
+            public float RespawnAt;
+            public int FormerGroupId;
+        }
+
         [Header("Population")]
         [SerializeField] private GameObject mobileNpcPrefab;
         [SerializeField] private bool populationEnabled = true;
@@ -45,7 +51,7 @@ namespace SDG.Unturned
         private readonly List<MobileNPCBrainDriver> activeDrivers = new List<MobileNPCBrainDriver>(32);
         private readonly List<GameObject> spawnedThisAttempt = new List<GameObject>(1);
         private readonly List<TrackedNPC> trackedNPCs = new List<TrackedNPC>(32);
-        private readonly List<float> pendingRespawnTimes = new List<float>(32);
+        private readonly List<PendingRespawn> pendingRespawns = new List<PendingRespawn>(32);
         private float nextSpawnTime;
 
         /// <summary>Configures a runtime-created director without relying on Inspector serialization.</summary>
@@ -79,7 +85,7 @@ namespace SDG.Unturned
 
             // Initial population can fill normally. Once deaths create pending replacements,
             // each replacement must wait for its own cooldown before a new individual appears.
-            if (pendingRespawnTimes.Count > 0 && Time.time < pendingRespawnTimes[0])
+            if (pendingRespawns.Count > 0 && Time.time < pendingRespawns[0].RespawnAt)
             {
                 return;
             }
@@ -125,9 +131,11 @@ namespace SDG.Unturned
 
             if (spawnedCount > 0)
             {
-                if (pendingRespawnTimes.Count > 0 && Time.time >= pendingRespawnTimes[0])
+                PendingRespawn replacement = null;
+                if (pendingRespawns.Count > 0 && Time.time >= pendingRespawns[0].RespawnAt)
                 {
-                    pendingRespawnTimes.RemoveAt(0);
+                    replacement = pendingRespawns[0];
+                    pendingRespawns.RemoveAt(0);
                 }
 
                 for (int i = 0; i < spawnedThisAttempt.Count; ++i)
@@ -138,12 +146,19 @@ namespace SDG.Unturned
                         continue;
                     }
 
+                    MobileNPCGroupMember groupMember = instance.GetComponent<MobileNPCGroupMember>();
+                    if (replacement != null && replacement.FormerGroupId > 0 && groupMember != null)
+                    {
+                        // Preserve group continuity only if the former group still has living
+                        // members. If it dissolved, the new NPC keeps its independently assigned group.
+                        groupMember.TryJoinExistingGroupServer(replacement.FormerGroupId);
+                    }
+
                     trackedNPCs.Add(new TrackedNPC
                     {
                         Instance = instance,
                         Vitals = instance.GetComponent<MobileNPCHumanoidVitals>(),
-                        GroupId = instance.GetComponent<MobileNPCGroupMember>() != null
-                            ? instance.GetComponent<MobileNPCGroupMember>().GroupId : 0,
+                        GroupId = groupMember != null ? groupMember.GroupId : 0,
                         CleanupAt = float.PositiveInfinity
                     });
                 }
@@ -177,12 +192,17 @@ namespace SDG.Unturned
                     // Each death gets its own replacement time. The corpse lifetime
                     // remains independent from the population cooldown.
                     float respawnAt = Time.time + Mathf.Max(1f, respawnDelay);
-                    int insertIndex = pendingRespawnTimes.Count;
-                    while (insertIndex > 0 && pendingRespawnTimes[insertIndex - 1] > respawnAt)
+                    PendingRespawn pending = new PendingRespawn
+                    {
+                        RespawnAt = respawnAt,
+                        FormerGroupId = tracked.GroupId
+                    };
+                    int insertIndex = pendingRespawns.Count;
+                    while (insertIndex > 0 && pendingRespawns[insertIndex - 1].RespawnAt > respawnAt)
                     {
                         insertIndex--;
                     }
-                    pendingRespawnTimes.Insert(insertIndex, respawnAt);
+                    pendingRespawns.Insert(insertIndex, pending);
                     if (tracked.GroupId > 0)
                     {
                         Debug.Log("[MobileNPCPopulationDirector] Mobile NPC from group " + tracked.GroupId
