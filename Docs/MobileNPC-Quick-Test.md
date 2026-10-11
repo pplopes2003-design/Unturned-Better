@@ -28,7 +28,8 @@ The opt-in humanoid prototype is under `Assets/Runtime/Assembly-CSharp/Unturned/
 3. Make sure the NPC prefab has appropriate colliders and layer masks, the scene has a floor, and the player is a normal Unturned `Player`.
 4. Run as a server. The NPC should detect a living player within 32 m and its field of view, then pursue using local collision-aware movement. Break line of sight: ranged combat must stop firing, aim tracking must clear, and the brain should investigate the last known position before returning.
 5. For ranged combat, confirm variable reaction delays, misses, burst pauses, ammunition depletion and reload events. The damage model is a prototype hitscan implementation, not a fully integrated vanilla gun/inventory/projectile simulation.
-6. Verify dedicated-server and client behavior separately.
+6. Test NPC death by applying server-validated damage through `MobileNPCHumanoidVitals.ApplyDamage(...)`: health must reach zero once, the brain must reset, movement/collision and combat/perception must stop, and the `Died` event must fire once. Healing and repeated damage after death must be rejected.
+7. Verify dedicated-server and client behavior separately.
 
 ## Important limits
 
@@ -45,5 +46,6 @@ The opt-in humanoid prototype is under `Assets/Runtime/Assembly-CSharp/Unturned/
 - [ ] Target detection respects sight range, field of view and obstacles.
 - [ ] The NPC does not fire at a player it cannot currently see.
 - [ ] Humanized reaction, aim spread, suppression, burst timing and reload work as configured.
+- [ ] Dead NPCs cannot move, perceive or attack; death is emitted once and subsequent damage/healing is rejected.
 - [ ] Existing static NPCs, vanilla zombies and sentries retain their current behavior.
 - [ ] Server-to-client spawn and movement replication are implemented and tested before multiplayer acceptance.
