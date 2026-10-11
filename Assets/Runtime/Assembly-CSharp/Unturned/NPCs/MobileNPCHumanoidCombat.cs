@@ -24,6 +24,7 @@ namespace SDG.Unturned
 		private MobileNPCBrainDriver brainDriver;
 		private float nextAttackTime;
 		private float nextCombatCheckTime;
+		private readonly RaycastHit[] lineOfSightHits = new RaycastHit[16];
 
 		public bool IsAttackReady => Provider.isServer && Time.time >= nextAttackTime;
 
@@ -59,10 +60,37 @@ namespace SDG.Unturned
 				return;
 			}
 
-			if (Physics.Raycast(origin, offset.normalized, out RaycastHit hit, attackRange, lineOfSightMask, QueryTriggerInteraction.Ignore)
-				&& hit.transform != targetPlayer.transform && !hit.transform.IsChildOf(targetPlayer.transform))
+			int hitCount = Physics.RaycastNonAlloc(origin, offset.normalized, lineOfSightHits,
+				attackRange, lineOfSightMask, QueryTriggerInteraction.Ignore);
+			float nearestDistance = float.PositiveInfinity;
+			Transform nearestTransform = null;
+			for (int i = 0; i < hitCount; ++i)
 			{
-				return;
+				Transform hitTransform = lineOfSightHits[i].transform;
+				if (hitTransform == null || hitTransform == transform || hitTransform.IsChildOf(transform))
+				{
+					continue;
+				}
+
+				if (lineOfSightHits[i].distance < nearestDistance)
+				{
+					nearestDistance = lineOfSightHits[i].distance;
+					nearestTransform = hitTransform;
+				}
+			}
+
+			if (nearestTransform != null)
+			{
+				Player hitPlayer = nearestTransform.GetComponent<Player>();
+				if (hitPlayer == null)
+				{
+					hitPlayer = nearestTransform.GetComponentInParent<Player>();
+				}
+
+				if (hitPlayer != targetPlayer)
+				{
+					return;
+				}
 			}
 
 			TryAttack(targetPlayer, offset.normalized);
