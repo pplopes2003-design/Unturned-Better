@@ -92,6 +92,12 @@ namespace SDG.Unturned
 		/// </summary>
 		public bool TryGetShotDirection(Vector3 muzzlePosition, bool isMoving, float skill, out Vector3 direction)
 		{
+			return TryGetShotDirection(muzzlePosition, isMoving, skill, 0f, out direction);
+		}
+
+		/// <summary>Weapon-aware overload that incorporates the selected firearm's authored spread.</summary>
+		public bool TryGetShotDirection(Vector3 muzzlePosition, bool isMoving, float skill, float weaponSpreadDegrees, out Vector3 direction)
+		{
 			direction = transform.forward;
 			if (!Provider.isServer || !hasTarget || trackedTarget == null || Time.time - targetAcquiredAt < currentReactionTime)
 			{
@@ -106,7 +112,7 @@ namespace SDG.Unturned
 				return false;
 			}
 
-			float spread = baseSpreadDegrees + (1.0f - skill) * maximumSpreadDegrees;
+			float spread = baseSpreadDegrees + (1.0f - skill) * maximumSpreadDegrees + Mathf.Max(0f, weaponSpreadDegrees);
 			if (isMoving)
 			{
 				spread += movingSpreadDegrees;
