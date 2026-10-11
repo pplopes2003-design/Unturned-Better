@@ -349,3 +349,10 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - MobileNPCVisualAnimation agora consulta o material do chão e reutiliza PhysicMaterialCustomData com as chaves vanilla FootstepWalk/FootstepRun, OneShotAudioParameters e intervalos com pequena variação. A reprodução fica excluída da compilação dedicada por #if !DEDICATED_SERVER.
 - Isto reutiliza os passos humanos existentes do jogo; não cria clipes novos. Sons de dor/morte/voz e áudio de armas continuam pendentes, pois ainda não foi validada uma referência de áudio humano adequada para esses eventos.
 - Validação: revisão estática dos caminhos e assinaturas existentes no código de PlayerMovement/Zombie; commits no GitHub. **Sem compilação Unity ou teste real no Unturned**. O comportamento de áudio e a navegação ainda precisam ser confirmados em jogo.
+
+### 2026-10-11 — tentativas de população em setores alternativos
+- O diretor de população agora tenta até quatro setores ao redor do jogador por rodada, com ângulo aleatório e distância variável, antes de concluir que não encontrou um local seguro.
+- O orçamento máximo de tentativas é dividido entre os setores; cada candidato continua passando pelo serviço de spawn existente, que valida terreno, inclinação, limites do mapa, ocupação e espaçamento dos NPCs.
+- O raio de distância variável mantém o spawn fora da proximidade imediata do jogador, mas **não garante ocultação visual**; ainda é necessário testar visibilidade e distribuição em mapas reais.
+- Se nenhum setor funcionar, a próxima rodada continua limitada pelo intervalo normal de spawn, sem repetição por frame.
+- Validação estática: delimitadores balanceados e revisão das condições de servidor/limites de tentativas. **Sem compilação Unity ou teste em jogo.**
