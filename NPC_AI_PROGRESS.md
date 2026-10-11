@@ -203,3 +203,12 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Criados metadados Unity e documentação de contrato.
 - Limite importante: este é spawn **somente no servidor**, não é spawn replicado. Não usar os prefabs legados `NPC_Server`/`NPC_Client` nem considerar pronto para multiplayer até implementar e validar o protocolo de replicação gerado.
 - Compilação e testes Unity permanecem pendentes.
+
+
+### 2026-10-11 — ciclo de vida de morte do NPC móvel
+- Corrigido `MobileNPCHumanoidVitals`: quando a vida chega a zero, o protótipo agora desativa também o combate à distância, percepção, mira e `CharacterController`, além do movimento e combate corpo a corpo. Isso evita NPCs mortos continuarem atirando ou mantendo colisão de movimento.
+- Mantida a aplicação de dano e cura sob autoridade do servidor; dano inválido e ações após a morte continuam rejeitados. O evento `Died` permanece o ponto de extensão para futura animação de morte/remoção.
+- Atualizado `Docs/MobileNPC-Quick-Test.md` com um teste de fumaça específico para morte e pós-morte.
+- Commit de código: https://github.com/pplopes2003-design/Unturned-Better/commit/61a3eee9bcdb27df144acac617e8a2a08a6e2b70
+- Commit da documentação de teste: https://github.com/pplopes2003-design/Unturned-Better/commit/bfe559a89d6efd41f5b923757c20c0a4227e41a6
+- Ainda não compilado nem validado no Unity; o teste real continua pendente.
