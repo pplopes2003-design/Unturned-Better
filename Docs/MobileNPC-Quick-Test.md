@@ -98,3 +98,11 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 - [ ] Confirme que os passos não se repetem continuamente quando o NPC está parado e que a compilação dedicada não depende do código de áudio.
 
 **Limite:** os testes acima ainda não foram executados no Unity/Unturned. A recuperação é heurística local, não pathfinding; vocalizações, sons de dano/morte e áudio de armas ainda não estão ligados.
+
+## Teste adicional — robustez do spawn
+- [ ] Em terreno plano, confirmar que NPCs continuam surgindo no anel ao redor do jogador.
+- [ ] Em região íngreme ou obstruída, confirmar que o diretor tenta outros setores antes de desistir.
+- [ ] Verificar que cada rodada respeita o limite configurado de tentativas e não cria NPCs em terreno inválido ou sobrepostos.
+- [ ] Observar se NPCs aparecem dentro do campo de visão do jogador; o sistema ainda não garante spawn fora da linha de visão.
+
+**Estado:** código atualizado e revisado estaticamente; a validação no Unity/Unturned permanece pendente.
