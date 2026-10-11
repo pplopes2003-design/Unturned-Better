@@ -134,6 +134,60 @@ namespace SDG.Unturned
 			}
 		}
 
+		/// <summary>
+		/// Atomically transfers a nearby world item into a mobile NPC's server-local
+		/// inventory and replicates the world-drop removal. Does not use Player.inventory.
+		/// </summary>
+		public static bool TryTransferWorldItemToMobileNPCServer(uint instanceID, Vector3 npcPosition, float maximumDistance, MobileNPCInventory inventory)
+		{
+			if (!Provider.isServer || regions == null || inventory == null || !inventory.HasSpace
+				|| float.IsNaN(maximumDistance) || float.IsInfinity(maximumDistance) || maximumDistance < 0.0f)
+			{
+				return false;
+			}
+
+			byte x;
+			byte y;
+			if (!Regions.tryGetCoordinate(npcPosition, out x, out y) || !Regions.checkSafe(x, y))
+			{
+				return false;
+			}
+
+			ItemRegion region = regions[x, y];
+			if (region == null)
+			{
+				return false;
+			}
+
+			float maximumDistanceSqr = maximumDistance * maximumDistance;
+			for (int index = 0; index < region.items.Count; ++index)
+			{
+				ItemData itemData = region.items[index];
+				if (itemData == null || itemData.instanceID != instanceID)
+				{
+					continue;
+				}
+
+				if ((itemData.point - npcPosition).sqrMagnitude > maximumDistanceSqr)
+				{
+					return false;
+				}
+
+				// Store first; if capacity/validation rejects the item, the world drop is untouched.
+				if (!inventory.TryStoreTransferredItem(itemData.item))
+				{
+					return false;
+				}
+
+				region.items.RemoveAt(index);
+				SendDestroyItem.Invoke(ENetReliability.Reliable,
+					Regions.GatherClientConnections(x, y, ITEM_REGIONS), x, y, instanceID, false);
+				return true;
+			}
+
+			return false;
+		}
+
 		public static void takeItem(Transform item, byte to_x, byte to_y, byte to_rot, byte to_page)
 		{
 			byte x;
