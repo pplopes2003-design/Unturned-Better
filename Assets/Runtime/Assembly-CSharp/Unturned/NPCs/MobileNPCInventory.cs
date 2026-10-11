@@ -120,6 +120,33 @@ namespace SDG.Unturned
 		}
 
 		/// <summary>Consumes the first stored item in a vanilla category, returning a defensive snapshot.</summary>
+		/// <summary>Persists the simulated loaded magazine and round count into the stored gun state.</summary>
+		public bool TryUpdateGunAmmoServer(ushort gunID, byte roundsRemaining, ushort? loadedMagazineID = null)
+		{
+			if (!Provider.isServer || gunID == 0) return false;
+
+			for (int index = 0; index < slots.Count; ++index)
+			{
+				Item stored = slots[index];
+				if (stored == null || stored.id != gunID) continue;
+				if (!(Assets.find(EAssetType.ITEM, stored.id) is ItemGunAsset)) return false;
+				if (stored.state == null || stored.state.Length < 11) return false;
+
+				byte[] stateCopy = (byte[])stored.state.Clone();
+				if (loadedMagazineID.HasValue)
+				{
+					byte[] magazineBytes = System.BitConverter.GetBytes(loadedMagazineID.Value);
+					stateCopy[8] = magazineBytes[0];
+					stateCopy[9] = magazineBytes[1];
+				}
+				stateCopy[10] = roundsRemaining;
+				slots[index] = new Item(stored.id, stored.amount, stored.quality, stateCopy);
+				return true;
+			}
+
+			return false;
+		}
+
 		public bool TryConsumeFirstItemOfType(EItemType type, out Item consumedItem)
 		{
 			consumedItem = null;
