@@ -3415,6 +3415,9 @@ namespace SDG.Unturned
 			if (Provider.isServer)
 			{
 				isHunting = false;
+				// A destroyed zombie must never remain in the manager's per-frame tick list.
+				// isHunting can already be false while the zombie is still ticking for placement.
+				setTicking(false);
 			}
 
 			if (!Dedicator.IsDedicatedServer)
