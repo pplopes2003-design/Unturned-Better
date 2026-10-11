@@ -428,3 +428,11 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - O carregador compatível é consumido ao iniciar a recarga; a quantidade de munição é simulada a partir de `Item.amount`, limitada pela capacidade configurada e pela capacidade do asset.
 - Limites: o componente ainda não escreve a munição restante de volta no estado do item arma, não instancia modelo de arma nem usa `UseableGun`; dano, alcance efetivo e cadência do hitscan continuam parcialmente configurados no componente. Validar o significado de `Item.amount` para magazines reais no runtime antes de considerar a lógica final.
 - Sem build ou execução Unity neste ambiente.
+
+
+## Integração inicial de apresentação de armas (etapa atual)
+
+- `MobileNPCRangedPresentation` escuta os eventos de disparo e início de recarga e reutiliza os clips `shoot` e `reload` do `ItemGunAsset` selecionado, com volume espacializado e proteção para dedicated server.
+- O combate limita a distância de tiro ao menor valor entre o alcance configurado do NPC e o alcance positivo da arma; o dano base usa `playerDamageMultiplier.damage` quando disponível, mantendo o valor configurado como fallback.
+- O bootstrap anexa o adaptador à entidade móvel, sem alterar NPCs estáticos ou prefabs vanilla.
+- Limitação conhecida: a arma ainda não é anexada à mão do esqueleto e não há replicação de eventos para clientes multiplayer. A apresentação sonora precisa de teste em jogo; não há compilação Unity disponível neste ambiente.
