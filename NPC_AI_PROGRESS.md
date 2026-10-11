@@ -178,3 +178,10 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Atualizado o guia de smoke test. A compilação Unity continua pendente; o build executado ainda encerra por `Steam API initialization failed`, uma falha de inicialização separada.
 - **Limitações restantes:** spawn/ciclo de vida da entidade, replicação e interpolação nos clientes, pathfinding real, integração completa com arma/inventário/efeitos/sons do jogo e teste em singleplayer/servidor dedicado. Os eventos de disparo/recarga permitem conectar áudio e animação existentes, mas essa integração ainda não foi validada.
 - Commits recentes incluem `5577a414` (rajadas/cadência), `96b31b40` (percepção), `b95f8388` (reação/supressão), `254c0c16` (ligação da supressão), `2dc0311c` (visibilidade no combate à distância) e `0ec9c956` (linha de visão corpo a corpo).
+
+
+### 2026-10-11 — preparação de papéis hostil/amigável
+- Corrigido erro de código detectado por revisão estática: o componente de combate à distância usava parâmetros de rajada/pausa que não estavam declarados. Os cinco campos serializados foram adicionados.
+- Adicionado `MobileNPCHumanoidDisposition` com papéis `Hostile`, `Friendly` e `Neutral`. A percepção agora só adquire jogadores como alvos quando o papel é hostil; amistosos/neutros limpam o alvo e não atacam jogadores nesse protótipo.
+- Atualizado o guia de teste para configurar o papel no prefab.
+- **Ainda não é uma build jogável pronta:** a implementação atual não tem spawner próprio, ciclo de vida de entidade nem replicação de movimento para clientes; amizade por enquanto significa não hostil, não escolta ou diálogo. Não é possível afirmar que o próximo build conterá NPCs funcionais até implementar essas ligações e compilar/testar no Unity.
