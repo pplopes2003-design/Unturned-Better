@@ -87,9 +87,11 @@ namespace SDG.Unturned
 					if (targetIsVisible)
 					{
 						targetMemoryDeadline = now + TargetMemoryDuration;
+						destination = target.position;
 					}
 
-					destination = target.position;
+					// While the target is occluded, retain its last observed position instead
+					// of following its live Transform through walls.
 					hasDestination = true;
 					return;
 				}
