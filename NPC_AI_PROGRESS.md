@@ -371,3 +371,11 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - A exploração limita seus destinos ao menor valor entre o raio de roaming e o raio territorial. A âncora é um ponto de referência em runtime; isto **não** implementa propriedade de terreno, construção, persistência em disco ou retorno forçado durante combate.
 - Pesquisa de APIs do mundo: `ItemManager.findSimulatedItemsInRadius` e `ItemManager.getItemsInRadius` existem, mas a coleta vanilla termina em `Player.inventory` e no fluxo de requisição do jogador. Não conectei o NPC a esse caminho para evitar invocar indevidamente a interface/inventário do jogador; a coleta real requer um inventário próprio e uma remoção de item autorizada pelo servidor.
 - Validação estática apenas; sem compilação Unity ou execução no jogo.
+
+
+### 2026-10-11 — retorno ao território doméstico
+- O motor agora define a âncora doméstica como destino de recuperação quando o NPC está fora do raio territorial e não existe destino ativo do cérebro.
+- Perseguição, investigação e objetivos táticos mantêm prioridade; ao terminar o destino do cérebro, a verificação territorial volta a atuar. O retorno usa o mesmo CharacterController, gravidade e desvio local — não teletransporta o NPC.
+- Limite conhecido: obstáculos grandes podem impedir o retorno porque o motor ainda não possui pathfinding completo. A âncora permanece apenas em runtime e não é persistida.
+- Pesquisa do fluxo de coleta: `ItemManager.ReceiveTakeItemRequest` exige um `Player` válido e transfere o item para `player.inventory`. Não reutilizar esse RPC para NPCs. A coleta permanece bloqueada até uma operação de transferência própria que remova o item do mundo e registre o conteúdo do inventário NPC de forma atômica.
+- Validação estática do fluxo e das prioridades; **sem compilação Unity ou teste no jogo**.
