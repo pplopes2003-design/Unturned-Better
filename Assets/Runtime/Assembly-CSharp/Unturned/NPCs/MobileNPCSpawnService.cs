@@ -112,6 +112,10 @@ namespace SDG.Unturned
 				return false;
 			}
 
+			// Unity rotations should be unit quaternions. Normalize valid caller input so
+			// small numeric drift does not leak into the spawned transform.
+			rotation = rotation.normalized;
+
 			if (!Level.checkSafeIncludingClipVolumes(position))
 			{
 				error = "The requested NPC position is outside safe level bounds or inside a player clip volume.";
