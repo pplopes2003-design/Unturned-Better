@@ -26,6 +26,9 @@ namespace SDG.Unturned
 		[SerializeField, Min(0.1f)] private float gravity = 20.0f;
 		[SerializeField] private bool runWhenPursuing = true;
 
+		[Header("Home territory")]
+		[SerializeField, Min(5f)] private float homeTerritoryRadius = 45f;
+
 		[Header("Autonomous roaming (local prototype)")]
 		[SerializeField] private bool roamingEnabled = true;
 		[SerializeField, Min(2f)] private float roamingRadius = 18f;
@@ -62,6 +65,42 @@ namespace SDG.Unturned
 
 		public bool IsInitialized => hasInitialized;
 		public bool IsMoving { get; private set; }
+		/// <summary>Server-local home anchor captured when this NPC initializes.</summary>
+		public Vector3 HomePosition => spawnPosition;
+		public float HomeTerritoryRadius => Mathf.Max(5f, homeTerritoryRadius);
+		public bool IsWithinHomeTerritory
+		{
+			get
+			{
+				Vector3 offset = transform.position - spawnPosition;
+				offset.y = 0f;
+				return offset.sqrMagnitude <= HomeTerritoryRadius * HomeTerritoryRadius;
+			}
+		}
+
+		/// <summary>
+		/// Updates this NPC's home anchor on the server after validating safe ground.
+		/// This is a runtime anchor only; persistence and settlement ownership are separate systems.
+		/// </summary>
+		public bool TrySetHomePositionServer(Vector3 candidate)
+		{
+			if (!Provider.isServer || !hasInitialized)
+			{
+				return false;
+			}
+
+			if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate,
+				Mathf.Max(1f, roamingSearchHeight), Mathf.Max(0f, roamingMaximumDrop),
+				roamingGroundMask, roamingMaximumSlope, out Vector3 resolved, out _))
+			{
+				return false;
+			}
+
+			spawnPosition = resolved;
+			hasRoamingDestination = false;
+			nextRoamingDecisionTime = Time.time + Random.Range(1f, 2f);
+			return true;
+		}
 
 		/// <summary>Call after the server has placed this humanoid at its spawn point.</summary>
 		public void InitializeServer()
@@ -325,7 +364,8 @@ namespace SDG.Unturned
 			for (int attempt = 0; attempt < 8; ++attempt)
 			{
 				float angle = Random.Range(0f, Mathf.PI * 2f);
-				float radius = Random.Range(Mathf.Max(2f, roamingRadius * 0.35f), Mathf.Max(2f, roamingRadius));
+				float effectiveRoamingRadius = Mathf.Min(Mathf.Max(2f, roamingRadius), HomeTerritoryRadius);
+				float radius = Random.Range(Mathf.Max(2f, effectiveRoamingRadius * 0.35f), effectiveRoamingRadius);
 				Vector3 candidate = spawnPosition + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * radius;
 				if (MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, Mathf.Max(1f, roamingSearchHeight),
 					Mathf.Max(0f, roamingMaximumDrop), roamingGroundMask, roamingMaximumSlope,
