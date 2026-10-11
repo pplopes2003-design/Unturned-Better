@@ -17,27 +17,26 @@ namespace SDG.Unturned
 	{
 		private MobileNPCBrain brain;
 		private bool hasInitialized;
+		private bool hasPublishedDecision;
+		private bool lastHasDestination;
+		private Vector3 lastDestination;
+		private MobileNPCBrain.State lastState;
 
 		/// <summary>
-		/// Raised when the brain changes its requested destination. Subscribe on the
-		/// server to feed the destination into the host's navigation implementation.
+		/// Raised only when the decision changes, not every server tick. The host can
+		/// use this to update its navigation goal without repeatedly resetting a path.
 		/// </summary>
-		public event Action<Vector3> DestinationRequested;
+		public event Action<MobileNPCBrain.State, bool, Vector3> DecisionUpdated;
 
 		public MobileNPCBrain.State CurrentState => brain != null
 			? brain.CurrentState
 			: MobileNPCBrain.State.Idle;
 
 		public Transform Target => brain != null ? brain.Target : null;
-
 		public bool HasDestination => brain != null && brain.HasDestination;
-
 		public Vector3 Destination => brain != null ? brain.Destination : transform.position;
 
-		/// <summary>
-		/// Initializes the decision brain for this actor. Call from the host's
-		/// server-side spawn/initialization path, not from a client.
-		/// </summary>
+		/// <summary>Call from the host's server-side spawn/initialization path.</summary>
 		public void InitializeServer(Vector3 spawnPosition)
 		{
 			if (!Provider.isServer)
@@ -53,7 +52,8 @@ namespace SDG.Unturned
 			brain.SetSpawnPosition(spawnPosition);
 			brain.Reset();
 			hasInitialized = true;
-			PublishDestination();
+			hasPublishedDecision = false;
+			PublishDecisionIfChanged();
 		}
 
 		/// <summary>Submit a target already validated by server-side perception.</summary>
@@ -65,7 +65,7 @@ namespace SDG.Unturned
 			}
 
 			brain.ReportVisibleTarget(target, Time.time);
-			PublishDestination();
+			PublishDecisionIfChanged();
 		}
 
 		/// <summary>Submit a server-observed sound or point of interest.</summary>
@@ -77,7 +77,7 @@ namespace SDG.Unturned
 			}
 
 			brain.ReportNoise(position, Time.time, duration);
-			PublishDestination();
+			PublishDecisionIfChanged();
 		}
 
 		/// <summary>Call after the host's navigation layer confirms arrival.</summary>
@@ -89,12 +89,12 @@ namespace SDG.Unturned
 			}
 
 			brain.ReportDestinationReached();
-			PublishDestination();
+			PublishDecisionIfChanged();
 		}
 
 		/// <summary>
-		/// Tick from the host's server update after it has evaluated target visibility.
-		/// Visibility must be established by server-side perception, not client input.
+		/// Tick from the host's server update after evaluating target visibility.
+		/// Visibility must come from server-side perception, not client input.
 		/// </summary>
 		public void TickServer(bool targetIsVisible)
 		{
@@ -104,7 +104,7 @@ namespace SDG.Unturned
 			}
 
 			brain.Tick(Time.time, targetIsVisible);
-			PublishDestination();
+			PublishDecisionIfChanged();
 		}
 
 		public void ResetServer()
@@ -115,17 +115,37 @@ namespace SDG.Unturned
 			}
 
 			brain.Reset();
-			PublishDestination();
+			PublishDecisionIfChanged();
 		}
 
 		private bool CanAcceptServerInput => Provider.isServer && hasInitialized && brain != null;
 
-		private void PublishDestination()
+		private void PublishDecisionIfChanged()
 		{
-			if (brain != null && brain.HasDestination)
+			if (brain == null)
 			{
-				DestinationRequested?.Invoke(brain.Destination);
+				return;
 			}
+
+			bool hasDestination = brain.HasDestination;
+			Vector3 destination = brain.Destination;
+			MobileNPCBrain.State state = brain.CurrentState;
+
+			bool changed = !hasPublishedDecision
+				|| state != lastState
+				|| hasDestination != lastHasDestination
+				|| (hasDestination && (destination - lastDestination).sqrMagnitude > 0.04f);
+
+			if (!changed)
+			{
+				return;
+			}
+
+			hasPublishedDecision = true;
+			lastState = state;
+			lastHasDestination = hasDestination;
+			lastDestination = destination;
+			DecisionUpdated?.Invoke(state, hasDestination, destination);
 		}
 	}
 }
