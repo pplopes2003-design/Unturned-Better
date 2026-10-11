@@ -26,12 +26,25 @@ namespace SDG.Unturned
 		[SerializeField, Min(0.1f)] private float gravity = 20.0f;
 		[SerializeField] private bool runWhenPursuing = true;
 
+		[Header("Autonomous roaming (local prototype)")]
+		[SerializeField] private bool roamingEnabled = true;
+		[SerializeField, Min(2f)] private float roamingRadius = 18f;
+		[SerializeField, Min(1f)] private float roamingPauseMin = 2f;
+		[SerializeField, Min(1f)] private float roamingPauseMax = 6f;
+		[SerializeField, Min(1f)] private float roamingSearchHeight = 50f;
+		[SerializeField, Min(0f)] private float roamingMaximumDrop = 70f;
+		[SerializeField, Range(0f, 60f)] private float roamingMaximumSlope = 38f;
+		[SerializeField] private LayerMask roamingGroundMask = ~0;
+
 		private CharacterController characterController;
 		private MobileNPCBrainDriver brainDriver;
 		private Vector3 spawnPosition;
 		private Vector3 velocity;
 		private bool hasInitialized;
 		private bool targetIsVisible;
+		private bool hasRoamingDestination;
+		private Vector3 roamingDestination;
+		private float nextRoamingDecisionTime;
 
 		public bool IsInitialized => hasInitialized;
 		public bool IsMoving { get; private set; }
@@ -47,6 +60,8 @@ namespace SDG.Unturned
 			spawnPosition = transform.position;
 			velocity = Vector3.zero;
 			brainDriver.InitializeServer(spawnPosition);
+			hasRoamingDestination = false;
+			nextRoamingDecisionTime = Time.time + Random.Range(2f, 5f);
 			hasInitialized = true;
 		}
 
@@ -84,8 +99,19 @@ namespace SDG.Unturned
 
 			brainDriver.TickServer(targetIsVisible);
 			Vector3 planarDirection = Vector3.zero;
-			bool hasDestination = brainDriver.HasDestination;
-			Vector3 destination = brainDriver.Destination;
+			bool hasBrainDestination = brainDriver.HasDestination;
+			if (hasBrainDestination)
+			{
+				// Combat, investigation and tactical goals always take precedence over roaming.
+				hasRoamingDestination = false;
+			}
+			else if (roamingEnabled && Time.time >= nextRoamingDecisionTime && !hasRoamingDestination)
+			{
+				TryChooseRoamingDestination();
+			}
+
+			bool hasDestination = hasBrainDestination || hasRoamingDestination;
+			Vector3 destination = hasBrainDestination ? brainDriver.Destination : roamingDestination;
 			if (hasDestination)
 			{
 				Vector3 offset = destination - transform.position;
@@ -94,9 +120,15 @@ namespace SDG.Unturned
 				{
 					planarDirection = offset.normalized;
 				}
-				else
+				else if (hasBrainDestination)
 				{
 					brainDriver.ReportDestinationReached();
+				}
+				else
+				{
+					hasRoamingDestination = false;
+					nextRoamingDecisionTime = Time.time + Random.Range(
+						Mathf.Max(1f, roamingPauseMin), Mathf.Max(Mathf.Max(1f, roamingPauseMin), roamingPauseMax));
 				}
 			}
 
@@ -120,6 +152,34 @@ namespace SDG.Unturned
 
 			CollisionFlags collision = characterController.Move(motion * deltaTime);
 			IsMoving = planarDirection.sqrMagnitude > 0.0001f && (collision & CollisionFlags.Sides) == 0;
+		}
+
+		private void TryChooseRoamingDestination()
+		{
+			if (!Provider.isServer || !roamingEnabled)
+			{
+				return;
+			}
+
+			// Use bounded attempts and the same ground/slope/clip-volume checks as spawn placement.
+			// This is waypoint roaming, not navmesh pathfinding; walls can still block a route.
+			for (int attempt = 0; attempt < 8; ++attempt)
+			{
+				float angle = Random.Range(0f, Mathf.PI * 2f);
+				float radius = Random.Range(Mathf.Max(2f, roamingRadius * 0.35f), Mathf.Max(2f, roamingRadius));
+				Vector3 candidate = spawnPosition + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * radius;
+				if (MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, Mathf.Max(1f, roamingSearchHeight),
+					Mathf.Max(0f, roamingMaximumDrop), roamingGroundMask, roamingMaximumSlope,
+					out Vector3 resolved, out _))
+				{
+					roamingDestination = resolved;
+					hasRoamingDestination = true;
+					return;
+				}
+			}
+
+			// Back off when this terrain patch has no valid candidate; do not search every frame.
+			nextRoamingDecisionTime = Time.time + Random.Range(3f, 7f);
 		}
 
 		/// <summary>Set only from authoritative server-side perception.</summary>
