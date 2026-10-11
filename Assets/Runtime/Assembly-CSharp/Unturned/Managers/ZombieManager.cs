@@ -1710,11 +1710,13 @@ namespace SDG.Unturned
 		public static void alertZombiesToNoise(Vector3 position, float radius)
 		{
 			byte nav;
-			if (!Provider.isServer || regions == null || radius <= 0.0f || !LevelNavigation.tryGetNavigation(position, out nav))
+			if (!Provider.isServer || regions == null || radius <= 0.0f || AllZombies == null || !LevelNavigation.tryGetNavigation(position, out nav) || nav >= regions.Length)
 			{
 				return;
 			}
 
+			// Validate the source before consuming the cooldown, so an invalid or
+			// temporarily unavailable navigation region cannot suppress a real shot.
 			if (Time.time - lastNoiseAlertTime < NOISE_ALERT_COOLDOWN && (position - lastNoiseAlertPosition).sqrMagnitude < 64.0f)
 			{
 				return;
@@ -1722,10 +1724,6 @@ namespace SDG.Unturned
 
 			lastNoiseAlertTime = Time.time;
 			lastNoiseAlertPosition = position;
-			if (nav >= regions.Length || AllZombies == null)
-			{
-				return;
-			}
 
 			// Noise can be heard across navigation-region boundaries. Use the global
 			// zombie list and the real 3D distance instead of checking only the source region.
