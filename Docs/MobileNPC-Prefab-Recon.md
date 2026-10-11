@@ -39,3 +39,15 @@ Não é seguro apontar o diretor para qualquer um desses prefabs nem anexar comp
 - Nenhum bootstrap automático foi habilitado, pois ainda não há um asset válido para carregar.
 - Não houve compilação nem execução do Unity/Unturned neste ambiente.
 - NPCs estáticos, zumbis e seus prefabs não foram alterados por esta etapa.
+
+
+## Follow-up implementation (2026-10-11)
+
+The earlier recommendation not to enable an automatic bootstrap was superseded by a **runtime-only prototype**:
+
+- `MobileNPCPopulationBootstrap` creates an inactive agent template and a population director after a local single-player map loads.
+- It loads `Resources/Characters/NPC_Client` only as a child visual hierarchy. It does not use that prefab as the agent root and does not edit the original asset.
+- The runtime root supplies its own `CharacterController` and mobile-NPC components; the spawn service activates each clone before initialization.
+- `MobileNPCVisualAnimation` tries to reuse legacy animation states by name.
+
+This is not yet validated in Unity. The visual rig/clip names, runtime loading order, collider masks and combat behavior must be tested. Server-local movement/spawn still has no multiplayer replication, full pathfinding, persistent world state, autonomous roaming or base-building.
