@@ -91,3 +91,9 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - A verificação de morte foi movida para o início do método, evitando mutações desnecessárias e deixando explícito que entidades mortas não recebem novas ordens de investigação.
 - Commit: https://github.com/pplopes2003-design/Unturned-Better/commit/8041277bbc959b53fbdc53087e9e46f23bf32a9e
 - Pendente: compilação e teste no Unity/Unturned; confirmar que não há outro fluxo que dependa de chamar `alert` em zumbis mortos.
+
+### 2026-10-11 — validação da origem antes do cooldown sonoro
+- A revisão identificou que o cooldown era consumido antes de validar se a região de navegação retornada era válida e se a lista global de zumbis estava disponível. Um evento inválido poderia suprimir um disparo válido logo em seguida.
+- A validação de servidor, raio, lista, navegação e índice agora ocorre antes de registrar o cooldown.
+- Commit: https://github.com/pplopes2003-design/Unturned-Better/commit/f89aab161a659d1cfe3d619c883b94f15b886064
+- Limite conhecido: o alerta ainda percorre `AllZombies` para preservar a reação entre regiões de navegação. Uma otimização espacial segura exige confirmar a estrutura e os limites de `ZombieRegion`; não foi substituída por uma busca local que poderia deixar de alertar zumbis próximos em outra região.
