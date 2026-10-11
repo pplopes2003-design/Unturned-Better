@@ -38,6 +38,9 @@ namespace SDG.Unturned
 		private MobileNPCHumanoidAim aim;
 		private MobileNPCHumanoidPerception perception;
 		private MobileNPCInventory inventory;
+		private ItemGunAsset selectedGunAsset;
+		private ushort selectedGunID;
+		private int pendingReloadRounds;
 		private int roundsRemaining;
 		private float nextShotTime;
 		private float reloadFinishedAt;
@@ -64,6 +67,8 @@ namespace SDG.Unturned
 			perception = GetComponent<MobileNPCHumanoidPerception>();
 			inventory = GetComponent<MobileNPCInventory>();
 			roundsRemaining = 0;
+			pendingReloadRounds = 0;
+			selectedGunID = 0;
 			shotsRemainingInBurst = RollBurstSize();
 		}
 
@@ -74,22 +79,25 @@ namespace SDG.Unturned
 				return;
 			}
 
+			if (!reloadPending)
+			{
+				RefreshSelectedGun();
+			}
+
 			if (reloadPending)
 			{
-				if (Time.time < reloadFinishedAt)
-				{
-					return;
-				}
+				if (Time.time < reloadFinishedAt) return;
 
 				reloadPending = false;
-				roundsRemaining = Mathf.Max(1, magazineCapacity);
+				roundsRemaining = Mathf.Max(0, pendingReloadRounds);
+				pendingReloadRounds = 0;
 				shotsRemainingInBurst = RollBurstSize();
 				waitingForBurstPause = false;
 				ReloadFinished?.Invoke();
+				RefreshSelectedGun();
 			}
 
-			// The prototype only fires while it owns a gun item. It does not create a free weapon.
-			if (inventory.CountItemType(EItemType.GUN) == 0)
+			if (selectedGunAsset == null)
 			{
 				return;
 			}
@@ -247,6 +255,32 @@ namespace SDG.Unturned
 			}
 		}
 
+		private void RefreshSelectedGun()
+		{
+			if (inventory == null || !inventory.TryGetBestGun(out Item gun, out ItemGunAsset gunAsset))
+			{
+				selectedGunID = 0;
+				selectedGunAsset = null;
+				roundsRemaining = 0;
+				return;
+			}
+
+			if (selectedGunID == gun.id && selectedGunAsset == gunAsset) return;
+
+			selectedGunID = gun.id;
+			selectedGunAsset = gunAsset;
+			roundsRemaining = 0;
+
+			// Vanilla gun state stores magazine ID at bytes 8-9 and loaded ammo at byte 10.
+			// Honor it only when the embedded magazine is compatible with this gun.
+			if (gun.state == null || gun.state.Length < 11) return;
+			ushort loadedMagazineID = System.BitConverter.ToUInt16(gun.state, 8);
+			ItemMagazineAsset loadedMagazine = Assets.find(EAssetType.ITEM, loadedMagazineID) as ItemMagazineAsset;
+			if (loadedMagazine == null || loadedMagazine.calibers == null
+				|| !loadedMagazine.CalibersContainAnyOfIds(gunAsset.magazineCalibers)) return;
+			roundsRemaining = Mathf.Clamp(gun.state[10], 0, Mathf.Max(1, magazineCapacity));
+		}
+
 		private int RollBurstSize()
 		{
 			int minimum = Mathf.Max(1, Mathf.Min(minimumBurstSize, maximumBurstSize));
@@ -256,21 +290,23 @@ namespace SDG.Unturned
 
 		private void BeginReload()
 		{
-			if (reloadPending || inventory == null || inventory.CountItemType(EItemType.GUN) == 0)
+			if (reloadPending || inventory == null || selectedGunAsset == null)
 			{
 				return;
 			}
 
-			// A reload consumes one stored magazine. Compatibility with the selected gun is
-			// not yet modeled, so this remains a prototype resource gate rather than native ballistics.
-			if (!inventory.TryConsumeFirstItemOfType(EItemType.MAGAZINE, out Item consumedMagazine))
+			if (!inventory.TryFindCompatibleMagazine(selectedGunAsset, out int magazineSlot, out ItemMagazineAsset magazineAsset)
+				|| !inventory.TryTakeItemServer(magazineSlot, out Item consumedMagazine))
 			{
 				roundsRemaining = 0;
-				// Do not poll for ammunition every frame when the inventory is empty.
+				// Do not poll for ammunition every frame when no compatible magazine exists.
 				nextShotTime = Time.time + 1.0f;
 				return;
 			}
 
+			// The dropped magazine's amount is the available round count in this prototype.
+			// Caliber compatibility is real asset metadata; ballistics remain simulated.
+			pendingReloadRounds = Mathf.Clamp(consumedMagazine.amount, 1, Mathf.Max(1, Mathf.Min(magazineCapacity, magazineAsset.MaxAmount)));
 			reloadPending = true;
 			reloadFinishedAt = Time.time + Mathf.Max(0.1f, reloadDuration);
 			ReloadStarted?.Invoke();
