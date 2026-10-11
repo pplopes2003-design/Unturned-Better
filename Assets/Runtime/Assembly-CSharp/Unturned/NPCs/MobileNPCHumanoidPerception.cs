@@ -24,6 +24,7 @@ namespace SDG.Unturned
 
 		private MobileNPCBrainDriver brain;
 		private MobileNPCHumanoidMotor motor;
+		private MobileNPCHumanoidDisposition disposition;
 		private float nextScanTime;
 		private Player visiblePlayer;
 		private readonly RaycastHit[] sightHits = new RaycastHit[16];
@@ -34,6 +35,7 @@ namespace SDG.Unturned
 		{
 			brain = GetComponent<MobileNPCBrainDriver>();
 			motor = GetComponent<MobileNPCHumanoidMotor>();
+			disposition = GetComponent<MobileNPCHumanoidDisposition>();
 		}
 
 		private void Update()
@@ -44,6 +46,17 @@ namespace SDG.Unturned
 			}
 
 			nextScanTime = Time.time + Mathf.Max(0.02f, scanInterval);
+			if (disposition != null && !disposition.CanEngagePlayers)
+			{
+				visiblePlayer = null;
+				brain.ResetServer();
+				if (motor != null)
+				{
+					motor.SetTargetVisibleFromServer(false);
+				}
+				return;
+			}
+
 			Player candidate = FindVisiblePlayer();
 			visiblePlayer = candidate;
 
