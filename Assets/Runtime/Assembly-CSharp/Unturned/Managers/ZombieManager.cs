@@ -1722,16 +1722,17 @@ namespace SDG.Unturned
 
 			lastNoiseAlertTime = Time.time;
 			lastNoiseAlertPosition = position;
-			if (nav >= regions.Length || regions[nav] == null || regions[nav].zombies == null)
+			if (nav >= regions.Length || AllZombies == null)
 			{
 				return;
 			}
 
+			// Noise can be heard across navigation-region boundaries. Use the global
+			// zombie list and the real 3D distance instead of checking only the source region.
 			float sqrRadius = radius * radius;
-			List<Zombie> regionZombies = regions[nav].zombies;
-			for (int index = 0; index < regionZombies.Count; ++index)
+			for (int index = 0; index < AllZombies.Count; ++index)
 			{
-				Zombie zombie = regionZombies[index];
+				Zombie zombie = AllZombies[index];
 				if (zombie == null || zombie.isDead || (zombie.transform.position - position).sqrMagnitude > sqrRadius)
 				{
 					continue;
