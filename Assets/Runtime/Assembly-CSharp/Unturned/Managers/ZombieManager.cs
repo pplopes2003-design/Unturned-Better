@@ -1709,7 +1709,7 @@ namespace SDG.Unturned
 		private const float AMBIENT_HORDE_MIN_TRAVEL_DISTANCE = 38.0f;
 		private const float AMBIENT_HORDE_MAX_TRAVEL_DISTANCE = 78.0f;
 		private const int AMBIENT_HORDE_MIN_SIZE = 3;
-		private const int AMBIENT_HORDE_MAX_SIZE = 6;
+		private const int AMBIENT_HORDE_MAX_SIZE = 8;
 
 		private static void UpdateAmbientHordes()
 		{
