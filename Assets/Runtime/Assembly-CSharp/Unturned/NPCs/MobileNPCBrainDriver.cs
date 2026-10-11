@@ -109,6 +109,11 @@ namespace SDG.Unturned
 			}
 
 			tactics.ReportIncomingFire(Time.time);
+			MobileNPCHumanoidAim aim = GetComponent<MobileNPCHumanoidAim>();
+			if (aim != null)
+			{
+				aim.ReportSuppression();
+			}
 		}
 
 		/// <summary>
