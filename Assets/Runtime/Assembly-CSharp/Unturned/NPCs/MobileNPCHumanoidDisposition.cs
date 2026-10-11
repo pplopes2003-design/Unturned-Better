@@ -26,6 +26,26 @@ namespace SDG.Unturned
 
 		public Role CurrentRole => role;
 		public bool CanEngagePlayers => role == Role.Hostile;
+		public bool CanEngageMobileNPCs => role != Role.Neutral;
+
+		/// <summary>
+		/// Hostile and Friendly are opposing factions. Members of the same faction and
+		/// Neutral agents do not acquire one another as combat targets.
+		/// </summary>
+		public bool IsHostileTo(MobileNPCHumanoidDisposition other)
+		{
+			if (other == null || other == this || role == Role.Neutral || other.role == Role.Neutral)
+			{
+				return false;
+			}
+
+			return role != other.role;
+		}
+
+		public static bool AreHostile(MobileNPCHumanoidDisposition first, MobileNPCHumanoidDisposition second)
+		{
+			return first != null && first.IsHostileTo(second);
+		}
 
 		public void SetRoleServer(Role newRole)
 		{
