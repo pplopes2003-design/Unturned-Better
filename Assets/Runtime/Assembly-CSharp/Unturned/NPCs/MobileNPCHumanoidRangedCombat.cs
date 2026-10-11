@@ -58,6 +58,7 @@ namespace SDG.Unturned
 		public event System.Action ReloadFinished;
 
 		public int RoundsRemaining => roundsRemaining;
+		public ItemGunAsset SelectedGunAsset => selectedGunAsset;
 		public bool IsReloading => Provider.isServer && reloadPending;
 
 		private void Awake()
@@ -141,7 +142,9 @@ namespace SDG.Unturned
 			Vector3 muzzle = transform.position + Vector3.up * muzzleHeight;
 			Vector3 targetPoint = targetTransform.position + Vector3.up * targetHeight;
 			Vector3 toTarget = targetPoint - muzzle;
-			if (toTarget.sqrMagnitude > effectiveRange * effectiveRange || toTarget.sqrMagnitude < 0.01f)
+			float weaponRange = selectedGunAsset != null && selectedGunAsset.range > 0f
+				? Mathf.Min(effectiveRange, selectedGunAsset.range) : effectiveRange;
+			if (toTarget.sqrMagnitude > weaponRange * weaponRange || toTarget.sqrMagnitude < 0.01f)
 			{
 				return;
 			}
@@ -227,7 +230,7 @@ namespace SDG.Unturned
 					parameters.limb = ELimb.SPINE;
 					parameters.killer = Provider.server;
 					parameters.direction = shotDirection;
-					parameters.damage = damage;
+					parameters.damage = GetWeaponDamage();
 					parameters.respectArmor = true;
 					EPlayerKill kill;
 					DamageTool.damagePlayer(parameters, out kill);
@@ -240,7 +243,8 @@ namespace SDG.Unturned
 					if (hitNPC == targetNPC && hitVitals != null
 						&& MobileNPCHumanoidDisposition.AreHostile(ownDisposition, hitNPC))
 					{
-						hitVitals.ApplyDamage(damage, shotDirection * damage);
+						float hitDamage = GetWeaponDamage();
+						hitVitals.ApplyDamage(hitDamage, shotDirection * hitDamage);
 					}
 				}
 			}
@@ -289,6 +293,15 @@ namespace SDG.Unturned
 				|| gunAsset.magazineCalibers == null || gunAsset.magazineCalibers.Length == 0
 				|| !loadedMagazine.CalibersContainAnyOfIds(gunAsset.magazineCalibers)) return;
 			roundsRemaining = Mathf.Clamp(gun.state[10], 0, Mathf.Max(1, magazineCapacity));
+		}
+
+		private float GetWeaponDamage()
+		{
+			if (selectedGunAsset != null && selectedGunAsset.playerDamageMultiplier.damage > 0f)
+			{
+				return selectedGunAsset.playerDamageMultiplier.damage;
+			}
+			return damage;
 		}
 
 		private int RollBurstSize()
