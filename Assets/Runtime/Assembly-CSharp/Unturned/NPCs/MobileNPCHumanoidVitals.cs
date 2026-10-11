@@ -105,7 +105,7 @@ namespace SDG.Unturned
 				return false;
 			}
 
-			brainDriver?.ReportDamage(CurrentHealth, maximumHealth);
+			brainDriver?.ReportHealth(CurrentHealth, maximumHealth);
 			HealthChanged?.Invoke(CurrentHealth, maximumHealth);
 			return true;
 		}
