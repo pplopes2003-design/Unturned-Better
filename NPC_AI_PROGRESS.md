@@ -238,3 +238,11 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - On death, `MobileNPCHumanoidVitals` disables the brain driver after publishing the final reset. Its `OnDisable` unregisters the driver from `MobileNPCRegistry`, preventing dead NPCs from remaining in active-agent enumeration.
 - Existing static NPC prefabs and code paths remain untouched.
 - Validation status: source-level review only; Unity compilation, dedicated-server test, and multiplayer client test remain pending.
+
+### 2026-10-11 — limpeza explícita de NPC móvel no servidor
+- Adicionado `MobileNPCSpawnService.TryDespawnServer`: exige autoridade do servidor, rejeita referências nulas e verifica a assinatura de componentes móveis antes de destruir a instância.
+- O método não aceita objetos arbitrários nem os NPCs estáticos legados por engano. A destruição desativa os componentes e permite ao driver sair do registro de NPCs ativos.
+- Limite explícito: isso é limpeza do lado do servidor, não um pacote de despawn para clientes; não deve ser usado como substituto da futura camada de replicação.
+- Atualizado `Docs/MobileNPC-Quick-Test.md` com o contrato e a limitação.
+- Commit de código: https://github.com/pplopes2003-design/Unturned-Better/commit/4ccba0504ac6beb4f78c0c037af3852d8f2e3dc6
+- Validação: inspeção estática; sem compilação Unity nem teste no jogo.
