@@ -195,3 +195,11 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - O registro é apenas infraestrutura de gestão: **não cria NPCs, não replica movimento e não altera NPCs estáticos**. Serve como base para futuras populações e facções sem acoplar esses sistemas ao diálogo legado.
 - O arquivo `.meta` foi criado. Compilação Unity e teste no jogo continuam pendentes.
 - Próxima etapa correta continua sendo a integração com o ciclo de vida de entidades e o Net Gen oficial; não adicionar RPC manual sem a geração correspondente.
+
+
+### 2026-10-11 — serviço de spawn controlado
+- Adicionado `MobileNPCSpawnService.TrySpawnServer`: valida autoridade do servidor, prefab explícito, componentes obrigatórios e posição dentro dos limites seguros do mapa antes de criar a instância.
+- O serviço aceita o perfil Hostile/Friendly/Neutral e inicializa o motor/brain após a criação.
+- Criados metadados Unity e documentação de contrato.
+- Limite importante: este é spawn **somente no servidor**, não é spawn replicado. Não usar os prefabs legados `NPC_Server`/`NPC_Client` nem considerar pronto para multiplayer até implementar e validar o protocolo de replicação gerado.
+- Compilação e testes Unity permanecem pendentes.
