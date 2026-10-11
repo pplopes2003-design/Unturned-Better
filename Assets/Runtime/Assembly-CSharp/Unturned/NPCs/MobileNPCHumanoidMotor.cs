@@ -31,6 +31,7 @@ namespace SDG.Unturned
 		private Vector3 spawnPosition;
 		private Vector3 velocity;
 		private bool hasInitialized;
+		private bool targetIsVisible;
 
 		public bool IsInitialized => hasInitialized;
 		public bool IsMoving { get; private set; }
@@ -81,7 +82,7 @@ namespace SDG.Unturned
 				return;
 			}
 
-			brainDriver.TickServer(IsTargetVisible());
+			brainDriver.TickServer(targetIsVisible);
 			Vector3 planarDirection = Vector3.zero;
 			bool hasDestination = brainDriver.HasDestination;
 			Vector3 destination = brainDriver.Destination;
@@ -121,14 +122,13 @@ namespace SDG.Unturned
 			IsMoving = planarDirection.sqrMagnitude > 0.0001f && (collision & CollisionFlags.Sides) == 0;
 		}
 
-		/// <summary>
-		/// Minimal visibility contract. The host should replace this with server-side
-		/// perception/raycast validation before calling ReportVisibleTarget.
-		/// </summary>
-		private bool IsTargetVisible()
+		/// <summary>Set only from authoritative server-side perception.</summary>
+		public void SetTargetVisibleFromServer(bool isVisible)
 		{
-			Transform target = brainDriver.Target;
-			return target != null;
+			if (Provider.isServer && hasInitialized)
+			{
+				targetIsVisible = isVisible;
+			}
 		}
 
 		private void OnDestroy()
