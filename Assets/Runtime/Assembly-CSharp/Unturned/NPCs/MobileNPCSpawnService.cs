@@ -159,6 +159,89 @@ namespace SDG.Unturned
 		}
 
 		/// <summary>
+		/// Attempts a bounded batch of server-local spawns in a circular region around
+		/// an explicit center. A map integration must supply valid ground layers and
+		/// choose the center; this method does not discover map bounds or replicate NPCs.
+		/// Returns true when at least one NPC was spawned; spawnedCount reports partial
+		/// success when some candidate positions are unsuitable.
+		/// </summary>
+		public static bool TrySpawnBatchAroundServer(GameObject prefab, Vector3 center,
+			float radius, int desiredCount, int maximumAttempts, float searchHeight,
+			float maximumDropDistance, LayerMask groundMask, float maximumSlopeAngle,
+			MobileNPCHumanoidDisposition.Role role, System.Collections.Generic.List<GameObject> spawnedInstances,
+			out int spawnedCount, out string error)
+		{
+			spawnedCount = 0;
+			error = null;
+
+			if (!Provider.isServer)
+			{
+				error = "Mobile humanoid NPC batches can only be spawned by the server.";
+				return false;
+			}
+
+			if (spawnedInstances == null)
+			{
+				error = "A caller-owned list is required to collect spawned instances.";
+				return false;
+			}
+
+			spawnedInstances.Clear();
+			if (!IsFinite(center.x) || !IsFinite(center.y) || !IsFinite(center.z)
+				|| !IsFinite(radius) || radius < 0f || desiredCount < 1 || maximumAttempts < desiredCount
+				|| maximumAttempts > 1000)
+			{
+				error = "Batch center/radius and attempt limits are invalid; attempts must be between desired count and 1000.";
+				return false;
+			}
+
+			if (prefab == null)
+			{
+				error = "A mobile humanoid prefab is required.";
+				return false;
+			}
+
+			for (int attempt = 0; attempt < maximumAttempts && spawnedCount < desiredCount; ++attempt)
+			{
+				float angle = Random.Range(0f, Mathf.PI * 2f);
+				float distance = Mathf.Sqrt(Random.value) * radius;
+				Vector3 candidate = center + new Vector3(Mathf.Cos(angle) * distance, 0f, Mathf.Sin(angle) * distance);
+
+				if (!TryFindSafeGroundPosition(candidate, searchHeight, maximumDropDistance,
+					groundMask, maximumSlopeAngle, out Vector3 groundPosition, out string groundError))
+				{
+					error = groundError;
+					continue;
+				}
+
+				Quaternion rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+				if (!TrySpawnServer(prefab, groundPosition, rotation, role, out GameObject instance, out string spawnError))
+				{
+					error = spawnError;
+					continue;
+				}
+
+				spawnedInstances.Add(instance);
+				++spawnedCount;
+			}
+
+			if (spawnedCount > 0)
+			{
+				if (spawnedCount < desiredCount && string.IsNullOrEmpty(error))
+				{
+					error = "The batch partially succeeded because not enough safe candidate positions were found.";
+				}
+				return true;
+			}
+
+			if (string.IsNullOrEmpty(error))
+			{
+				error = "No safe position was found within the configured attempt limit.";
+			}
+			return false;
+		}
+
+		/// <summary>
 		/// Destroys a mobile NPC owned by the server. This is local server lifecycle
 		/// cleanup only; it does not broadcast a network despawn to clients.
 		/// </summary>
