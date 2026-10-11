@@ -164,7 +164,11 @@ namespace SDG.Unturned
 				case EItemType.STORAGE:
 				case EItemType.STRUCTURE:
 				case EItemType.SUPPLY:
-					score = 12f + buildingLootPreference * 45f;
+					MobileNPCSettlementPlanner settlementPlanner = GetComponent<MobileNPCSettlementPlanner>();
+					bool needsSettlementSupplies = settlementPlanner != null && !settlementPlanner.HasChosenSite
+						&& inventory.CountItemType(EItemType.BARRICADE) + inventory.CountItemType(EItemType.STORAGE)
+						+ inventory.CountItemType(EItemType.STRUCTURE) < 3;
+					score = needsSettlementSupplies ? 58f + buildingLootPreference * 20f : 12f + buildingLootPreference * 45f;
 					break;
 				default:
 					score = 8f;
