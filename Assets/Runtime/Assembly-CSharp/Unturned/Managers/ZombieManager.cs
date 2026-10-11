@@ -1758,8 +1758,7 @@ namespace SDG.Unturned
 				float angle = Random.value * Mathf.PI * 2.0f;
 				float distance = Random.Range(AMBIENT_HORDE_MIN_TRAVEL_DISTANCE, AMBIENT_HORDE_MAX_TRAVEL_DISTANCE);
 				Vector3 candidatePoint = leader.transform.position + new Vector3(Mathf.Cos(angle) * distance, 0.0f, Mathf.Sin(angle) * distance);
-				byte candidateBound;
-				if (LevelNavigation.checkNavigation(candidatePoint) && LevelNavigation.tryGetNavigation(candidatePoint, out candidateBound) && candidateBound == leader.bound)
+				if (LevelNavigation.checkNavigation(candidatePoint))
 				{
 					destination = candidatePoint;
 					foundDestination = true;
