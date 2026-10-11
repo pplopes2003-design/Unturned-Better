@@ -46,14 +46,45 @@ namespace SDG.Unturned
 			}
 			nextCombatCheckTime = Time.time + Mathf.Max(0.02f, combatCheckInterval);
 
-			Player targetPlayer = ResolveTargetPlayer();
-			if (targetPlayer == null || targetPlayer.life == null || targetPlayer.life.isDead)
+			Transform targetTransform = brainDriver.Target;
+			if (targetTransform == null)
 			{
 				return;
 			}
 
+			Player targetPlayer = targetTransform.GetComponent<Player>();
+			if (targetPlayer == null)
+			{
+				targetPlayer = targetTransform.GetComponentInParent<Player>();
+			}
+			MobileNPCHumanoidDisposition targetNPC = targetTransform.GetComponent<MobileNPCHumanoidDisposition>();
+			if (targetNPC == null)
+			{
+				targetNPC = targetTransform.GetComponentInParent<MobileNPCHumanoidDisposition>();
+			}
+
+			MobileNPCHumanoidVitals targetVitals = targetNPC != null ? targetNPC.GetComponent<MobileNPCHumanoidVitals>() : null;
+			if (targetPlayer != null && (targetPlayer.life == null || targetPlayer.life.isDead)
+				|| targetNPC == null || !MobileNPCHumanoidDisposition.AreHostile(GetComponent<MobileNPCHumanoidDisposition>(), targetNPC)
+					|| targetVitals != null && targetVitals.IsDead)
+			{
+				if (targetPlayer == null && targetNPC == null)
+				{
+					return;
+				}
+				if (targetPlayer != null && (targetPlayer.life == null || targetPlayer.life.isDead))
+				{
+					return;
+				}
+				if (targetNPC != null && (!MobileNPCHumanoidDisposition.AreHostile(GetComponent<MobileNPCHumanoidDisposition>(), targetNPC)
+					|| targetVitals != null && targetVitals.IsDead))
+				{
+					return;
+				}
+			}
+
 			Vector3 origin = transform.position + Vector3.up * lineOfSightHeight;
-			Vector3 targetPoint = targetPlayer.transform.position + Vector3.up * lineOfSightHeight;
+			Vector3 targetPoint = targetTransform.position + Vector3.up * lineOfSightHeight;
 			Vector3 offset = targetPoint - origin;
 			if (offset.sqrMagnitude > attackRange * attackRange || offset.sqrMagnitude < 0.0001f)
 			{
@@ -71,7 +102,6 @@ namespace SDG.Unturned
 				{
 					continue;
 				}
-
 				if (lineOfSightHits[i].distance < nearestDistance)
 				{
 					nearestDistance = lineOfSightHits[i].distance;
@@ -81,19 +111,49 @@ namespace SDG.Unturned
 
 			if (nearestTransform != null)
 			{
-				Player hitPlayer = nearestTransform.GetComponent<Player>();
-				if (hitPlayer == null)
+				if (targetPlayer != null)
 				{
-					hitPlayer = nearestTransform.GetComponentInParent<Player>();
+					Player hitPlayer = nearestTransform.GetComponent<Player>();
+					if (hitPlayer == null) hitPlayer = nearestTransform.GetComponentInParent<Player>();
+					if (hitPlayer != targetPlayer) return;
 				}
-
-				if (hitPlayer != targetPlayer)
+				else
 				{
-					return;
+					MobileNPCHumanoidDisposition hitNPC = nearestTransform.GetComponent<MobileNPCHumanoidDisposition>();
+					if (hitNPC == null) hitNPC = nearestTransform.GetComponentInParent<MobileNPCHumanoidDisposition>();
+					if (hitNPC != targetNPC) return;
 				}
 			}
 
-			TryAttack(targetPlayer, offset.normalized);
+			if (targetPlayer != null)
+			{
+				TryAttack(targetPlayer, offset.normalized);
+			}
+			else
+			{
+				TryAttack(targetNPC, offset.normalized);
+			}
+		}
+
+		/// <summary>Damages an opposing mobile NPC using its server-authoritative vitals.</summary>
+		public bool TryAttack(MobileNPCHumanoidDisposition targetNPC, Vector3 attackDirection)
+		{
+			MobileNPCHumanoidDisposition ownDisposition = GetComponent<MobileNPCHumanoidDisposition>();
+			MobileNPCHumanoidVitals targetVitals = targetNPC != null ? targetNPC.GetComponent<MobileNPCHumanoidVitals>() : null;
+			if (!Provider.isServer || targetNPC == null || targetVitals == null || targetVitals.IsDead
+				|| !MobileNPCHumanoidDisposition.AreHostile(ownDisposition, targetNPC)
+				|| Time.time < nextAttackTime)
+			{
+				return false;
+			}
+
+			if ((targetNPC.transform.position - transform.position).sqrMagnitude > attackRange * attackRange)
+			{
+				return false;
+			}
+
+			nextAttackTime = Time.time + attackCooldown;
+			return targetVitals.ApplyDamage(attackDamage, attackDirection.normalized * attackDamage);
 		}
 
 		private Player ResolveTargetPlayer()
