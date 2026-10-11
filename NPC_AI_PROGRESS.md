@@ -342,3 +342,10 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - A lógica é local e limitada: não calcula rotas, não usa NavMesh e não garante contornar edifícios ou paredes longas. Máscaras de colisão e altura do probe precisam ser validadas no Unity, pois colisores de cenário e triggers variam entre mapas.
 - O guia de teste agora inclui um teste específico perto de obstáculos.
 - Verificação estática: chaves/parênteses balanceados e uso de overload padrão de `Physics.SphereCast`. Sem compilação Unity nem teste em jogo nesta etapa.
+
+### 2026-10-11 — recuperação de bloqueio e passos humanoides vanilla
+- O desvio local testa rotas laterais mais amplas (90°, 135° e retorno) quando os dois probes iniciais estão bloqueados, evitando uma parada imediata em alguns cantos. Os ângulos de fallback são reutilizados sem alocação por frame.
+- Foi adicionado monitoramento de deslocamento em janelas de 0,75 s. Se um waypoint de exploração continuar bloqueado, ele é descartado e uma nova escolha ocorre após breve pausa; se o destino vier do cérebro (combate/investigação/tática), o destino é preservado e o motor tenta temporariamente uma direção alternativa de recuperação.
+- MobileNPCVisualAnimation agora consulta o material do chão e reutiliza PhysicMaterialCustomData com as chaves vanilla FootstepWalk/FootstepRun, OneShotAudioParameters e intervalos com pequena variação. A reprodução fica excluída da compilação dedicada por #if !DEDICATED_SERVER.
+- Isto reutiliza os passos humanos existentes do jogo; não cria clipes novos. Sons de dor/morte/voz e áudio de armas continuam pendentes, pois ainda não foi validada uma referência de áudio humano adequada para esses eventos.
+- Validação: revisão estática dos caminhos e assinaturas existentes no código de PlayerMovement/Zombie; commits no GitHub. **Sem compilação Unity ou teste real no Unturned**. O comportamento de áudio e a navegação ainda precisam ser confirmados em jogo.
