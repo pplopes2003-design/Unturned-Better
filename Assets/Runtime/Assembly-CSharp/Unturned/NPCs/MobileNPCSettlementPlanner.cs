@@ -25,7 +25,7 @@ namespace SDG.Unturned
 		[SerializeField, Min(1f)] private float searchHeight = 50f;
 		[SerializeField, Min(0f)] private float maximumDrop = 60f;
 		[SerializeField, Range(0f, 60f)] private float maximumSlope = 25f;
-		[SerializeField, Min(0.5f)] private float clearanceRadius = 1.8f;
+		[SerializeField, Min(0.5f)] private float clearanceRadius = 0.4f;
 		[SerializeField] private LayerMask groundMask = ~0;
 		[SerializeField] private LayerMask obstructionMask = ~0;
 
@@ -84,8 +84,8 @@ namespace SDG.Unturned
 					continue;
 				}
 
-				Vector3 capsuleBottom = ground + Vector3.up * 0.2f;
-				if (Physics.CheckSphere(capsuleBottom, Mathf.Max(0.5f, clearanceRadius), obstructionMask,
+				Vector3 clearanceCenter = ground + Vector3.up * 1.0f;
+				if (Physics.CheckSphere(clearanceCenter, Mathf.Clamp(clearanceRadius, 0.25f, 0.8f), obstructionMask,
 					QueryTriggerInteraction.Ignore))
 				{
 					continue;
