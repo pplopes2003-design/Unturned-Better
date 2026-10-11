@@ -41,6 +41,7 @@ namespace SDG.Unturned
 		private ItemGunAsset selectedGunAsset;
 		private ushort selectedGunID;
 		private int pendingReloadRounds;
+		private ushort pendingReloadMagazineID;
 		private int roundsRemaining;
 		private float nextShotTime;
 		private float reloadFinishedAt;
@@ -92,6 +93,8 @@ namespace SDG.Unturned
 				reloadPending = false;
 				roundsRemaining = Mathf.Max(0, pendingReloadRounds);
 				pendingReloadRounds = 0;
+				inventory.TryUpdateGunAmmoServer(selectedGunID, (byte)Mathf.Clamp(roundsRemaining, 0, 255), pendingReloadMagazineID);
+				pendingReloadMagazineID = 0;
 				shotsRemainingInBurst = RollBurstSize();
 				waitingForBurstPause = false;
 				ReloadFinished?.Invoke();
@@ -162,6 +165,7 @@ namespace SDG.Unturned
 			}
 
 			roundsRemaining--;
+			inventory.TryUpdateGunAmmoServer(selectedGunID, (byte)Mathf.Clamp(roundsRemaining, 0, 255));
 			ShotFired?.Invoke();
 
 			shotsRemainingInBurst = Mathf.Max(0, shotsRemainingInBurst - 1);
@@ -344,6 +348,7 @@ namespace SDG.Unturned
 			// The dropped magazine's amount is the available round count in this prototype.
 			// Caliber compatibility is real asset metadata; ballistics remain simulated.
 			pendingReloadRounds = Mathf.Clamp(consumedMagazine.amount, 1, Mathf.Max(1, Mathf.Min(magazineCapacity, magazineAsset.MaxAmount)));
+			pendingReloadMagazineID = consumedMagazine.id;
 			reloadPending = true;
 			float weaponReloadDuration = selectedGunAsset.reloadTime > 0f ? selectedGunAsset.reloadTime : reloadDuration;
 			reloadFinishedAt = Time.time + Mathf.Max(0.1f, weaponReloadDuration);
