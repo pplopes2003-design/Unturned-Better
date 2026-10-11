@@ -26,6 +26,7 @@ namespace SDG.Unturned
 			public Vector3 Anchor;
 			public readonly HashSet<MobileNPCGroupMember> Members = new HashSet<MobileNPCGroupMember>();
 			public MobileNPCGroupMember Leader;
+			public bool HasSettlement;
 		}
 
 		private MobileNPCHumanoidVitals vitals;
@@ -37,6 +38,8 @@ namespace SDG.Unturned
 		public Vector3 GroupAnchor { get; private set; }
 		public bool CanPlanSettlement => initialized && !leftGroup && GroupId > 0
 			&& groups.TryGetValue(GroupId, out GroupRecord currentGroup) && currentGroup.Leader == this;
+		public bool HasSettlement => initialized && !leftGroup && GroupId > 0
+			&& groups.TryGetValue(GroupId, out GroupRecord settlementGroup) && settlementGroup.HasSettlement;
 
 		private void Awake()
 		{
@@ -85,6 +88,7 @@ namespace SDG.Unturned
 				return;
 
 			group.Anchor = anchor;
+			group.HasSettlement = true;
 			foreach (MobileNPCGroupMember member in group.Members)
 			{
 				if (member == null || member.vitals != null && member.vitals.IsDead)
