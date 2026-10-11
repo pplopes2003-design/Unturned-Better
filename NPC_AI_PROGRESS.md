@@ -269,3 +269,10 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Para preservar a correção quando o buffer de 64 colisões fica cheio, usa-se a consulta completa alocadora apenas nesse caso de saturação.
 - Commits: https://github.com/pplopes2003-design/Unturned-Better/commit/db216815c1ddbf1c845e343658b66720144717f6 e https://github.com/pplopes2003-design/Unturned-Better/commit/ee4cce56b608f07bf509fbf80260a653cc30f16e
 - Validação pendente: compilação Unity e teste de tiro contra jogador/NPC com obstruções e colliders sobrepostos. A otimização não altera a precisão humana configurada pela dispersão e pelo tempo de reação.
+
+
+### 2026-10-11 — primitiva de posicionamento em terreno
+- `MobileNPCSpawnService.TryFindSafeGroundPosition` agora resolve uma coordenada candidata para o chão usando raycast descendente, máscara de colisão configurável, limite de inclinação e validação de limites/clip volumes do mapa.
+- É independente do nome ou tamanho do mapa carregado, desde que o chamador forneça coordenadas candidatas e uma `groundMask` adequada. Não escolhe sozinho posições pelo mapa, não valida ocupação completa do capsule e não faz spawn automático; isso continua sendo responsabilidade do futuro population director.
+- Commit: https://github.com/pplopes2003-design/Unturned-Better/commit/c88ed83da6425f3d80c486856a2a78282d8a6f2b
+- Validação pendente: testar máscaras de colisão em mapas diferentes, declives, bordas/clip volumes, terreno e estruturas. Ainda não houve compilação Unity nem teste em jogo.
