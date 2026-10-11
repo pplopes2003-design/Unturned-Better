@@ -352,6 +352,9 @@ namespace SDG.Unturned
 		private EHuntType huntType;
 
 		private bool isLeaving;
+		private bool isInvestigationIdle;
+		private bool isReturningToSpawn;
+		private float investigationIdleUntil;
 		private bool isStunned;
 		private bool isStuck;
 		private Vector3 leaveTo;
@@ -2004,6 +2007,29 @@ namespace SDG.Unturned
 				return;
 			}
 
+			// After giving up a point investigation, pause before navigating back to a spawnpoint.
+			if (isInvestigationIdle)
+			{
+				if (Time.time < investigationIdleUntil)
+				{
+					return;
+				}
+
+				isInvestigationIdle = false;
+				if (bound < LevelZombies.zombies.Length && LevelZombies.zombies[bound] != null && LevelZombies.zombies[bound].Count > 0)
+				{
+					List<ZombieSpawnpoint> spawnpoints = LevelZombies.zombies[bound];
+					ZombieSpawnpoint spawnpoint = spawnpoints[Random.Range(0, spawnpoints.Count)];
+					isReturningToSpawn = true;
+					alert(spawnpoint.point, false);
+				}
+				else
+				{
+					setTicking(false);
+				}
+				return;
+			}
+
 			undergroundTestTimer -= delta;
 			if (undergroundTestTimer < 0.0f)
 			{
@@ -2028,7 +2054,18 @@ namespace SDG.Unturned
 			{
 				if ((!isMoving || isStuck) && Time.time - lastHunted > 10f)
 				{
+					bool wasReturningToSpawn = isReturningToSpawn;
 					stop();
+					if (wasReturningToSpawn)
+					{
+						isReturningToSpawn = false;
+					}
+					else
+					{
+						isInvestigationIdle = true;
+						investigationIdleUntil = Time.time + Random.Range(12.0f, 25.0f);
+						setTicking(true);
+					}
 					return;
 				}
 			}
