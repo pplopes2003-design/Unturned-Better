@@ -106,3 +106,12 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 - [ ] Observar se NPCs aparecem dentro do campo de visão do jogador; o sistema ainda não garante spawn fora da linha de visão.
 
 **Estado:** código atualizado e revisado estaticamente; a validação no Unity/Unturned permanece pendente.
+
+
+## Teste adicional — spawn fora da linha de visão
+- [ ] Em terreno aberto, confirmar que candidatos com linha de visão direta são rejeitados antes da instanciação.
+- [ ] Repetir atrás de uma parede/edifício: o NPC pode surgir se o raio até o tronco for bloqueado por collider sólido.
+- [ ] Em mata/vegetação e áreas com estruturas transparentes, registrar falsos positivos/negativos causados pelos colliders do mapa.
+- [ ] Se todos os candidatos estiverem visíveis, confirmar que não há aparição seguida de destruição e que o diretor aguarda o próximo intervalo.
+
+**Limite:** a ocultação é uma heurística de raio/collider, não uma avaliação da câmera nem do sistema visual completo. Ainda sem compilação Unity ou execução no jogo.
