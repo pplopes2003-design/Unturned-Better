@@ -304,3 +304,16 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 8. Este sistema é volátil: trocar/recarregar o mapa ou reiniciar o processo não preserva grupos ou bases.
 
 **Não executado no Unity/Unturned; estes itens são testes manuais pendentes.**
+
+
+## Grupo limitado por facção e reposição atrasada — teste para dev build
+
+1. Entre em single-player com a build de desenvolvimento e espere a população móvel surgir. Abra o log do jogo e procure mensagens [MobileNPCGroupMember] indicando criação/adesão a grupo, ID e contagem de membros.
+2. Observe vários NPCs surgirem: cada grupo deve ter no máximo quatro membros vivos e NPCs de funções diferentes não devem entrar no mesmo grupo. A associação é por proximidade de até 140 m, então o posicionamento da base e do jogador influencia o resultado.
+3. Quando um grupo tiver pelo menos dois membros, mate um deles. O membro morto deve sair do grupo imediatamente; os sobreviventes devem continuar usando a mesma âncora. O log do diretor deve registrar a morte e programar a reposição.
+4. Aguarde pelo menos 60 segundos, mais até um ciclo de spawn (normalmente até 18 s) e mais o tempo que uma tentativa de posição segura exigir. A nova instância deve aparecer fora da linha de visão e, se nascer dentro de 140 m do grupo sobrevivente e houver vaga, deve entrar no grupo existente.
+5. Em um teste separado, elimine todos os membros de um grupo antes da reposição. O log deve indicar que o grupo foi dissolvido. A próxima instância não deve reutilizar o ID dissolvido; ela cria ou entra em outro grupo elegível.
+6. Confirme que o corpo pode desaparecer após aproximadamente 30 s, independentemente do prazo de reposição de 60 s. O spawn pode demorar mais em terreno inválido ou se não houver jogador vivo.
+7. Faça um teste com mais de quatro NPCs próximos e confirme que o sistema cria outro grupo em vez de exceder o limite. Não exija que o grupo seja persistido após reiniciar/trocar de mapa: essa função ainda não existe.
+
+**O código foi revisado estaticamente; os passos acima ainda precisam ser executados na dev build.**
