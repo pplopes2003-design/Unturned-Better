@@ -468,6 +468,7 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 ## Planejamento inicial de assentamento (rodada atual)
 
 - Novo `MobileNPCSettlementPlanner` verifica periodicamente se o NPC carrega itens das categorias `BARRICADE`, `STORAGE` ou `STRUCTURE` e está sem alvo/objetivo tático.
+- Antes de escolher o local, o sistema de saque dá prioridade moderadamente alta a itens de construção enquanto o NPC ainda não tem ponto escolhido e carrega menos de três itens de construção. Depois, a preferência volta ao valor configurado.
 - Quando há materiais, tenta escolher um ponto próximo à âncora atual: valida terreno, inclinação, limites seguros e espaço livre aproximado, e então move a âncora de retorno para o local escolhido.
 - O componente é anexado no bootstrap de NPCs móveis. A escolha é única por instância durante sua vida atual; se não encontrar local válido, tenta novamente após o intervalo configurado.
 - **Limite explícito:** isto é apenas seleção de local/âncora provisória. Ainda não coloca barricadas, estruturas ou armazenamento no mundo; não consome materiais, não salva assentamentos em disco e não replica em multiplayer. A consulta de colisão é heurística e precisa ser testada em mapas reais.
