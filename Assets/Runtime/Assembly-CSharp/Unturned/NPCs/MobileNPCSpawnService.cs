@@ -73,5 +73,39 @@ namespace SDG.Unturned
 			instance = spawned;
 			return true;
 		}
+
+		/// <summary>
+		/// Destroys a mobile NPC owned by the server. This is local server lifecycle
+		/// cleanup only; it does not broadcast a network despawn to clients.
+		/// </summary>
+		public static bool TryDespawnServer(GameObject instance, out string error)
+		{
+			error = null;
+
+			if (!Provider.isServer)
+			{
+				error = "Mobile humanoid NPCs can only be despawned by the server.";
+				return false;
+			}
+
+			if (instance == null)
+			{
+				error = "A mobile humanoid NPC instance is required.";
+				return false;
+			}
+
+			// Require the mobile-NPC component signature rather than allowing this
+			// helper to destroy an arbitrary GameObject or a legacy static NPC.
+			if (instance.GetComponent<MobileNPCBrainDriver>() == null
+				|| instance.GetComponent<MobileNPCHumanoidMotor>() == null
+				|| instance.GetComponent<MobileNPCHumanoidDisposition>() == null)
+			{
+				error = "The instance is not a recognized mobile humanoid NPC.";
+				return false;
+			}
+
+			Object.Destroy(instance);
+			return true;
+		}
 	}
 }
