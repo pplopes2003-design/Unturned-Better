@@ -12,7 +12,7 @@ The opt-in humanoid prototype is under `Assets/Runtime/Assembly-CSharp/Unturned/
 - `MobileNPCPopulationBootstrap` / `MobileNPCPopulationDirector`: runtime bootstrap subscribes to map-loaded events in local single-player, builds a hidden template from the game's humanoid visual prefab, and starts periodic population around the player. The spawned entities remain server-local and are **not network replicated**.
 - `MobileNPCHumanoidPerception`: nearest living player within sight range, field of view and unobstructed line of sight.
 - `MobileNPCHumanoidDisposition`: opt-in `Hostile`, `Friendly` or `Neutral` role. Hostile NPCs can engage players and opposing Friendly NPCs; Friendly NPCs engage Hostile NPCs but not players; Neutral NPCs engage neither faction.
-- `MobileNPCHumanoidMotor`: server-side CharacterController movement (no obstacle pathfinding).
+- `MobileNPCHumanoidMotor`: server-side CharacterController movement with bounded autonomous roaming waypoints; combat/investigation destinations take priority. This is direct steering, not obstacle pathfinding, so walls and dense structures can still block an NPC.
 - `MobileNPCVisualAnimation`: best-effort adapter for legacy animation clip names in the visual model.
 - `MobileNPCHumanoidAim`: variable reaction time, movement/shot spread and suppression penalty.
 - `MobileNPCHumanoidCombat`: server-authoritative melee damage.
@@ -32,7 +32,8 @@ The opt-in humanoid prototype is under `Assets/Runtime/Assembly-CSharp/Unturned/
 5. Break line of sight: ranged combat should stop firing, aim tracking should clear, and the brain should investigate the last known position before returning.
 6. Check ground candidates near steep slopes, structures and map boundaries. Failed candidates should be skipped without repeated per-frame spawn attempts.
 7. Kill an NPC and verify the dead instance is cleaned up after the configured delay. Load a second map and confirm there is no duplicate population director.
-8. Record any compiler errors, Console exceptions, invisible model, incorrect scale/orientation, bad animation selection, or NPCs stuck against obstacles.
+8. When no target or tactical destination is active, confirm an NPC periodically chooses a nearby roaming waypoint, walks toward it, pauses briefly after arrival, then chooses another. Verify it stays within its spawn-area roaming radius.
+9. Record any compiler errors, Console exceptions, invisible model, incorrect scale/orientation, bad animation selection, or NPCs stuck against obstacles.
 
 This smoke test has not yet been run. The bootstrap is experimental and local-only; it does not add client replication, persistence, roaming, or base construction.
 
