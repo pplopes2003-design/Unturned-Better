@@ -31,6 +31,13 @@ The opt-in humanoid prototype is under `Assets/Runtime/Assembly-CSharp/Unturned/
 6. Test NPC death by applying server-validated damage through `MobileNPCHumanoidVitals.ApplyDamage(...)`: health must reach zero once, the brain must reset, movement/collision and combat/perception must stop, and the `Died` event must fire once. Healing and repeated damage after death must be rejected.
 7. Verify dedicated-server and client behavior separately.
 
+## Death and ragdoll status
+
+- The mobile NPC currently **does not produce a ragdoll** when it dies. `MobileNPCHumanoidVitals` raises `Died` and disables its movement/combat components, but the visible body can remain in its last pose until a death presentation is added.
+- Unturned already has `RagdollTool.ragdollPlayer(...)` and `RagdollTool.ragdollZombie(...)`, plus the `Characters/Ragdoll_Player` and `Characters/Ragdoll_Zombie` assets. These are not drop-in replacements for the mobile NPC: they expect a compatible humanoid skeleton and, for full appearance, player/zombie clothing data.
+- Correct multiplayer behavior requires the server to replicate the death event/pose and clients to create the ragdoll locally. Calling the visual ragdoll function only on the server would not make remote clients see it, and directly reusing zombie ragdoll would require zombie-specific appearance data.
+- Planned implementation: opt-in ragdoll presentation adapter using the NPC's compatible humanoid skeleton, impulse from the lethal hit, client-side visual spawning, and a configurable cleanup timeout. Until that is integrated with the entity replication protocol, ragdolls remain pending rather than being faked with a server-only visual.
+
 ## Important limits
 
 - The role component only defines basic hostility toward players. Friendly following, dialogue, squad behavior, and inter-NPC relationships are not implemented yet; these belong to later behavior/faction work.
