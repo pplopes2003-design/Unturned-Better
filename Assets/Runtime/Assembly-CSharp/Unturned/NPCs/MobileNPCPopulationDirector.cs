@@ -19,6 +19,7 @@ namespace SDG.Unturned
         {
             public GameObject Instance;
             public MobileNPCHumanoidVitals Vitals;
+            public int GroupId;
             public float CleanupAt;
             public bool DeathObserved;
         }
@@ -141,6 +142,8 @@ namespace SDG.Unturned
                     {
                         Instance = instance,
                         Vitals = instance.GetComponent<MobileNPCHumanoidVitals>(),
+                        GroupId = instance.GetComponent<MobileNPCGroupMember>() != null
+                            ? instance.GetComponent<MobileNPCGroupMember>().GroupId : 0,
                         CleanupAt = float.PositiveInfinity
                     });
                 }
@@ -180,11 +183,10 @@ namespace SDG.Unturned
                         insertIndex--;
                     }
                     pendingRespawnTimes.Insert(insertIndex, respawnAt);
-                    MobileNPCGroupMember groupMember = tracked.Instance.GetComponent<MobileNPCGroupMember>();
-                    if (groupMember != null && groupMember.GroupId > 0)
+                    if (tracked.GroupId > 0)
                     {
-                        Debug.Log("[MobileNPCPopulationDirector] Mobile NPC died; group " + groupMember.GroupId
-                            + " membership is being retired before delayed replacement.", this);
+                        Debug.Log("[MobileNPCPopulationDirector] Mobile NPC from group " + tracked.GroupId
+                            + " died; replacement is delayed and group membership has been retired.", this);
                     }
                 }
 
