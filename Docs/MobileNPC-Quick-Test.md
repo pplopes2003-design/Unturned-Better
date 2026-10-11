@@ -238,3 +238,13 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 4. Confirme o intervalo entre usos e que a cura não ultrapassa a saúde máxima.
 5. Teste o caso de cura rejeitada e verifique que o item é devolvido quando há espaço.
 6. Este é um efeito de cura simulado comum a todos os itens `MEDICAL`, não a implementação dos efeitos vanilla individuais; não foi executado no Unity.
+
+
+## Planejamento de local de assentamento (teste manual pendente)
+
+1. Dê a um NPC móvel pelo menos um item da categoria `BARRICADE`, `STORAGE` ou `STRUCTURE` no inventário de teste.
+2. Deixe-o sem alvo e sem objetivo tático; após o atraso configurado, confira se ele escolhe uma posição de terreno seguro próxima e atualiza sua âncora de retorno.
+3. Teste terreno plano, declive forte, locais próximos a paredes/objetos e locais sem espaço suficiente. A seleção deve rejeitar pontos inválidos e tentar novamente mais tarde.
+4. Sem itens de construção, confirme que não escolhe um novo local.
+5. Este teste valida apenas o planejamento do ponto. Nenhuma estrutura é construída nesta etapa; não marcar como construção funcional de base.
+6. O teste não foi executado no Unity.
