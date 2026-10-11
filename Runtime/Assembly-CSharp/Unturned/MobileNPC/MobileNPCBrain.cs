@@ -40,6 +40,7 @@ namespace SDG.Unturned
         [SerializeField, Min(0f)] private float returnDistance = 2.5f;
 
         private CharacterController characterController;
+        private readonly RaycastHit[] sightHits = new RaycastHit[16];
         private Vector3 spawnPosition;
         private Quaternion spawnRotation;
         private Vector3 lastKnownTargetPosition;
@@ -79,10 +80,13 @@ namespace SDG.Unturned
                 lastTargetSeenAt = Time.time;
                 State = BrainState.Pursuing;
             }
-            else if (CurrentTarget != null && Time.time - lastTargetSeenAt > memoryDuration)
+            else if (CurrentTarget != null)
             {
-                CurrentTarget = null;
+                // Do not track a hidden target through walls. Move to its last seen
+                // position while memory remains, then release it for reacquisition.
                 State = BrainState.Investigating;
+                if (Time.time - lastTargetSeenAt > memoryDuration)
+                    CurrentTarget = null;
             }
 
             switch (State)
@@ -202,13 +206,29 @@ namespace SDG.Unturned
             if (Vector3.Angle(transform.forward, offset) > fieldOfView * 0.5f)
                 return false;
 
-            if (Physics.Raycast(origin, offset / distance, out RaycastHit hit, distance, obstructionMask,
-                QueryTriggerInteraction.Ignore))
+            int hitCount = Physics.RaycastNonAlloc(origin, offset / distance, sightHits, distance,
+                obstructionMask, QueryTriggerInteraction.Ignore);
+            float nearestDistance = float.PositiveInfinity;
+            Transform nearestTransform = null;
+
+            for (int i = 0; i < hitCount; i++)
             {
-                return hit.transform == candidate || hit.transform.IsChildOf(candidate);
+                Transform hitTransform = sightHits[i].transform;
+                if (hitTransform == null || hitTransform == transform || hitTransform.IsChildOf(transform))
+                    continue;
+
+                if (sightHits[i].distance < nearestDistance)
+                {
+                    nearestDistance = sightHits[i].distance;
+                    nearestTransform = hitTransform;
+                }
             }
 
-            return true;
+            // No blocking collider was found: retain visibility for targets without
+            // a collider, as well as for simple test scenes.
+            return nearestTransform == null ||
+                nearestTransform == candidate ||
+                nearestTransform.IsChildOf(candidate);
         }
 
         private void MoveTowards(Vector3 destination, float speed)
