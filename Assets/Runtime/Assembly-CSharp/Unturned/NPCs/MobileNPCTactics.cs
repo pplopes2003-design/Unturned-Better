@@ -42,11 +42,17 @@ namespace SDG.Unturned
 		public Vector3 TacticalDestination => tacticalDestination;
 
 		/// <summary>Call when the server confirms the NPC has taken damage.</summary>
-		public void ReportDamage(float currentHealth, float maximumHealth, float now)
+		public void ReportHealth(float currentHealth, float maximumHealth)
 		{
 			healthFraction = maximumHealth > 0.0f
 				? Mathf.Clamp01(currentHealth / maximumHealth)
 				: 0.0f;
+		}
+
+		/// <summary>Call when the server confirms the NPC has taken damage.</summary>
+		public void ReportDamage(float currentHealth, float maximumHealth, float now)
+		{
+			ReportHealth(currentHealth, maximumHealth);
 			lastDamageAt = now;
 		}
 
