@@ -68,7 +68,7 @@ namespace SDG.Unturned
             controller.skinWidth = 0.08f;
 
             template.AddComponent<MobileNPCBrainDriver>();
-            MobileNPCHumanoidMotor motor = template.AddComponent<MobileNPCHumanoidMotor>();
+            template.AddComponent<MobileNPCHumanoidMotor>();
             template.AddComponent<MobileNPCHumanoidPerception>();
             template.AddComponent<MobileNPCHumanoidDisposition>();
             template.AddComponent<MobileNPCHumanoidVitals>();
@@ -89,7 +89,7 @@ namespace SDG.Unturned
             {
                 rigidbodies[i].isKinematic = true;
                 rigidbodies[i].detectCollisions = false;
-                rigidbodies[i].gameObject.SetActive(false);
+                rigidbodies[i].enabled = false;
             }
 
             Collider[] colliders = visual.GetComponentsInChildren<Collider>(true);
