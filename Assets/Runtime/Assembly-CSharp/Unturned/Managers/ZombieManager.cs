@@ -1752,7 +1752,7 @@ namespace SDG.Unturned
 
 		private static void UpdateAmbientHordes()
 		{
-			if (!Provider.isServer || Level.info.type == ELevelType.HORDE || AllZombies == null || AllZombies.Count < AMBIENT_HORDE_MIN_SIZE)
+			if (!Provider.isServer || Level.info.type == ELevelType.HORDE || regions == null || regions.Length == 0 || AllZombies == null || AllZombies.Count < AMBIENT_HORDE_MIN_SIZE)
 			{
 				return;
 			}
