@@ -14,6 +14,65 @@ namespace SDG.Unturned
 	/// </summary>
 	public static class MobileNPCSpawnService
 	{
+		/// <summary>
+		/// Resolves a candidate point to walkable ground on the current map. This is a
+		/// map-agnostic placement primitive for a future population director, not an
+		/// automatic spawn system. The caller must choose candidate X/Z coordinates and
+		/// provide a ground mask appropriate to the loaded map.
+		/// </summary>
+		public static bool TryFindSafeGroundPosition(Vector3 candidate, float searchHeight,
+			float maximumDropDistance, LayerMask groundMask, float maximumSlopeAngle,
+			out Vector3 position, out string error)
+		{
+			position = Vector3.zero;
+			error = null;
+
+			if (!Provider.isServer)
+			{
+				error = "Ground placement can only be resolved by the server.";
+				return false;
+			}
+
+			if (!IsFinite(candidate.x) || !IsFinite(candidate.y) || !IsFinite(candidate.z)
+				|| float.IsNaN(searchHeight) || float.IsInfinity(searchHeight) || searchHeight <= 0f
+				|| float.IsNaN(maximumDropDistance) || float.IsInfinity(maximumDropDistance) || maximumDropDistance < 0f
+				|| float.IsNaN(maximumSlopeAngle) || float.IsInfinity(maximumSlopeAngle))
+			{
+				error = "Candidate coordinates and ground-search parameters must be finite, with positive search height and non-negative drop distance.";
+				return false;
+			}
+
+			Vector3 rayOrigin = candidate + Vector3.up * searchHeight;
+			float rayDistance = searchHeight + maximumDropDistance;
+			if (!Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit, rayDistance,
+				groundMask, QueryTriggerInteraction.Ignore))
+			{
+				error = "No ground surface was found below the candidate point.";
+				return false;
+			}
+
+			float allowedSlope = Mathf.Clamp(maximumSlopeAngle, 0f, 89f);
+			if (Vector3.Angle(hit.normal, Vector3.up) > allowedSlope)
+			{
+				error = "The candidate ground is too steep for a humanoid NPC.";
+				return false;
+			}
+
+			Vector3 resolved = hit.point + Vector3.up * 0.05f;
+			if (!Level.checkSafeIncludingClipVolumes(resolved))
+			{
+				error = "The resolved ground point is outside safe level bounds or inside a player clip volume.";
+				return false;
+			}
+
+			position = resolved;
+			return true;
+		}
+
+		private static bool IsFinite(float value)
+		{
+			return !float.IsNaN(value) && !float.IsInfinity(value);
+		}
 		public static bool TrySpawnServer(GameObject prefab, Vector3 position, Quaternion rotation,
 			MobileNPCHumanoidDisposition.Role role, out GameObject instance, out string error)
 		{
