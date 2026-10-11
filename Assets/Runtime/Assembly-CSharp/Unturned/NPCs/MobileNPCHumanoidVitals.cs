@@ -31,6 +31,8 @@ namespace SDG.Unturned
 
 		public event System.Action<float, float> HealthChanged;
 		public event System.Action Died;
+		/// <summary>Server-side death snapshot for a future entity replication/presentation layer. This event does not itself send a network message.</summary>
+		public event System.Action<Vector3, Quaternion, Vector3> DeathPresentationRequested;
 
 		public float MaximumHealth => maximumHealth;
 		public float CurrentHealth { get; private set; }
@@ -81,7 +83,17 @@ namespace SDG.Unturned
 		/// </summary>
 		public bool ApplyDamage(float damage)
 		{
-			if (!Provider.isServer || !initialized || isDead || float.IsNaN(damage) || float.IsInfinity(damage) || damage <= 0.0f)
+			return ApplyDamage(damage, Vector3.zero);
+		}
+
+		/// <summary>
+		/// Apply validated damage and optionally provide the world-space impulse associated with the lethal hit.
+		/// The impulse is only a presentation hint; callers must still validate the hit on the server.
+		/// </summary>
+		public bool ApplyDamage(float damage, Vector3 hitImpulse)
+		{
+			if (!Provider.isServer || !initialized || isDead || float.IsNaN(damage) || float.IsInfinity(damage) || damage <= 0.0f
+				|| !IsFinite(hitImpulse.x) || !IsFinite(hitImpulse.y) || !IsFinite(hitImpulse.z))
 			{
 				return false;
 			}
@@ -92,7 +104,7 @@ namespace SDG.Unturned
 
 			if (CurrentHealth <= 0.0f)
 			{
-				DieServer();
+				DieServer(hitImpulse);
 			}
 
 			return true;
@@ -118,7 +130,12 @@ namespace SDG.Unturned
 			return true;
 		}
 
-		private void DieServer()
+		private static bool IsFinite(float value)
+		{
+			return !float.IsNaN(value) && !float.IsInfinity(value);
+		}
+
+		private void DieServer(Vector3 hitImpulse)
 		{
 			if (!Provider.isServer || isDead)
 			{
@@ -154,6 +171,7 @@ namespace SDG.Unturned
 					characterController.enabled = false;
 				}
 			}
+			DeathPresentationRequested?.Invoke(transform.position, transform.rotation, hitImpulse);
 			Died?.Invoke();
 		}
 	}
