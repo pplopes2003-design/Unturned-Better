@@ -79,3 +79,9 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Novos alertas por ponto agora renovam o centro, o prazo e o orçamento da investigação mesmo durante outra investigação por ponto. Perseguição de jogador, etapas internas da busca e retorno ao ponto de surgimento não são sobrescritos por essa atualização.
 - Commit: https://github.com/pplopes2003-design/Unturned-Better/commit/a4cbbf20ec3c385f04716eab35c9612b0fb93051
 - Pendente: compilar e testar no Unity/Unturned; verificar se o novo som redireciona a busca sem interromper perseguições a jogadores.
+
+### 2026-10-11 — redirecionamento imediato para novo som
+- A atualização do centro de investigação, sozinha, não bastava: a regra antiga ainda podia manter o destino anterior se o novo som estivesse mais longe do zumbi.
+- Agora, durante uma investigação por ponto, um novo alerta externo substitui o destino atual e reinicia os temporizadores de travamento e busca. Perseguições a jogadores não usam esse caminho; etapas internas de busca e retorno ao surgimento preservam as próprias regras.
+- Commit: https://github.com/pplopes2003-design/Unturned-Better/commit/c01d5393461b3c98102ce74784bc8517f08d3cb1
+- Pendente: validar no Unity se sons sucessivos redirecionam corretamente a IA e se o reinício de navegação funciona com o pathfinder usado no projeto.
