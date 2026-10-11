@@ -43,7 +43,7 @@ namespace SDG.Unturned
 				return;
 			}
 
-			if (driver.Target != null || driver.CurrentGoal != MobileNPCTactics.Goal.None)
+			if (driver.Target != null || (driver.CurrentGoal != MobileNPCTactics.Goal.None && !(hasTarget && driver.CurrentGoal == MobileNPCTactics.Goal.Loot)))
 			{
 				ClearTarget();
 				return;
@@ -55,10 +55,7 @@ namespace SDG.Unturned
 				{
 					bool pickedUp = inventory.TryPickupWorldItemServer(targetInstanceID, transform.position, pickupDistance + 0.5f);
 					ClearTarget();
-					if (pickedUp)
-					{
-						driver.ReportDestinationReached();
-					}
+					driver.ReportDestinationReached();
 				}
 				else if (Time.time >= nextScanTime)
 				{
