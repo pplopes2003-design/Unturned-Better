@@ -353,6 +353,7 @@ namespace SDG.Unturned
 
 		private bool isLeaving;
 		private bool isInvestigationIdle;
+		public bool isIdleAfterInvestigation => isInvestigationIdle;
 		private bool isReturningToSpawn;
 		private float investigationIdleUntil;
 		private bool isStunned;
@@ -1227,6 +1228,12 @@ namespace SDG.Unturned
 
 		public void alert(Vector3 newPosition, bool isStartling)
 		{
+			if (isInvestigationIdle)
+			{
+				isInvestigationIdle = false;
+				isReturningToSpawn = false;
+			}
+
 			if (isDead)
 			{
 				return;
