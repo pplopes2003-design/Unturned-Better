@@ -44,6 +44,14 @@ namespace SDG.Unturned
         private readonly List<TrackedNPC> trackedNPCs = new List<TrackedNPC>(32);
         private float nextSpawnTime;
 
+        /// <summary>Configures a runtime-created director without relying on Inspector serialization.</summary>
+        public void Configure(GameObject prefab)
+        {
+            mobileNpcPrefab = prefab;
+            populationEnabled = prefab != null;
+            nextSpawnTime = Time.time + Mathf.Max(1f, spawnInterval);
+        }
+
         private void OnEnable()
         {
             nextSpawnTime = Time.time + Mathf.Max(1f, spawnInterval);
