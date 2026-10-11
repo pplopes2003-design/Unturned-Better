@@ -14,7 +14,10 @@ namespace SDG.Unturned
 	[RequireComponent(typeof(MobileNPCBrainDriver))]
 	public sealed class MobileNPCHumanoidAim : MonoBehaviour
 	{
-		[SerializeField, Min(0.0f)] private float reactionTime = 0.45f;
+		[SerializeField, Min(0.0f)] private float minimumReactionTime = 0.25f;
+		[SerializeField, Min(0.0f)] private float maximumReactionTime = 0.85f;
+		[SerializeField, Min(0.0f)] private float suppressionSpreadDegrees = 3.5f;
+		[SerializeField, Min(0.0f)] private float suppressionDuration = 1.2f;
 		[SerializeField, Min(0.0f)] private float baseSpreadDegrees = 3.0f;
 		[SerializeField, Min(0.0f)] private float movingSpreadDegrees = 2.5f;
 		[SerializeField, Min(0.0f)] private float maximumSpreadDegrees = 12.0f;
@@ -27,6 +30,8 @@ namespace SDG.Unturned
 		private Vector3 lastTargetPosition;
 		private Vector3 estimatedTargetVelocity;
 		private float targetAcquiredAt;
+		private float currentReactionTime;
+		private float suppressedUntil;
 		private float lastAimUpdateTime;
 		private float accumulatedShotSpread;
 		private bool hasTarget;
@@ -61,6 +66,7 @@ namespace SDG.Unturned
 				lastTargetPosition = currentTarget.position;
 				estimatedTargetVelocity = Vector3.zero;
 				targetAcquiredAt = now;
+				currentReactionTime = Random.Range(Mathf.Min(minimumReactionTime, maximumReactionTime), Mathf.Max(minimumReactionTime, maximumReactionTime));
 				hasTarget = true;
 				return;
 			}
@@ -82,7 +88,7 @@ namespace SDG.Unturned
 		public bool TryGetShotDirection(Vector3 muzzlePosition, bool isMoving, float skill, out Vector3 direction)
 		{
 			direction = transform.forward;
-			if (!Provider.isServer || !hasTarget || trackedTarget == null || Time.time - targetAcquiredAt < reactionTime)
+			if (!Provider.isServer || !hasTarget || trackedTarget == null || Time.time - targetAcquiredAt < currentReactionTime)
 			{
 				return false;
 			}
@@ -100,11 +106,24 @@ namespace SDG.Unturned
 			{
 				spread += movingSpreadDegrees;
 			}
+			if (Time.time < suppressedUntil)
+			{
+				spread += suppressionSpreadDegrees;
+			}
 
 			spread = Mathf.Min(maximumSpreadDegrees + movingSpreadDegrees, spread + accumulatedShotSpread);
 			direction = (Quaternion.Euler(Random.Range(-spread, spread), Random.Range(-spread, spread), 0.0f) * toTarget.normalized).normalized;
 			accumulatedShotSpread += spreadPerShotDegrees;
 			return true;
+		}
+
+		/// <summary>Called by authoritative combat/perception when nearby incoming fire is detected.</summary>
+		public void ReportSuppression()
+		{
+			if (Provider.isServer)
+			{
+				suppressedUntil = Mathf.Max(suppressedUntil, Time.time + Mathf.Max(0.0f, suppressionDuration));
+			}
 		}
 
 		public void ClearTarget()
@@ -113,6 +132,7 @@ namespace SDG.Unturned
 			estimatedTargetVelocity = Vector3.zero;
 			hasTarget = false;
 			targetAcquiredAt = 0.0f;
+			currentReactionTime = 0.0f;
 			accumulatedShotSpread = 0.0f;
 		}
 	}
