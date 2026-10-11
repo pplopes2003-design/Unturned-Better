@@ -29,6 +29,7 @@ namespace SDG.Unturned
 
 		private MobileNPCBrainDriver brain;
 		private MobileNPCHumanoidAim aim;
+		private MobileNPCHumanoidPerception perception;
 		private int roundsRemaining;
 		private float nextShotTime;
 		private float reloadFinishedAt;
@@ -50,6 +51,7 @@ namespace SDG.Unturned
 		{
 			brain = GetComponent<MobileNPCBrainDriver>();
 			aim = GetComponent<MobileNPCHumanoidAim>();
+			perception = GetComponent<MobileNPCHumanoidPerception>();
 			roundsRemaining = Mathf.Max(1, magazineCapacity);
 			shotsRemainingInBurst = RollBurstSize();
 		}
@@ -87,7 +89,8 @@ namespace SDG.Unturned
 			}
 
 			Player target = ResolveTargetPlayer(brain.Target);
-			if (target == null || target.life == null || target.life.isDead)
+			if (target == null || target.life == null || target.life.isDead
+				|| perception != null && perception.VisiblePlayer != target)
 			{
 				return;
 			}
