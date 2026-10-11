@@ -42,6 +42,8 @@ namespace SDG.Unturned
 		private bool reloadPending;
 		private int shotsRemainingInBurst;
 		private bool waitingForBurstPause;
+		// Reused hit buffer avoids allocating and sorting a new RaycastAll array for every shot.
+		private readonly RaycastHit[] shotHits = new RaycastHit[64];
 
 		/// <summary>Raised on the server when a shot is committed. Hook prefab audio/animation here.</summary>
 		public event System.Action ShotFired;
@@ -155,16 +157,27 @@ namespace SDG.Unturned
 				nextShotTime = Time.time + Mathf.Max(0.05f, secondsPerShot * intervalScale);
 			}
 
-			// Ignore this NPC's own colliders, then process the first external obstruction/hit.
-			RaycastHit[] hits = Physics.RaycastAll(muzzle, shotDirection, effectiveRange, hitMask, QueryTriggerInteraction.Ignore);
-			System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
-			for (int i = 0; i < hits.Length; ++i)
+			// Find the nearest external collider without allocating a per-shot array or sorting all hits.
+			int hitCount = Physics.RaycastNonAlloc(muzzle, shotDirection, shotHits, effectiveRange, hitMask, QueryTriggerInteraction.Ignore);
+			int nearestHitIndex = -1;
+			float nearestHitDistance = float.PositiveInfinity;
+			for (int i = 0; i < hitCount; ++i)
 			{
-				RaycastHit hit = hits[i];
-				if (hit.transform == transform || hit.transform.IsChildOf(transform))
+				Transform hitTransform = shotHits[i].transform;
+				if (hitTransform == null || hitTransform == transform || hitTransform.IsChildOf(transform))
 				{
 					continue;
 				}
+				if (shotHits[i].distance < nearestHitDistance)
+				{
+					nearestHitDistance = shotHits[i].distance;
+					nearestHitIndex = i;
+				}
+			}
+
+			if (nearestHitIndex >= 0)
+			{
+				RaycastHit hit = shotHits[nearestHitIndex];
 
 				Player hitPlayer = hit.transform.GetComponent<Player>();
 				if (hitPlayer == null)
@@ -195,7 +208,6 @@ namespace SDG.Unturned
 						hitVitals.ApplyDamage(damage, shotDirection * damage);
 					}
 				}
-				break;
 			}
 
 			// Gunfire is a world stimulus: vanilla zombies investigate the shot position
