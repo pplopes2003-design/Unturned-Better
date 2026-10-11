@@ -336,3 +336,9 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Limite importante: isto é navegação por direção direta entre waypoints, **não pathfinding**. Muros, edifícios e obstáculos podem bloquear o trajeto; o terreno/máscara de colisão padrão ainda precisa ser verificado em mapas reais. Construção de bases, coleta de recursos e persistência continuam pendentes.
 - Guia de smoke test atualizado para verificar a exploração e as pausas.
 - Validação feita nesta etapa: revisão estática dos símbolos usados e atualização de código/documentação no GitHub. **Não houve compilação Unity nem execução no jogo**, então a funcionalidade ainda precisa de teste real.
+
+### 2026-10-11 — desvio local de obstáculos
+- `MobileNPCHumanoidMotor` agora faz um `SphereCast` curto na direção desejada. Se houver obstáculo próximo, testa direções laterais e escolhe uma que esteja livre; se ambas estiverem bloqueadas, interrompe o movimento naquele frame em vez de avançar diretamente contra a colisão.
+- A lógica é local e limitada: não calcula rotas, não usa NavMesh e não garante contornar edifícios ou paredes longas. Máscaras de colisão e altura do probe precisam ser validadas no Unity, pois colisores de cenário e triggers variam entre mapas.
+- O guia de teste agora inclui um teste específico perto de obstáculos.
+- Verificação estática: chaves/parênteses balanceados e uso de overload padrão de `Physics.SphereCast`. Sem compilação Unity nem teste em jogo nesta etapa.
