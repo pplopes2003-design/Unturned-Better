@@ -212,3 +212,12 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Commit de código: https://github.com/pplopes2003-design/Unturned-Better/commit/61a3eee9bcdb27df144acac617e8a2a08a6e2b70
 - Commit da documentação de teste: https://github.com/pplopes2003-design/Unturned-Better/commit/bfe559a89d6efd41f5b923757c20c0a4227e41a6
 - Ainda não compilado nem validado no Unity; o teste real continua pendente.
+
+
+### 2026-10-11 — análise de ragdoll para humanoides móveis
+- Inspecionado `RagdollTool`: o jogo já possui `ragdollPlayer` e `ragdollZombie`, além dos prefabs `Characters/Ragdoll_Player` e `Characters/Ragdoll_Zombie`.
+- Esses métodos copiam a pose de um esqueleto compatível e aplicam impulso físico; a variante de jogador também recebe `PlayerClothing`, enquanto a variante zumbi depende de dados específicos de roupa/tipo de zumbi. Portanto, não é seguro chamar uma dessas funções como se fosse um componente genérico pronto.
+- Documentado que o NPC móvel atualmente não gera ragdoll ao morrer: ele dispara `Died` e desativa componentes, mas a apresentação visual de morte está pendente.
+- A implementação correta precisa de um adaptador de ragdoll que use o esqueleto do prefab móvel e replique o evento/pose para clientes, que criam a representação física localmente. Isso deve acompanhar o protocolo de entidade móvel; uma chamada apenas no servidor não é suficiente para multiplayer.
+- Commit da documentação: https://github.com/pplopes2003-design/Unturned-Better/commit/58a760c18d303cf266a3df75b09d63a798833866
+- Nenhum teste Unity executado.
