@@ -447,3 +447,10 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - O alcance usado para alertar zumbis agora acompanha o alcance efetivo calculado para a arma.
 - O overload anterior de `TryGetShotDirection` foi preservado para compatibilidade com outros chamadores.
 - Validação estática apenas; os valores e a resposta em combate precisam de teste dentro do Unity.
+
+
+## Persistência do carregador e munição simulada (rodada atual)
+
+- `MobileNPCInventory.TryUpdateGunAmmoServer` atualiza uma cópia defensiva do estado da arma no inventário local, preservando os demais bytes.
+- A munição restante é registrada após cada disparo; ao terminar uma recarga, o ID do carregador consumido e a quantidade simulada são gravados no estado da arma.
+- Isso evita que uma arma volte ao número antigo de balas quando o NPC alterna entre armas durante o combate. A operação depende de o estado do asset ter pelo menos 11 bytes, conforme o layout já usado para leitura do carregador e munição; falha de persistência em estados fora desse formato não foi validada em runtime.
