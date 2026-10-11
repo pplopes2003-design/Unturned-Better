@@ -125,3 +125,12 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 - [ ] Confirmar que o recurso não é tratado como persistência: ao reiniciar/recriar a entidade, a âncora volta a ser capturada do spawn.
 
 **Limite:** ainda não há construção, reivindicação de território, salvamento ou coleta real de itens.
+
+
+## Teste adicional — retorno ao território doméstico
+- [ ] Deslocar o NPC para fora do raio doméstico sem alvo/objetivo ativo: ele deve caminhar de volta à âncora sem teletransporte.
+- [ ] Enquanto o NPC persegue/investiga um alvo, confirmar que o destino do cérebro continua tendo prioridade mesmo fora do território.
+- [ ] Após terminar o objetivo, confirmar que a recuperação doméstica retoma o controle e que o roaming só volta após reentrar no território.
+- [ ] Colocar uma parede ou estrutura entre NPC e âncora: documentar que a evasão local pode não encontrar rota em torno de obstáculos grandes.
+
+**Limite:** teste ainda não executado no Unity/Unturned; a recuperação depende de steering local, não de pathfinding global.
