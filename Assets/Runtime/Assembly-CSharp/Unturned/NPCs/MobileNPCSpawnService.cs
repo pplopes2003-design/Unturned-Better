@@ -188,10 +188,10 @@ namespace SDG.Unturned
 
 			spawnedInstances.Clear();
 			if (!IsFinite(center.x) || !IsFinite(center.y) || !IsFinite(center.z)
-				|| !IsFinite(radius) || radius < 0f || desiredCount < 1 || maximumAttempts < desiredCount
+				|| !IsFinite(radius) || radius <= 0f || desiredCount < 1 || maximumAttempts < desiredCount
 				|| maximumAttempts > 1000)
 			{
-				error = "Batch center/radius and attempt limits are invalid; attempts must be between desired count and 1000.";
+				error = "Batch center/radius and attempt limits are invalid; radius must be positive and attempts must be between desired count and 1000.";
 				return false;
 			}
 
