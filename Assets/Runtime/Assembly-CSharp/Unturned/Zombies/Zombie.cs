@@ -1247,9 +1247,10 @@ namespace SDG.Unturned
 				isReturningToSpawn = false;
 			}
 
-			// Start a fresh investigation for external alerts. Internal wander targets
-			// retain the original sound location and remaining search budget.
-			if (!isHunting && !isInvestigationWanderTarget)
+			// Start or refresh an investigation for external point alerts. A second
+			// sound can redirect a zombie already investigating, but player pursuit,
+			// internal search legs, and the return-to-spawn leg keep their own state.
+			if (!isInvestigationWanderTarget && !isReturningToSpawn && (!isHunting || huntType == EHuntType.POINT))
 			{
 				investigationCenter = newPosition;
 				investigationUntil = Time.time + 55.0f;
