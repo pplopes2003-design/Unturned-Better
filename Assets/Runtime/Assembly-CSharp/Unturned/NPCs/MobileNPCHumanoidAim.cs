@@ -56,7 +56,8 @@ namespace SDG.Unturned
 			accumulatedShotSpread = Mathf.Max(0.0f, accumulatedShotSpread - shotSpreadRecoveryPerSecond * delta);
 
 			Transform currentTarget = perception != null
-				? (perception.VisiblePlayer != null ? perception.VisiblePlayer.transform : null)
+				? (perception.VisiblePlayer != null ? perception.VisiblePlayer.transform
+					: perception.VisibleNPC != null ? perception.VisibleNPC.transform : null)
 				: brainDriver.Target;
 			if (currentTarget == null)
 			{
