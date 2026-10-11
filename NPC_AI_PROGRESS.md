@@ -293,3 +293,9 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Limites deliberados: ainda é spawn local no servidor, sem replicação de rede; o centro regional e a máscara de terreno ainda precisam ser fornecidos por uma integração de mapa. A primitiva não verifica ocupação completa do capsule nem espaçamento entre os NPCs, não escolhe sozinha regiões do mapa e não mantém população ao longo do tempo.
 - Commits: https://github.com/pplopes2003-design/Unturned-Better/commit/9a91e86f331c6f034d78c9948bc2a3bcd33185d8 e https://github.com/pplopes2003-design/Unturned-Better/commit/b774d680b559f3071e88a6bf7e34da5c8e005d39
 - Validação: revisão estática apenas; sem compilação Unity ou teste dentro do jogo.
+
+### 2026-10-11 — espaçamento mínimo dentro do lote regional
+- O lote agora rejeita candidatos próximos demais de NPCs que já foram criados no mesmo lote. O limiar horizontal deriva do raio do `CharacterController` do prefab, com um mínimo de 1,25 m.
+- Isso reduz sobreposição imediata entre membros do lote sem alterar NPCs já existentes. É uma heurística de distância no plano XZ, não uma verificação completa de cápsulas, obstáculos ou NPCs que já estavam no mundo.
+- Commit: https://github.com/pplopes2003-design/Unturned-Better/commit/d00c5c26615c4f2a0aaeec831c7b8782d2bef6f2
+- Validação: inspeção estática do código; compilação Unity e teste em mapas diferentes continuam pendentes.
