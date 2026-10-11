@@ -65,11 +65,17 @@ namespace SDG.Unturned
                 return;
             }
 
+            string firstClip = null;
             foreach (AnimationState state in legacyAnimation)
             {
                 if (state == null || string.IsNullOrEmpty(state.name))
                 {
                     continue;
+                }
+
+                if (firstClip == null)
+                {
+                    firstClip = state.name;
                 }
 
                 string name = state.name.ToLowerInvariant();
@@ -85,10 +91,11 @@ namespace SDG.Unturned
                 {
                     runClip = state.name;
                 }
-                if (idleClip == null)
-                {
-                    idleClip = state.name;
-                }
+            }
+
+            if (idleClip == null)
+            {
+                idleClip = firstClip;
             }
 
             if (walkClip == null)
