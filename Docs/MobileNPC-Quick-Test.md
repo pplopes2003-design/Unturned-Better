@@ -9,10 +9,11 @@ The opt-in humanoid prototype is under `Assets/Runtime/Assembly-CSharp/Unturned/
 - `MobileNPCBrain` / `MobileNPCBrainDriver`: server-side state, target memory, tactical goals and decision events.
 - `MobileNPCRegistry`: server-only registry of enabled mobile brain drivers for future faction/population systems.
 - `MobileNPCSpawnService`: validates an explicitly supplied mobile humanoid prefab and creates it on the server with a selected role.
-- `MobileNPCPopulationDirector`: optional periodic population loop around a living player; requires an active runtime bootstrap object and a configured dedicated prefab, and cleans up its dead bodies after a delay. This is **not network replication**; do not treat it as a multiplayer-ready spawn.
+- `MobileNPCPopulationBootstrap` / `MobileNPCPopulationDirector`: runtime bootstrap subscribes to map-loaded events in local single-player, builds a hidden template from the game's humanoid visual prefab, and starts periodic population around the player. The spawned entities remain server-local and are **not network replicated**.
 - `MobileNPCHumanoidPerception`: nearest living player within sight range, field of view and unobstructed line of sight.
 - `MobileNPCHumanoidDisposition`: opt-in `Hostile`, `Friendly` or `Neutral` role. Hostile NPCs can engage players and opposing Friendly NPCs; Friendly NPCs engage Hostile NPCs but not players; Neutral NPCs engage neither faction.
-- `MobileNPCHumanoidMotor`: server-side CharacterController movement.
+- `MobileNPCHumanoidMotor`: server-side CharacterController movement (no obstacle pathfinding).
+- `MobileNPCVisualAnimation`: best-effort adapter for legacy animation clip names in the visual model.
 - `MobileNPCHumanoidAim`: variable reaction time, movement/shot spread and suppression penalty.
 - `MobileNPCHumanoidCombat`: server-authoritative melee damage.
 - `MobileNPCHumanoidRangedCombat`: baseline hitscan damage, ammunition/reload simulation, variable bursts and pauses.
@@ -24,11 +25,20 @@ The opt-in humanoid prototype is under `Assets/Runtime/Assembly-CSharp/Unturned/
 
 ## Quick smoke test
 
-1. Open the project with its configured Unity editor and wait for script import. Check the Console before launching the build.
-2. In a disposable test scene, create a humanoid GameObject with a valid visual/model, collider, `CharacterController`, and these components: `MobileNPCBrainDriver`, `MobileNPCHumanoidMotor`, `MobileNPCHumanoidPerception`, `MobileNPCHumanoidDisposition`, `MobileNPCHumanoidAim`, `MobileNPCHumanoidVitals`, and either or both combat components. Set the disposition to `Hostile` for combat tests; `Friendly` and `Neutral` should remain non-aggressive.
-3. Make sure the NPC prefab has appropriate colliders and layer masks, the scene has a floor, and the player is a normal Unturned `Player`.
-4. Run as a server. The NPC should detect a living player within 32 m and its field of view, then pursue using local collision-aware movement. Break line of sight: ranged combat must stop firing, aim tracking must clear, and the brain should investigate the last known position before returning.
-5. For ranged combat, confirm variable reaction delays, misses, burst pauses, ammunition depletion and reload events. The damage model is a prototype hitscan implementation, not a fully integrated vanilla gun/inventory/projectile simulation.
+1. Open the project in the configured Unity Editor and wait for script import; check Console errors before launching.
+2. Start a disposable single-player map. The bootstrap should log that the population was initialized; it must not run on a dedicated server.
+3. Wait for the first spawn interval (default about 18 seconds). Confirm a visible humanoid appears outside immediate player range and that population remains capped.
+4. Approach within sight range and line of sight. Confirm the hostile NPC detects and pursues the player; observe whether the available legacy animation clips switch sensibly between idle and movement.
+5. Break line of sight: ranged combat should stop firing, aim tracking should clear, and the brain should investigate the last known position before returning.
+6. Check ground candidates near steep slopes, structures and map boundaries. Failed candidates should be skipped without repeated per-frame spawn attempts.
+7. Kill an NPC and verify the dead instance is cleaned up after the configured delay. Load a second map and confirm there is no duplicate population director.
+8. Record any compiler errors, Console exceptions, invisible model, incorrect scale/orientation, bad animation selection, or NPCs stuck against obstacles.
+
+This smoke test has not yet been run. The bootstrap is experimental and local-only; it does not add client replication, persistence, roaming, or base construction.
+
+## Manual component test
+
+If the runtime bootstrap cannot initialize, create a test GameObject with a valid visual/model, `CharacterController`, `MobileNPCBrainDriver`, `MobileNPCHumanoidMotor`, `MobileNPCHumanoidPerception`, `MobileNPCHumanoidDisposition`, `MobileNPCHumanoidAim`, `MobileNPCHumanoidVitals`, and one or both combat components. Set the role to `Hostile` for combat tests; `Friendly` and `Neutral` should not attack players.able reaction delays, misses, burst pauses, ammunition depletion and reload events. The damage model is a prototype hitscan implementation, not a fully integrated vanilla gun/inventory/projectile simulation.
 6. Test NPC death by applying server-validated damage through `MobileNPCHumanoidVitals.ApplyDamage(...)`: health must reach zero once, the brain must reset, movement/collision and combat/perception must stop, the driver must leave the active registry, and the `Died` event must fire once. Healing and repeated damage after death must be rejected.
 7. Exercise `TryDespawnServer(...)` with a live mobile NPC: on the server it should destroy the instance and remove its driver from the active registry; a client-side call and a non-mobile GameObject must be rejected. This checks server-local cleanup only, not network despawn.
 8. Verify dedicated-server and client behavior separately.
