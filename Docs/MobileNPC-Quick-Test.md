@@ -8,7 +8,8 @@ The opt-in humanoid prototype is under `Assets/Runtime/Assembly-CSharp/Unturned/
 
 - `MobileNPCBrain` / `MobileNPCBrainDriver`: server-side state, target memory, tactical goals and decision events.
 - `MobileNPCRegistry`: server-only registry of enabled mobile brain drivers for future faction/population systems.
-- `MobileNPCSpawnService`: validates an explicitly supplied mobile humanoid prefab and creates it on the server with a selected role. This is **not network replication**; do not treat it as a multiplayer-ready spawn.
+- `MobileNPCSpawnService`: validates an explicitly supplied mobile humanoid prefab and creates it on the server with a selected role.
+- `MobileNPCPopulationDirector`: optional periodic population loop around a living player; requires an active runtime bootstrap object and a configured dedicated prefab, and cleans up its dead bodies after a delay. This is **not network replication**; do not treat it as a multiplayer-ready spawn.
 - `MobileNPCHumanoidPerception`: nearest living player within sight range, field of view and unobstructed line of sight.
 - `MobileNPCHumanoidDisposition`: opt-in `Hostile`, `Friendly` or `Neutral` role. Hostile NPCs can engage players and opposing Friendly NPCs; Friendly NPCs engage Hostile NPCs but not players; Neutral NPCs engage neither faction.
 - `MobileNPCHumanoidMotor`: server-side CharacterController movement.
