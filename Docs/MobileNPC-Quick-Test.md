@@ -1,32 +1,41 @@
-# Mobile NPC quick test (development branch)
+# Mobile humanoid NPC quick test (development branch)
 
 Branch: `feature/npc-ai-foundation`
 
-## What this prototype does
-- Runs its decisions only when `Provider.isServer` is true.
-- Periodically searches active `SDG.Unturned.Player` objects and selects the nearest visible player inside its sight range and field of view.
-- Tracks a visible target, investigates the last known position after losing sight, and can return to its spawn point.
-- Accepts explicit sound notifications through `NotifyNoise(position, loudnessRadius)`.
-- Uses last-known-position investigation instead of tracking a hidden target through walls.
-- Includes `MobileNPCCombatProfile`, a server-side adapter helper for reaction delays, variable bursts, distance/movement/suppression penalties, and probabilistic misses.
+## Current components
 
-## Important prototype limitations
-This is an isolated prototype, not a complete NPC prefab or production-ready AI. The combat profile only calculates shot timing and aim decisions; it does not itself consume ammunition, play weapon effects, or apply damage. Native pathfinding, a real weapon/damage adapter, animations, and audio-event integration remain pending. Movement currently requires a `CharacterController`; it will not move if one is absent. Do not merge this branch into the release branch yet.
+The opt-in humanoid prototype is under `Assets/Runtime/Assembly-CSharp/Unturned/NPCs/`:
 
-The Unity-imported source is under `Assets/Runtime/Assembly-CSharp/Unturned/MobileNPC/`. The mirrored `Runtime/Assembly-CSharp/Unturned/MobileNPC/` files are kept for the repository's runtime source layout.
+- `MobileNPCBrain` / `MobileNPCBrainDriver`: server-side state, target memory, tactical goals and decision events.
+- `MobileNPCHumanoidPerception`: nearest living player within sight range, field of view and unobstructed line of sight.
+- `MobileNPCHumanoidMotor`: server-side CharacterController movement.
+- `MobileNPCHumanoidAim`: variable reaction time, movement/shot spread and suppression penalty.
+- `MobileNPCHumanoidCombat`: server-authoritative melee damage.
+- `MobileNPCHumanoidRangedCombat`: baseline hitscan damage, ammunition/reload simulation, variable bursts and pauses.
+- `MobileNPCHumanoidVitals` / `MobileNPCTactics`: health-related tactical decisions, retreat/cover/loot goal helpers.
 
-## Quick in-Unity smoke test
-1. Open the project using the Unity version configured by the repository.
-2. Let Unity finish importing scripts, then check the Console for compiler errors. Fix compile errors before playtesting.
-3. In a disposable test scene, create a humanoid NPC GameObject with a collider and `CharacterController`. Add `MobileNPCBrain`.
-4. Ensure the scene has a floor collider. Set the obstruction mask so environment geometry blocks sight; ensure the player/NPC colliders are configured so the target's collider is hit by the raycast.
-5. Run as a server with a real connected player. The brain only executes on the authoritative server. Place the player in front of the NPC within 32 m; it should pursue. Break line of sight; after the memory period it should investigate the last position.
-6. Verify dedicated server and client behavior separately. This component does not replicate movement on its own; the host game's networked character/controller integration is still required before multiplayer acceptance.
+## Quick smoke test
+
+1. Open the project with its configured Unity editor and wait for script import. Check the Console before launching the build.
+2. In a disposable test scene, create a humanoid GameObject with a valid visual/model, collider, `CharacterController`, and these components: `MobileNPCBrainDriver`, `MobileNPCHumanoidMotor`, `MobileNPCHumanoidPerception`, `MobileNPCHumanoidAim`, and either or both combat components.
+3. Make sure the NPC prefab has appropriate colliders and layer masks, the scene has a floor, and the player is a normal Unturned `Player`.
+4. Run as a server. The NPC should detect a living player within 32 m and its field of view, then pursue using local collision-aware movement. Break line of sight: ranged combat must stop firing, aim tracking must clear, and the brain should investigate the last known position before returning.
+5. For ranged combat, confirm variable reaction delays, misses, burst pauses, ammunition depletion and reload events. The damage model is a prototype hitscan implementation, not a fully integrated vanilla gun/inventory/projectile simulation.
+6. Verify dedicated-server and client behavior separately.
+
+## Important limits
+
+- **Multiplayer replication is not finished.** The motor currently moves the NPC on the server; a dedicated spawn/lifecycle and client snapshot/interpolation path is still required before remote clients can reliably see movement.
+- Local movement is collision-aware but is not full pathfinding around obstacles.
+- The ranged component uses server-side hit detection and damage, but is not yet bound to a real item gun, attachments, physical ammo inventory, native muzzle effects, or all vanilla gun sounds.
+- Events such as `ShotFired`, `ReloadStarted`, and `ReloadFinished` are available for audio/animation adapters. Reuse existing game audio assets through the game's supported effect/audio pipeline; do not synthesize voice chat or change existing static NPCs.
+- Do not merge to the release branch until Unity compilation and singleplayer/dedicated-server tests pass.
 
 ## Acceptance checklist
-- [ ] Unity compilation succeeds with the repository's configured editor/toolchain.
-- [ ] Server acquires the nearest visible connected player.
-- [ ] NPC stops acquiring through walls and outside its field of view.
-- [ ] NPC investigates last seen position and returns when requested.
-- [ ] No change to existing vanilla zombies or sentries.
-- [ ] Movement and state are replicated correctly before multiplayer use.
+
+- [ ] Unity compilation succeeds with the configured editor/toolchain.
+- [ ] Target detection respects sight range, field of view and obstacles.
+- [ ] The NPC does not fire at a player it cannot currently see.
+- [ ] Humanized reaction, aim spread, suppression, burst timing and reload work as configured.
+- [ ] Existing static NPCs, vanilla zombies and sentries retain their current behavior.
+- [ ] Server-to-client spawn and movement replication are implemented and tested before multiplayer acceptance.
