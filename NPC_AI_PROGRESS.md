@@ -308,3 +308,12 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Arquivos: `Assets/Runtime/Assembly-CSharp/Unturned/NPCs/MobileNPCPopulationDirector.cs`, metadados Unity e `Docs/MobileNPC-Population-Setup.md`.
 - Limites: o componente ainda precisa ser instanciado/anexado por um bootstrap de runtime e receber um prefab configurado; não descobre sozinho limites/regiões do mapa e não persiste estado entre sessões. Não adiciona replicação multiplayer.
 - Validação: revisão estática apenas. Unity/Unturned não foram compilados nem executados neste ambiente. Próxima tarefa: integrar bootstrap/prefab no ciclo real de carregamento de mapa e fazer teste de single-player antes de ampliar comportamento.
+
+
+### 2026-10-11 — reconhecimento do prefab móvel e validação das assinaturas
+
+- Conferidas as assinaturas chamadas por `MobileNPCPopulationDirector`: lote de spawn, despawn, cópia do registro ativo e propriedade `MobileNPCHumanoidVitals.IsDead` correspondem aos arquivos atuais. A inicialização do motor também inicializa o driver cerebral.
+- Inspecionados os prefabs legados em `Assets/Resources/Characters`: `NPC_Server.prefab` é apenas um objeto raiz com Transform no arquivo disponível; `NPC_Client.prefab` é uma hierarquia visual/esquelética, não um agente móvel pronto; `Player_Server.prefab` pertence ao fluxo de jogador e não será reutilizado como NPC genérico.
+- Documentada a decisão em `Docs/MobileNPC-Prefab-Recon.md`: não ativar bootstrap automático nem apontar o diretor para um prefab legado antes de criar e validar um prefab móvel dedicado.
+- Próxima tarefa: criar o prefab dedicado reutilizando apenas a hierarquia visual compatível; configurar colisão, rig/Animator, componentes de IA e sons; depois integrar o bootstrap ao evento de carregamento de mapa.
+- Validação: revisão estática via GitHub. Não houve compilação ou execução no Unity/Unturned; NPCs estáticos e zumbis não foram alterados nesta etapa.
