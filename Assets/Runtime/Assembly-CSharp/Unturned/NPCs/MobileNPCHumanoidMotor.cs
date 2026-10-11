@@ -97,6 +97,7 @@ namespace SDG.Unturned
 			}
 
 			spawnPosition = resolved;
+			brainDriver.SetHomePositionServer(resolved);
 			hasRoamingDestination = false;
 			nextRoamingDecisionTime = Time.time + Random.Range(1f, 2f);
 			return true;
