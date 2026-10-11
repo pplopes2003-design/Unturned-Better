@@ -24,7 +24,7 @@ It is intentionally bounded:
 ## Current boundaries
 
 - This component does not create its own bootstrap GameObject and does not auto-attach itself to every map. The game/mod integration must instantiate or attach the director and assign the prefab.
-- Population is transient. It does not save NPC identity, health, faction, inventory, home, or world state across a save/reload.
+- Population is transient. It does not save NPC identity, health, faction, inventory, home, or world state across a save/reload. Dead bodies spawned by this director are cleaned up after the configured lifetime; living NPCs are not saved or restored.
 - The NPC instances are server-local. This step does not add client replication, a persistent world entity protocol, or multiplayer support.
 - Spawned NPCs are placed around the nearest valid living player; there is not yet a map-wide region sampler, territory ownership, resource gathering, or base building.
 - If no safe candidate is found, the attempt is skipped and retried only after the next interval.
