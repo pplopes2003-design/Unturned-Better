@@ -36,6 +36,12 @@ namespace SDG.Unturned
 		[SerializeField, Range(0f, 60f)] private float roamingMaximumSlope = 38f;
 		[SerializeField] private LayerMask roamingGroundMask = ~0;
 
+		[Header("Local obstacle avoidance (not full pathfinding)")]
+		[SerializeField, Min(0.5f)] private float obstacleProbeDistance = 1.6f;
+		[SerializeField, Min(0.05f)] private float obstacleProbeRadius = 0.28f;
+		[SerializeField, Range(15f, 80f)] private float obstacleAvoidanceAngle = 48f;
+		[SerializeField] private LayerMask obstacleMask = ~0;
+
 		private CharacterController characterController;
 		private MobileNPCBrainDriver brainDriver;
 		private Vector3 spawnPosition;
@@ -134,6 +140,11 @@ namespace SDG.Unturned
 
 			if (planarDirection.sqrMagnitude > 0.0001f)
 			{
+				planarDirection = ApplyLocalObstacleAvoidance(planarDirection);
+			}
+
+			if (planarDirection.sqrMagnitude > 0.0001f)
+			{
 				Quaternion targetRotation = Quaternion.LookRotation(planarDirection, Vector3.up);
 				transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, turnSpeed * deltaTime);
 			}
@@ -152,6 +163,49 @@ namespace SDG.Unturned
 
 			CollisionFlags collision = characterController.Move(motion * deltaTime);
 			IsMoving = planarDirection.sqrMagnitude > 0.0001f && (collision & CollisionFlags.Sides) == 0;
+		}
+
+		private Vector3 ApplyLocalObstacleAvoidance(Vector3 desiredDirection)
+		{
+			desiredDirection.y = 0f;
+			if (desiredDirection.sqrMagnitude < 0.0001f)
+			{
+				return Vector3.zero;
+			}
+
+			desiredDirection.Normalize();
+			Vector3 origin = transform.position + Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f);
+			float probeDistance = Mathf.Max(0.5f, obstacleProbeDistance);
+			float probeRadius = Mathf.Clamp(obstacleProbeRadius, 0.05f, Mathf.Max(0.05f, characterController.radius * 0.9f));
+			if (!Physics.SphereCast(origin, probeRadius, desiredDirection, out _, probeDistance,
+				obstacleMask, QueryTriggerInteraction.Ignore))
+			{
+				return desiredDirection;
+			}
+
+			// Probe both sides and prefer the clear direction that remains most aligned with the goal.
+			// This is deliberately short-range steering: it cannot route around large buildings.
+			Vector3 left = Quaternion.AngleAxis(-obstacleAvoidanceAngle, Vector3.up) * desiredDirection;
+			Vector3 right = Quaternion.AngleAxis(obstacleAvoidanceAngle, Vector3.up) * desiredDirection;
+			bool leftBlocked = Physics.SphereCast(origin, probeRadius, left, out _, probeDistance,
+				obstacleMask, QueryTriggerInteraction.Ignore);
+			bool rightBlocked = Physics.SphereCast(origin, probeRadius, right, out _, probeDistance,
+				obstacleMask, QueryTriggerInteraction.Ignore);
+
+			if (!leftBlocked && !rightBlocked)
+			{
+				return Vector3.Dot(left, desiredDirection) >= Vector3.Dot(right, desiredDirection) ? left : right;
+			}
+			if (!leftBlocked)
+			{
+				return left;
+			}
+			if (!rightBlocked)
+			{
+				return right;
+			}
+
+			return Vector3.zero;
 		}
 
 		private void TryChooseRoamingDestination()
