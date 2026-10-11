@@ -299,3 +299,12 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Isso reduz sobreposição imediata entre membros do lote sem alterar NPCs já existentes. É uma heurística de distância no plano XZ, não uma verificação completa de cápsulas, obstáculos ou NPCs que já estavam no mundo.
 - Commit: https://github.com/pplopes2003-design/Unturned-Better/commit/d00c5c26615c4f2a0aaeec831c7b8782d2bef6f2
 - Validação: inspeção estática do código; compilação Unity e teste em mapas diferentes continuam pendentes.
+
+
+### 2026-10-11 — controlador de população local (single-player first)
+- Adicionado `MobileNPCPopulationDirector`, componente opcional que, quando colocado num objeto de bootstrap ativo e configurado com um prefab humanoide dedicado, tenta criar um NPC por intervalo em um anel aleatório ao redor do jogador vivo.
+- O controlador limita a população ativa, limita tentativas por ciclo e delega a validação de solo, inclinação, limites do mapa, ocupação e espaçamento ao `MobileNPCSpawnService`.
+- Adicionada limpeza dos corpos criados pelo próprio controlador após um tempo configurável, para que mortes não acumulem objetos indefinidamente.
+- Arquivos: `Assets/Runtime/Assembly-CSharp/Unturned/NPCs/MobileNPCPopulationDirector.cs`, metadados Unity e `Docs/MobileNPC-Population-Setup.md`.
+- Limites: o componente ainda precisa ser instanciado/anexado por um bootstrap de runtime e receber um prefab configurado; não descobre sozinho limites/regiões do mapa e não persiste estado entre sessões. Não adiciona replicação multiplayer.
+- Validação: revisão estática apenas. Unity/Unturned não foram compilados nem executados neste ambiente. Próxima tarefa: integrar bootstrap/prefab no ciclo real de carregamento de mapa e fazer teste de single-player antes de ampliar comportamento.
