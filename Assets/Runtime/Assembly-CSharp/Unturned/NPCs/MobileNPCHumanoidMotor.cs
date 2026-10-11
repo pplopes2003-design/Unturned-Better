@@ -160,8 +160,15 @@ namespace SDG.Unturned
 			bool hasBrainDestination = brainDriver.HasDestination;
 			if (hasBrainDestination)
 			{
-				// Combat, investigation and tactical goals always take precedence over roaming.
+				// Combat, investigation and tactical goals always take precedence over roaming or returning home.
 				hasRoamingDestination = false;
+			}
+			else if (!IsWithinHomeTerritory)
+			{
+				// Recover from knockback or other external displacement before choosing another roaming waypoint.
+				// This remains ordinary collision-aware movement; it does not teleport the NPC home.
+				roamingDestination = spawnPosition;
+				hasRoamingDestination = true;
 			}
 			else if (roamingEnabled && Time.time >= nextRoamingDecisionTime && !hasRoamingDestination)
 			{
