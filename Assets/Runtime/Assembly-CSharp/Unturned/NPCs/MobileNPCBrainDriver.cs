@@ -193,6 +193,20 @@ namespace SDG.Unturned
 			PublishDecisionIfChanged();
 		}
 
+		/// <summary>Updates the return-home anchor without resetting current combat state.</summary>
+		public void SetHomePositionServer(Vector3 homePosition)
+		{
+			if (!CanAcceptServerInput
+				|| float.IsNaN(homePosition.x) || float.IsInfinity(homePosition.x)
+				|| float.IsNaN(homePosition.y) || float.IsInfinity(homePosition.y)
+				|| float.IsNaN(homePosition.z) || float.IsInfinity(homePosition.z))
+			{
+				return;
+			}
+
+			brain.SetSpawnPosition(homePosition);
+		}
+
 		public void ResetServer()
 		{
 			if (!CanAcceptServerInput)
