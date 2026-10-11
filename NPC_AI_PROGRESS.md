@@ -387,3 +387,11 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Inspecionando `ItemManager.ReceiveTakeItemRequest`, confirmei que o caminho vanilla exige `Player`, usa `player.inventory` e só remove o drop após `tryAddItem` bem-sucedido. Não é apropriado para um NPC sem inventário de jogador. A integração de pickup requer uma operação de servidor que remova um `ItemData` específico por `instanceID` e o transfira ao inventário NPC de forma atômica, além de sincronizar a remoção visual nas regiões.
 - A capacidade atual conta cada item recebido como um slot, sem empilhamento, equipamento, persistência, saque automático ou replicação.
 - Validação estática apenas; sem compilação Unity ou teste em jogo.
+
+
+### 2026-10-11 — transferência autoritativa de drops para inventário NPC
+- Adicionada `ItemManager.TryTransferWorldItemToMobileNPCServer`: valida autoridade do servidor, região correspondente à posição do NPC, existência do `instanceID`, distância máxima e espaço disponível; transfere o snapshot ao inventário, remove o registo do drop no mundo e usa a replicação vanilla `SendDestroyItem` para clientes da região.
+- `MobileNPCInventory.TryPickupWorldItemServer` expõe a operação pelo inventário do NPC. O método requer que o chamador passe um ID de instância conhecido e uma distância curta; ainda não há scanner automático nem seleção de prioridade.
+- A operação usa o `ItemData` autoritativo da região do NPC. Não coleta `InteractableItem` apenas simulado localmente se não houver registo no `ItemManager`; isso evita criar itens a partir de objetos visuais sem posse autoritativa.
+- Risco residual a verificar no runtime: a atualização do modelo local e a sincronização da região dependem do comportamento de `SendDestroyItem` no servidor listen-host. A transferência não é transacional contra exceções inesperadas após inserir o snapshot; não existem callbacks entre a inserção e a remoção, mas o teste de jogo é obrigatório.
+- Sem compilação Unity/teste em jogo; revisão estática apenas.
