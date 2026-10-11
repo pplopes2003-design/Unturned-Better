@@ -69,6 +69,27 @@ namespace SDG.Unturned
 			return count;
 		}
 
+		/// <summary>Consumes the first stored item in a vanilla category, returning a defensive snapshot.</summary>
+		public bool TryConsumeFirstItemOfType(EItemType type, out Item consumedItem)
+		{
+			consumedItem = null;
+			if (!Provider.isServer) return false;
+
+			for (int i = 0; i < slots.Count; ++i)
+			{
+				Item stored = slots[i];
+				if (stored == null) continue;
+				ItemAsset asset = Assets.find(EAssetType.ITEM, stored.id) as ItemAsset;
+				if (asset == null || asset.type != type) continue;
+
+				byte[] stateCopy = stored.state != null ? (byte[])stored.state.Clone() : new byte[0];
+				consumedItem = new Item(stored.id, stored.amount, stored.quality, stateCopy);
+				slots.RemoveAt(i);
+				return true;
+			}
+			return false;
+		}
+
 		/// <summary>Returns whether an item with this legacy ID is already stored.</summary>
 		public bool ContainsItemID(ushort itemID)
 		{
