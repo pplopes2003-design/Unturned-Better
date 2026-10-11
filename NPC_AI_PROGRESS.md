@@ -363,3 +363,11 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - O diretor de população passa o jogador como observador. Antes de instanciar o NPC, cada candidato é rejeitado quando um raio aproximado entre a posição dos olhos do jogador e a altura do tronco do NPC não encontra cobertura. Não há spawn seguido de destruição, evitando o efeito de aparição rápida.
 - A verificação é conservadora e baseada nos colliders da cena: vegetação sem collider, transparências, geometria especial e ângulos de câmera podem produzir resultados diferentes. O orçamento de tentativas continua limitado; em áreas abertas o diretor pode não encontrar ponto oculto naquela rodada.
 - Validação estática: revisão de overloads e chamadas, sem alteração do caminho legado. **Ainda não houve compilação Unity nem teste em jogo.**
+
+
+### 2026-10-11 — âncora de território doméstico para NPCs
+- O motor agora expõe a posição-base do NPC, o raio do território doméstico e uma consulta para saber se o NPC está dentro dessa área.
+- Foi adicionada a operação de servidor `TrySetHomePositionServer`, que só atualiza a âncora depois de validar terreno, inclinação e limites usando o serviço de posição segura já existente. Ao alterar a base, o waypoint de exploração atual é descartado.
+- A exploração limita seus destinos ao menor valor entre o raio de roaming e o raio territorial. A âncora é um ponto de referência em runtime; isto **não** implementa propriedade de terreno, construção, persistência em disco ou retorno forçado durante combate.
+- Pesquisa de APIs do mundo: `ItemManager.findSimulatedItemsInRadius` e `ItemManager.getItemsInRadius` existem, mas a coleta vanilla termina em `Player.inventory` e no fluxo de requisição do jogador. Não conectei o NPC a esse caminho para evitar invocar indevidamente a interface/inventário do jogador; a coleta real requer um inventário próprio e uma remoção de item autorizada pelo servidor.
+- Validação estática apenas; sem compilação Unity ou execução no jogo.
