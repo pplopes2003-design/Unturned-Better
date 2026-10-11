@@ -1701,6 +1701,46 @@ namespace SDG.Unturned
 			}
 		}
 
+		// Route loud explosions through the existing point-investigation AI. A short
+		// spatial cooldown avoids alerting the region repeatedly for one blast.
+		private static float lastNoiseAlertTime = -1000.0f;
+		private static Vector3 lastNoiseAlertPosition;
+		private const float NOISE_ALERT_COOLDOWN = 0.75f;
+
+		public static void alertZombiesToNoise(Vector3 position, float radius)
+		{
+			byte nav;
+			if (!Provider.isServer || regions == null || radius <= 0.0f || !LevelNavigation.tryGetNavigation(position, out nav))
+			{
+				return;
+			}
+
+			if (Time.time - lastNoiseAlertTime < NOISE_ALERT_COOLDOWN && (position - lastNoiseAlertPosition).sqrMagnitude < 64.0f)
+			{
+				return;
+			}
+
+			lastNoiseAlertTime = Time.time;
+			lastNoiseAlertPosition = position;
+			if (nav >= regions.Length || regions[nav] == null || regions[nav].zombies == null)
+			{
+				return;
+			}
+
+			float sqrRadius = radius * radius;
+			List<Zombie> regionZombies = regions[nav].zombies;
+			for (int index = 0; index < regionZombies.Count; ++index)
+			{
+				Zombie zombie = regionZombies[index];
+				if (zombie == null || zombie.isDead || (zombie.transform.position - position).sqrMagnitude > sqrRadius)
+				{
+					continue;
+				}
+
+				zombie.alert(position, false);
+			}
+		}
+
 		// Ambient migration and horde formation are server-authoritative. They reuse the
 		// existing zombie pathfinder and never move a zombie by teleporting it.
 		private static float nextAmbientHordeUpdate;
