@@ -260,3 +260,14 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 6. Confirme que sentries, charges, safezones e outros tipos excluídos não são colocados.
 7. A contagem não persiste após recriação do NPC e não há ainda persistência do assentamento.
 8. O teste não foi executado no Unity.
+
+
+## Ordem e distribuição das peças (reteste manual pendente)
+
+1. Coloque no inventário do NPC ao menos uma barricada `STORAGE` e algumas peças de fortificação.
+2. Confirme que a unidade de armazenamento tem prioridade sobre outras barricadas compatíveis.
+3. Observe as quatro tentativas de construção: os pontos devem ficar em direções aproximadamente cardeais e a distância do centro deve ser semelhante.
+4. Bloqueie uma das posições com uma árvore/parede e verifique se o sistema tenta ângulos alternativos antes de desistir daquela rodada.
+5. Verifique se o NPC não consome item quando `dropBarricade` falha e se consome apenas uma unidade quando a colocação é confirmada.
+6. Repetir em terreno irregular e próximo de regiões protegidas; interromper se o jogo aceitar colocações inválidas.
+7. Ainda não há snapping, validação integral de claim/suporte, interação do NPC com o inventário do armazenamento, ou persistência das peças.
