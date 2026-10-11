@@ -172,6 +172,11 @@ namespace SDG.Unturned
 				}
 			}
 			DeathPresentationRequested?.Invoke(transform.position, transform.rotation, hitImpulse);
+			// Remove dead agents from active AI enumeration after publishing the final reset.
+			if (brainDriver != null)
+			{
+				brainDriver.enabled = false;
+			}
 			Died?.Invoke();
 		}
 	}
