@@ -103,7 +103,7 @@ namespace SDG.Unturned
 				}
 
 				MobileNPCHumanoidVitals vitals = candidate.GetComponent<MobileNPCHumanoidVitals>();
-				if (vitals != null && vitals.IsDead)
+				if (vitals == null || vitals.IsDead)
 				{
 					continue;
 				}
