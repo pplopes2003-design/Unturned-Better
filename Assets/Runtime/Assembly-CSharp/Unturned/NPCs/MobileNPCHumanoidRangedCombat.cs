@@ -33,6 +33,8 @@ namespace SDG.Unturned
 		private float nextShotTime;
 		private float reloadFinishedAt;
 		private bool reloadPending;
+		private int shotsRemainingInBurst;
+		private bool waitingForBurstPause;
 
 		/// <summary>Raised on the server when a shot is committed. Hook prefab audio/animation here.</summary>
 		public event System.Action ShotFired;
@@ -49,6 +51,7 @@ namespace SDG.Unturned
 			brain = GetComponent<MobileNPCBrainDriver>();
 			aim = GetComponent<MobileNPCHumanoidAim>();
 			roundsRemaining = Mathf.Max(1, magazineCapacity);
+			shotsRemainingInBurst = RollBurstSize();
 		}
 
 		private void Update()
@@ -67,12 +70,20 @@ namespace SDG.Unturned
 
 				reloadPending = false;
 				roundsRemaining = Mathf.Max(1, magazineCapacity);
+				shotsRemainingInBurst = RollBurstSize();
+				waitingForBurstPause = false;
 				ReloadFinished?.Invoke();
 			}
 
 			if (brain.CurrentState != MobileNPCBrain.State.Pursuing || Time.time < nextShotTime)
 			{
 				return;
+			}
+
+			if (waitingForBurstPause)
+			{
+				waitingForBurstPause = false;
+				shotsRemainingInBurst = RollBurstSize();
 			}
 
 			Player target = ResolveTargetPlayer(brain.Target);
@@ -100,9 +111,22 @@ namespace SDG.Unturned
 				return;
 			}
 
-			nextShotTime = Time.time + Mathf.Max(0.05f, secondsPerShot);
 			roundsRemaining--;
 			ShotFired?.Invoke();
+
+			shotsRemainingInBurst = Mathf.Max(0, shotsRemainingInBurst - 1);
+			if (shotsRemainingInBurst == 0)
+			{
+				waitingForBurstPause = true;
+				nextShotTime = Time.time + Random.Range(
+					Mathf.Min(minimumBurstPause, maximumBurstPause),
+					Mathf.Max(minimumBurstPause, maximumBurstPause));
+			}
+			else
+			{
+				float intervalScale = Random.Range(1f - shotIntervalJitter, 1f + shotIntervalJitter);
+				nextShotTime = Time.time + Mathf.Max(0.05f, secondsPerShot * intervalScale);
+			}
 
 			// Ignore this NPC's own colliders, then process the first external obstruction/hit.
 			RaycastHit[] hits = Physics.RaycastAll(muzzle, shotDirection, effectiveRange, hitMask, QueryTriggerInteraction.Ignore);
@@ -141,6 +165,13 @@ namespace SDG.Unturned
 			{
 				BeginReload();
 			}
+		}
+
+		private int RollBurstSize()
+		{
+			int minimum = Mathf.Max(1, Mathf.Min(minimumBurstSize, maximumBurstSize));
+			int maximum = Mathf.Max(minimum, Mathf.Max(minimumBurstSize, maximumBurstSize));
+			return Random.Range(minimum, maximum + 1);
 		}
 
 		private void BeginReload()
