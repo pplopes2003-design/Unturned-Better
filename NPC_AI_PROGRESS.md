@@ -221,3 +221,12 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - A implementação correta precisa de um adaptador de ragdoll que use o esqueleto do prefab móvel e replique o evento/pose para clientes, que criam a representação física localmente. Isso deve acompanhar o protocolo de entidade móvel; uma chamada apenas no servidor não é suficiente para multiplayer.
 - Commit da documentação: https://github.com/pplopes2003-design/Unturned-Better/commit/58a760c18d303cf266a3df75b09d63a798833866
 - Nenhum teste Unity executado.
+
+
+## Death presentation integration hook (2026-10-11)
+
+- Added `MobileNPCHumanoidVitals.ApplyDamage(float damage, Vector3 hitImpulse)`. Existing `ApplyDamage(float damage)` remains compatible and forwards a zero impulse.
+- Rejects non-finite impulse components along with invalid damage values.
+- Added server-side `DeathPresentationRequested(position, rotation, impulse)` event, emitted once during the death transition before the legacy `Died` event. This provides the death pose and lethal-hit impulse to a future presentation/network layer.
+- Important: this is an integration hook only. It does not replicate the NPC, send an RPC, or spawn a ragdoll. Unturned's generated network methods are project-level generated code; correct multiplayer ragdolls require a stable replicated NPC identity and spawn/state replication first. See the SDK networking overview: https://docs.smartlydressedgames.com/en/latest/u3-sdk/unity-project.html
+- Validation status: source reviewed; Unity compilation and multiplayer playtest not run.
