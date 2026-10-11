@@ -149,3 +149,12 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Commits: https://github.com/pplopes2003-design/Unturned-Better/commit/65b1da5048863f628a833936e42f7dc346a06064 e https://github.com/pplopes2003-design/Unturned-Better/commit/e32d64a51c8af46a09433f07062c92959b7388d5
 - Próximas integrações: navegação real compatível com o SDK, alvo de combate/dano autoritativo, inventário e retirada autoritativa de itens do mundo; depois snapshots e ciclo de vida multiplayer.
 - Validação: revisão estática via GitHub; não compilado nem testado no Unity/Unturned.
+
+
+### 2026-10-11 — primeiro ataque corpo a corpo autoritativo
+- Criado `MobileNPCHumanoidCombat.cs`: resolve o alvo a partir do alvo já validado pelo cérebro, exige estado de perseguição, verifica alcance e linha de visão e aplica dano pelo `DamageTool.damagePlayer` no servidor, respeitando a armadura.
+- A camada usa o sistema de dano do jogo em vez de reduzir vida por conta própria. O alvo precisa ser um `Player`; outros tipos de alvo não recebem ataque neste componente.
+- O ataque ainda não está sincronizado com animação de golpe e não tem teste no Unity. A validação de permissões PvP/zonas seguras depende dos contratos internos de `DamageTool`; não foi criado um sistema de facções para NPCs.
+- Commit: https://github.com/pplopes2003-design/Unturned-Better/commit/17008a2fe45d76541d260415ae77fb1dc423671c
+- Próximo bloqueio técnico: loot exige uma operação de servidor própria para adicionar ao inventário de um agente não-Player e remover o drop/replicar sua remoção. O fluxo existente `ReceiveTakeItemRequest` está ligado a `Player.inventory`, portanto não será reutilizado artificialmente para um NPC.
+- Validação: inspeção estática do contrato de dano e do fluxo de pickup; não compilado nem testado no Unity/Unturned.
