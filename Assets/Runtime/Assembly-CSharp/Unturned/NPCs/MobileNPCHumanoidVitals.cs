@@ -22,6 +22,10 @@ namespace SDG.Unturned
 		private MobileNPCBrainDriver brainDriver;
 		private MobileNPCHumanoidMotor motor;
 		private MobileNPCHumanoidCombat combat;
+		private MobileNPCHumanoidRangedCombat rangedCombat;
+		private MobileNPCHumanoidPerception perception;
+		private MobileNPCHumanoidAim aim;
+		private CharacterController characterController;
 		private bool initialized;
 		private bool isDead;
 
@@ -38,6 +42,10 @@ namespace SDG.Unturned
 			brainDriver = GetComponent<MobileNPCBrainDriver>();
 			motor = GetComponent<MobileNPCHumanoidMotor>();
 			combat = GetComponent<MobileNPCHumanoidCombat>();
+			rangedCombat = GetComponent<MobileNPCHumanoidRangedCombat>();
+			perception = GetComponent<MobileNPCHumanoidPerception>();
+			aim = GetComponent<MobileNPCHumanoidAim>();
+			characterController = GetComponent<CharacterController>();
 		}
 
 		private void Start()
@@ -123,9 +131,28 @@ namespace SDG.Unturned
 			{
 				motor.enabled = false;
 			}
-			if (disableCombatOnDeath && combat != null)
+			if (disableCombatOnDeath)
 			{
-				combat.enabled = false;
+				if (combat != null)
+				{
+					combat.enabled = false;
+				}
+				if (rangedCombat != null)
+				{
+					rangedCombat.enabled = false;
+				}
+				if (perception != null)
+				{
+					perception.enabled = false;
+				}
+				if (aim != null)
+				{
+					aim.enabled = false;
+				}
+				if (characterController != null)
+				{
+					characterController.enabled = false;
+				}
 			}
 			Died?.Invoke();
 		}
