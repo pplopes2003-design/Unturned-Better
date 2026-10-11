@@ -64,23 +64,17 @@ namespace SDG.Unturned
 			}
 
 			MobileNPCHumanoidVitals targetVitals = targetNPC != null ? targetNPC.GetComponent<MobileNPCHumanoidVitals>() : null;
-			if (targetPlayer != null && (targetPlayer.life == null || targetPlayer.life.isDead)
-				|| targetNPC == null || !MobileNPCHumanoidDisposition.AreHostile(GetComponent<MobileNPCHumanoidDisposition>(), targetNPC)
-					|| targetVitals != null && targetVitals.IsDead)
+			if (targetPlayer != null)
 			{
-				if (targetPlayer == null && targetNPC == null)
+				if (targetPlayer.life == null || targetPlayer.life.isDead)
 				{
 					return;
 				}
-				if (targetPlayer != null && (targetPlayer.life == null || targetPlayer.life.isDead))
-				{
-					return;
-				}
-				if (targetNPC != null && (!MobileNPCHumanoidDisposition.AreHostile(GetComponent<MobileNPCHumanoidDisposition>(), targetNPC)
-					|| targetVitals != null && targetVitals.IsDead))
-				{
-					return;
-				}
+			}
+			else if (targetNPC == null || targetVitals == null || targetVitals.IsDead
+				|| !MobileNPCHumanoidDisposition.AreHostile(GetComponent<MobileNPCHumanoidDisposition>(), targetNPC))
+			{
+				return;
 			}
 
 			Vector3 origin = transform.position + Vector3.up * lineOfSightHeight;
