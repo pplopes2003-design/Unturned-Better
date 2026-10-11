@@ -188,3 +188,14 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 - [ ] Confirmar que combate corpo a corpo continua disponível independentemente de arma/munição.
 - [ ] Testar categorias de carregador incompatíveis com a arma; esse caso ainda não é filtrado e deve ser registrado como limitação conhecida.
 - [ ] Confirmar que armas e carregadores permanecem no inventário quando não foram usados/consumidos.
+
+
+## Teste — seleção de arma e carregador compatível
+- [ ] Guardar duas armas diferentes e confirmar que a escolha segue a pontuação de alcance, cadência e condição; não assumir que é DPS exato.
+- [ ] Guardar uma arma com munição já indicada no estado vanilla e confirmar que o protótipo reconhece as balas iniciais se o carregador inserido for compatível.
+- [ ] Guardar apenas carregadores de calibres incompatíveis: o NPC não deve consumi-los para recarregar.
+- [ ] Guardar um carregador compatível: deve ser removido do inventário apenas quando começa a recarga.
+- [ ] Verificar que a quantidade de tiros após recarregar respeita o valor lido e os limites configurados.
+- [ ] Trocar por uma arma de maior pontuação durante o combate; confirmar que o estado da arma selecionada é atualizado sem consumir carregadores incorretos.
+- [ ] Conferir no jogo se `Item.amount` representa a quantidade de munição esperada para os carregadores usados nos drops.
+- [ ] Registrar exceções de estado nulo/curto e IDs de carregador inválidos.
