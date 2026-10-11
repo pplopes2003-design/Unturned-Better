@@ -210,3 +210,12 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 5. Confirme que arma sem clip de disparo/recarga continua funcional silenciosamente e que o bootstrap não altera NPCs estáticos.
 6. Quando o inventário mudar para outra arma, confirme que o modelo visual acompanha a arma selecionada e que o modelo anterior é removido.
 7. Este teste não foi executado no Unity; registre exceções, arma desalinhada, áudio duplicado ou diferenças de API antes de marcar a etapa como validada.
+
+
+## Cadência, recarga e dispersão por asset
+
+1. Teste duas armas com `Firerate` diferentes e compare a cadência média; o comportamento ainda deve incluir pausas de rajada e variação humana.
+2. Teste armas com `Reload_Time` diferentes e confirme que o tempo de recarga segue o asset quando o valor é positivo.
+3. Compare uma arma com espalhamento baixo e outra com espalhamento alto à mesma habilidade do NPC; a arma mais dispersa deve produzir maior variabilidade, sem remover o erro humano.
+4. Confirme que zumbis investigam disparos dentro do alcance efetivo calculado para a arma.
+5. Estes testes ainda não foram executados no Unity; registrar resultados antes de marcar como validados.
