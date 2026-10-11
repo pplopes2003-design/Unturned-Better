@@ -50,6 +50,7 @@ namespace SDG.Unturned
 			brain.Reset();
 			tactics.ClearGoal();
 			hasInitialized = true;
+			MobileNPCRegistry.Register(this);
 			hasPublishedDecision = false;
 			PublishDecisionIfChanged();
 		}
@@ -202,6 +203,19 @@ namespace SDG.Unturned
 			brain.Reset();
 			tactics.ClearGoal();
 			PublishDecisionIfChanged();
+		}
+
+		private void OnEnable()
+		{
+			if (hasInitialized)
+			{
+				MobileNPCRegistry.Register(this);
+			}
+		}
+
+		private void OnDisable()
+		{
+			MobileNPCRegistry.Unregister(this);
 		}
 
 		private bool CanAcceptServerInput => Provider.isServer && hasInitialized && brain != null && tactics != null;
