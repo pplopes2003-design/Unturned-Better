@@ -1701,6 +1701,99 @@ namespace SDG.Unturned
 			}
 		}
 
+		// Ambient migration and horde formation are server-authoritative. They reuse the
+		// existing zombie pathfinder and never move a zombie by teleporting it.
+		private static float nextAmbientHordeUpdate;
+		private const float AMBIENT_HORDE_UPDATE_INTERVAL = 8.0f;
+		private const float AMBIENT_HORDE_SEARCH_RADIUS = 32.0f;
+		private const float AMBIENT_HORDE_MIN_TRAVEL_DISTANCE = 38.0f;
+		private const float AMBIENT_HORDE_MAX_TRAVEL_DISTANCE = 78.0f;
+		private const int AMBIENT_HORDE_MIN_SIZE = 3;
+		private const int AMBIENT_HORDE_MAX_SIZE = 6;
+
+		private static void UpdateAmbientHordes()
+		{
+			if (!Provider.isServer || Level.info.type == ELevelType.HORDE || AllZombies == null || AllZombies.Count < AMBIENT_HORDE_MIN_SIZE)
+			{
+				return;
+			}
+
+			if (Time.time < nextAmbientHordeUpdate)
+			{
+				return;
+			}
+
+			nextAmbientHordeUpdate = Time.time + AMBIENT_HORDE_UPDATE_INTERVAL;
+
+			// Randomize the starting point so the same region is not always favored.
+			int startIndex = Random.Range(0, AllZombies.Count);
+			Zombie leader = null;
+			for (int offset = 0; offset < AllZombies.Count; ++offset)
+			{
+				Zombie candidate = AllZombies[(startIndex + offset) % AllZombies.Count];
+				if (candidate == null || candidate.isDead || candidate.isHunting || candidate.bound >= regions.Length)
+				{
+					continue;
+				}
+
+				// Do not pull zombies away from a player or from a special encounter.
+				if (regions[candidate.bound] == null || regions[candidate.bound].PlayerCountInRegion <= 0)
+				{
+					continue;
+				}
+
+				leader = candidate;
+				break;
+			}
+
+			if (leader == null)
+			{
+				return;
+			}
+
+			Vector3 destination = leader.transform.position;
+			bool foundDestination = false;
+			for (int attempt = 0; attempt < 8; ++attempt)
+			{
+				float angle = Random.value * Mathf.PI * 2.0f;
+				float distance = Random.Range(AMBIENT_HORDE_MIN_TRAVEL_DISTANCE, AMBIENT_HORDE_MAX_TRAVEL_DISTANCE);
+				Vector3 candidatePoint = leader.transform.position + new Vector3(Mathf.Cos(angle) * distance, 0.0f, Mathf.Sin(angle) * distance);
+				byte candidateBound;
+				if (LevelNavigation.checkNavigation(candidatePoint) && LevelNavigation.tryGetNavigation(candidatePoint, out candidateBound) && candidateBound == leader.bound)
+				{
+					destination = candidatePoint;
+					foundDestination = true;
+					break;
+				}
+			}
+
+			if (!foundDestination)
+			{
+				return;
+			}
+
+			int alerted = 0;
+			float groupRadiusSquared = AMBIENT_HORDE_SEARCH_RADIUS * AMBIENT_HORDE_SEARCH_RADIUS;
+			// The same destination makes the group converge naturally; pathfinding remains
+			// responsible for routing around buildings and terrain.
+			for (int offset = 0; offset < AllZombies.Count && alerted < AMBIENT_HORDE_MAX_SIZE; ++offset)
+			{
+				Zombie member = AllZombies[(startIndex + offset) % AllZombies.Count];
+				if (member == null || member.isDead || member.isHunting || member.bound != leader.bound)
+				{
+					continue;
+				}
+
+				if ((member.transform.position - leader.transform.position).sqrMagnitude > groupRadiusSquared)
+				{
+					continue;
+				}
+
+				member.alert(destination, false);
+				++alerted;
+			}
+		}
+
 		private void Update()
 		{
 			if (!Level.isLoaded)
@@ -1735,6 +1828,8 @@ namespace SDG.Unturned
 			{
 				return;
 			}
+
+			UpdateAmbientHordes();
 
 			int start;
 			int end;
