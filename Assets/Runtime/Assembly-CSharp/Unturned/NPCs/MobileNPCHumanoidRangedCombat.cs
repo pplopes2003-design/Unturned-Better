@@ -94,15 +94,33 @@ namespace SDG.Unturned
 				shotsRemainingInBurst = RollBurstSize();
 			}
 
-			Player target = ResolveTargetPlayer(brain.Target);
-			if (target == null || target.life == null || target.life.isDead
-				|| perception != null && perception.VisiblePlayer != target)
+			Transform targetTransform = brain.Target;
+			if (targetTransform == null)
+			{
+				return;
+			}
+
+			Player targetPlayer = ResolveTargetPlayer(targetTransform);
+			MobileNPCHumanoidDisposition targetNPC = targetTransform.GetComponent<MobileNPCHumanoidDisposition>();
+			if (targetNPC == null) targetNPC = targetTransform.GetComponentInParent<MobileNPCHumanoidDisposition>();
+			MobileNPCHumanoidDisposition ownDisposition = GetComponent<MobileNPCHumanoidDisposition>();
+			MobileNPCHumanoidVitals targetVitals = targetNPC != null ? targetNPC.GetComponent<MobileNPCHumanoidVitals>() : null;
+			if (targetPlayer != null)
+			{
+				if (targetPlayer.life == null || targetPlayer.life.isDead || perception.VisiblePlayer != targetPlayer)
+				{
+					return;
+				}
+			}
+			else if (targetNPC == null || targetVitals == null || targetVitals.IsDead
+				|| perception.VisibleNPC != targetNPC
+				|| !MobileNPCHumanoidDisposition.AreHostile(ownDisposition, targetNPC))
 			{
 				return;
 			}
 
 			Vector3 muzzle = transform.position + Vector3.up * muzzleHeight;
-			Vector3 targetPoint = target.transform.position + Vector3.up * targetHeight;
+			Vector3 targetPoint = targetTransform.position + Vector3.up * targetHeight;
 			Vector3 toTarget = targetPoint - muzzle;
 			if (toTarget.sqrMagnitude > effectiveRange * effectiveRange || toTarget.sqrMagnitude < 0.01f)
 			{
@@ -154,7 +172,7 @@ namespace SDG.Unturned
 					hitPlayer = hit.transform.GetComponentInParent<Player>();
 				}
 
-				if (hitPlayer != null && hitPlayer.life != null && !hitPlayer.life.isDead)
+				if (hitPlayer != null && hitPlayer == targetPlayer && hitPlayer.life != null && !hitPlayer.life.isDead)
 				{
 					DamagePlayerParameters parameters = new DamagePlayerParameters(hitPlayer);
 					parameters.cause = EDeathCause.GUN;
@@ -166,9 +184,23 @@ namespace SDG.Unturned
 					EPlayerKill kill;
 					DamageTool.damagePlayer(parameters, out kill);
 				}
-
+				else
+				{
+					MobileNPCHumanoidDisposition hitNPC = hit.transform.GetComponent<MobileNPCHumanoidDisposition>();
+					if (hitNPC == null) hitNPC = hit.transform.GetComponentInParent<MobileNPCHumanoidDisposition>();
+					MobileNPCHumanoidVitals hitVitals = hitNPC != null ? hitNPC.GetComponent<MobileNPCHumanoidVitals>() : null;
+					if (hitNPC == targetNPC && hitVitals != null
+						&& MobileNPCHumanoidDisposition.AreHostile(ownDisposition, hitNPC))
+					{
+						hitVitals.ApplyDamage(damage, shotDirection * damage);
+					}
+				}
 				break;
 			}
+
+			// Gunfire is a world stimulus: vanilla zombies investigate the shot position
+			// regardless of which mobile faction fired it.
+			ZombieManager.alertZombiesToNoise(transform.position, Mathf.Max(20f, effectiveRange));
 
 			if (roundsRemaining == 0)
 			{
