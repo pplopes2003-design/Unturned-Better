@@ -8,10 +8,9 @@ using UnityEngine;
 namespace SDG.Unturned
 {
 	/// <summary>
-	/// Server-local storage model for mobile NPCs. This is deliberately not connected
-	/// to world-item pickup yet: callers may store an item only after another
-	/// server-authoritative operation has transferred ownership and removed it from
-	/// the world. It must never be used as a preview/cache of an item still on the ground.
+	/// Server-local storage model for mobile NPCs. Items enter storage only after a
+	/// server-authoritative world transfer; combat may consume stored resources, but this
+	/// is not a vanilla Player inventory and does not replicate or persist by itself.
 	/// </summary>
 	[DisallowMultipleComponent]
 	public sealed class MobileNPCInventory : MonoBehaviour
