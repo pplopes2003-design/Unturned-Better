@@ -356,3 +356,10 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - O raio de distância variável mantém o spawn fora da proximidade imediata do jogador, mas **não garante ocultação visual**; ainda é necessário testar visibilidade e distribuição em mapas reais.
 - Se nenhum setor funcionar, a próxima rodada continua limitada pelo intervalo normal de spawn, sem repetição por frame.
 - Validação estática: delimitadores balanceados e revisão das condições de servidor/limites de tentativas. **Sem compilação Unity ou teste em jogo.**
+
+
+### 2026-10-11 — rejeição de spawn visível ao jogador
+- Adicionada uma sobrecarga compatível de `TrySpawnBatchAroundServer` que aceita um observador opcional; chamadas antigas mantêm o comportamento anterior.
+- O diretor de população passa o jogador como observador. Antes de instanciar o NPC, cada candidato é rejeitado quando um raio aproximado entre a posição dos olhos do jogador e a altura do tronco do NPC não encontra cobertura. Não há spawn seguido de destruição, evitando o efeito de aparição rápida.
+- A verificação é conservadora e baseada nos colliders da cena: vegetação sem collider, transparências, geometria especial e ângulos de câmera podem produzir resultados diferentes. O orçamento de tentativas continua limitado; em áreas abertas o diretor pode não encontrar ponto oculto naquela rodada.
+- Validação estática: revisão de overloads e chamadas, sem alteração do caminho legado. **Ainda não houve compilação Unity nem teste em jogo.**
