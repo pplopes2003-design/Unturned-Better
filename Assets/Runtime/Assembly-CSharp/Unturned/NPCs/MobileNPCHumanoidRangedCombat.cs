@@ -266,6 +266,8 @@ namespace SDG.Unturned
 			if (!inventory.TryConsumeFirstItemOfType(EItemType.MAGAZINE, out Item consumedMagazine))
 			{
 				roundsRemaining = 0;
+				// Do not poll for ammunition every frame when the inventory is empty.
+				nextShotTime = Time.time + 1.0f;
 				return;
 			}
 
