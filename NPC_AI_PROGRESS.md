@@ -379,3 +379,11 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Limite conhecido: obstáculos grandes podem impedir o retorno porque o motor ainda não possui pathfinding completo. A âncora permanece apenas em runtime e não é persistida.
 - Pesquisa do fluxo de coleta: `ItemManager.ReceiveTakeItemRequest` exige um `Player` válido e transfere o item para `player.inventory`. Não reutilizar esse RPC para NPCs. A coleta permanece bloqueada até uma operação de transferência própria que remova o item do mundo e registre o conteúdo do inventário NPC de forma atômica.
 - Validação estática do fluxo e das prioridades; **sem compilação Unity ou teste no jogo**.
+
+
+### 2026-10-11 — primeira camada de inventário NPC
+- Adicionado `MobileNPCInventory`, um armazenamento server-local com capacidade configurável, slots, cópia defensiva do estado dos itens e operações server-only para inserir/remover snapshots.
+- Contrato importante: `TryStoreTransferredItem` só aceita um item cuja posse já foi transferida exclusivamente para o NPC. O componente **não** recolhe nem remove drops do mundo; chamar a inserção enquanto o drop ainda existe duplicaria o item.
+- Inspecionando `ItemManager.ReceiveTakeItemRequest`, confirmei que o caminho vanilla exige `Player`, usa `player.inventory` e só remove o drop após `tryAddItem` bem-sucedido. Não é apropriado para um NPC sem inventário de jogador. A integração de pickup requer uma operação de servidor que remova um `ItemData` específico por `instanceID` e o transfira ao inventário NPC de forma atômica, além de sincronizar a remoção visual nas regiões.
+- A capacidade atual conta cada item recebido como um slot, sem empilhamento, equipamento, persistência, saque automático ou replicação.
+- Validação estática apenas; sem compilação Unity ou teste em jogo.
