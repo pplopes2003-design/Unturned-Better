@@ -140,3 +140,12 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Ainda não conectado a uma entidade humanoide concreta: spawn/despawn, navegação real, snapshots de rede, acertos/dano e pickup continuam sendo a próxima integração. Os NPCs de diálogo estáticos permanecem sem alteração.
 - Commits: https://github.com/pplopes2003-design/Unturned-Better/commit/cb976354f12e0a24541e574310b8a6b9bea77da0 e https://github.com/pplopes2003-design/Unturned-Better/commit/1b18b94340c0bbd70b4f3e05ef8c54cdd1d9ddcc
 - Validação: revisão estática via GitHub; não compilado nem testado no Unity/Unturned.
+
+
+### 2026-10-11 — primeiro motor de movimento humanoide
+- Criado `MobileNPCHumanoidMotor.cs`, componente opt-in para um prefab humanoide com `CharacterController` e `MobileNPCBrainDriver`.
+- O motor executa deslocamento no servidor, rotação gradual, gravidade e colisão local; usa velocidade maior para perseguição e recuo. A visibilidade do alvo precisa ser fornecida explicitamente por percepção autoritativa do servidor.
+- Limite importante: ainda não é navegação por caminhos. O motor segue o destino em linha direta e pode ficar bloqueado por paredes/obstáculos; não deve ser tratado como pronto para mapas reais. Não há prefab, spawn/despawn nem replicação cliente-servidor ligados nesta etapa.
+- Commits: https://github.com/pplopes2003-design/Unturned-Better/commit/65b1da5048863f628a833936e42f7dc346a06064 e https://github.com/pplopes2003-design/Unturned-Better/commit/e32d64a51c8af46a09433f07062c92959b7388d5
+- Próximas integrações: navegação real compatível com o SDK, alvo de combate/dano autoritativo, inventário e retirada autoritativa de itens do mundo; depois snapshots e ciclo de vida multiplayer.
+- Validação: revisão estática via GitHub; não compilado nem testado no Unity/Unturned.
