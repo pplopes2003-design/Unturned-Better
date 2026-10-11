@@ -103,7 +103,7 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - Revisei `InteractableSentry` e `DamageTool` para separar o que pode ser reutilizado do que ainda falta para um humanoide móvel.
 - `InteractableSentry` é uma referência útil de arma controlada pelo servidor: mantém estado de alvo, mira e disparo e usa assets/attachments de armas. Porém, é um `InteractableStorage` do mapa, não uma entidade humanoide genérica.
 - `DamageTool` expõe eventos específicos para dano em jogadores, zumbis e animais (`damagePlayerRequested`, `damageZombieRequested`, `damageAnimalRequested`), mas não um evento público genérico para qualquer agente. Criar só um componente de IA ou atribuir um `NetId` não faz o NPC participar do fluxo normal de acerto/dano.
-- A solicitação pública #5541 descreve a mesma lacuna de arquitetura: o cliente vanilla identifica alvos por tipos de raycast conhecidos, e o servidor valida e resolve o tipo antes de aplicar dano. Fonte: https://github.com/SmartlyDressedGames/U3-SDK/issues/5541
+- A solicitação pública #5543 descreve a lacuna de uma entidade humanoide/agent replicada de primeira classe. A integração ainda precisa respeitar o fluxo de raycast e dano do cliente/servidor. Fonte: https://github.com/SmartlyDressedGames/U3-SDK/issues/5543
 - Decisão: não adicionar uma classe de “NPC combatente” isolada que pareça funcional, mas não receba acertos legítimos dos clientes. A próxima mudança deve conectar identidade, spawn/despawn e snapshots com o caminho de raycast/dano, ou começar por uma melhoria de IA que opere sobre entidades já suportadas.
 - Estado de teste: inspeção estática do código via GitHub; nenhuma compilação ou teste em Unity/Unturned foi executado.
 
@@ -113,3 +113,12 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - `UpdateAmbientHordes()` agora retorna com segurança quando o array de regiões é nulo ou vazio, antes de procurar líder ou membros da horda.
 - Commit: https://github.com/pplopes2003-design/Unturned-Better/commit/5dd858b8c45087c019dc1f1bb14c689ac92c390b
 - É uma correção defensiva de NRE identificada por inspeção estática; não confirma que seja a causa do erro de inicialização da dev build do usuário. Logs ainda necessários para associar a exceção a uma linha concreta.
+
+
+### 2026-10-11 — primeira classe separada para decisões de NPC móvel
+- Criado `Assets/Runtime/Assembly-CSharp/Unturned/NPCs/MobileNPCBrain.cs`, separado de `InteractableObjectNPC`.
+- A classe mantém estados `Idle`, `Investigating`, `Pursuing` e `Returning`, com memória temporária de alvo, investigação de ruído com prazo e retorno ao ponto inicial.
+- O alvo precisa ser validado pela camada de percepção do servidor. Quando fica oculto, a IA mantém a última posição observada, em vez de seguir a posição atual do Transform através de paredes.
+- Deliberadamente não move Transform, não aplica dano e não afirma replicação de rede: esses são contratos da futura entidade móvel e da camada de locomoção/rede.
+- Commits: https://github.com/pplopes2003-design/Unturned-Better/commit/ec1f5e40a33ea04fc9e7d90a0cc4b5ef592ddec3, https://github.com/pplopes2003-design/Unturned-Better/commit/1e8e544d842582fcbdfd3118d7ab8e5896843dbd, https://github.com/pplopes2003-design/Unturned-Better/commit/5cc059ca4fbc3b18fd52e516f1dd877c01049edb
+- Estado de validação: revisão estática apenas; ainda não compilado nem testado no Unity. Próximo passo: ligar essa máquina de estados a uma entidade móvel com navegação e snapshots, sem alterar os NPCs estáticos existentes.
