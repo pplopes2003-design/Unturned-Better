@@ -411,3 +411,11 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - A escala é inicial e heurística: ainda não há fome/sede, consumo de cura, verificação de compatibilidade real de munição, comparação de proteção/slots de mochila, inventário equipável ou estado de construção; por isso não deve ser tratada como comportamento final.
 - Correção adicional: removido método `TryPickupWorldItemServer` duplicado no inventário, que causaria erro de compilação.
 - Sem compilação Unity/teste em jogo; validar comportamento e desempenho antes de ajustar os pesos.
+
+
+## Conexão inicial entre inventário e combate (protótipo)
+- O combate à distância consulta o inventário próprio do NPC e só dispara quando há ao menos um item da categoria vanilla `GUN`; não existe arma gratuita criada pelo componente.
+- O carregador simulado começa vazio. Para recarregar, o NPC precisa consumir um item armazenado da categoria `MAGAZINE`; sem carregador, fica sem munição até encontrar outro.
+- `MobileNPCInventory.TryConsumeFirstItemOfType` remove o item do armazenamento do NPC e devolve uma cópia defensiva.
+- Limites deliberados: a arma não é equipada/renderizada como arma vanilla, o tipo de carregador não é comparado com a arma, capacidade/dano/alcance ainda vêm das configurações do componente e a munição não é lida dos dados nativos do carregador. O combate segue hitscan protótipo, não `UseableGun`.
+- Sem compilação Unity ou teste em jogo; validar especialmente consumo de carregadores e comportamento de NPC sem arma.
