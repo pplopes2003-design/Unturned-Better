@@ -68,6 +68,57 @@ namespace SDG.Unturned
 			return count;
 		}
 
+		/// <summary>Chooses the best stored vanilla gun using its range, fire delay and condition.</summary>
+		public bool TryGetBestGun(out Item gunSnapshot, out ItemGunAsset gunAsset)
+		{
+			gunSnapshot = null;
+			gunAsset = null;
+			if (!Provider.isServer) return false;
+
+			float bestScore = float.MinValue;
+			for (int index = 0; index < slots.Count; ++index)
+			{
+				Item stored = slots[index];
+				if (stored == null) continue;
+				ItemGunAsset candidate = Assets.find(EAssetType.ITEM, stored.id) as ItemGunAsset;
+				if (candidate == null) continue;
+
+				float score = Mathf.Clamp(candidate.range, 0f, 300f) * 0.6f
+					+ (255f - candidate.firerate) * 0.08f
+					+ Mathf.Clamp(stored.quality, 0, 100) * 0.05f;
+				if (score <= bestScore) continue;
+
+				bestScore = score;
+				byte[] stateCopy = stored.state != null ? (byte[])stored.state.Clone() : new byte[0];
+				gunSnapshot = new Item(stored.id, stored.amount, stored.quality, stateCopy);
+				gunAsset = candidate;
+			}
+			return gunSnapshot != null && gunAsset != null;
+		}
+
+		/// <summary>Finds the first stored magazine whose calibers intersect the gun's accepted magazine calibers.</summary>
+		public bool TryFindCompatibleMagazine(ItemGunAsset gunAsset, out int slotIndex, out ItemMagazineAsset magazineAsset)
+		{
+			slotIndex = -1;
+			magazineAsset = null;
+			if (!Provider.isServer || gunAsset == null || gunAsset.magazineCalibers == null
+				|| gunAsset.magazineCalibers.Length == 0) return false;
+
+			for (int index = 0; index < slots.Count; ++index)
+			{
+				Item stored = slots[index];
+				if (stored == null) continue;
+				ItemMagazineAsset candidate = Assets.find(EAssetType.ITEM, stored.id) as ItemMagazineAsset;
+				if (candidate == null || candidate.calibers == null || candidate.calibers.Length == 0) continue;
+				if (!candidate.CalibersContainAnyOfIds(gunAsset.magazineCalibers)) continue;
+
+				slotIndex = index;
+				magazineAsset = candidate;
+				return true;
+			}
+			return false;
+		}
+
 		/// <summary>Consumes the first stored item in a vanilla category, returning a defensive snapshot.</summary>
 		public bool TryConsumeFirstItemOfType(EItemType type, out Item consumedItem)
 		{
