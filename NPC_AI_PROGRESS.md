@@ -510,3 +510,13 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - O diretor de população agora tem `respawnDelay = 60 s` por padrão e mantém uma fila ordenada de reposições: cada morte agenda um substituto para pelo menos 60 segundos depois da detecção da morte. A limpeza do corpo (30 s por padrão) continua independente. O sistema ainda repõe a população global, não um slot individual persistente.
 - **Limitações importantes:** grupos e âncoras existem apenas em memória, não são salvos entre reinícios; a associação usa proximidade, não parentesco/facção complexa; não há migração de inventário, ordens ou memória do NPC morto; multiplayer/replicação ainda não está implementado. Se nenhum jogador vivo estiver presente ou não houver ponto de spawn seguro, a reposição pode ocorrer depois do prazo mínimo.
 - Validação desta etapa: revisão estática do ciclo de vida, fila de reposição e integração do componente. Não houve compilação nem execução no Unity/Unturned.
+
+
+## Grupos temporários: limite de tamanho e facção (etapa atual)
+
+- O registro em memória agora limita cada grupo a quatro membros vivos e só recruta NPCs da mesma função/facção (Hostile, Friendly ou Neutral). Isso evita que a população inteira se funda automaticamente em um único grupo por estar dentro do raio de associação.
+- Quando um NPC nasce, o servidor procura o grupo elegível mais próximo dentro de 140 m; se não houver grupo com espaço e função compatível, cria um novo. O log informa se o NPC criou ou entrou em um grupo, seu ID e a contagem atual.
+- Ao morrer, o NPC sai imediatamente do grupo. Se ainda houver membros, o grupo permanece e o líder passa para um sobrevivente; a reposição pode entrar no grupo sobrevivente se estiver no raio e houver vaga. Se todos morrerem, o registro é removido; uma reposição posterior cria/entra em outro grupo, não recupera o ID dissolvido.
+- O diretor mantém o atraso de reposição configurado em 60 s por padrão, separado do tempo de remoção do corpo de 30 s. A tentativa real de spawn pode ocorrer no próximo ciclo do diretor (intervalo padrão de 18 s) e pode atrasar mais se não houver jogador vivo ou posição segura.
+- Limites importantes: grupos e âncoras existem apenas em memória; não sobrevivem a troca/recarregamento de mapa ou reinício. Associação é por proximidade, não por memória social real; não existe ainda replicação multiplayer.
+- Verificação desta etapa: revisão estática do fluxo de criação/adesão, eleição de líder, dissolução e fila de reposição. Unity/Unturned não foi compilado nem executado nesta sessão.
