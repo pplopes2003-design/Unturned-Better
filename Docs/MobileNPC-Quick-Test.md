@@ -228,3 +228,13 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 3. Confirme que a primeira arma mantém a quantidade simulada restante, sem restaurar munição já disparada.
 4. Faça uma recarga e confira que o ID do carregador e a quantidade simulada permanecem no estado do item após trocar de arma.
 5. O teste depende de estado de arma com pelo menos 11 bytes e permanece pendente de execução no Unity.
+
+
+## Uso de item médico por NPC móvel (teste manual pendente)
+
+1. Em uma sessão single-player, reduza a saúde de um NPC móvel para abaixo de 55% e coloque um item da categoria `MEDICAL` no inventário de teste do NPC.
+2. Sem alvo de combate nem objetivo tático ativo, confirme que o NPC consome um item médico e recupera aproximadamente 30% da saúde máxima (limitado à saúde máxima).
+3. Confirme que não consome item médico quando a saúde está acima do limiar, quando está morto ou enquanto combate/objetivo tático está ativo.
+4. Confirme o intervalo entre usos e que a cura não ultrapassa a saúde máxima.
+5. Teste o caso de cura rejeitada e verifique que o item é devolvido quando há espaço.
+6. Este é um efeito de cura simulado comum a todos os itens `MEDICAL`, não a implementação dos efeitos vanilla individuais; não foi executado no Unity.
