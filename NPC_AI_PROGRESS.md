@@ -402,3 +402,12 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - A coleta não substitui combate ou outros objetivos táticos e para quando o inventário fica cheio. O item precisa existir como drop registrado no `ItemManager`; objetos visuais sem instância autoritativa não são coletados.
 - A transferência procura o `instanceID` nos registros de itens das regiões, então não exige que o NPC e o drop estejam na mesma região. Essa busca percorre a grade de regiões no momento da coleta; avaliar desempenho em teste com populações maiores.
 - Limitações: ainda não prioriza comida, munição, armas ou materiais; não consome/empunha itens; não persiste inventário ou constrói bases. Sem compilação Unity ou teste em jogo; sincronização do drop e comportamento ao chegar precisam de validação prática.
+
+
+### 2026-10-11 — priorização contextual do loot
+- `MobileNPCLooting` deixa de selecionar apenas o drop mais próximo: agora calcula uma pontuação de utilidade por categoria e depois aplica penalidade por distância.
+- Cura ganha prioridade quando a vida está abaixo de 75%; armas sobem quando o NPC não tem arma armazenada; munição sobe quando existe arma; comida/água, mochila e roupas/equipamentos têm prioridades intermediárias; barricadas/armazenamento/estruturas/suprimentos sobem conforme `buildingLootPreference`.
+- Penaliza item com o mesmo ID já armazenado e itens de baixo valor quando restam apenas dois espaços livres. `MobileNPCInventory.CountItemType` consulta o tipo vanilla do item armazenado.
+- A escala é inicial e heurística: ainda não há fome/sede, consumo de cura, verificação de compatibilidade real de munição, comparação de proteção/slots de mochila, inventário equipável ou estado de construção; por isso não deve ser tratada como comportamento final.
+- Correção adicional: removido método `TryPickupWorldItemServer` duplicado no inventário, que causaria erro de compilação.
+- Sem compilação Unity/teste em jogo; validar comportamento e desempenho antes de ajustar os pesos.
