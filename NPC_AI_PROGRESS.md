@@ -463,3 +463,12 @@ Nenhuma mudança será marcada como testada no jogo até haver teste real no Uni
 - O NPC não interrompe combate nem objetivos táticos para se curar; se não conseguir aplicar a cura, tenta devolver o item ao inventário.
 - O bootstrap anexa o componente às entidades móveis. Não usa APIs de cura exclusivas de Player e não altera NPCs estáticos.
 - Limitação: todos os itens classificados como `MEDICAL` recebem o mesmo efeito simulado; não há animação, consumo vanilla específico por item nem replicação multiplayer. Validação estática apenas; teste no Unity pendente.
+
+
+## Planejamento inicial de assentamento (rodada atual)
+
+- Novo `MobileNPCSettlementPlanner` verifica periodicamente se o NPC carrega itens das categorias `BARRICADE`, `STORAGE` ou `STRUCTURE` e está sem alvo/objetivo tático.
+- Quando há materiais, tenta escolher um ponto próximo à âncora atual: valida terreno, inclinação, limites seguros e espaço livre aproximado, e então move a âncora de retorno para o local escolhido.
+- O componente é anexado no bootstrap de NPCs móveis. A escolha é única por instância durante sua vida atual; se não encontrar local válido, tenta novamente após o intervalo configurado.
+- **Limite explícito:** isto é apenas seleção de local/âncora provisória. Ainda não coloca barricadas, estruturas ou armazenamento no mundo; não consome materiais, não salva assentamentos em disco e não replica em multiplayer. A consulta de colisão é heurística e precisa ser testada em mapas reais.
+- Validação estática apenas; execução dentro do Unity pendente.
