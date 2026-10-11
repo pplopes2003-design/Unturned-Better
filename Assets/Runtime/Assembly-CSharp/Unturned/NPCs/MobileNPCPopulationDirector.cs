@@ -20,6 +20,7 @@ namespace SDG.Unturned
             public GameObject Instance;
             public MobileNPCHumanoidVitals Vitals;
             public float CleanupAt;
+            public bool DeathObserved;
         }
 
         [Header("Population")]
@@ -29,6 +30,7 @@ namespace SDG.Unturned
         [SerializeField, Min(1)] private int maximumAttemptsPerSpawn = 24;
         [SerializeField, Min(1f)] private float spawnInterval = 18f;
         [SerializeField, Min(1f)] private float deadBodyLifetime = 30f;
+        [SerializeField, Min(1f)] private float respawnDelay = 60f;
         [SerializeField] private MobileNPCHumanoidDisposition.Role role = MobileNPCHumanoidDisposition.Role.Hostile;
 
         [Header("Spawn ring around the player")]
@@ -151,6 +153,20 @@ namespace SDG.Unturned
                 if (tracked.Vitals == null || !tracked.Vitals.IsDead)
                 {
                     continue;
+                }
+
+                if (!tracked.DeathObserved)
+                {
+                    tracked.DeathObserved = true;
+                    // A death opens a real cooldown before the population director may
+                    // create a replacement. Keep the corpse lifetime independent.
+                    nextSpawnTime = Mathf.Max(nextSpawnTime, Time.time + Mathf.Max(1f, respawnDelay));
+                    MobileNPCGroupMember groupMember = tracked.Instance.GetComponent<MobileNPCGroupMember>();
+                    if (groupMember != null && groupMember.GroupId > 0)
+                    {
+                        Debug.Log("[MobileNPCPopulationDirector] Mobile NPC died; group " + groupMember.GroupId
+                            + " membership is being retired before delayed replacement.", this);
+                    }
                 }
 
                 if (float.IsPositiveInfinity(tracked.CleanupAt))
