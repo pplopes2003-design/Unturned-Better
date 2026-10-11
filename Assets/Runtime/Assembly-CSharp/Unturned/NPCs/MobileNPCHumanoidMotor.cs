@@ -51,6 +51,12 @@ namespace SDG.Unturned
 		private bool hasRoamingDestination;
 		private Vector3 roamingDestination;
 		private float nextRoamingDecisionTime;
+		private Vector3 lastStuckCheckPosition;
+		private float nextStuckCheckTime;
+		private float blockedMovementDuration;
+		private bool useRecoverySteering;
+		private float recoverySteeringUntil;
+		private float recoverySteeringAngle;
 
 		public bool IsInitialized => hasInitialized;
 		public bool IsMoving { get; private set; }
@@ -68,6 +74,10 @@ namespace SDG.Unturned
 			brainDriver.InitializeServer(spawnPosition);
 			hasRoamingDestination = false;
 			nextRoamingDecisionTime = Time.time + Random.Range(2f, 5f);
+			lastStuckCheckPosition = transform.position;
+			nextStuckCheckTime = Time.time + 0.75f;
+			blockedMovementDuration = 0f;
+			useRecoverySteering = false;
 			hasInitialized = true;
 		}
 
@@ -141,6 +151,14 @@ namespace SDG.Unturned
 			if (planarDirection.sqrMagnitude > 0.0001f)
 			{
 				planarDirection = ApplyLocalObstacleAvoidance(planarDirection);
+				if (useRecoverySteering && Time.time < recoverySteeringUntil)
+				{
+					Vector3 recoveryDirection = Quaternion.AngleAxis(recoverySteeringAngle, Vector3.up) * planarDirection;
+					if (!IsObstacleBlocking(recoveryDirection))
+					{
+						planarDirection = recoveryDirection;
+					}
+				}
 			}
 
 			if (planarDirection.sqrMagnitude > 0.0001f)
@@ -163,6 +181,67 @@ namespace SDG.Unturned
 
 			CollisionFlags collision = characterController.Move(motion * deltaTime);
 			IsMoving = planarDirection.sqrMagnitude > 0.0001f && (collision & CollisionFlags.Sides) == 0;
+			UpdateStuckRecovery(planarDirection, deltaTime);
+		}
+
+		private void UpdateStuckRecovery(Vector3 intendedDirection, float deltaTime)
+		{
+			if (Time.time < nextStuckCheckTime)
+			{
+				return;
+			}
+
+			float elapsed = Mathf.Max(0.1f, Time.time - (nextStuckCheckTime - 0.75f));
+			nextStuckCheckTime = Time.time + 0.75f;
+			float movedDistance = Vector3.Distance(transform.position, lastStuckCheckPosition);
+			lastStuckCheckPosition = transform.position;
+
+			bool tryingToMove = intendedDirection.sqrMagnitude > 0.0001f;
+			if (!tryingToMove || movedDistance >= 0.12f)
+			{
+				blockedMovementDuration = 0f;
+				useRecoverySteering = false;
+				return;
+			}
+
+			blockedMovementDuration += elapsed;
+			if (blockedMovementDuration < 1.5f)
+			{
+				return;
+			}
+
+			// Preserve combat/investigation destinations. Only roaming waypoints are discarded;
+			// tactical movement gets a temporary alternate steering angle instead.
+			if (hasRoamingDestination && !brainDriver.HasDestination)
+			{
+				hasRoamingDestination = false;
+				nextRoamingDecisionTime = Time.time + Random.Range(2f, 4f);
+				blockedMovementDuration = 0f;
+				useRecoverySteering = false;
+				return;
+			}
+
+			if (brainDriver.HasDestination)
+			{
+				recoverySteeringAngle = Random.value < 0.5f ? -90f : 90f;
+				useRecoverySteering = true;
+				recoverySteeringUntil = Time.time + 1.1f;
+				blockedMovementDuration = 0.25f;
+			}
+		}
+
+		private bool IsObstacleBlocking(Vector3 direction)
+		{
+			direction.y = 0f;
+			if (direction.sqrMagnitude < 0.0001f)
+			{
+				return true;
+			}
+
+			Vector3 origin = transform.position + Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f);
+			float probeRadius = Mathf.Clamp(obstacleProbeRadius, 0.05f, Mathf.Max(0.05f, characterController.radius * 0.9f));
+			return Physics.SphereCast(origin, probeRadius, direction.normalized, out _,
+				Mathf.Max(0.5f, obstacleProbeDistance), obstacleMask, QueryTriggerInteraction.Ignore);
 		}
 
 		private Vector3 ApplyLocalObstacleAvoidance(Vector3 desiredDirection)
@@ -194,7 +273,8 @@ namespace SDG.Unturned
 
 			if (!leftBlocked && !rightBlocked)
 			{
-				return Vector3.Dot(left, desiredDirection) >= Vector3.Dot(right, desiredDirection) ? left : right;
+				// Avoid a permanent left/right bias when both short routes are open.
+				return Random.value < 0.5f ? left : right;
 			}
 			if (!leftBlocked)
 			{
@@ -205,7 +285,28 @@ namespace SDG.Unturned
 				return right;
 			}
 
-			return Vector3.zero;
+			// Wider probes help escape corners while still respecting the local collision mask.
+			float[] fallbackAngles = { -90f, 90f, -135f, 135f, 180f };
+			Vector3 bestDirection = Vector3.zero;
+			float bestAlignment = float.NegativeInfinity;
+			for (int i = 0; i < fallbackAngles.Length; ++i)
+			{
+				Vector3 candidate = Quaternion.AngleAxis(fallbackAngles[i], Vector3.up) * desiredDirection;
+				if (Physics.SphereCast(origin, probeRadius, candidate, out _, probeDistance,
+					obstacleMask, QueryTriggerInteraction.Ignore))
+				{
+					continue;
+				}
+
+				float alignment = Vector3.Dot(candidate, desiredDirection);
+				if (alignment > bestAlignment)
+				{
+					bestAlignment = alignment;
+					bestDirection = candidate;
+				}
+			}
+
+			return bestDirection;
 		}
 
 		private void TryChooseRoamingDestination()
