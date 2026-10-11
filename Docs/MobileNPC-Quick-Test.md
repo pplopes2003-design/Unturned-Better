@@ -166,3 +166,14 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 - [ ] Confirmar que o NPC não abandona um combate para recolher item e que não há exceções no console.
 
 **Ainda sem validação em execução Unity.**
+
+
+## Prioridade contextual do loot
+- [ ] Soltar uma arma e um item comum a distâncias parecidas: sem arma armazenada, o NPC deve preferir a arma.
+- [ ] Com arma armazenada, verificar que munição tem prioridade maior do que quando não há arma.
+- [ ] Com vida abaixo de 75%, verificar que itens médicos sobem na lista de candidatos.
+- [ ] Verificar que itens com o mesmo ID já guardado perdem prioridade e que itens comuns perdem prioridade quando restam dois espaços.
+- [ ] Verificar o ajuste `buildingLootPreference` para itens de barricada, armazenamento, estrutura e suprimentos.
+- [ ] Confirmar que o fator distância desempata candidatos, mas não supera necessidades críticas.
+
+**Observação:** comida e água recebem prioridade genérica porque ainda não existem medidores de fome/sede para NPCs; a compatibilidade de munição e a comparação real de equipamentos ainda não são calculadas.
