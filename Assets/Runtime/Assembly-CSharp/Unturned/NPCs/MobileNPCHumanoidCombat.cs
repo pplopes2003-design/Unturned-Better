@@ -89,6 +89,26 @@ namespace SDG.Unturned
 				attackRange, lineOfSightMask, QueryTriggerInteraction.Ignore);
 			float nearestDistance = float.PositiveInfinity;
 			Transform nearestTransform = null;
+			if (hitCount == lineOfSightHits.Length)
+			{
+				// A saturated NonAlloc buffer is not guaranteed to contain the nearest
+				// collider, so use the allocating fallback only for this rare case.
+				RaycastHit[] overflowHits = Physics.RaycastAll(origin, offset.normalized,
+					attackRange, lineOfSightMask, QueryTriggerInteraction.Ignore);
+				for (int i = 0; i < overflowHits.Length; ++i)
+				{
+					Transform hitTransform = overflowHits[i].transform;
+					if (hitTransform == null || hitTransform == transform || hitTransform.IsChildOf(transform))
+						continue;
+					if (overflowHits[i].distance < nearestDistance)
+					{
+						nearestDistance = overflowHits[i].distance;
+						nearestTransform = hitTransform;
+					}
+				}
+			}
+			else
+			{
 			for (int i = 0; i < hitCount; ++i)
 			{
 				Transform hitTransform = lineOfSightHits[i].transform;
@@ -101,6 +121,7 @@ namespace SDG.Unturned
 					nearestDistance = lineOfSightHits[i].distance;
 					nearestTransform = hitTransform;
 				}
+			}
 			}
 
 			// No collider hit means there is no confirmed line of sight. Never apply melee
