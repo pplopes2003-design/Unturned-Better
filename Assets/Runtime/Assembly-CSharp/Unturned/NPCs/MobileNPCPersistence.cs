@@ -52,6 +52,17 @@ namespace SDG.Unturned
 			public byte[] state;
 		}
 
+		public static void ResetForLoadedMapServer()
+		{
+			if (!Provider.isServer)
+				return;
+
+			currentMapKey = null;
+			restoredForCurrentMap = false;
+			FailedRestoreRecords.Clear();
+			nextSaveTime = 0f;
+		}
+
 		public static void TickServer(GameObject prefab)
 		{
 			if (!Provider.isServer || !Level.isLoaded || prefab == null)
