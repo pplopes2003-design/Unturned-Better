@@ -85,7 +85,7 @@ namespace SDG.Unturned
 
             nextSpawnTime = Time.time + Mathf.Max(1f, spawnInterval);
             MobileNPCRegistry.CopyActiveDrivers(activeDrivers);
-            if (activeDrivers.Count >= Mathf.Max(1, maximumAlive))
+            if (MobileNPCRegistry.CountLivingDrivers() >= Mathf.Max(1, maximumAlive))
             {
                 return;
             }
