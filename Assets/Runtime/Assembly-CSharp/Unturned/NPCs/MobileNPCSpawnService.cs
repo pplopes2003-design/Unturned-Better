@@ -262,8 +262,48 @@ namespace SDG.Unturned
 				return false;
 			}
 
-			instance = spawned;
-			return true;
+            // Emit a compact runtime audit so a successful spawn with an invisible
+            // model can be distinguished from a failed placement or disabled entity.
+            Renderer[] renderers = spawned.GetComponentsInChildren<Renderer>(true);
+            int enabledRendererCount = 0;
+            bool hasValidBounds = false;
+            Bounds combinedBounds = new Bounds(spawned.transform.position, Vector3.zero);
+            for (int i = 0; i < renderers.Length; ++i)
+            {
+                Renderer renderer = renderers[i];
+                if (renderer == null || !renderer.enabled || renderer.forceRenderingOff)
+                {
+                    continue;
+                }
+
+                ++enabledRendererCount;
+                if (!float.IsNaN(renderer.bounds.size.x) && !float.IsInfinity(renderer.bounds.size.x)
+                    && renderer.bounds.size.sqrMagnitude > 0.0001f)
+                {
+                    if (!hasValidBounds)
+                    {
+                        combinedBounds = renderer.bounds;
+                        hasValidBounds = true;
+                    }
+                    else
+                    {
+                        combinedBounds.Encapsulate(renderer.bounds);
+                    }
+                }
+            }
+
+            Debug.Log("[MobileNPCSpawnService] Spawn audit: name=" + spawned.name
+                + ", active=" + spawned.activeInHierarchy
+                + ", position=" + spawned.transform.position
+                + ", scale=" + spawned.transform.lossyScale
+                + ", controllerEnabled=" + spawned.GetComponent<CharacterController>().enabled
+                + ", renderers=" + renderers.Length
+                + ", enabledRenderers=" + enabledRendererCount
+                + ", validRendererBounds=" + hasValidBounds
+                + ", combinedBounds=" + (hasValidBounds ? combinedBounds.ToString() : "none") + ".", spawned);
+
+            instance = spawned;
+            return true;
 		}
 
 		/// <summary>
