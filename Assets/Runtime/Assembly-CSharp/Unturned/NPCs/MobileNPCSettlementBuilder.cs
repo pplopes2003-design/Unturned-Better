@@ -127,16 +127,31 @@ namespace SDG.Unturned
 				// Apply vanilla housing rules before placement. Arbitrary coordinates are not
 				// enough for walls/pillars because they must connect to valid housing anchors.
 				string obstructionHint = null;
-				if (UseableHousingUtils.ValidatePendingPlacement(
-					selectedStructureAsset, ref placePosition, angle, ref obstructionHint) != EHousingPlacementResult.Success)
-					return;
+				bool validHousingPlacement = UseableHousingUtils.ValidatePendingPlacement(
+					selectedStructureAsset, ref placePosition, angle, ref obstructionHint) == EHousingPlacementResult.Success;
 
-				// Use Unturned's authoritative structure manager so the piece is registered
-				// in the world and replicated through the vanilla structure pipeline.
-				if (!StructureManager.dropStructure(
+				// A rejected structure must not permanently block a valid barricade pattern.
+				// Try a supported barricade at the same slot instead of retrying the same
+				// incompatible structure on every build interval.
+				bool structurePlaced = validHousingPlacement && StructureManager.dropStructure(
 					new Structure(selectedStructureAsset, selectedStructureAsset.health),
-					placePosition, 0f, angle, 0f, 0UL, 0UL))
-					return;
+					placePosition, 0f, angle, 0f, 0UL, 0UL);
+				if (!structurePlaced)
+				{
+					if (!TrySelectBuildable(false, out selectedSlot, out selectedAsset))
+						return;
+
+					placeStructure = false;
+					placePosition = ground + Vector3.up * Mathf.Clamp(selectedAsset.offset, -0.5f, 1.5f);
+					if (Physics.CheckSphere(placePosition + Vector3.up * 1.0f,
+						Mathf.Clamp(clearanceRadius, 0.4f, 1.2f), obstructionMask, QueryTriggerInteraction.Ignore))
+						return;
+
+					placedBarricade = BarricadeManager.dropBarricade(
+						new Barricade(selectedAsset), null, placePosition, 0f, angle, 0f, 0UL, 0UL);
+					if (placedBarricade == null)
+						return;
+				}
 			}
 			else
 			{
