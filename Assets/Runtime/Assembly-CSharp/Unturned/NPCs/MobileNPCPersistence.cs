@@ -119,11 +119,17 @@ namespace SDG.Unturned
 				}
 
 				int restored = 0;
+				// Keep all source records pending until each one has been restored successfully.
+				// If a later record throws unexpectedly, periodic saves will not erase the tail.
+				FailedRestoreRecords.AddRange(save.npcs);
 				for (int i = 0; i < save.npcs.Count; ++i)
 				{
 					NPCRecord record = save.npcs[i];
 					if (record == null || !IsFinite(record.px) || !IsFinite(record.py) || !IsFinite(record.pz))
+					{
+						FailedRestoreRecords.Remove(record);
 						continue;
+					}
 
 					Vector3 position = new Vector3(record.px, record.py, record.pz);
 					Quaternion rotation = new Quaternion(record.rx, record.ry, record.rz, record.rw);
@@ -141,7 +147,6 @@ namespace SDG.Unturned
 					{
 						// Keep failed records in subsequent snapshots instead of silently deleting them
 						// when a later periodic save captures only successfully restored NPCs.
-						FailedRestoreRecords.Add(record);
 						Debug.LogWarning("[MobileNPCPersistence] Could not restore NPC at " + position + "; keeping its snapshot for a later load: " + error);
 						continue;
 					}
@@ -182,6 +187,7 @@ namespace SDG.Unturned
 								(byte)item.quality, item.state != null ? (byte[])item.state.Clone() : new byte[0]));
 						}
 					}
+					FailedRestoreRecords.Remove(record);
 					restored++;
 				}
 
