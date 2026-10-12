@@ -77,7 +77,8 @@ namespace SDG.Unturned
         private void Update()
         {
             CleanupDeadBodies();
-            MobileNPCPersistence.TickServer(mobileNpcPrefab, Mathf.Clamp(maximumAlive, 1, 40));
+            int populationLimit = Mathf.Clamp(MobileNPCSettings.MaximumAlive, 1, 40);
+            MobileNPCPersistence.TickServer(mobileNpcPrefab, populationLimit);
             MobileNPCAirdropContest.TickServer();
 
             // Restored NPCs and any instances created by another authorized spawn path
@@ -85,14 +86,14 @@ namespace SDG.Unturned
             MobileNPCRegistry.CopyActiveDrivers(activeDrivers);
             TrackUntrackedActiveNPCs();
 
-            if (!populationEnabled || !Provider.isServer || mobileNpcPrefab == null || Time.time < nextSpawnTime)
+            if (!populationEnabled || !MobileNPCSettings.Enabled || !Provider.isServer || mobileNpcPrefab == null || Time.time < nextSpawnTime)
             {
                 return;
             }
 
             nextSpawnTime = Time.time + Mathf.Max(1f, spawnInterval);
             MobileNPCRegistry.CopyActiveDrivers(activeDrivers);
-            if (MobileNPCRegistry.CountLivingDrivers() >= Mathf.Max(1, maximumAlive))
+            if (MobileNPCRegistry.CountLivingDrivers() >= populationLimit)
             {
                 return;
             }
@@ -151,7 +152,7 @@ namespace SDG.Unturned
                     Mathf.Max(0f, maximumDropDistance),
                     groundMask,
                     maximumSlopeAngle,
-                    role,
+                    MobileNPCSettings.DefaultRole,
                     spawnedThisAttempt,
                     player.transform,
                     out spawnedCount,
