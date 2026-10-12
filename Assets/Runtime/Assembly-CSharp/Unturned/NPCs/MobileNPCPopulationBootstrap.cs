@@ -181,6 +181,98 @@ namespace SDG.Unturned
                 + ", usableMeshRenderers=" + usableRendererCount
                 + ", localPosition=" + visual.transform.localPosition + ".");
 
+            // Renderer count alone cannot prove that the humanoid is upright, textured,
+            // or animated. Emit enough asset-level detail to distinguish those failures
+            // from a camera/layer issue in the next player log.
+            for (int i = 0; i < visualRenderers.Length; ++i)
+            {
+                Renderer renderer = visualRenderers[i];
+                if (renderer == null)
+                {
+                    continue;
+                }
+
+                string materialSummary = "";
+                Material[] materials = renderer.sharedMaterials;
+                for (int materialIndex = 0; materialIndex < materials.Length; ++materialIndex)
+                {
+                    Material material = materials[materialIndex];
+                    if (materialIndex > 0)
+                    {
+                        materialSummary += ";";
+                    }
+
+                    materialSummary += material == null
+                        ? "null"
+                        : material.name + "/shader=" + (material.shader != null ? material.shader.name : "null");
+                }
+
+                string meshSummary = "none";
+                if (renderer is SkinnedMeshRenderer skinned)
+                {
+                    meshSummary = skinned.sharedMesh != null
+                        ? skinned.sharedMesh.name + "/localBounds=" + skinned.localBounds
+                        : "missing-skinned-mesh";
+                }
+                else
+                {
+                    MeshFilter filter = renderer.GetComponent<MeshFilter>();
+                    if (filter != null && filter.sharedMesh != null)
+                    {
+                        meshSummary = filter.sharedMesh.name + "/localBounds=" + filter.sharedMesh.bounds;
+                    }
+                }
+
+                Debug.Log("[MobileNPCPopulationBootstrap] Visual renderer[" + i + "]: path="
+                    + GetHierarchyPath(renderer.transform, visual.transform)
+                    + ", type=" + renderer.GetType().Name
+                    + ", active=" + renderer.gameObject.activeInHierarchy
+                    + ", enabled=" + renderer.enabled
+                    + ", layer=" + renderer.gameObject.layer
+                    + ", worldBounds=" + renderer.bounds
+                    + ", mesh=" + meshSummary
+                    + ", materials=[" + materialSummary + "].");
+            }
+
+            Animation[] legacyAnimations = visual.GetComponentsInChildren<Animation>(true);
+            for (int i = 0; i < legacyAnimations.Length; ++i)
+            {
+                Animation animation = legacyAnimations[i];
+                string clips = "";
+                foreach (AnimationState state in animation)
+                {
+                    if (state == null)
+                    {
+                        continue;
+                    }
+
+                    if (clips.Length > 0)
+                    {
+                        clips += ",";
+                    }
+                    clips += state.name;
+                }
+
+                Debug.Log("[MobileNPCPopulationBootstrap] Visual legacy Animation: path="
+                    + GetHierarchyPath(animation.transform, visual.transform)
+                    + ", active=" + animation.gameObject.activeInHierarchy
+                    + ", enabled=" + animation.enabled
+                    + ", clipCount=" + animation.GetClipCount()
+                    + ", clips=[" + clips + "].");
+            }
+
+            Animator[] animators = visual.GetComponentsInChildren<Animator>(true);
+            for (int i = 0; i < animators.Length; ++i)
+            {
+                Animator animator = animators[i];
+                Debug.Log("[MobileNPCPopulationBootstrap] Visual Animator: path="
+                    + GetHierarchyPath(animator.transform, visual.transform)
+                    + ", active=" + animator.gameObject.activeInHierarchy
+                    + ", enabled=" + animator.enabled
+                    + ", controller=" + (animator.runtimeAnimatorController != null
+                        ? animator.runtimeAnimatorController.name : "none") + ".");
+            }
+
             if (visualRenderers.Length == 0 || usableRendererCount == 0)
             {
                 Debug.LogError("[MobileNPCPopulationBootstrap] NPC_Client has no usable mesh renderer (renderer count="
@@ -221,6 +313,18 @@ namespace SDG.Unturned
             Debug.Log("[MobileNPCPopulationBootstrap] Single-player mobile NPC population initialized for loaded map "
                 + level + " with root layer Agent (" + template.layer + ") and CharacterController overlap recovery disabled."
                 + " Experimental local entities only; local NPC snapshots are persisted, but network replication is not implemented.");
+        }
+
+        private static string GetHierarchyPath(Transform node, Transform root)
+        {
+            string path = node != null ? node.name : "<null>";
+            Transform parent = node != null ? node.parent : null;
+            while (parent != null && parent != root)
+            {
+                path = parent.name + "/" + path;
+                parent = parent.parent;
+            }
+            return path;
         }
 
         private static void DestroyExistingRuntimeObjects()
