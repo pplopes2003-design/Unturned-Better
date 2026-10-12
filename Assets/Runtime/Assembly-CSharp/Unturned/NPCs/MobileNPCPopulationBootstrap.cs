@@ -48,6 +48,7 @@ namespace SDG.Unturned
 
             MobileNPCGroupMember.ResetAllServerGroups();
             MobileNPCPersistence.ResetForLoadedMapServer();
+            MobileNPCAirdropContest.ResetServer();
             DestroyExistingRuntimeObjects();
 
             GameObject visualPrefab = Resources.Load<GameObject>(VisualResourcePath);
