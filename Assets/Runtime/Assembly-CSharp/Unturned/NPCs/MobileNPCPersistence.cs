@@ -164,10 +164,11 @@ namespace SDG.Unturned
 					}
 
 					MobileNPCGroupMember groupMember = instance.GetComponent<MobileNPCGroupMember>();
-					if (record.hasSettlement && groupMember != null
+					if (groupMember != null && record.groupId > 0
 						&& IsFinite(record.ax) && IsFinite(record.ay) && IsFinite(record.az))
 					{
-						groupMember.SetGroupAnchorServer(new Vector3(record.ax, record.ay, record.az));
+						groupMember.SetGroupAnchorServer(record.groupId,
+							new Vector3(record.ax, record.ay, record.az), record.hasSettlement);
 					}
 
 					MobileNPCInventory inventory = instance.GetComponent<MobileNPCInventory>();
