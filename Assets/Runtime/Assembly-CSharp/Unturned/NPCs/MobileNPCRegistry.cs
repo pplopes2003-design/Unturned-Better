@@ -18,6 +18,25 @@ namespace SDG.Unturned
 
 		public static int Count => activeDrivers.Count;
 
+		/// <summary>Counts living mobile NPCs without treating corpses awaiting cleanup as population.</summary>
+		public static int CountLivingDrivers()
+		{
+			if (!Provider.isServer)
+				return 0;
+
+			activeDrivers.RemoveWhere(driver => driver == null || !driver.isActiveAndEnabled);
+			int count = 0;
+			foreach (MobileNPCBrainDriver driver in activeDrivers)
+			{
+				if (driver == null)
+					continue;
+				MobileNPCHumanoidVitals vitals = driver.GetComponent<MobileNPCHumanoidVitals>();
+				if (vitals == null || !vitals.IsDead)
+					count++;
+			}
+			return count;
+		}
+
 		internal static void Register(MobileNPCBrainDriver driver)
 		{
 			if (Provider.isServer && driver != null && driver.isActiveAndEnabled)
