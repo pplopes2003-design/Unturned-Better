@@ -7,9 +7,8 @@ using UnityEngine;
 namespace SDG.Unturned
 {
     /// <summary>
-    /// Minimal local interaction entry point for the experimental mobile NPCs.
-    /// Dialogue is presented through the vanilla custom-message UI. The barter service
-    /// exists separately, but a stock-selection UI is not yet connected to this flow.
+    /// Local interaction entry point for the experimental single-player mobile NPCs.
+    /// The keyboard-driven dialogue controller opens the trade and alliance flows.
     /// </summary>
     public static class MobileNPCInteractionService
     {
@@ -48,22 +47,14 @@ namespace SDG.Unturned
             }
             nextInteractionTime = Time.time + 0.35f;
 
-            switch (disposition.CurrentRole)
+            if (disposition.CurrentRole == MobileNPCHumanoidDisposition.Role.Hostile)
             {
-                case MobileNPCHumanoidDisposition.Role.Hostile:
-                    PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "O NPC é hostil e não aceita conversa.");
-                    return false;
-
-                case MobileNPCHumanoidDisposition.Role.Friendly:
-                    PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
-                        "Mercador: Posso trocar suprimentos por itens que você trouxer. A negociação precisa mostrar o item, o custo e confirmar a troca antes de cobrar. A seleção visual de ofertas ainda está pendente.");
-                    return true;
-
-                default:
-                    PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
-                        "Sobrevivente: Não quero briga. Podemos negociar uma aliança em troca de suprimentos; se aceita, passo a lutar ao lado dos sobreviventes contra saqueadores. A escolha e confirmação da oferta ainda precisam da interface.");
-                    return true;
+                PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "O NPC é hostil e não aceita conversa.");
+                return false;
             }
+
+            MobileNPCInteractionController.Open(player, disposition);
+            return true;
         }
     }
 }
