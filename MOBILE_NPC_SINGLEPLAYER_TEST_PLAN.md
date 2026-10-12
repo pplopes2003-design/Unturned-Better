@@ -45,6 +45,7 @@ Este plano cobre a fundação local dos NPCs móveis no Unturned/U3-SDK. Executa
 - [ ] Testar saída imediatamente após spawn e usar o salvamento no encerramento como verificação adicional.
 - [ ] Fazer uma cópia de segurança do arquivo JSON e testar recuperação: arquivo primário válido; primário inválido com `.bak` válido; ambos inválidos.
 - [ ] Quando primário e `.bak` forem inválidos, confirmar que o sistema avisa e preserva ambos os arquivos; o autosave não deve substituí-los por um snapshot vazio.
+- [ ] Em um mapa sem arquivos de persistência prévios, confirmar que o primeiro autosave cria o JSON normalmente; o bloqueio deve ocorrer somente se já existirem arquivos inválidos.
 - [ ] Confirmar que arquivo inválido gera aviso controlado e não impede iniciar uma partida.
 - [ ] Testar um registro com coordenadas inválidas e confirmar que ele não cria um NPC nem gera loop de erro por frame.
 - [ ] Testar uma posição bloqueada: o registro deve permanecer pendente e ser tentado novamente com intervalo, sem apagar silenciosamente os demais registros; registros bloqueados devem alternar na fila para não impedir a restauração dos seguintes.
