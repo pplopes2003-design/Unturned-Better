@@ -105,6 +105,19 @@ namespace SDG.Unturned
 				nextDeferredRestoreTime = Time.time + DeferredRestoreInterval;
 			}
 
+			// Disabling the population in the menu prevents both first-time and deferred
+			// snapshot restoration. Existing live NPCs still autosave once a snapshot has
+			// been initialized, so toggling the setting off does not discard world state.
+			if (!MobileNPCSettings.Enabled)
+			{
+				if (restoredForCurrentMap && Time.time >= nextSaveTime)
+				{
+					nextSaveTime = Time.time + SaveInterval;
+					SaveServer(mapKey);
+				}
+				return;
+			}
+
 			if (!restoredForCurrentMap)
 			{
 				RestoreServer(prefab, mapKey, Mathf.Clamp(maximumRestoredNPCs, 1, 40));
