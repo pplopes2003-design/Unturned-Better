@@ -270,11 +270,6 @@ namespace SDG.Unturned
             }
         }
 
-        private void OnApplicationQuit()
-        {
-            MobileNPCPersistence.SaveOnApplicationQuitServer();
-        }
-
         private static Player FindLivingPlayer()
         {
             // Single-player is the current target. Returning the first living player avoids
