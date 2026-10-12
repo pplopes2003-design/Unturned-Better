@@ -522,7 +522,19 @@ namespace SDG.Unturned
 					}
 				}
 
-				if (info.type == ERaycastInfoType.PLAYER)
+				MobileNPCHumanoidVitals mobileNPCVitals = info.transform != null
+					? info.transform.GetComponentInParent<MobileNPCHumanoidVitals>()
+					: null;
+				if (mobileNPCVitals != null)
+				{
+					if (Provider.isServer && !mobileNPCVitals.IsDead)
+					{
+						float mobileNPCDamage = equippedMeleeAsset.zombieOrPlayerDamageMultiplier.damage * times;
+						mobileNPCVitals.ApplyDamage(Mathf.Max(1f, mobileNPCDamage),
+							info.direction * Mathf.Max(1f, mobileNPCDamage));
+					}
+				}
+				else if (info.type == ERaycastInfoType.PLAYER)
 				{
 					if (info.player != null)
 					{
