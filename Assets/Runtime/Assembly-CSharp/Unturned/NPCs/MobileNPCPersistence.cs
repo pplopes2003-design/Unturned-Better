@@ -56,6 +56,18 @@ namespace SDG.Unturned
 			public byte[] state;
 		}
 
+		/// <summary>
+		/// Flushes the outgoing map snapshot before bootstrap teardown clears runtime state.
+		/// Uses the remembered map key because Level.info may already refer to the incoming map.
+		/// </summary>
+		public static void PrepareForMapTransitionServer()
+		{
+			if (!Provider.isServer || !restoredForCurrentMap || string.IsNullOrEmpty(currentMapKey))
+				return;
+
+			SaveServer(currentMapKey);
+		}
+
 		public static void ResetForLoadedMapServer()
 		{
 			if (!Provider.isServer)
