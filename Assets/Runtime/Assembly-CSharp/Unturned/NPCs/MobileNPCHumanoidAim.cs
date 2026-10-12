@@ -106,7 +106,10 @@ namespace SDG.Unturned
 			}
 
 			skill = Mathf.Clamp01(skill);
-			// Aim above the root pivot: humanoid target transforms commonly sit at the feet.\n\t\t\t// Keeping this offset configurable avoids every rifle firing toward the ground.\n\t\t\tVector3 aimPoint = trackedTarget.position + Vector3.up * Mathf.Max(0.0f, targetAimHeight)\n\t\t\t\t+ estimatedTargetVelocity * Mathf.Max(0.0f, leadTime);
+			// Aim above the root pivot: humanoid target transforms commonly sit at the feet.
+			// Keeping this offset configurable avoids every rifle firing toward the ground.
+			Vector3 aimPoint = trackedTarget.position + Vector3.up * Mathf.Max(0.0f, targetAimHeight)
+			\t+ estimatedTargetVelocity * Mathf.Max(0.0f, leadTime);
 			Vector3 toTarget = aimPoint - muzzlePosition;
 			if (toTarget.sqrMagnitude < 0.0001f)
 			{
