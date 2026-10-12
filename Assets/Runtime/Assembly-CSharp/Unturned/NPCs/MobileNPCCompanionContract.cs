@@ -8,8 +8,8 @@ namespace SDG.Unturned
 {
 	/// <summary>
 	/// Server-local escort contract granted after a successful alliance offer.
-	/// The NPC follows the player when out of combat; normal perception and combat
-	/// continue to take priority when an opposing mobile NPC is seen.
+	/// The NPC follows the player when out of combat; perception and combat against
+	/// hostile mobile NPCs and visible vanilla zombies take priority.
 	/// </summary>
 	[DisallowMultipleComponent]
 	[RequireComponent(typeof(MobileNPCBrainDriver))]
