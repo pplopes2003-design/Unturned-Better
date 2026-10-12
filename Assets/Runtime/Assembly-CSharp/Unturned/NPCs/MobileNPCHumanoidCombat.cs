@@ -27,6 +27,7 @@ namespace SDG.Unturned
 		private readonly RaycastHit[] lineOfSightHits = new RaycastHit[16];
 
 		public bool IsAttackReady => Provider.isServer && Time.time >= nextAttackTime;
+		public event System.Action AttackStarted;
 
 		private void Awake()
 		{
@@ -172,6 +173,7 @@ namespace SDG.Unturned
 			}
 
 			nextAttackTime = Time.time + attackCooldown;
+			AttackStarted?.Invoke();
 			return targetVitals.ApplyDamage(attackDamage, attackDirection.normalized * attackDamage);
 		}
 
@@ -210,6 +212,7 @@ namespace SDG.Unturned
 			}
 
 			nextAttackTime = Time.time + attackCooldown;
+			AttackStarted?.Invoke();
 			DamagePlayerParameters parameters = new DamagePlayerParameters(targetPlayer);
 			parameters.cause = EDeathCause.MELEE;
 			parameters.limb = ELimb.SPINE;
