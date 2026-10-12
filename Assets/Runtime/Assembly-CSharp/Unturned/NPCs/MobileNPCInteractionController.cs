@@ -158,8 +158,11 @@ namespace SDG.Unturned
 				return;
 			}
 
+			string greeting = activeNPC.CurrentRole == MobileNPCHumanoidDisposition.Role.Friendly
+				? "Mercador: tenho suprimentos para trocar."
+				: "Sobrevivente: ainda não somos aliados; posso ouvir uma proposta.";
 			PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
-				"Sobrevivente — escolha uma opção:\n1. Comércio (troca 1 item por 1 item)\n2. Propor aliança (entregue 1 item segurado)\n3. Conversar\nESC. Fechar");
+				greeting + "\n1. Comércio (1 item segurado por um lote do estoque)\n2. Propor aliança (entregue 1 item segurado)\n3. Conversar\nESC. Fechar");
 		}
 
 		private void OpenTradeMenu()
@@ -180,7 +183,7 @@ namespace SDG.Unturned
 			ItemAsset heldAsset = activePlayer != null && activePlayer.equipment != null
 				? activePlayer.equipment.asset as ItemAsset : null;
 			StringBuilder message = new StringBuilder();
-			message.Append("Mercador — estoque (1 item do seu item segurado por 1 item do estoque).\n");
+			message.Append("Mercador — estoque (1 item segurado por um lote completo do estoque).\n");
 			if (heldAsset == null)
 				message.Append("AVISO: segure o item que deseja oferecer antes de escolher.\n");
 			else
@@ -234,7 +237,7 @@ namespace SDG.Unturned
 			state = MenuState.ConfirmPurchase;
 			PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
 				"Confirmar troca?\nVocê entrega: 1 " + heldAsset.itemName
-				+ "\nVocê recebe: 1 " + (stockAsset != null ? stockAsset.itemName : "Item " + stock.id)
+				+ "\nVocê recebe: " + stock.amount + "x " + (stockAsset != null ? stockAsset.itemName : "Item " + stock.id)
 				+ "\n1. Confirmar\n2. Cancelar");
 		}
 
