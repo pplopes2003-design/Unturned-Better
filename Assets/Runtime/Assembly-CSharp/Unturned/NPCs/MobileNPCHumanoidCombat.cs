@@ -103,20 +103,24 @@ namespace SDG.Unturned
 				}
 			}
 
-			if (nearestTransform != null)
+			// No collider hit means there is no confirmed line of sight. Never apply melee
+			// damage through walls or to a target that has no hittable body collider.
+			if (nearestTransform == null)
 			{
-				if (targetPlayer != null)
-				{
-					Player hitPlayer = nearestTransform.GetComponent<Player>();
-					if (hitPlayer == null) hitPlayer = nearestTransform.GetComponentInParent<Player>();
-					if (hitPlayer != targetPlayer) return;
-				}
-				else
-				{
-					MobileNPCHumanoidDisposition hitNPC = nearestTransform.GetComponent<MobileNPCHumanoidDisposition>();
-					if (hitNPC == null) hitNPC = nearestTransform.GetComponentInParent<MobileNPCHumanoidDisposition>();
-					if (hitNPC != targetNPC) return;
-				}
+				return;
+			}
+
+			if (targetPlayer != null)
+			{
+				Player hitPlayer = nearestTransform.GetComponent<Player>();
+				if (hitPlayer == null) hitPlayer = nearestTransform.GetComponentInParent<Player>();
+				if (hitPlayer != targetPlayer) return;
+			}
+			else
+			{
+				MobileNPCHumanoidDisposition hitNPC = nearestTransform.GetComponent<MobileNPCHumanoidDisposition>();
+				if (hitNPC == null) hitNPC = nearestTransform.GetComponentInParent<MobileNPCHumanoidDisposition>();
+				if (hitNPC != targetNPC) return;
 			}
 
 			if (targetPlayer != null)
