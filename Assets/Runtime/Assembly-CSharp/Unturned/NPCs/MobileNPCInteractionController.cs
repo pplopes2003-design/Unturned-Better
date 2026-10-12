@@ -162,8 +162,8 @@ namespace SDG.Unturned
 				? "Mercador: tenho suprimentos para trocar."
 				: "Sobrevivente: ainda não somos aliados; posso ouvir uma proposta.";
 			PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
-				(string.IsNullOrEmpty(notice) ? "" : notice + "\\n")
-				+ greeting + "\\nTeclado numérico:\\n1. Comércio (1 item segurado por um lote do estoque)\\n2. Propor aliança (entregue 1 item segurado)\\n3. Conversar\\nESC. Fechar");
+				(string.IsNullOrEmpty(notice) ? "" : notice + "\n")
+				+ greeting + "\nTeclado numérico:\n1. Comércio (1 item segurado por um lote do estoque)\n2. Propor aliança (entregue 1 item segurado)\n3. Conversar\nESC. Fechar");
 		}
 
 		private void OpenTradeMenu(string notice = null)
@@ -178,13 +178,17 @@ namespace SDG.Unturned
 			MobileNPCInventory inventory = activeNPC.GetComponent<MobileNPCInventory>();
 			if (inventory == null || inventory.UsedSlots == 0)
 			{
-				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Mercador: meu estoque está vazio. Volte quando eu tiver encontrado suprimentos.");
+				PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
+					(string.IsNullOrEmpty(notice) ? "" : notice + "\n")
+					+ "Mercador: meu estoque está vazio. Volte quando eu tiver encontrado suprimentos.");
 				return;
 			}
 
 			ItemAsset heldAsset = activePlayer != null && activePlayer.equipment != null
 				? activePlayer.equipment.asset as ItemAsset : null;
 			StringBuilder message = new StringBuilder();
+			if (!string.IsNullOrEmpty(notice))
+				message.Append(notice).Append("\n");
 			message.Append("Mercador — estoque (1 item segurado por um lote completo do estoque).\n");
 			if (heldAsset == null)
 				message.Append("AVISO: segure o item que deseja oferecer antes de escolher.\n");
@@ -271,10 +275,10 @@ namespace SDG.Unturned
 			}
 			else
 			{
-				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Troca não concluída: " + error + "\n1. Tentar escolher outro item");
 				pendingStockSlot = -1;
 				pendingCurrencyItemId = 0;
 				state = MenuState.TradeStock;
+				OpenTradeMenu("Troca não concluída: " + error);
 			}
 		}
 
