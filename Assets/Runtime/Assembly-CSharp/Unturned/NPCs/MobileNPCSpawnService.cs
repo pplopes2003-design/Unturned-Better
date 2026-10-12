@@ -18,6 +18,14 @@ namespace SDG.Unturned
 		// Reused scratch list for main-thread server spawn checks; never exposed to callers.
 		private static readonly List<MobileNPCBrainDriver> activeDriverScratch = new List<MobileNPCBrainDriver>(32);
 		private static readonly Collider[] spawnOverlapScratch = new Collider[32];
+		private static readonly Color[] SkinTones =
+		{
+			new Color(0.96f, 0.78f, 0.62f, 1f),
+			new Color(0.84f, 0.62f, 0.45f, 1f),
+			new Color(0.69f, 0.46f, 0.32f, 1f),
+			new Color(0.48f, 0.31f, 0.23f, 1f),
+			new Color(0.91f, 0.70f, 0.53f, 1f)
+		};
 
 		/// <summary>
 		/// Resolves a candidate point to walkable ground on the current map. This is a
@@ -236,6 +244,28 @@ namespace SDG.Unturned
 			{
 				spawned.SetActive(true);
 			}
+
+			// NPC_Client's HumanClothes component normally receives the skin tone from
+			// PlayerLife/character customization. Mobile NPCs have no PlayerLife, so give
+			// each spawned humanoid an explicit native material skin color.
+			HumanClothes[] clothesComponents = spawned.GetComponentsInChildren<HumanClothes>(true);
+			if (clothesComponents.Length > 0)
+			{
+				Color skinTone = SkinTones[Random.Range(0, SkinTones.Length)];
+				for (int i = 0; i < clothesComponents.Length; ++i)
+				{
+					if (clothesComponents[i] != null)
+					{
+						clothesComponents[i].isVisual = true;
+						clothesComponents[i].skin = skinTone;
+					}
+				}
+			}
+			else
+			{
+				Debug.LogWarning("[MobileNPCSpawnService] NPC_Client clone has no HumanClothes component; native skin/material initialization cannot run.", spawned);
+			}
+
 			CharacterController controller = spawned.GetComponent<CharacterController>();
 			// Zombie.tick() performs a one-time downward CharacterController.Move after
 			// spawning so the capsule resolves against Unturned's Agent/world collision.
