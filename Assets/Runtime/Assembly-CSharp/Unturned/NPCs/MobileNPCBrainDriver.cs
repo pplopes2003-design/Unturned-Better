@@ -101,20 +101,87 @@ namespace SDG.Unturned
 			PublishDecisionIfChanged();
 		}
 
-		/// <summary>Call when server perception detects nearby incoming gunfire.</summary>
+		/// <summary>Call when server perception detects incoming gunfire without a known source.</summary>
 		public void ReportIncomingFire()
 		{
+			ReportIncomingFire(transform.position, null);
+		}
+
+		/// <summary>
+		/// Reacts to a gunshot stimulus: suppresses aim, investigates the shooter's last
+		/// known position, and attempts to move behind nearby geometry instead of standing exposed.
+		/// </summary>
+		public void ReportIncomingFire(Vector3 threatPosition, Transform threatTransform)
+		{
 			if (!CanAcceptServerInput)
-			{
 				return;
-			}
 
 			tactics.ReportIncomingFire(Time.time);
 			MobileNPCHumanoidAim aim = GetComponent<MobileNPCHumanoidAim>();
 			if (aim != null)
-			{
 				aim.ReportSuppression();
+
+			// Preserve an already-visible combat target; otherwise search the gunshot source.
+			if (brain.CurrentState != MobileNPCBrain.State.Pursuing || brain.Target == null)
+				brain.ReportNoise(threatPosition, Time.time, 25f);
+
+			Vector3? coverPoint = TryFindNearbyCoverPoint(threatPosition);
+			if (tactics.TryChooseDefensiveGoal(transform.position, coverPoint, threatPosition, Time.time)
+				&& tactics.CurrentGoal == MobileNPCTactics.Goal.Retreat && !tactics.HasTacticalDestination)
+			{
+				Vector3 away = transform.position - threatPosition;
+				away.y = 0f;
+				if (away.sqrMagnitude > 0.01f)
+				{
+					Vector3 candidate = transform.position + away.normalized * 9f;
+					if (MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, 12f, 8f, ~0, 38f,
+						out Vector3 safeRetreat, out _))
+						tactics.ReportValidatedRetreatPoint(safeRetreat, Time.time);
+				}
 			}
+			PublishDecisionIfChanged();
+		}
+
+		private Vector3? TryFindNearbyCoverPoint(Vector3 threatPosition)
+		{
+			Vector3 away = transform.position - threatPosition;
+			away.y = 0f;
+			if (away.sqrMagnitude < 0.01f)
+				away = -transform.forward;
+			away.Normalize();
+
+			// Sample a compact fan behind and to either side of the NPC. A candidate is
+			// accepted only when safe ground exists and world geometry blocks the threat ray.
+			float[] angles = { -70f, -40f, -20f, 0f, 20f, 40f, 70f };
+			float[] distances = { 4f, 7f, 10f };
+			for (int d = 0; d < distances.Length; ++d)
+			{
+				for (int a = 0; a < angles.Length; ++a)
+				{
+					Vector3 direction = Quaternion.AngleAxis(angles[a], Vector3.up) * away;
+					Vector3 rawCandidate = transform.position + direction * distances[d];
+					if (!MobileNPCSpawnService.TryFindSafeGroundPosition(rawCandidate, 12f, 8f, ~0, 38f,
+						out Vector3 candidate, out _))
+						continue;
+
+					Vector3 rayOrigin = threatPosition + Vector3.up * 1.4f;
+					Vector3 rayTarget = candidate + Vector3.up * 1.0f;
+					Vector3 rayOffset = rayTarget - rayOrigin;
+					if (rayOffset.sqrMagnitude < 0.1f)
+						continue;
+
+					if (Physics.Raycast(rayOrigin, rayOffset.normalized, out RaycastHit hit,
+						rayOffset.magnitude, ~0, QueryTriggerInteraction.Ignore))
+					{
+						Player hitPlayer = hit.transform.GetComponent<Player>();
+						if (hitPlayer == null)
+							hitPlayer = hit.transform.GetComponentInParent<Player>();
+						if (hitPlayer == null && (candidate - transform.position).sqrMagnitude > 1f)
+							return candidate;
+					}
+				}
+			}
+			return null;
 		}
 
 		/// <summary>
