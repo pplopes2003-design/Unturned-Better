@@ -60,20 +60,24 @@ namespace SDG.Unturned
 			}
 			MobileNPCHumanoidDisposition targetNPC = targetTransform.GetComponent<MobileNPCHumanoidDisposition>();
 			if (targetNPC == null)
-			{
 				targetNPC = targetTransform.GetComponentInParent<MobileNPCHumanoidDisposition>();
-			}
+			Zombie targetZombie = targetTransform.GetComponent<Zombie>();
+			if (targetZombie == null)
+				targetZombie = targetTransform.GetComponentInParent<Zombie>();
 
 			MobileNPCHumanoidVitals targetVitals = targetNPC != null ? targetNPC.GetComponent<MobileNPCHumanoidVitals>() : null;
 			if (targetPlayer != null)
 			{
 				if (targetPlayer.life == null || targetPlayer.life.isDead)
-				{
 					return;
-				}
 			}
-			else if (targetNPC == null || targetVitals == null || targetVitals.IsDead
-				|| !MobileNPCHumanoidDisposition.AreHostile(GetComponent<MobileNPCHumanoidDisposition>(), targetNPC))
+			else if (targetNPC != null)
+			{
+				if (targetVitals == null || targetVitals.IsDead
+					|| !MobileNPCHumanoidDisposition.AreHostile(GetComponent<MobileNPCHumanoidDisposition>(), targetNPC))
+					return;
+			}
+			else if (targetZombie == null || targetZombie.isDead)
 			{
 				return;
 			}
@@ -138,21 +142,25 @@ namespace SDG.Unturned
 				if (hitPlayer == null) hitPlayer = nearestTransform.GetComponentInParent<Player>();
 				if (hitPlayer != targetPlayer) return;
 			}
-			else
+			else if (targetNPC != null)
 			{
 				MobileNPCHumanoidDisposition hitNPC = nearestTransform.GetComponent<MobileNPCHumanoidDisposition>();
 				if (hitNPC == null) hitNPC = nearestTransform.GetComponentInParent<MobileNPCHumanoidDisposition>();
 				if (hitNPC != targetNPC) return;
 			}
-
-			if (targetPlayer != null)
-			{
-				TryAttack(targetPlayer, offset.normalized);
-			}
 			else
 			{
-				TryAttack(targetNPC, offset.normalized);
+				Zombie hitZombie = nearestTransform.GetComponent<Zombie>();
+				if (hitZombie == null) hitZombie = nearestTransform.GetComponentInParent<Zombie>();
+				if (hitZombie != targetZombie) return;
 			}
+
+			if (targetPlayer != null)
+				TryAttack(targetPlayer, offset.normalized);
+			else if (targetNPC != null)
+				TryAttack(targetNPC, offset.normalized);
+			else
+				TryAttack(targetZombie, offset.normalized);
 		}
 
 		/// <summary>Damages an opposing mobile NPC using its server-authoritative vitals.</summary>
@@ -175,6 +183,22 @@ namespace SDG.Unturned
 			nextAttackTime = Time.time + attackCooldown;
 			AttackStarted?.Invoke();
 			return targetVitals.ApplyDamage(attackDamage, attackDirection.normalized * attackDamage);
+		}
+
+		/// <summary>Damages a vanilla zombie using the game's own server-side zombie damage pipeline.</summary>
+		public bool TryAttack(Zombie targetZombie, Vector3 attackDirection)
+		{
+			if (!Provider.isServer || targetZombie == null || targetZombie.isDead || Time.time < nextAttackTime
+				|| (targetZombie.transform.position - transform.position).sqrMagnitude > attackRange * attackRange)
+				return false;
+
+			nextAttackTime = Time.time + attackCooldown;
+			AttackStarted?.Invoke();
+			ushort damage = (ushort)Mathf.Clamp(Mathf.RoundToInt(attackDamage), 1, ushort.MaxValue);
+			targetZombie.askDamage(damage, attackDirection.sqrMagnitude > 0.0001f
+				? attackDirection.normalized * damage : transform.forward * damage,
+				out _, out _, trackKill: false, dropLoot: true);
+			return true;
 		}
 
 		private Player ResolveTargetPlayer()
