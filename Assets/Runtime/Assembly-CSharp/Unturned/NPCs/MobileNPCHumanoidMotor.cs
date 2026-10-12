@@ -3,6 +3,7 @@
 // Please refer to the included LICENSE.txt for copyright notice and license details. //
 ////////////////////////////////////////////////////////////////////////////////////////
 using System.Collections.Generic;
+using SDG.Framework.Water;
 using UnityEngine;
 
 namespace SDG.Unturned
@@ -26,6 +27,12 @@ namespace SDG.Unturned
 		[SerializeField, Min(0.05f)] private float stoppingDistance = 0.65f;
 		[SerializeField, Min(0.1f)] private float gravity = 20.0f;
 		[SerializeField] private bool runWhenPursuing = true;
+
+		[Header("Swimming")]
+		[SerializeField, Min(0.1f)] private float swimSpeed = 1.8f;
+		[SerializeField, Min(0.1f)] private float swimSurfaceOffset = 1.0f;
+		[SerializeField, Min(0.1f)] private float swimVerticalCorrection = 2.0f;
+		[SerializeField, Min(0.1f)] private float swimMaximumVerticalSpeed = 1.5f;
 
 		[Header("Home territory")]
 		[SerializeField, Min(5f)] private float homeTerritoryRadius = 45f;
@@ -187,8 +194,18 @@ namespace SDG.Unturned
 				return;
 			}
 
-			// Low-frequency guard against transient terrain-collision failures. Normal movement still uses CharacterController.Move.
-			if (Time.time >= nextGroundSafetyCheckTime)
+			// Unturned water volumes are queryable even on the server. Detect water before
+			// ground recovery so an intentional swim is never mistaken for a terrain fall.
+			bool isUnderwater = WaterUtility.isPointUnderwater(
+				transform.position + Vector3.up * Mathf.Min(0.9f, characterController.height * 0.5f),
+				out WaterVolume waterVolume);
+			float waterSurfaceY = isUnderwater
+				? WaterUtility.getWaterSurfaceElevation(waterVolume, transform.position)
+				: float.NegativeInfinity;
+
+			// Low-frequency guard against transient terrain-collision failures. Do not
+			// teleport a swimmer toward ground while it is inside a water volume.
+			if (!isUnderwater && Time.time >= nextGroundSafetyCheckTime)
 			{
 				nextGroundSafetyCheckTime = Time.time + 0.5f;
 				RecoverFromUnexpectedFall();
@@ -326,22 +343,33 @@ namespace SDG.Unturned
 
 			// Match the player's grounded handling: CharacterController.isGrounded alone can be
 			// one frame behind, so confirm contact with the same short BLOCK_COLLISION sphere cast.
-			bool groundedBeforeMove = IsGroundedUsingPlayerProbe();
-			if (groundedBeforeMove && velocity.y < 0.0f)
+			bool groundedBeforeMove = !isUnderwater && IsGroundedUsingPlayerProbe();
+			if (isUnderwater)
 			{
-				// A small constant downward velocity can accumulate into visible sinking
-				// when a map's terrain collider is raycastable but does not resolve the
-				// CharacterController contact reliably. Stay grounded without pushing the
-				// capsule through the surface; gravity resumes as soon as the probe fails.
-				velocity.y = 0.0f;
+				// Simple buoyant locomotion: hold the root just below the water surface,
+				// rather than applying ground gravity while the capsule is submerged.
+				// Horizontal movement still follows the current AI destination and collision.
+				float desiredRootY = waterSurfaceY - Mathf.Max(0.5f, swimSurfaceOffset);
+				float verticalError = desiredRootY - transform.position.y;
+				velocity.y = Mathf.Clamp(verticalError * Mathf.Max(0.1f, swimVerticalCorrection),
+					-Mathf.Max(0.1f, swimMaximumVerticalSpeed), Mathf.Max(0.1f, swimMaximumVerticalSpeed));
+				motion.x = planarDirection.x * Mathf.Max(0.1f, swimSpeed);
+				motion.z = planarDirection.z * Mathf.Max(0.1f, swimSpeed);
+				motion.y = velocity.y;
 			}
+			else
+			{
+				if (groundedBeforeMove && velocity.y < 0.0f)
+				{
+					// Avoid pushing the capsule through map surfaces when grounded.
+					velocity.y = 0.0f;
+				}
 
-			// PlayerMovement applies Unity gravity with a 3x multiplier while airborne and
-			// clamps terminal velocity. Keep the NPC's configurable gravity, but preserve the
-			// same integration shape so falling and ground contact behave consistently.
-			velocity.y += Physics.gravity.y * (gravity / 9.81f) * deltaTime * 3.0f;
-			velocity.y = Mathf.Max(-100.0f, velocity.y);
-			motion.y = velocity.y;
+				// PlayerMovement applies Unity gravity with a 3x multiplier while airborne.
+				velocity.y += Physics.gravity.y * (gravity / 9.81f) * deltaTime * 3.0f;
+				velocity.y = Mathf.Max(-100.0f, velocity.y);
+				motion.y = velocity.y;
+			}
 
 			CollisionFlags collision = characterController.Move(motion * deltaTime);
 			if ((collision & CollisionFlags.Below) != 0 && velocity.y < 0.0f)
