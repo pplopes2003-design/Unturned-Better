@@ -80,9 +80,9 @@ namespace SDG.Unturned
 
 			if (state == MenuState.ConfirmPurchase)
 			{
-				if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1))
+				if (Input.GetKeyDown(KeyCode.Keypad1))
 					ConfirmPurchase();
-				else if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2))
+				else if (Input.GetKeyDown(KeyCode.Keypad2))
 				{
 					state = MenuState.TradeStock;
 					OpenTradeMenu();
@@ -92,55 +92,55 @@ namespace SDG.Unturned
 
 			if (state == MenuState.ConfirmAlliance)
 			{
-				if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1))
+				if (Input.GetKeyDown(KeyCode.Keypad1))
 					ConfirmAllianceOffer();
-				else if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2))
+				else if (Input.GetKeyDown(KeyCode.Keypad2))
 					ShowMainMenu();
 				return;
 			}
 
-			if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1))
+			if (Input.GetKeyDown(KeyCode.Keypad1))
 			{
 				if (state == MenuState.Main)
 					OpenTradeMenu();
 				else if (state == MenuState.TradeStock)
 					SelectStockSlot(0);
 			}
-			else if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2))
+			else if (Input.GetKeyDown(KeyCode.Keypad2))
 			{
 				if (state == MenuState.Main)
 					TryOfferAlliance();
 				else if (state == MenuState.TradeStock)
 					SelectStockSlot(1);
 			}
-			else if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3))
+			else if (Input.GetKeyDown(KeyCode.Keypad3))
 			{
 				if (state == MenuState.Main)
 					ShowConversation();
 				else if (state == MenuState.TradeStock)
 					SelectStockSlot(2);
 			}
-			else if (Input.GetKeyDown(KeyCode.Alpha4) || Input.GetKeyDown(KeyCode.Keypad4))
+			else if (Input.GetKeyDown(KeyCode.Keypad4))
 			{
 				if (state == MenuState.TradeStock) SelectStockSlot(3);
 			}
-			else if (Input.GetKeyDown(KeyCode.Alpha5) || Input.GetKeyDown(KeyCode.Keypad5))
+			else if (Input.GetKeyDown(KeyCode.Keypad5))
 			{
 				if (state == MenuState.TradeStock) SelectStockSlot(4);
 			}
-			else if (Input.GetKeyDown(KeyCode.Alpha6) || Input.GetKeyDown(KeyCode.Keypad6))
+			else if (Input.GetKeyDown(KeyCode.Keypad6))
 			{
 				if (state == MenuState.TradeStock) SelectStockSlot(5);
 			}
-			else if (Input.GetKeyDown(KeyCode.Alpha7) || Input.GetKeyDown(KeyCode.Keypad7))
+			else if (Input.GetKeyDown(KeyCode.Keypad7))
 			{
 				if (state == MenuState.TradeStock) SelectStockSlot(6);
 			}
-			else if (Input.GetKeyDown(KeyCode.Alpha8) || Input.GetKeyDown(KeyCode.Keypad8))
+			else if (Input.GetKeyDown(KeyCode.Keypad8))
 			{
 				if (state == MenuState.TradeStock) SelectStockSlot(7);
 			}
-			else if (Input.GetKeyDown(KeyCode.Alpha9) || Input.GetKeyDown(KeyCode.Keypad9))
+			else if (Input.GetKeyDown(KeyCode.Keypad9))
 			{
 				if (state == MenuState.TradeStock) SelectStockSlot(8);
 			}
@@ -162,7 +162,7 @@ namespace SDG.Unturned
 				? "Mercador: tenho suprimentos para trocar."
 				: "Sobrevivente: ainda não somos aliados; posso ouvir uma proposta.";
 			PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
-				greeting + "\n1. Comércio (1 item segurado por um lote do estoque)\n2. Propor aliança (entregue 1 item segurado)\n3. Conversar\nESC. Fechar");
+				greeting + "\nTeclado numérico:\n1. Comércio (1 item segurado por um lote do estoque)\n2. Propor aliança (entregue 1 item segurado)\n3. Conversar\nESC. Fechar");
 		}
 
 		private void OpenTradeMenu()
@@ -199,7 +199,7 @@ namespace SDG.Unturned
 					.Append(asset != null ? asset.itemName : "Item " + item.id)
 					.Append(" (x").Append(item.amount).Append(")\n");
 			}
-			message.Append("Pressione o número do item desejado. ESC para fechar.");
+			message.Append("Use o teclado numérico (1-9) para escolher o item. ESC para fechar.");
 			state = MenuState.TradeStock;
 			PlayerUI.message(EPlayerMessage.NPC_CUSTOM, message.ToString());
 		}
@@ -238,7 +238,7 @@ namespace SDG.Unturned
 			PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
 				"Confirmar troca?\nVocê entrega: 1 " + heldAsset.itemName
 				+ "\nVocê recebe: " + stock.amount + "x " + (stockAsset != null ? stockAsset.itemName : "Item " + stock.id)
-				+ "\n1. Confirmar\n2. Cancelar");
+				+ "\nTeclado numérico: 1. Confirmar  |  2. Cancelar");
 		}
 
 		private void ConfirmPurchase()
@@ -299,7 +299,7 @@ namespace SDG.Unturned
 			PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
 				"Proposta de aliança: entregar 1 " + heldAsset.itemName
 				+ " para que o sobrevivente se una à facção dos sobreviventes e lute contra saqueadores hostis.\n"
-				+ "A aliança ainda não ativa escolta pessoal nem combate contra zumbis.\n1. Confirmar oferta\n2. Cancelar");
+				+ "A aliança ainda não ativa escolta pessoal nem combate contra zumbis.\nTeclado numérico: 1. Confirmar oferta  |  2. Cancelar");
 		}
 
 		private void ConfirmAllianceOffer()
