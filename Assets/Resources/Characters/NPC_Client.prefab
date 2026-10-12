@@ -1079,7 +1079,6 @@ Animation:
   - {fileID: 7400014, guid: a15425b0cf0adb946ba9171959956cf5, type: 3}
   - {fileID: 7400016, guid: a15425b0cf0adb946ba9171959956cf5, type: 3}
   - {fileID: 7400006, guid: a15425b0cf0adb946ba9171959956cf5, type: 3}
-  # Explicit locomotion clips from Human/Basic/Move/Animation.fbx.
   - {fileID: 7400008, guid: 76973de1820ed5c4d91df02d8aacd47f, type: 3}
   - {fileID: 7400010, guid: 76973de1820ed5c4d91df02d8aacd47f, type: 3}
   m_WrapMode: 0
