@@ -158,7 +158,7 @@ namespace SDG.Unturned
 			{
 				centralStoragePlaced = true;
 				centralStorage = placedBarricade != null
-					? placedBarricade.GetComponent<InteractableStorage>()
+					? placedBarricade.GetComponentInChildren<InteractableStorage>(true)
 					: null;
 				TryTransferSuppliesToCentralStorage();
 			}
