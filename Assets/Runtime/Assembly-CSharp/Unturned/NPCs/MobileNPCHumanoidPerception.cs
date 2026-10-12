@@ -73,6 +73,16 @@ namespace SDG.Unturned
 			MobileNPCHumanoidDisposition npcCandidate = disposition.CanEngageMobileNPCs ? FindVisibleNPC() : null;
 			Zombie zombieCandidate = FindVisibleZombie();
 
+			// A critically wounded survivor should break contact with nearby zombies instead
+			// of continuing to trade melee hits until death. Only initiate this once per
+			// retreat so repeated perception scans do not keep resetting its escape route.
+			MobileNPCHumanoidVitals ownVitals = GetComponent<MobileNPCHumanoidVitals>();
+			if (zombieCandidate != null && ownVitals != null && ownVitals.HealthFraction <= 0.22f
+				&& brain.CurrentGoal != MobileNPCTactics.Goal.Retreat)
+			{
+				brain.ReportIncomingFire(zombieCandidate.transform.position, zombieCandidate.transform);
+			}
+
 			// Players have priority over hostile mobile NPCs. A previously selected
 			// player also retains target priority during the brain's short occlusion
 			// memory; do not replace that target with a nearer NPC while the player is
