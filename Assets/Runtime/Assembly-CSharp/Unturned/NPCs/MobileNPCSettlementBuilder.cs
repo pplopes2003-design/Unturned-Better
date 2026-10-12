@@ -119,7 +119,7 @@ namespace SDG.Unturned
 			{
 				// If no suitable buildable is carried, try one safe vanilla recipe before
 				// the next construction interval. Ingredients are never invented.
-				if (inventory.TryCraftBuildableForSettlementServer())
+				if (inventory.TryCraftBuildableForSettlementServer(centralStorage != null ? centralStorage.items : null))
 					Debug.Log("[MobileNPCSettlementBuilder] Crafted a buildable for the settlement; placement will be retried next interval.");
 				return;
 			}
