@@ -257,18 +257,31 @@ namespace SDG.Unturned
 					continue;
 
 				Vector3 direction = offset.normalized;
-				if (Vector3.Angle(transform.forward, direction) > fieldOfView * 0.5f)
+				// Close threats are allowed to trigger a defensive response from any side.
+				// This prevents a zombie reaching the NPC's back from being ignored solely
+				// because the NPC happened to be roaming in the opposite direction.
+				if (Vector3.Angle(transform.forward, direction) > fieldOfView * 0.5f
+					&& distanceSquared > 64f)
 					continue;
 
-				Transform nearestTransform = FindNearestSightTransform(eye, direction, Mathf.Sqrt(distanceSquared));
+				float distance = Mathf.Sqrt(distanceSquared);
+				Transform nearestTransform = FindNearestSightTransform(eye, direction, distance);
 				if (nearestTransform == null)
-					continue;
-
-				Zombie hitZombie = nearestTransform.GetComponent<Zombie>();
-				if (hitZombie == null)
-					hitZombie = nearestTransform.GetComponentInParent<Zombie>();
-				if (hitZombie != candidate)
-					continue;
+				{
+					// Some zombie prefabs expose their damage collider differently from the
+					// sight ray. Accept only a truly unobstructed ray as a fallback; a wall
+					// hit still blocks acquisition.
+					if (Physics.Linecast(eye, target, obstructionMask, QueryTriggerInteraction.Ignore))
+						continue;
+				}
+				else
+				{
+					Zombie hitZombie = nearestTransform.GetComponent<Zombie>();
+					if (hitZombie == null)
+						hitZombie = nearestTransform.GetComponentInParent<Zombie>();
+					if (hitZombie != candidate)
+						continue;
+				}
 
 				best = candidate;
 				bestDistanceSquared = distanceSquared;
