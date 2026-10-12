@@ -150,3 +150,12 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - [ ] Verify `/mobilenpc spawn` uses the manual test-spawn role selected in the menu, and invalid arguments print usage.
 - [ ] At the population cap or with NPCs disabled, verify the chat command reports failure and does not exceed the cap.
 - [ ] Verify this developer chat command refuses dedicated-server/multiplayer use; multiplayer command authorization and replication are not implemented.
+
+
+## 12. Vanilla zombie stimulus and investigation regressions
+- [ ] Leave the player stationary without firing or making noise; verify vanilla zombies do not spontaneously abandon idle/wander behavior to investigate random destinations.
+- [ ] Fire one shot and verify nearby zombies react promptly to the real shot position; repeat automatic fire from the same position and verify the short duplicate-noise throttle does not create a noticeable delay.
+- [ ] Make a loud sound while a living player is visible within 20 metres and unobstructed; verify the zombie chooses the player over the sound point or an investigation waypoint.
+- [ ] Keep a player as the selected target, then generate another noise point; verify the zombie does not abandon the player pursuit for the noise.
+- [ ] Break line of sight or move beyond the close-priority radius; verify the zombie can investigate the last known sound position and then search nearby reachable points.
+- [ ] Verify investigation pauses are brief (under 1.75 seconds), the zombie moves between local search points, and failed/unreachable points do not leave it endlessly turning in place.
