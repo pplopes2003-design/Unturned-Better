@@ -16,7 +16,8 @@ namespace SDG.Unturned
 	[RequireComponent(typeof(MobileNPCBrainDriver))]
 	public sealed class MobileNPCHumanoidPerception : MonoBehaviour
 	{
-		[SerializeField, Min(1f)] private float sightRange = 32f;
+		[SerializeField, Min(1f)] private float playerSightRange = 20f;
+		[SerializeField, Min(1f)] private float npcSightRange = 32f;
 		[SerializeField, Range(1f, 360f)] private float fieldOfView = 120f;
 		[SerializeField, Min(0.02f)] private float scanInterval = 0.2f;
 		[SerializeField, Min(0.1f)] private float eyeHeight = 1.55f;
@@ -66,9 +67,24 @@ namespace SDG.Unturned
 
 			Player playerCandidate = disposition.CanEngagePlayers ? FindVisiblePlayer() : null;
 			MobileNPCHumanoidDisposition npcCandidate = disposition.CanEngageMobileNPCs ? FindVisibleNPC() : null;
-			if (npcCandidate != null && (playerCandidate == null
-				|| (npcCandidate.transform.position - transform.position).sqrMagnitude
-				< (playerCandidate.transform.position - transform.position).sqrMagnitude))
+
+			// Players have priority over hostile mobile NPCs. A previously selected
+			// player also retains target priority during the brain's short occlusion
+			// memory; do not replace that target with a nearer NPC while the player is
+			// behind cover. Visibility remains false during occlusion, so aiming/fire
+			// integrations must still require fresh line-of-sight evidence.
+			if (playerCandidate != null)
+			{
+				visiblePlayer = playerCandidate;
+				visibleNPC = null;
+				brain.ReportVisibleTarget(playerCandidate.transform);
+			}
+			else if (HasRememberedPlayerTarget())
+			{
+				visiblePlayer = null;
+				visibleNPC = null;
+			}
+			else if (npcCandidate != null)
 			{
 				visiblePlayer = null;
 				visibleNPC = npcCandidate;
@@ -76,12 +92,8 @@ namespace SDG.Unturned
 			}
 			else
 			{
-				visiblePlayer = playerCandidate;
+				visiblePlayer = null;
 				visibleNPC = null;
-				if (playerCandidate != null)
-				{
-					brain.ReportVisibleTarget(playerCandidate.transform);
-				}
 			}
 
 			if (motor != null)
@@ -90,11 +102,27 @@ namespace SDG.Unturned
 			}
 		}
 
+		private bool HasRememberedPlayerTarget()
+		{
+			if (brain == null || brain.CurrentState != MobileNPCBrain.State.Pursuing || brain.Target == null)
+			{
+				return false;
+			}
+
+			Player selectedPlayer = brain.Target.GetComponent<Player>();
+			if (selectedPlayer == null)
+			{
+				selectedPlayer = brain.Target.GetComponentInParent<Player>();
+			}
+			return selectedPlayer != null && selectedPlayer.life != null && !selectedPlayer.life.isDead
+				&& selectedPlayer.gameObject.activeInHierarchy;
+		}
+
 		private MobileNPCHumanoidDisposition FindVisibleNPC()
 		{
 			MobileNPCRegistry.CopyActiveDrivers(candidateDrivers);
 			MobileNPCHumanoidDisposition best = null;
-			float bestDistanceSquared = sightRange * sightRange;
+			float bestDistanceSquared = npcSightRange * npcSightRange;
 			Vector3 eye = transform.position + Vector3.up * eyeHeight;
 
 			for (int i = 0; i < candidateDrivers.Count; ++i)
@@ -160,7 +188,7 @@ namespace SDG.Unturned
 		private Player FindVisiblePlayer()
 		{
 			Player best = null;
-			float bestDistanceSquared = sightRange * sightRange;
+			float bestDistanceSquared = playerSightRange * playerSightRange;
 			Vector3 eye = transform.position + Vector3.up * eyeHeight;
 
 			// Iterate the authoritative connected-player collection instead of allocating
