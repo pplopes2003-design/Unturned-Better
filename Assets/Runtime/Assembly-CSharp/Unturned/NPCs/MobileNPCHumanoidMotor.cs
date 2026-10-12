@@ -81,6 +81,14 @@ namespace SDG.Unturned
 		private Vector3 detourGoalSnapshot;
 		private float nextDetourAttemptTime;
 		private readonly List<Vector3> routeWaypoints = new List<Vector3>(16);
+		// Reuse the bounded search workspace so several blocked NPCs do not allocate
+		// five arrays and a reconstruction list on every route-planning attempt.
+		private readonly Vector3[] routeSearchPositions = new Vector3[RouteGridNodeLimit];
+		private readonly bool[] routeSearchWalkable = new bool[RouteGridNodeLimit];
+		private readonly float[] routeSearchCosts = new float[RouteGridNodeLimit];
+		private readonly int[] routeSearchPrevious = new int[RouteGridNodeLimit];
+		private readonly bool[] routeSearchClosed = new bool[RouteGridNodeLimit];
+		private readonly List<Vector3> reversedRouteScratch = new List<Vector3>(RouteGridSide);
 		private int routeWaypointIndex;
 		private float nextRoutePlanTime;
 
@@ -568,11 +576,13 @@ namespace SDG.Unturned
 				return false;
 
 			Vector3 localGoal = transform.position + Vector3.ClampMagnitude(goalOffset, RouteGridCenter * RouteGridCellSize);
-			Vector3[] positions = new Vector3[RouteGridNodeLimit];
-			bool[] walkable = new bool[RouteGridNodeLimit];
-			float[] costs = new float[RouteGridNodeLimit];
-			int[] previous = new int[RouteGridNodeLimit];
-			bool[] closed = new bool[RouteGridNodeLimit];
+			Vector3[] positions = routeSearchPositions;
+			bool[] walkable = routeSearchWalkable;
+			float[] costs = routeSearchCosts;
+			int[] previous = routeSearchPrevious;
+			bool[] closed = routeSearchClosed;
+			System.Array.Clear(walkable, 0, walkable.Length);
+			System.Array.Clear(closed, 0, closed.Length);
 			for (int i = 0; i < RouteGridNodeLimit; ++i)
 			{
 				costs[i] = float.PositiveInfinity;
@@ -708,7 +718,8 @@ namespace SDG.Unturned
 			if (goal < 0 || previous[goal] < 0)
 				return false;
 
-			List<Vector3> reversed = new List<Vector3>(RouteGridSide);
+			List<Vector3> reversed = reversedRouteScratch;
+			reversed.Clear();
 			int cursor = goal;
 			while (cursor != start && cursor >= 0 && reversed.Count < RouteGridNodeLimit)
 			{
