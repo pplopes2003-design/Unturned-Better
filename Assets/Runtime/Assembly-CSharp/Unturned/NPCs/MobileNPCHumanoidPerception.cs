@@ -30,6 +30,7 @@ namespace SDG.Unturned
 		private float nextScanTime;
 		private Player visiblePlayer;
 		private MobileNPCHumanoidDisposition visibleNPC;
+		private Zombie visibleZombie;
 		private readonly RaycastHit[] sightHits = new RaycastHit[16];
 		// Shared scratch storage avoids FindObjectsOfType allocations for every NPC scan.
 		// Unity gameplay updates run on the main thread, so this list is not concurrently accessed.
@@ -37,6 +38,7 @@ namespace SDG.Unturned
 
 		public Player VisiblePlayer => Provider.isServer ? visiblePlayer : null;
 		public MobileNPCHumanoidDisposition VisibleNPC => Provider.isServer ? visibleNPC : null;
+		public Zombie VisibleZombie => Provider.isServer ? visibleZombie : null;
 
 		private void Awake()
 		{
@@ -57,6 +59,7 @@ namespace SDG.Unturned
 			{
 				visiblePlayer = null;
 				visibleNPC = null;
+				visibleZombie = null;
 				brain.ResetServer();
 				if (motor != null)
 				{
@@ -67,6 +70,7 @@ namespace SDG.Unturned
 
 			Player playerCandidate = disposition.CanEngagePlayers ? FindVisiblePlayer() : null;
 			MobileNPCHumanoidDisposition npcCandidate = disposition.CanEngageMobileNPCs ? FindVisibleNPC() : null;
+			Zombie zombieCandidate = FindVisibleZombie();
 
 			// Players have priority over hostile mobile NPCs. A previously selected
 			// player also retains target priority during the brain's short occlusion
@@ -77,28 +81,39 @@ namespace SDG.Unturned
 			{
 				visiblePlayer = playerCandidate;
 				visibleNPC = null;
+				visibleZombie = null;
 				brain.ReportVisibleTarget(playerCandidate.transform);
 			}
 			else if (HasRememberedPlayerTarget())
 			{
 				visiblePlayer = null;
 				visibleNPC = null;
+				visibleZombie = null;
 			}
 			else if (npcCandidate != null)
 			{
 				visiblePlayer = null;
 				visibleNPC = npcCandidate;
+				visibleZombie = null;
 				brain.ReportVisibleTarget(npcCandidate.transform);
+			}
+			else if (zombieCandidate != null)
+			{
+				visiblePlayer = null;
+				visibleNPC = null;
+				visibleZombie = zombieCandidate;
+				brain.ReportVisibleTarget(zombieCandidate.transform);
 			}
 			else
 			{
 				visiblePlayer = null;
 				visibleNPC = null;
+				visibleZombie = null;
 			}
 
 			if (motor != null)
 			{
-				motor.SetTargetVisibleFromServer(visiblePlayer != null || visibleNPC != null);
+				motor.SetTargetVisibleFromServer(visiblePlayer != null || visibleNPC != null || visibleZombie != null);
 			}
 		}
 
@@ -182,6 +197,47 @@ namespace SDG.Unturned
 				bestDistanceSquared = distanceSquared;
 			}
 
+			return best;
+		}
+
+		private Zombie FindVisibleZombie()
+		{
+			List<Zombie> zombies = ZombieManager.AllZombies;
+			if (zombies == null)
+				return null;
+
+			Zombie best = null;
+			float bestDistanceSquared = npcSightRange * npcSightRange;
+			Vector3 eye = transform.position + Vector3.up * eyeHeight;
+			for (int i = 0; i < zombies.Count; ++i)
+			{
+				Zombie candidate = zombies[i];
+				if (candidate == null || candidate.isDead || !candidate.gameObject.activeInHierarchy)
+					continue;
+
+				Vector3 target = candidate.transform.position + Vector3.up * targetHeight;
+				Vector3 offset = target - eye;
+				float distanceSquared = offset.sqrMagnitude;
+				if (distanceSquared < 0.01f || distanceSquared > bestDistanceSquared)
+					continue;
+
+				Vector3 direction = offset.normalized;
+				if (Vector3.Angle(transform.forward, direction) > fieldOfView * 0.5f)
+					continue;
+
+				Transform nearestTransform = FindNearestSightTransform(eye, direction, Mathf.Sqrt(distanceSquared));
+				if (nearestTransform == null)
+					continue;
+
+				Zombie hitZombie = nearestTransform.GetComponent<Zombie>();
+				if (hitZombie == null)
+					hitZombie = nearestTransform.GetComponentInParent<Zombie>();
+				if (hitZombie != candidate)
+					continue;
+
+				best = candidate;
+				bestDistanceSquared = distanceSquared;
+			}
 			return best;
 		}
 
