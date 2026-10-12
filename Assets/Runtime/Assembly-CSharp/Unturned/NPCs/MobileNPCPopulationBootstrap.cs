@@ -116,12 +116,36 @@ namespace SDG.Unturned
             // renderers while removing legacy gameplay scripts and collision bodies.
             Renderer[] visualRenderers = visual.GetComponentsInChildren<Renderer>(true);
             int usableRendererCount = 0;
+            int activatedRendererObjects = 0;
             for (int i = 0; i < visualRenderers.Length; ++i)
             {
                 Renderer renderer = visualRenderers[i];
+                if (renderer == null)
+                {
+                    continue;
+                }
+
                 renderer.enabled = true;
                 renderer.forceRenderingOff = false;
                 renderer.allowOcclusionWhenDynamic = false;
+
+                // The source NPC visual can contain renderer objects under inactive
+                // hierarchy nodes that are normally enabled by legacy gameplay scripts.
+                // Those scripts are intentionally stripped from this mobile template,
+                // so activate the renderer's path up to (but not including) the template.
+                Transform node = renderer.transform;
+                while (node != null && node != template.transform)
+                {
+                    if (!node.gameObject.activeSelf)
+                    {
+                        node.gameObject.SetActive(true);
+                    }
+                    node = node.parent;
+                }
+                if (renderer.gameObject.activeSelf)
+                {
+                    ++activatedRendererObjects;
+                }
 
                 if (renderer is SkinnedMeshRenderer skinnedRenderer)
                 {
@@ -145,6 +169,7 @@ namespace SDG.Unturned
 
             Debug.Log("[MobileNPCPopulationBootstrap] NPC_Client visual audit: scale="
                 + visual.transform.localScale + ", renderers=" + visualRenderers.Length
+                + ", rendererObjectsActiveSelf=" + activatedRendererObjects
                 + ", usableMeshRenderers=" + usableRendererCount
                 + ", localPosition=" + visual.transform.localPosition + ".");
 
