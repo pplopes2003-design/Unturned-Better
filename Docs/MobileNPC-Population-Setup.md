@@ -62,3 +62,10 @@ The settlement builder now attempts one native item blueprint when it cannot fin
 This is an initial safe subset, not yet full parity with the player's crafting menu. Recipes using stacked-amount counting, tools-only inputs, multiple outputs, repair/refill, special operations, workstation requirements, or NPC conditions are skipped. The crafting loop does not yet withdraw ingredients from the settlement's vanilla storage container, and crafting/building progress is not persisted as a separate NPC recipe queue. These limits should be verified in the development build before expanding the supported recipe set.
 
 Suggested test: give a settlement leader the exact ingredients for a vanilla recipe that produces a barricade or structure, ensure it has no buildable in inventory, then observe the log for a successful craft and confirm that the resulting item is consumed by a later placement attempt. Repeat with a missing ingredient and confirm it does not craft.
+
+
+## NPC appearance variation
+
+The mobile NPC template now attaches an appearance component that configures the native `HumanClothes` visual system on each spawned NPC. It chooses available vanilla face, hair, and beard assets, then applies a small palette of skin and hair colors. The intent is to give each NPC a recognizable generic face and variation rather than merely tinting the same blank mesh. This reuses game assets; it does not generate new face textures or use workshop/player cosmetics.
+
+The settlement crafting attempt can now also stage missing recipe ingredients from its central vanilla storage into the leader's simulated inventory. This is limited to the same safe recipe subset documented above. Ingredients that cannot fit or are unavailable are not fabricated; staged ingredients may remain in the NPC inventory if another recipe requirement is missing.
