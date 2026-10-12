@@ -141,3 +141,12 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - [ ] Confirm one NPC appears roughly 7 metres away, faces the player, uses the configured default role, and is included in lifecycle tracking.
 - [ ] At the population cap, press F8 and verify it logs that the cap is reached without creating an extra NPC.
 - [ ] Test on uneven ground, near a building, and with population disabled; verify failures are logged rather than spawning outside safe level bounds.
+
+
+## 11. Mixed population and chat spawn command
+- [ ] In Configuration > Mobile NPCs, cycle Balanced (50% Hostile / 30% Friendly / 20% Neutral), Hostile-heavy (70/20/10), and Peaceful (20/50/30); verify settings persist after restarting.
+- [ ] Let automatic population run long enough to verify all three roles can appear and that the configured mix changes the weighted distribution over many spawns.
+- [ ] In single-player chat, enter `/mobilenpc spawn hostile`, `/mobilenpc spawn friendly`, and `/mobilenpc spawn neutral`; verify one NPC of the requested role appears nearby and faces the player.
+- [ ] Verify `/mobilenpc spawn` uses the manual test-spawn role selected in the menu, and invalid arguments print usage.
+- [ ] At the population cap or with NPCs disabled, verify the chat command reports failure and does not exceed the cap.
+- [ ] Verify this developer chat command refuses dedicated-server/multiplayer use; multiplayer command authorization and replication are not implemented.
