@@ -39,7 +39,7 @@ namespace SDG.Unturned
 		[SerializeField, Range(0f, 60f)] private float roamingMaximumSlope = 38f;
 		[SerializeField] private LayerMask roamingGroundMask = ~0;
 
-		[Header("Local obstacle avoidance (not full pathfinding)")]
+		[Header("Local obstacle avoidance and short detours (not global pathfinding)")]
 		[SerializeField, Min(0.5f)] private float obstacleProbeDistance = 1.6f;
 		[SerializeField, Min(0.05f)] private float obstacleProbeRadius = 0.28f;
 		[SerializeField, Range(15f, 80f)] private float obstacleAvoidanceAngle = 48f;
@@ -63,6 +63,10 @@ namespace SDG.Unturned
 		private bool useRecoverySteering;
 		private float recoverySteeringUntil;
 		private float recoverySteeringAngle;
+		private bool hasDetourWaypoint;
+		private Vector3 detourWaypoint;
+		private Vector3 detourGoalSnapshot;
+		private float nextDetourAttemptTime;
 
 		public bool IsInitialized => hasInitialized;
 		public bool IsMoving { get; private set; }
@@ -180,7 +184,27 @@ namespace SDG.Unturned
 			Vector3 destination = hasBrainDestination ? brainDriver.Destination : roamingDestination;
 			if (hasDestination)
 			{
-				Vector3 offset = destination - transform.position;
+				if (!hasDetourWaypoint || (destination - detourGoalSnapshot).sqrMagnitude > 9f)
+				{
+					hasDetourWaypoint = false;
+				}
+				if (hasDetourWaypoint && (transform.position - detourWaypoint).sqrMagnitude <= 1.5625f)
+				{
+					hasDetourWaypoint = false;
+					nextDetourAttemptTime = Time.time + 0.35f;
+				}
+				Vector3 movementDestination = hasDetourWaypoint ? detourWaypoint : destination;
+				Vector3 goalOffset = destination - transform.position;
+				goalOffset.y = 0f;
+				if (!hasDetourWaypoint && goalOffset.sqrMagnitude > stoppingDistance * stoppingDistance
+					&& Time.time >= nextDetourAttemptTime
+					&& IsObstacleBlocking(goalOffset.normalized))
+				{
+					TryCreateDetourWaypoint(destination);
+					if (hasDetourWaypoint)
+						movementDestination = detourWaypoint;
+				}
+				Vector3 offset = movementDestination - transform.position;
 				offset.y = 0.0f;
 				if (offset.sqrMagnitude > stoppingDistance * stoppingDistance)
 				{
@@ -268,6 +292,7 @@ namespace SDG.Unturned
 			if (hasRoamingDestination && !brainDriver.HasDestination)
 			{
 				hasRoamingDestination = false;
+				hasDetourWaypoint = false;
 				nextRoamingDecisionTime = Time.time + Random.Range(2f, 4f);
 				blockedMovementDuration = 0f;
 				useRecoverySteering = false;
@@ -391,6 +416,62 @@ namespace SDG.Unturned
 			}
 
 			return bestDirection;
+		}
+
+
+		/// <summary>
+		/// Creates one short-lived waypoint around a nearby obstruction. The original
+		/// brain/roaming destination remains authoritative and resumes after the detour.
+		/// This is bounded local routing, not map-wide pathfinding.
+		/// </summary>
+		private void TryCreateDetourWaypoint(Vector3 destination)
+		{
+			nextDetourAttemptTime = Time.time + 1.0f;
+			Vector3 toGoal = destination - transform.position;
+			toGoal.y = 0f;
+			if (toGoal.sqrMagnitude < 0.01f)
+				return;
+
+			Vector3 desired = toGoal.normalized;
+			Vector3 origin = transform.position + Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f);
+			float radius = Mathf.Clamp(obstacleProbeRadius, 0.05f, Mathf.Max(0.05f, characterController.radius * 0.9f));
+			float probeDistance = Mathf.Max(0.5f, obstacleProbeDistance);
+			float step = Mathf.Clamp(probeDistance + characterController.radius * 2f, 1.5f, 4.5f);
+			float bestScore = float.NegativeInfinity;
+			Vector3 bestPoint = Vector3.zero;
+
+			for (int i = 0; i < FallbackSteeringAngles.Length; ++i)
+			{
+				Vector3 direction = Quaternion.AngleAxis(FallbackSteeringAngles[i], Vector3.up) * desired;
+				if (IsObstacleBlockingAlong(origin, radius, direction, step))
+					continue;
+
+				Vector3 candidate = transform.position + direction * step;
+				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate,
+					Mathf.Max(1f, roamingSearchHeight), Mathf.Max(0f, roamingMaximumDrop),
+					roamingGroundMask, roamingMaximumSlope, out Vector3 resolved, out _))
+					continue;
+
+				Vector3 resolvedOffset = resolved - transform.position;
+				resolvedOffset.y = 0f;
+				if (resolvedOffset.sqrMagnitude < 1f)
+					continue;
+
+				float progress = Vector3.Dot(resolvedOffset.normalized, desired);
+				float score = progress * 3f - resolvedOffset.magnitude * 0.05f;
+				if (score > bestScore)
+				{
+					bestScore = score;
+					bestPoint = resolved;
+				}
+			}
+
+			if (bestScore > float.NegativeInfinity)
+			{
+				detourWaypoint = bestPoint;
+				detourGoalSnapshot = destination;
+				hasDetourWaypoint = true;
+			}
 		}
 
 		private void TryChooseRoamingDestination()
