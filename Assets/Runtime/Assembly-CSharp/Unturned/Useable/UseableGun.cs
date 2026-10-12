@@ -1690,7 +1690,18 @@ namespace SDG.Unturned
 						RuntimeGizmos.Get().Line(ray.origin, ray.origin + ray.direction * travelLength, Color.red, lifespan: 30.0f);
 #endif // WITH_BALLISTIC_TRAJECTORY_GIZMOS
 
-						if (info.player != null && equippedGunAsset.playerDamageMultiplier.damage > 1 && (DamageTool.isPlayerAllowedToDamagePlayer(player, info.player) || equippedGunAsset.bypassAllowedToDamagePlayer))
+						MobileNPCHumanoidVitals mobileNPCVitals = info.transform != null
+							? info.transform.GetComponentInParent<MobileNPCHumanoidVitals>()
+							: null;
+						if (mobileNPCVitals != null && equippedGunAsset.zombieOrPlayerDamageMultiplier.damage > 1)
+						{
+							PlayerUI.hitmark(info.point, pellets > 1, EPlayerHit.ENTITIY);
+							if (hit != EPlayerHit.CRITICAL)
+							{
+								hit = EPlayerHit.ENTITIY;
+							}
+						}
+						else if (info.player != null && equippedGunAsset.playerDamageMultiplier.damage > 1 && (DamageTool.isPlayerAllowedToDamagePlayer(player, info.player) || equippedGunAsset.bypassAllowedToDamagePlayer))
 						{
 							if (hit != EPlayerHit.CRITICAL)
 							{
