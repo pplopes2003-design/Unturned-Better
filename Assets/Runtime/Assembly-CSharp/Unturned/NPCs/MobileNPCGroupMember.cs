@@ -255,6 +255,57 @@ namespace SDG.Unturned
 			GroupId = 0;
 		}
 
+		/// <summary>Restores a saved group identity and shared settlement anchor after snapshot loading.</summary>
+		public bool RestoreGroupMembershipServer(int savedGroupId, Vector3 savedAnchor, bool hasSettlement)
+		{
+			if (!Provider.isServer || !initialized || leftGroup || savedGroupId <= 0
+				|| float.IsNaN(savedAnchor.x) || float.IsInfinity(savedAnchor.x)
+				|| float.IsNaN(savedAnchor.y) || float.IsInfinity(savedAnchor.y)
+				|| float.IsNaN(savedAnchor.z) || float.IsInfinity(savedAnchor.z))
+				return false;
+
+			MobileNPCHumanoidDisposition.Role role = disposition != null
+				? disposition.CurrentRole : MobileNPCHumanoidDisposition.Role.Neutral;
+			MobileNPCFaction.Id faction = GetCurrentFaction(role);
+			if (groups.TryGetValue(savedGroupId, out GroupRecord target))
+			{
+				PruneDeadMembers(target);
+				if (target.Role != role || target.Faction != faction || target.Members.Count >= MaximumGroupSize)
+					return false;
+			}
+			else
+			{
+				target = new GroupRecord
+				{
+					Id = savedGroupId,
+					Anchor = savedAnchor,
+					Role = role,
+					Faction = faction,
+					HasSettlement = hasSettlement
+				};
+				groups.Add(savedGroupId, target);
+			}
+
+			if (GroupId != savedGroupId)
+				RemoveFromCurrentGroupServer(false);
+
+			GroupId = target.Id;
+			GroupAnchor = target.Anchor;
+			target.Members.Add(this);
+			if (target.Leader == null)
+				target.Leader = this;
+			if (hasSettlement && !target.HasSettlement)
+			{
+				target.Anchor = savedAnchor;
+				target.HasSettlement = true;
+				GroupAnchor = savedAnchor;
+			}
+			if (motor != null)
+				motor.TrySetHomePositionServer(target.Anchor);
+			nextGroupId = Mathf.Max(nextGroupId, savedGroupId + 1);
+			return true;
+		}
+
 		/// <summary>Clears volatile group state between loaded maps.</summary>
 		public static void ResetAllServerGroups()
 		{
