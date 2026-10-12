@@ -68,6 +68,7 @@ namespace SDG.Unturned
 				return;
 			}
 
+			ClearDeadSelectedTarget();
 			Player playerCandidate = disposition.CanEngagePlayers ? FindVisiblePlayer() : null;
 			MobileNPCHumanoidDisposition npcCandidate = disposition.CanEngageMobileNPCs ? FindVisibleNPC() : null;
 			Zombie zombieCandidate = FindVisibleZombie();
@@ -115,6 +116,40 @@ namespace SDG.Unturned
 			{
 				motor.SetTargetVisibleFromServer(visiblePlayer != null || visibleNPC != null || visibleZombie != null);
 			}
+		}
+
+		private void ClearDeadSelectedTarget()
+		{
+			if (brain == null || brain.CurrentState != MobileNPCBrain.State.Pursuing || brain.Target == null)
+				return;
+
+			Transform selected = brain.Target;
+			Player selectedPlayer = selected.GetComponent<Player>();
+			if (selectedPlayer == null)
+				selectedPlayer = selected.GetComponentInParent<Player>();
+			if (selectedPlayer != null)
+			{
+				if (selectedPlayer.life == null || selectedPlayer.life.isDead)
+					brain.ResetServer();
+				return;
+			}
+
+			MobileNPCHumanoidDisposition selectedNPC = selected.GetComponent<MobileNPCHumanoidDisposition>();
+			if (selectedNPC == null)
+				selectedNPC = selected.GetComponentInParent<MobileNPCHumanoidDisposition>();
+			if (selectedNPC != null)
+			{
+				MobileNPCHumanoidVitals vitals = selectedNPC.GetComponent<MobileNPCHumanoidVitals>();
+				if (vitals == null || vitals.IsDead || !selectedNPC.gameObject.activeInHierarchy)
+					brain.ResetServer();
+				return;
+			}
+
+			Zombie selectedZombie = selected.GetComponent<Zombie>();
+			if (selectedZombie == null)
+				selectedZombie = selected.GetComponentInParent<Zombie>();
+			if (selectedZombie != null && (selectedZombie.isDead || !selectedZombie.gameObject.activeInHierarchy))
+				brain.ResetServer();
 		}
 
 		private bool HasRememberedPlayerTarget()
