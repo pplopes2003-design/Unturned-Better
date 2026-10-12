@@ -17,6 +17,9 @@ namespace SDG.Unturned
 	{
 		[SerializeField, Min(1)] private int capacity = 12;
 		private readonly List<Item> slots = new List<Item>();
+		// Runtime-only identity keeps duplicate gun assets independently addressable.
+		private readonly List<uint> slotInstanceIDs = new List<uint>();
+		private uint nextSlotInstanceID = 1;
 
 		public int Capacity => Mathf.Max(1, capacity);
 		public int UsedSlots => slots.Count;
@@ -40,6 +43,7 @@ namespace SDG.Unturned
 				: new byte[0];
 			slots.Add(new Item(transferredItem.id, transferredItem.amount,
 				transferredItem.quality, stateCopy));
+			slotInstanceIDs.Add(AllocateSlotInstanceID());
 			return true;
 		}
 
@@ -71,10 +75,16 @@ namespace SDG.Unturned
 		/// <summary>Chooses the best stored vanilla gun using its range, fire delay and condition.</summary>
 		public bool TryGetBestGun(out Item gunSnapshot, out ItemGunAsset gunAsset)
 		{
+			return TryGetBestGun(out uint ignoredInstanceID, out gunSnapshot, out gunAsset);
+		}
+
+		/// <summary>Chooses the best gun and returns its stable runtime slot identity.</summary>
+		public bool TryGetBestGun(out uint instanceID, out Item gunSnapshot, out ItemGunAsset gunAsset)
+		{
+			instanceID = 0;
 			gunSnapshot = null;
 			gunAsset = null;
 			if (!Provider.isServer) return false;
-
 			float bestScore = float.MinValue;
 			for (int index = 0; index < slots.Count; ++index)
 			{
@@ -82,18 +92,17 @@ namespace SDG.Unturned
 				if (stored == null) continue;
 				ItemGunAsset candidate = Assets.find(EAssetType.ITEM, stored.id) as ItemGunAsset;
 				if (candidate == null) continue;
-
 				float score = Mathf.Clamp(candidate.range, 0f, 300f) * 0.6f
 					+ (255f - candidate.firerate) * 0.08f
 					+ Mathf.Clamp(stored.quality, 0, 100) * 0.05f;
 				if (score <= bestScore) continue;
-
 				bestScore = score;
 				byte[] stateCopy = stored.state != null ? (byte[])stored.state.Clone() : new byte[0];
 				gunSnapshot = new Item(stored.id, stored.amount, stored.quality, stateCopy);
 				gunAsset = candidate;
+				instanceID = slotInstanceIDs[index];
 			}
-			return gunSnapshot != null && gunAsset != null;
+			return gunSnapshot != null && gunAsset != null && instanceID != 0;
 		}
 
 		/// <summary>Finds the first stored magazine whose calibers intersect the gun's accepted magazine calibers.</summary>
@@ -119,46 +128,81 @@ namespace SDG.Unturned
 			return false;
 		}
 
-		/// <summary>Consumes the first stored item in a vanilla category, returning a defensive snapshot.</summary>
-		/// <summary>Checks whether the selected gun has a writable vanilla state before consuming ammunition.</summary>
+		/// <summary>Checks whether the selected gun has a writable vanilla state.</summary>
 		public bool CanUpdateGunAmmoServer(ushort gunID)
 		{
 			if (!Provider.isServer || gunID == 0) return false;
 			for (int index = 0; index < slots.Count; ++index)
-			{
-				Item stored = slots[index];
-				if (stored == null || stored.id != gunID) continue;
-				return stored.state != null && stored.state.Length >= 11
-					&& Assets.find(EAssetType.ITEM, stored.id) is ItemGunAsset;
-			}
+				if (slots[index] != null && slots[index].id == gunID)
+					return CanUpdateGunAmmoServer(slotInstanceIDs[index]);
 			return false;
 		}
 
-		/// <summary>Persists the simulated loaded magazine and round count into the stored gun state.</summary>
+		public bool CanUpdateGunAmmoServer(uint instanceID)
+		{
+			if (!Provider.isServer || instanceID == 0) return false;
+			int index = FindSlotByInstanceID(instanceID);
+			if (index < 0) return false;
+			Item stored = slots[index];
+			return stored != null && stored.state != null && stored.state.Length >= 11
+				&& Assets.find(EAssetType.ITEM, stored.id) is ItemGunAsset;
+		}
+
+		/// <summary>Persists ammo state into the exact stored gun instance.</summary>
 		public bool TryUpdateGunAmmoServer(ushort gunID, byte roundsRemaining, ushort? loadedMagazineID = null)
 		{
 			if (!Provider.isServer || gunID == 0) return false;
-
 			for (int index = 0; index < slots.Count; ++index)
-			{
-				Item stored = slots[index];
-				if (stored == null || stored.id != gunID) continue;
-				if (!(Assets.find(EAssetType.ITEM, stored.id) is ItemGunAsset)) return false;
-				if (stored.state == null || stored.state.Length < 11) return false;
-
-				byte[] stateCopy = (byte[])stored.state.Clone();
-				if (loadedMagazineID.HasValue)
-				{
-					byte[] magazineBytes = System.BitConverter.GetBytes(loadedMagazineID.Value);
-					stateCopy[8] = magazineBytes[0];
-					stateCopy[9] = magazineBytes[1];
-				}
-				stateCopy[10] = roundsRemaining;
-				slots[index] = new Item(stored.id, stored.amount, stored.quality, stateCopy);
-				return true;
-			}
-
+				if (slots[index] != null && slots[index].id == gunID)
+					return TryUpdateGunAmmoServer(slotInstanceIDs[index], roundsRemaining, loadedMagazineID);
 			return false;
+		}
+
+		public bool TryUpdateGunAmmoServer(uint instanceID, byte roundsRemaining, ushort? loadedMagazineID = null)
+		{
+			if (!Provider.isServer || instanceID == 0) return false;
+			int index = FindSlotByInstanceID(instanceID);
+			if (index < 0) return false;
+			Item stored = slots[index];
+			if (stored == null || !(Assets.find(EAssetType.ITEM, stored.id) is ItemGunAsset)
+				|| stored.state == null || stored.state.Length < 11) return false;
+			byte[] stateCopy = (byte[])stored.state.Clone();
+			if (loadedMagazineID.HasValue)
+			{
+				byte[] magazineBytes = System.BitConverter.GetBytes(loadedMagazineID.Value);
+				stateCopy[8] = magazineBytes[0];
+				stateCopy[9] = magazineBytes[1];
+			}
+			stateCopy[10] = roundsRemaining;
+			slots[index] = new Item(stored.id, stored.amount, stored.quality, stateCopy);
+			return true;
+		}
+
+		public bool ContainsGunInstanceServer(uint instanceID)
+		{
+			return Provider.isServer && instanceID != 0 && FindSlotByInstanceID(instanceID) >= 0;
+		}
+
+		private int FindSlotByInstanceID(uint instanceID)
+		{
+			for (int index = 0; index < slotInstanceIDs.Count; ++index)
+				if (slotInstanceIDs[index] == instanceID) return index;
+			return -1;
+		}
+
+		private uint AllocateSlotInstanceID()
+		{
+			for (int attempt = 0; attempt <= slotInstanceIDs.Count + 1; ++attempt)
+			{
+				uint candidate = nextSlotInstanceID++;
+				if (nextSlotInstanceID == 0) nextSlotInstanceID = 1;
+				if (candidate == 0) continue;
+				bool used = false;
+				for (int i = 0; i < slotInstanceIDs.Count; ++i)
+					if (slotInstanceIDs[i] == candidate) { used = true; break; }
+				if (!used) return candidate;
+			}
+			return 0;
 		}
 
 		public bool TryConsumeFirstItemOfType(EItemType type, out Item consumedItem)
@@ -176,6 +220,7 @@ namespace SDG.Unturned
 				byte[] stateCopy = stored.state != null ? (byte[])stored.state.Clone() : new byte[0];
 				consumedItem = new Item(stored.id, stored.amount, stored.quality, stateCopy);
 				slots.RemoveAt(i);
+				slotInstanceIDs.RemoveAt(i);
 				return true;
 			}
 			return false;
@@ -220,6 +265,7 @@ namespace SDG.Unturned
 			byte[] stateCopy = stored.state != null ? (byte[])stored.state.Clone() : new byte[0];
 			transferredItem = new Item(stored.id, stored.amount, stored.quality, stateCopy);
 			slots.RemoveAt(slot);
+			slotInstanceIDs.RemoveAt(slot);
 			return true;
 		}
 
@@ -229,6 +275,7 @@ namespace SDG.Unturned
 			if (Provider.isServer)
 			{
 				slots.Clear();
+				slotInstanceIDs.Clear();
 			}
 		}
 	}
