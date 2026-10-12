@@ -2008,7 +2008,21 @@ namespace SDG.Unturned
 
 					ERagdollEffect ragdollEffect = player.equipment.getUseableRagdollEffect();
 
-					if (info.type == ERaycastInfoType.PLAYER)
+					// Mobile NPCs are not Players or Zombies in the vanilla raycast enum.
+					// Resolve their server-owned vitals directly from the hit collider.
+					MobileNPCHumanoidVitals mobileNPCVitals = info.transform != null
+						? info.transform.GetComponentInParent<MobileNPCHumanoidVitals>()
+						: null;
+					if (mobileNPCVitals != null)
+					{
+						if (Provider.isServer && !mobileNPCVitals.IsDead)
+						{
+							float mobileNPCDamage = equippedGunAsset.zombieOrPlayerDamageMultiplier.damage * times;
+							mobileNPCVitals.ApplyDamage(Mathf.Max(1f, mobileNPCDamage),
+								info.direction * Mathf.Max(1f, mobileNPCDamage));
+						}
+					}
+					else if (info.type == ERaycastInfoType.PLAYER)
 					{
 						if (info.player != null)
 						{
