@@ -461,8 +461,22 @@ namespace SDG.Unturned
 				if (resolvedOffset.sqrMagnitude < 1f)
 					continue;
 
-				float progress = Vector3.Dot(resolvedOffset.normalized, desired);
-				float score = progress * 3f - resolvedOffset.magnitude * 0.05f;
+				// Ground resolution can shift the candidate horizontally on uneven terrain.
+				// Re-probe the actual resolved route so that shift does not put the waypoint
+				// behind the very wall this detour was meant to avoid.
+				Vector3 resolvedDirection = resolvedOffset.normalized;
+				if (IsObstacleBlockingAlong(origin, radius, resolvedDirection,
+					Mathf.Min(resolvedOffset.magnitude, step)))
+				{
+					continue;
+				}
+
+				float progress = Vector3.Dot(resolvedDirection, desired);
+				float currentGoalDistance = toGoal.magnitude;
+				Vector3 candidateGoalOffset = destination - resolved;
+				candidateGoalOffset.y = 0f;
+				float goalDistanceImprovement = currentGoalDistance - candidateGoalOffset.magnitude;
+				float score = progress * 3f + goalDistanceImprovement * 0.5f - resolvedOffset.magnitude * 0.05f;
 				if (score > bestScore)
 				{
 					bestScore = score;
