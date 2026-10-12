@@ -19,6 +19,7 @@ namespace SDG.Unturned
 		{
 			Closed,
 			Main,
+			ChooseTradePayment,
 			TradeStock,
 			ConfirmPurchase,
 			ConfirmAlliance
@@ -30,6 +31,10 @@ namespace SDG.Unturned
 		private MenuState state;
 		private int pendingStockSlot = -1;
 		private ushort pendingCurrencyItemId;
+		private bool tradeUsesExperience;
+		private uint pendingExperienceCost;
+		private string lastPrompt;
+		private float nextPromptRefreshTime;
 
 		private void Awake()
 		{
@@ -48,7 +53,7 @@ namespace SDG.Unturned
 			if (instance == null || player == null || npc == null)
 			{
 				if (player != null)
-					PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "A interface de interação dos sobreviventes não está disponível.");
+					ShowPrompt( "A interface de interação dos sobreviventes não está disponível.");
 				return;
 			}
 
@@ -74,7 +79,28 @@ namespace SDG.Unturned
 			if (Input.GetKeyDown(KeyCode.Escape))
 			{
 				Clear();
-				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Conversa encerrada.");
+				ShowPrompt( "Conversa encerrada.");
+				return;
+			}
+
+			if (state != MenuState.Closed && !string.IsNullOrEmpty(lastPrompt) && Time.time >= nextPromptRefreshTime)
+			{
+				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, lastPrompt);
+				nextPromptRefreshTime = Time.time + 3.5f;
+			}
+
+			if (state == MenuState.ChooseTradePayment)
+			{
+				if (Input.GetKeyDown(KeyCode.Keypad1))
+				{
+					tradeUsesExperience = true;
+					OpenTradeMenu("Pagamento selecionado: pontos de experiência (XP).");
+				}
+				else if (Input.GetKeyDown(KeyCode.Keypad2))
+				{
+					tradeUsesExperience = false;
+					OpenTradeMenu("Pagamento selecionado: troca de item.");
+				}
 				return;
 			}
 
@@ -102,7 +128,7 @@ namespace SDG.Unturned
 			if (Input.GetKeyDown(KeyCode.Keypad1))
 			{
 				if (state == MenuState.Main)
-					OpenTradeMenu();
+					ShowTradePaymentMenu();
 				else if (state == MenuState.TradeStock)
 					SelectStockSlot(0);
 			}
@@ -154,17 +180,34 @@ namespace SDG.Unturned
 
 			if (activeNPC.CurrentRole == MobileNPCHumanoidDisposition.Role.Hostile)
 			{
-				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Hostil: não aceita conversa. Abaixe-se ou afaste-se.");
+				ShowPrompt( "Hostil: não aceita conversa. Abaixe-se ou afaste-se.");
 				Clear();
 				return;
 			}
 
+			string npcName = activeNPC.DisplayName;
 			string greeting = activeNPC.CurrentRole == MobileNPCHumanoidDisposition.Role.Friendly
-				? "Mercador: tenho suprimentos para trocar."
-				: "Sobrevivente: ainda não somos aliados; posso ouvir uma proposta.";
-			PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
+				? npcName + ": sou comerciante e tenho suprimentos para trocar."
+				: npcName + ": sou sobrevivente; podemos negociar uma aliança.";
+			ShowPrompt(
 				(string.IsNullOrEmpty(notice) ? "" : notice + "\n")
-				+ greeting + "\nTeclado numérico:\n1. Comércio (1 item segurado por um lote do estoque)\n2. Propor aliança (entregue 1 item segurado)\n3. Conversar\nESC. Fechar");
+				+ greeting + "\nOpções (teclado numérico):\n1. Comércio (pagar com XP ou trocar item)\n2. Propor aliança (oferecer 1 item)\n3. Conversar\nESC. Fechar");
+		}
+
+		private void ShowTradePaymentMenu()
+		{
+			if (activeNPC == null || activeNPC.CurrentRole != MobileNPCHumanoidDisposition.Role.Friendly)
+			{
+				ShowPrompt("Este sobrevivente ainda não é comerciante. Proponha uma aliança primeiro.");
+				return;
+			}
+
+			state = MenuState.ChooseTradePayment;
+			ShowPrompt(activeNPC.DisplayName + " — escolha como pagar:\n"
+				+ "1. Pontos de experiência (XP)\n"
+				+ "2. Trocar um item do inventário\n"
+				+ "Use o teclado numérico. ESC para fechar.\n"
+				+ "O Unturned base não possui carteira universal de dinheiro; a primeira opção usa XP nativo do jogo.");
 		}
 
 		private void OpenTradeMenu(string notice = null)
@@ -172,14 +215,14 @@ namespace SDG.Unturned
 			state = MenuState.Main;
 			if (activeNPC == null || activeNPC.CurrentRole != MobileNPCHumanoidDisposition.Role.Friendly)
 			{
-				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Este sobrevivente ainda não é um mercador aliado. Proponha uma aliança primeiro.");
+				ShowPrompt( "Este sobrevivente ainda não é um mercador aliado. Proponha uma aliança primeiro.");
 				return;
 			}
 
 			MobileNPCInventory inventory = activeNPC.GetComponent<MobileNPCInventory>();
 			if (inventory == null || inventory.UsedSlots == 0)
 			{
-				PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
+				ShowPrompt(
 					(string.IsNullOrEmpty(notice) ? "" : notice + "\n")
 					+ "Mercador: meu estoque está vazio. Volte quando eu tiver encontrado suprimentos.");
 				return;
@@ -190,11 +233,13 @@ namespace SDG.Unturned
 			StringBuilder message = new StringBuilder();
 			if (!string.IsNullOrEmpty(notice))
 				message.Append(notice).Append("\n");
-			message.Append("Mercador — estoque (1 item segurado por um lote completo do estoque).\n");
-			if (heldAsset == null)
+			message.Append(activeNPC.DisplayName).Append(" — estoque.\n");
+			if (tradeUsesExperience)
+				message.Append("Pagamento: XP do jogo; preço indicado em cada item.\n");
+			else if (heldAsset == null)
 				message.Append("AVISO: segure o item que deseja oferecer antes de escolher.\n");
 			else
-				message.Append("Oferta atual: ").Append(heldAsset.itemName).Append(" x1.\n");
+				message.Append("Oferta atual: ").Append(heldAsset.itemName).Append(" x1 por lote.\n");
 
 			int shown = Mathf.Min(9, inventory.UsedSlots);
 			for (int i = 0; i < shown; ++i)
@@ -204,11 +249,14 @@ namespace SDG.Unturned
 				ItemAsset asset = Assets.find(EAssetType.ITEM, item.id) as ItemAsset;
 				message.Append(i + 1).Append(". ")
 					.Append(asset != null ? asset.itemName : "Item " + item.id)
-					.Append(" (x").Append(item.amount).Append(")\n");
+					.Append(" (x").Append(item.amount).Append(")");
+				if (tradeUsesExperience)
+					message.Append(" — ").Append(GetExperiencePrice(item)).Append(" XP");
+				message.Append("\n");
 			}
 			message.Append("Use o teclado numérico (1-9) para escolher o item. ESC para fechar.");
 			state = MenuState.TradeStock;
-			PlayerUI.message(EPlayerMessage.NPC_CUSTOM, message.ToString());
+			ShowPrompt( message.ToString());
 		}
 
 		private void SelectStockSlot(int stockSlot)
@@ -220,31 +268,49 @@ namespace SDG.Unturned
 			}
 
 			MobileNPCInventory inventory = activeNPC.GetComponent<MobileNPCInventory>();
-			ItemAsset heldAsset = activePlayer.equipment != null ? activePlayer.equipment.asset as ItemAsset : null;
-			if (heldAsset == null || heldAsset.id == 0)
-			{
-				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Segure o item que deseja oferecer como pagamento e tente novamente.");
-				return;
-			}
 			if (inventory == null || !inventory.TryGetItemSnapshot(stockSlot, out Item stock) || stock == null)
 			{
 				OpenTradeMenu("Esse item não está mais no estoque. Escolha outro.");
 				return;
 			}
+
+			pendingStockSlot = stockSlot;
+			if (tradeUsesExperience)
+			{
+				pendingCurrencyItemId = 0;
+				pendingExperienceCost = GetExperiencePrice(stock);
+				state = MenuState.ConfirmPurchase;
+				ItemAsset experienceStockAsset = Assets.find(EAssetType.ITEM, stock.id) as ItemAsset;
+				ShowPrompt("Confirmar compra com XP?\nVocê paga: " + pendingExperienceCost + " XP"
+					+ "\nVocê recebe: " + stock.amount + "x " + (experienceStockAsset != null ? experienceStockAsset.itemName : "Item " + stock.id)
+					+ "\nTeclado numérico: 1. Confirmar  |  2. Cancelar");
+				return;
+			}
+
+			ItemAsset heldAsset = activePlayer.equipment != null ? activePlayer.equipment.asset as ItemAsset : null;
+			if (heldAsset == null || heldAsset.id == 0)
+			{
+				ShowPrompt("Segure o item que deseja oferecer como pagamento e tente novamente.");
+				return;
+			}
 			if (stock.id == heldAsset.id)
 			{
-				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Escolha um item diferente do que está oferecendo.");
+				ShowPrompt("Escolha um item diferente do que está oferecendo.");
 				return;
 			}
 
 			ItemAsset stockAsset = Assets.find(EAssetType.ITEM, stock.id) as ItemAsset;
-			pendingStockSlot = stockSlot;
 			pendingCurrencyItemId = heldAsset.id;
+			pendingExperienceCost = 0;
 			state = MenuState.ConfirmPurchase;
-			PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
-				"Confirmar troca?\nVocê entrega: 1 " + heldAsset.itemName
+			ShowPrompt("Confirmar troca?\nVocê entrega: 1 " + heldAsset.itemName
 				+ "\nVocê recebe: " + stock.amount + "x " + (stockAsset != null ? stockAsset.itemName : "Item " + stock.id)
 				+ "\nTeclado numérico: 1. Confirmar  |  2. Cancelar");
+		}
+
+		private static uint GetExperiencePrice(Item stock)
+		{
+			return stock == null ? 100u : (uint)Mathf.Clamp(50 + stock.amount * 10, 50, 2600);
 		}
 
 		private void ConfirmPurchase()
@@ -252,6 +318,21 @@ namespace SDG.Unturned
 			if (activeNPC == null || activePlayer == null || pendingStockSlot < 0)
 			{
 				Clear();
+				return;
+			}
+
+			if (tradeUsesExperience)
+			{
+				MobileNPCInventory experienceInventory = activeNPC.GetComponent<MobileNPCInventory>();
+				uint price = pendingExperienceCost;
+				bool purchased = MobileNPCTradeService.TryPurchaseSlotWithExperienceServer(activePlayer,
+					experienceInventory, activeNPC, pendingStockSlot, price, 4f, out string experienceError);
+				pendingStockSlot = -1;
+				pendingExperienceCost = 0;
+				state = MenuState.TradeStock;
+				OpenTradeMenu(purchased
+					? "Compra concluída; foram gastos " + price + " XP."
+					: "Compra não concluída: " + experienceError);
 				return;
 			}
 
@@ -294,13 +375,13 @@ namespace SDG.Unturned
 			ItemAsset heldAsset = activePlayer.equipment != null ? activePlayer.equipment.asset as ItemAsset : null;
 			if (heldAsset == null || heldAsset.id == 0)
 			{
-				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Para propor aliança, segure o item que deseja oferecer como pagamento.");
+				ShowPrompt( "Para propor aliança, segure o item que deseja oferecer como pagamento.");
 				return;
 			}
 
 			pendingCurrencyItemId = heldAsset.id;
 			state = MenuState.ConfirmAlliance;
-			PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
+			ShowPrompt(
 				"Proposta de aliança: entregar 1 " + heldAsset.itemName
 				+ " para que o sobrevivente se una à facção dos sobreviventes e lute contra saqueadores hostis.\n"
 				+ "A aliança ativa escolta fora de combate e defesa contra saqueadores e zumbis visíveis.\nTeclado numérico: 1. Confirmar oferta  |  2. Cancelar");
@@ -326,7 +407,7 @@ namespace SDG.Unturned
 			{
 				MobileNPCCompanionContract contract = activeNPC.GetComponent<MobileNPCCompanionContract>();
 				bool escortAssigned = contract != null && contract.AssignServer(activePlayer);
-				PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
+				ShowPrompt(
 					escortAssigned
 						? "Aliança aceita. Agora pertenço aos sobreviventes, vou acompanhar você quando estiver fora de combate e enfrentarei saqueadores hostis que detectar."
 						: "Aliança aceita. Agora pertenço aos sobreviventes e enfrentarei saqueadores hostis que detectar, mas não consegui iniciar a escolta.");
@@ -343,11 +424,18 @@ namespace SDG.Unturned
 		{
 			if (activeNPC == null)
 				return;
-			PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
+			ShowPrompt(
 				activeNPC.CurrentRole == MobileNPCHumanoidDisposition.Role.Friendly
-					? "Mercador: procuro comida, água, munição e materiais. Posso trocar suprimentos e aceitar uma oferta de aliança."
-					: "Sobrevivente: não quero briga. Se trouxer um suprimento, podemos firmar uma aliança; eu acompanho você fora de combate e enfrento saqueadores e zumbis que detectar.");
+									? activeNPC.DisplayName + ": procuro comida, água, munição e materiais. Posso trocar suprimentos e aceitar uma oferta de aliança."
+					: activeNPC.DisplayName + ": não quero briga. Se trouxer um suprimento, podemos firmar uma aliança; eu acompanho você fora de combate e enfrento saqueadores e zumbis que detectar.");
 			state = MenuState.Main;
+		}
+
+		private void ShowPrompt(string message)
+		{
+			lastPrompt = message;
+			nextPromptRefreshTime = Time.time + 3.5f;
+			PlayerUI.message(EPlayerMessage.NPC_CUSTOM, message);
 		}
 
 		private void Clear()
@@ -356,6 +444,9 @@ namespace SDG.Unturned
 			activeNPC = null;
 			pendingStockSlot = -1;
 			pendingCurrencyItemId = 0;
+			pendingExperienceCost = 0;
+			lastPrompt = null;
+			tradeUsesExperience = false;
 			state = MenuState.Closed;
 		}
 	}
