@@ -146,11 +146,18 @@ namespace SDG.Unturned
 				SaveFile save = LoadSaveFile(path, mapKey);
 				if (save == null || save.npcs == null)
 				{
-					// Do not let the next periodic save replace an unreadable snapshot with
-					// an empty file. Keep the source files untouched for manual recovery.
-					preserveExistingSnapshot = true;
-					Debug.LogWarning("[MobileNPCPersistence] No valid primary or backup snapshot was found for " + path
-						+ "; preserving existing files instead of overwriting them.");
+					// A map with no prior save is a normal first run. Only preserve files
+					// when at least one existing snapshot failed validation.
+					preserveExistingSnapshot = File.Exists(path) || File.Exists(path + ".bak");
+					if (preserveExistingSnapshot)
+					{
+						Debug.LogWarning("[MobileNPCPersistence] No valid primary or backup snapshot was found for " + path
+							+ "; preserving existing files instead of overwriting them.");
+					}
+					else
+					{
+						Debug.Log("[MobileNPCPersistence] No previous snapshot exists for " + path + "; starting a new save.");
+					}
 					return;
 				}
 				preserveExistingSnapshot = false;
