@@ -65,6 +65,13 @@ namespace SDG.Unturned
 			if (!Provider.isServer || !restoredForCurrentMap || string.IsNullOrEmpty(currentMapKey))
 				return;
 
+			// This callback currently runs from the post-load bootstrap. If the old scene
+			// has already destroyed its NPC objects, do not overwrite the outgoing snapshot
+			// with an accidental empty list; retain the last known-good save instead.
+			MobileNPCRegistry.CopyActiveDrivers(ActiveDriverScratch);
+			if (ActiveDriverScratch.Count == 0 && FailedRestoreRecords.Count == 0)
+				return;
+
 			SaveServer(currentMapKey);
 		}
 
