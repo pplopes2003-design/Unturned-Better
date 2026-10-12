@@ -76,6 +76,13 @@ namespace SDG.Unturned
 
         private void Update()
         {
+            // Development convenience: F8 requests one nearby NPC for a focused smoke test.
+            // This remains server-side and obeys the configured population cap.
+            if (Provider.isServer && Input.GetKeyDown(KeyCode.F8))
+            {
+                TrySpawnTestNPCNearPlayer();
+            }
+
             CleanupDeadBodies();
             int populationLimit = Mathf.Clamp(MobileNPCSettings.MaximumAlive, 1, 40);
             MobileNPCPersistence.TickServer(mobileNpcPrefab, populationLimit);
@@ -284,6 +291,81 @@ namespace SDG.Unturned
                     trackedNPCs.RemoveAt(i);
                 }
             }
+        }
+
+        private void TrySpawnTestNPCNearPlayer()
+        {
+            if (!MobileNPCSettings.Enabled || mobileNpcPrefab == null)
+            {
+                Debug.Log("[MobileNPCPopulationDirector] F8 test spawn skipped: mobile NPC population is disabled or prefab is missing.", this);
+                return;
+            }
+
+            int populationLimit = Mathf.Clamp(MobileNPCSettings.MaximumAlive, 1, 40);
+            if (MobileNPCRegistry.CountLivingDrivers() >= populationLimit)
+            {
+                Debug.Log("[MobileNPCPopulationDirector] F8 test spawn skipped: configured population cap is already reached (" + populationLimit + ").", this);
+                return;
+            }
+
+            Player player = FindLivingPlayer();
+            if (player == null)
+            {
+                Debug.Log("[MobileNPCPopulationDirector] F8 test spawn skipped: no living player was found.", this);
+                return;
+            }
+
+            Vector3 forward = player.transform.forward;
+            forward.y = 0f;
+            if (forward.sqrMagnitude < 0.01f)
+            {
+                forward = Vector3.forward;
+            }
+            forward.Normalize();
+
+            // Try several nearby ground positions in front of the player. This bypasses
+            // the normal distant spawn-anchor selection but still uses safe-ground checks.
+            for (int attempt = 0; attempt < 8; ++attempt)
+            {
+                float angle = (attempt * 45f) * Mathf.Deg2Rad;
+                Vector3 direction = Quaternion.Euler(0f, angle, 0f) * forward;
+                Vector3 candidate = player.transform.position + direction * 7f;
+                if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, 12f, 20f,
+                    ~0, maximumSlopeAngle, out Vector3 groundPosition, out string groundError))
+                {
+                    continue;
+                }
+
+                Vector3 offset = groundPosition - player.transform.position;
+                offset.y = 0f;
+                if (offset.sqrMagnitude < 16f)
+                {
+                    continue;
+                }
+
+                Quaternion rotation = Quaternion.LookRotation(player.transform.position - groundPosition, Vector3.up);
+                if (MobileNPCSpawnService.TrySpawnServer(mobileNpcPrefab, groundPosition, rotation,
+                    MobileNPCSettings.DefaultRole, out GameObject instance, out string spawnError))
+                {
+                    MobileNPCGroupMember groupMember = instance.GetComponent<MobileNPCGroupMember>();
+                    trackedNPCs.Add(new TrackedNPC
+                    {
+                        Instance = instance,
+                        Vitals = instance.GetComponent<MobileNPCHumanoidVitals>(),
+                        GroupId = groupMember != null ? groupMember.GroupId : 0,
+                        CleanupAt = float.PositiveInfinity
+                    });
+                    Debug.Log("[MobileNPCPopulationDirector] F8 test NPC spawned near player at " + groundPosition + ".", instance);
+                    return;
+                }
+
+                if (attempt == 7)
+                {
+                    Debug.LogWarning("[MobileNPCPopulationDirector] F8 test spawn failed. Last spawn error: " + spawnError, this);
+                }
+            }
+
+            Debug.LogWarning("[MobileNPCPopulationDirector] F8 test spawn could not find safe ground within about 7 metres of the player. Try an open, flat area.", this);
         }
 
         private static Player FindLivingPlayer()
