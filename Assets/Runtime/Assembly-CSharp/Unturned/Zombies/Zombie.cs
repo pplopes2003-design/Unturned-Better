@@ -113,6 +113,9 @@ namespace SDG.Unturned
 
 		private IUnturnedPathfindingMovementComponentInterface seeker;
 		private Player player;
+		// Mobile NPCs have their own server-authoritative vitals rather than Player.life.
+		private MobileNPCHumanoidVitals mobileNPCTarget;
+		private static readonly List<MobileNPCBrainDriver> mobileNPCTargetCandidates = new List<MobileNPCBrainDriver>(32);
 
 		/// <summary>
 		/// If zombie is stuck this was a nearby barricade potentially blocking our path.
@@ -1142,6 +1145,7 @@ namespace SDG.Unturned
 					}
 				}
 
+				mobileNPCTarget = null;
 				isHunting = true;
 				huntType = EHuntType.PLAYER;
 				isPulled = true;
@@ -1244,6 +1248,51 @@ namespace SDG.Unturned
 			}
 		}
 
+		/// <summary>
+		/// Starts a player-style pursuit against a living mobile NPC, routing melee damage
+		/// through the NPC's own server-authoritative vitals instead of Player-only APIs.
+		/// </summary>
+		public void alert(MobileNPCHumanoidVitals newTarget)
+		{
+			if (!Provider.isServer || isDead || newTarget == null || newTarget.IsDead
+				|| !newTarget.gameObject.activeInHierarchy || player != null)
+			{
+				return;
+			}
+
+			if (mobileNPCTarget == newTarget)
+			{
+				target.position = newTarget.transform.position;
+				return;
+			}
+
+			if (mobileNPCTarget != null
+				&& (mobileNPCTarget.transform.position - transform.position).sqrMagnitude
+				<= (newTarget.transform.position - transform.position).sqrMagnitude)
+			{
+				return;
+			}
+
+			isInvestigationIdle = false;
+			isReturningToSpawn = false;
+			investigationWandersRemaining = 0;
+			mobileNPCTarget = newTarget;
+			isHunting = true;
+			huntType = EHuntType.PLAYER;
+			isLeaving = false;
+			isMoving = false;
+			isStuck = false;
+			lastHunted = Time.time;
+			lastStuck = Time.time;
+			stuckSearchTimer = 0.0f;
+			target.position = newTarget.transform.position;
+			seeker.CanSearch = true;
+			seeker.CanMove = true;
+			seeker.CanTurn = true;
+			path = EZombiePath.RUSH;
+			setTicking(true);
+		}
+
 		public void alert(Vector3 newPosition, bool isStartling)
 		{
 			if (isDead)
@@ -1265,6 +1314,12 @@ namespace SDG.Unturned
 			{
 				isInvestigationIdle = false;
 				isReturningToSpawn = false;
+			}
+
+			// Do not let a noise/search waypoint replace an active living humanoid target.
+			if (mobileNPCTarget != null && !mobileNPCTarget.IsDead)
+			{
+				return;
 			}
 
 			// Start or refresh an investigation for external point alerts. A second
@@ -1384,6 +1439,72 @@ namespace SDG.Unturned
 		/// zombie has a clean line of sight. This is intentionally checked before
 		/// accepting noise/search-point destinations.
 		/// </summary>
+		private MobileNPCHumanoidVitals FindPriorityVisibleNPC()
+		{
+			if (!Provider.isServer)
+			{
+				return null;
+			}
+
+			const float prioritySightRange = 20.0f;
+			float bestDistanceSquared = prioritySightRange * prioritySightRange;
+			Vector3 eye = transform.position + Vector3.up * 1.55f;
+			MobileNPCHumanoidVitals best = null;
+			MobileNPCRegistry.CopyActiveDrivers(mobileNPCTargetCandidates);
+
+			for (int i = 0; i < mobileNPCTargetCandidates.Count; ++i)
+			{
+				MobileNPCBrainDriver driver = mobileNPCTargetCandidates[i];
+				MobileNPCHumanoidVitals candidate = driver != null ? driver.GetComponent<MobileNPCHumanoidVitals>() : null;
+				if (candidate == null || candidate.IsDead || !candidate.gameObject.activeInHierarchy)
+				{
+					continue;
+				}
+
+				Vector3 aimPoint = candidate.transform.position + Vector3.up * 1.0f;
+				Vector3 offset = aimPoint - eye;
+				float distanceSquared = offset.sqrMagnitude;
+				if (distanceSquared < 0.01f || distanceSquared > bestDistanceSquared)
+				{
+					continue;
+				}
+
+				float distance = Mathf.Sqrt(distanceSquared);
+				if (Physics.Raycast(eye, offset / distance, Mathf.Max(0.01f, distance - 0.1f),
+					RayMasks.BLOCK_SENTRY, QueryTriggerInteraction.Ignore))
+				{
+					continue;
+				}
+
+				best = candidate;
+				bestDistanceSquared = distanceSquared;
+			}
+
+			return best;
+		}
+
+		/// <summary>Called by ZombieManager so even currently idle zombies can acquire mobile NPCs.</summary>
+		public void TryAcquireVisibleMobileNPCTarget()
+		{
+			if (!Provider.isServer || isDead || player != null)
+			{
+				return;
+			}
+
+			Player visiblePlayer = FindPriorityVisiblePlayer();
+			if (visiblePlayer != null)
+			{
+				alert(visiblePlayer);
+				return;
+			}
+
+			MobileNPCHumanoidVitals visibleNPC = FindPriorityVisibleNPC();
+			if (visibleNPC != null && visibleNPC != mobileNPCTarget)
+			{
+				alert(visibleNPC);
+			}
+		}
+
 		private Player FindPriorityVisiblePlayer()
 		{
 			if (!Provider.isServer || Provider.clients == null)
@@ -1456,6 +1577,7 @@ namespace SDG.Unturned
 			}
 
 			player = null;
+			mobileNPCTarget = null;
 			targetBarricade = null;
 			targetStructure = null;
 			targetObstructionVehicle = null;
@@ -1918,6 +2040,7 @@ namespace SDG.Unturned
 			}
 
 			player = null;
+			mobileNPCTarget = null;
 			targetBarricade = null;
 			targetStructure = null;
 			targetObstructionVehicle = null;
@@ -2269,7 +2392,7 @@ namespace SDG.Unturned
 
 			if (huntType == EHuntType.PLAYER)
 			{
-				if (player == null)
+				if (player == null && mobileNPCTarget == null)
 				{
 					// The player reference can disappear when a player disconnects or is
 					// removed from the world. Preserve the last pursuit destination and
@@ -2329,6 +2452,22 @@ namespace SDG.Unturned
 					leave(true);
 					return;
 				}
+			}
+
+			if (mobileNPCTarget != null && (mobileNPCTarget.IsDead || !mobileNPCTarget.gameObject.activeInHierarchy))
+			{
+				Vector3 lastKnownPosition = target.position;
+				stop();
+				if (LevelNavigation.checkNavigation(lastKnownPosition)
+					&& (lastKnownPosition - transform.position).sqrMagnitude > 1.0f)
+				{
+					alert(lastKnownPosition, false);
+				}
+				else
+				{
+					setTicking(false);
+				}
+				return;
 			}
 
 			if (targetObstructionVehicle != null)
@@ -2582,6 +2721,13 @@ namespace SDG.Unturned
 					}
 				}
 			}
+			else if (mobileNPCTarget != null)
+			{
+				target.position = mobileNPCTarget.transform.position;
+				sqrHorizontalDistanceFromTarget = MathfEx.HorizontalDistanceSquared(target.position, transform.position);
+				verticalDistanceFromTarget = Mathf.Abs(target.position.y - transform.position.y);
+				seeker.CanTurn = true;
+			}
 			else
 			{
 				sqrHorizontalDistanceFromTarget = MathfEx.HorizontalDistanceSquared(target.position, transform.position);
@@ -2596,7 +2742,7 @@ namespace SDG.Unturned
 			{
 				// Keep player targets across region boundaries and long distances. Non-player targets
 				// retain the vanilla leash so zombies do not chase stale objects indefinitely.
-				if (sqrHorizontalDistanceFromTarget > 4096 && player == null && !zombieRegion.HasInfiniteAgroRange)
+				if (sqrHorizontalDistanceFromTarget > 4096 && player == null && mobileNPCTarget == null && !zombieRegion.HasInfiniteAgroRange)
 				{
 					leave(false);
 
@@ -2604,7 +2750,7 @@ namespace SDG.Unturned
 				}
 			}
 
-			if (player != null || targetBarricade != null || targetStructure != null || targetObstructionVehicle != null || targetPassengerVehicle != null || targetObject != null)
+			if (player != null || mobileNPCTarget != null || targetBarricade != null || targetStructure != null || targetObstructionVehicle != null || targetPassengerVehicle != null || targetObject != null)
 			{
 				if (player != null && Time.time - lastStartle > specialStartleDelay && Time.time - lastAttack > specialAttackDelay && Time.time - lastSpecial > specialUseDelay)
 				{
@@ -2957,6 +3103,11 @@ namespace SDG.Unturned
 									DamageTool.damage(player, EDeathCause.ZOMBIE, ELimb.SKULL, Provider.server, (target.position - transform.position).normalized, damage, 1.0f, out kill);
 
 									player.life.askInfect((byte) (damage / 3 * (1f - (player.skills.mastery((int) EPlayerSpeciality.DEFENSE, (int) EPlayerDefense.IMMUNITY) * 0.5f))));
+								}
+								else if (mobileNPCTarget != null)
+								{
+									Vector3 hitImpulse = (target.position - transform.position).normalized * damage;
+									mobileNPCTarget.ApplyDamage(damage, hitImpulse);
 								}
 							}
 						}
