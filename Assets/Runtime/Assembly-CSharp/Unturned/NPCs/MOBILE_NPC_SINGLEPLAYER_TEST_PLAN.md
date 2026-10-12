@@ -2,10 +2,12 @@
 
 This checklist is for in-game validation of the mobile NPC foundation. It is not evidence that these tests have already passed. Run against a disposable world/save and record the game build, map, population cap, and console output for each test.
 
-## Spawn-source implementation decision (planned, not yet wired)
-- Use the map's predefined vanilla player-spawn points as candidate anchors for mobile NPC placement, rather than inventing map-specific coordinates.
-- Treat these anchors as candidate regions only: apply a configurable offset/ring, safe-ground and slope checks, capsule occupancy, player-distance checks, and spacing from existing NPCs before spawning.
-- If a map has no usable player-spawn points or all candidates fail validation, log a bounded warning and retry later; never bypass placement safety checks.
+## Spawn-source implementation (wired; requires in-game validation)
+- The population director reads `LevelPlayers.spawns` and uses map-authored vanilla player-spawn points as regional anchors; regular and alternate spawn points are eligible.
+- The NPC is not placed directly on the player spawn point: a randomized offset/ring is used, then safe-ground, slope, capsule occupancy, player visibility, map bounds and NPC spacing checks run before creation.
+- If the map has no player-spawn points, a warning is emitted and the director retries on its next normal interval. It does not silently fall back to invented coordinates.
+- [ ] On at least two different maps, verify NPC spawn regions derive from each map's own player-spawn points and do not repeatedly place NPCs directly on top of a player spawn.
+- [ ] Test a map with no usable player spawn definitions (if available); confirm bounded interval-based warnings and no unsafe fallback spawn.
 
 ## 1. Startup and population cap
 - [ ] Launch a new single-player world on a supported map; confirm the mobile NPC bootstrap initializes without exceptions.
