@@ -10,12 +10,12 @@ namespace SDG.Unturned
 	public sealed class MenuConfigurationMobileNPCUI
 	{
 		private static SleekFullscreenBox container;
-		private static ISleekButton populationLabel;
-		private static ISleekButton difficultyButton;
-		private static ISleekButton enabledButton;
-		private static ISleekButton airdropButton;
-		private static ISleekButton roleButton;
-		private static ISleekButton mixButton;
+		private static SleekButtonIcon populationLabel;
+		private static SleekButtonIcon difficultyButton;
+		private static SleekButtonIcon enabledButton;
+		private static SleekButtonIcon airdropButton;
+		private static SleekButtonIcon roleButton;
+		private static SleekButtonIcon mixButton;
 		private static bool constructed;
 
 		public static void open()
@@ -48,30 +48,32 @@ namespace SDG.Unturned
 			MenuUI.container.AddChild(container);
 
 			populationLabel = CreateButton(-130, -100, 260, 40);
-			populationLabel.OnClicked += onClickedPopulationLabel;
-			CreateButton(-230, -100, 80, 40).OnClicked += onClickedPopulationDown;
-			CreateButton(150, -100, 80, 40).OnClicked += onClickedPopulationUp;
+			populationLabel.onClickedButton += onClickedPopulationLabel;
+			CreateButton(-230, -100, 80, 40).onClickedButton += onClickedPopulationDown;
+			CreateButton(150, -100, 80, 40).onClickedButton += onClickedPopulationUp;
 
 			difficultyButton = CreateButton(-150, -45, 300, 40);
-			difficultyButton.OnClicked += onClickedDifficulty;
+			difficultyButton.onClickedButton += onClickedDifficulty;
 			enabledButton = CreateButton(-150, 10, 300, 40);
-			enabledButton.OnClicked += onClickedEnabled;
+			enabledButton.onClickedButton += onClickedEnabled;
 			airdropButton = CreateButton(-150, 65, 300, 40);
-			airdropButton.OnClicked += onClickedAirdrop;
+			airdropButton.onClickedButton += onClickedAirdrop;
 			roleButton = CreateButton(-150, 120, 300, 40);
-			roleButton.OnClicked += onClickedRole;
+			roleButton.onClickedButton += onClickedRole;
 			mixButton = CreateButton(-170, 175, 340, 40);
-			mixButton.OnClicked += onClickedMix;
+			mixButton.onClickedButton += onClickedMix;
 
 			ISleekButton back = CreateButton(-100, 230, 200, 40);
-			back.Text = "Back";
-			back.OnClicked += onClickedBack;
+			back.text = "Back";
+			back.onClickedButton += onClickedBack;
 			RefreshLabels();
 		}
 
-		private static ISleekButton CreateButton(int x, int y, int width, int height)
+		private static SleekButtonIcon CreateButton(int x, int y, int width, int height)
 		{
-			ISleekButton button = Glazier.Get().CreateButton();
+			// This page is part of the legacy Sleek menu hierarchy. Using a Glazier
+			// button here can produce a button whose uGUI text component is absent.
+			SleekButtonIcon button = new SleekButtonIcon(null);
 			button.PositionOffset_X = x;
 			button.PositionOffset_Y = y;
 			button.PositionScale_X = 0.5f;
@@ -86,12 +88,12 @@ namespace SDG.Unturned
 		{
 			if (populationLabel == null)
 				return;
-			populationLabel.Text = "Maximum living NPCs: " + MobileNPCSettings.MaximumAlive;
-			difficultyButton.Text = "Difficulty: " + MobileNPCSettings.CurrentDifficulty;
-			enabledButton.Text = "NPC spawning/restoring: " + (MobileNPCSettings.Enabled ? "ON" : "OFF");
-			airdropButton.Text = "Airdrop contest: " + (MobileNPCSettings.AirdropContestEnabled ? "ON" : "OFF");
-			roleButton.Text = "Manual test-spawn role: " + MobileNPCSettings.DefaultRole;
-			mixButton.Text = "World population mix: " + MixLabel(MobileNPCSettings.CurrentPopulationMix);
+			populationLabel.text = "Maximum living NPCs: " + MobileNPCSettings.MaximumAlive;
+			difficultyButton.text = "Difficulty: " + MobileNPCSettings.CurrentDifficulty;
+			enabledButton.text = "NPC spawning/restoring: " + (MobileNPCSettings.Enabled ? "ON" : "OFF");
+			airdropButton.text = "Airdrop contest: " + (MobileNPCSettings.AirdropContestEnabled ? "ON" : "OFF");
+			roleButton.text = "Manual test-spawn role: " + MobileNPCSettings.DefaultRole;
+			mixButton.text = "World population mix: " + MixLabel(MobileNPCSettings.CurrentPopulationMix);
 		}
 
 		private static void onClickedPopulationDown(ISleekElement button)
