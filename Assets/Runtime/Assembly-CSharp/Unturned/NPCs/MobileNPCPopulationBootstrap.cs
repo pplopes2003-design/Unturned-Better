@@ -65,8 +65,8 @@ namespace SDG.Unturned
             template = new GameObject("MobileHumanNPC_RuntimeTemplate");
             // Unturned's zombie CharacterController runs on Agent (layer 24), not
             // Default. The game's layer collision matrix gives Agent physical
-            // collision with the world; Default does not. Keep the humanoid root on
-            // Agent while the visual children are moved to Default below.
+            // collision with the world; Default does not. Keep the physical root on
+            // Agent and preserve NPC_Client's authored render layer on its visual child.
             template.layer = LayerMasks.AGENT;
             template.SetActive(false);
 
