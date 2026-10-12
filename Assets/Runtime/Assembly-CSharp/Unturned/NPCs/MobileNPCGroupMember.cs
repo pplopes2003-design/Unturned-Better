@@ -256,7 +256,7 @@ namespace SDG.Unturned
 		}
 
 		/// <summary>Restores a saved group identity and shared settlement anchor after snapshot loading.</summary>
-		public bool RestoreGroupMembershipServer(int savedGroupId, Vector3 savedAnchor, bool hasSettlement)
+		public bool SetGroupAnchorServer(int savedGroupId, Vector3 savedAnchor, bool hasSettlement)
 		{
 			if (!Provider.isServer || !initialized || leftGroup || savedGroupId <= 0
 				|| float.IsNaN(savedAnchor.x) || float.IsInfinity(savedAnchor.x)
