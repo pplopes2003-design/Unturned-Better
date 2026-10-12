@@ -323,16 +323,68 @@ namespace SDG.Unturned
 			float speed = shouldRun ? runSpeed : walkSpeed;
 			Vector3 motion = planarDirection * speed;
 
-			if (characterController.isGrounded && velocity.y < 0.0f)
+			// Match the player's grounded handling: CharacterController.isGrounded alone can be
+			// one frame behind, so confirm contact with the same short BLOCK_COLLISION sphere cast.
+			bool groundedBeforeMove = IsGroundedUsingPlayerProbe();
+			if (groundedBeforeMove && velocity.y < 0.0f)
 			{
 				velocity.y = -2.0f;
 			}
-			velocity.y -= gravity * deltaTime;
+
+			// PlayerMovement applies Unity gravity with a 3x multiplier while airborne and
+			// clamps terminal velocity. Keep the NPC's configurable gravity, but preserve the
+			// same integration shape so falling and ground contact behave consistently.
+			velocity.y += Physics.gravity.y * (gravity / 9.81f) * deltaTime * 3.0f;
+			velocity.y = Mathf.Max(-100.0f, velocity.y);
 			motion.y = velocity.y;
 
 			CollisionFlags collision = characterController.Move(motion * deltaTime);
+			if ((collision & CollisionFlags.Below) != 0 && velocity.y < 0.0f)
+			{
+				velocity.y = -2.0f;
+			}
 			IsMoving = planarDirection.sqrMagnitude > 0.0001f && (collision & CollisionFlags.Sides) == 0;
 			UpdateStuckRecovery(wantedToMove, deltaTime);
+		}
+
+		/// <summary>
+		/// Mirrors PlayerMovement.checkGround: short sphere cast against the game's
+		/// BLOCK_COLLISION mask, supplemented by CharacterController's contact state.
+		/// This keeps NPC grounding aligned with the terrain/collision layers used by players.
+		/// </summary>
+		private bool IsGroundedUsingPlayerProbe()
+		{
+			if (characterController == null || !characterController.enabled)
+			{
+				return false;
+			}
+
+			if (characterController.isGrounded)
+			{
+				return true;
+			}
+
+			float radius = Mathf.Min(PlayerStance.RADIUS - 0.001f, characterController.radius * 0.9f);
+			if (radius <= 0.01f)
+			{
+				return false;
+			}
+
+			const float CHECK_LENGTH = PlayerMovement.SKIN_WIDTH + 0.025f;
+			Vector3 origin = transform.position + Vector3.up * radius;
+			RaycastHit[] hits = Physics.SphereCastAll(origin, radius, Vector3.down, CHECK_LENGTH,
+				RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+			for (int i = 0; i < hits.Length; ++i)
+			{
+				Collider hitCollider = hits[i].collider;
+				if (hitCollider != null && !IsOwnCollider(hitCollider)
+					&& Vector3.Angle(hits[i].normal, Vector3.up) <= 55f)
+				{
+					return true;
+				}
+			}
+
+			return false;
 		}
 
 		/// <summary>Prevents an unexpected terrain-collision failure from losing an NPC below the map.</summary>
