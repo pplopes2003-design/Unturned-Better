@@ -2130,6 +2130,14 @@ namespace SDG.Unturned
 				return;
 			}
 
+			// Re-check close, unobstructed player visibility before continuing an
+			// investigation or returning to spawn. A visible player outranks point stimuli.
+			Player closeVisiblePlayer = FindPriorityVisiblePlayer();
+			if (closeVisiblePlayer != null && (player == null || huntType != EHuntType.PLAYER))
+			{
+				alert(closeVisiblePlayer);
+			}
+
 			// Pause briefly between search legs, then sweep nearby points around the
 			// original sound location instead of standing still for the whole investigation.
 			if (isInvestigationIdle)
