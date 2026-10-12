@@ -65,6 +65,8 @@ namespace SDG.Unturned
 			}
 
 			role = newRole;
+			MobileNPCFaction faction = GetComponent<MobileNPCFaction>();
+			faction?.SynchronizeDefaultFactionFromRole();
 			if (!CanEngagePlayers)
 			{
 				MobileNPCBrainDriver brain = GetComponent<MobileNPCBrainDriver>();
