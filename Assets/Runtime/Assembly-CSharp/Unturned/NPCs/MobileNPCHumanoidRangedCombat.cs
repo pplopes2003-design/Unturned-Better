@@ -454,6 +454,7 @@ namespace SDG.Unturned
 			if (!Provider.isServer) return;
 			// A cancelled reload must not silently destroy the magazine removed from storage.
 			TryReturnPendingMagazine();
+			pendingReplacedMagazine = null;
 			reloadPending = false;
 			pendingReloadRounds = 0;
 			pendingReloadMagazineID = 0;
