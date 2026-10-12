@@ -245,7 +245,7 @@ namespace SDG.Unturned
 		/// </summary>
 		public bool TryCraftBuildableForSettlementServer()
 		{
-			if (!Provider.isServer || !HasSpace || !Level.isLoaded)
+			if (!Provider.isServer || !Level.isLoaded)
 				return false;
 
 			List<ItemAsset> itemAssets = new List<ItemAsset>();
@@ -269,7 +269,7 @@ namespace SDG.Unturned
 						continue;
 
 					List<int> consumedIndices = new List<int>();
-					if (!TryReserveBlueprintInputs(blueprint, consumedIndices))
+					if (!TryReserveBlueprintInputs(blueprint, consumedIndices) || consumedIndices.Count == 0)
 						continue;
 
 					// Ensure crafting cannot consume the ingredients and then fail because the
