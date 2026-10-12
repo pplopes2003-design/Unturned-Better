@@ -40,7 +40,7 @@ namespace SDG.Unturned
         [SerializeField, Min(1f)] private float respawnDelay = 60f;
         [SerializeField] private MobileNPCHumanoidDisposition.Role role = MobileNPCHumanoidDisposition.Role.Hostile;
 
-        [Header("Spawn ring around the player")]
+        [Header("Spawn regions around vanilla player-spawn anchors")]
         [SerializeField, Min(10f)] private float spawnDistance = 52f;
         [SerializeField, Min(1f)] private float spawnRegionRadius = 12f;
         [SerializeField, Min(1f)] private float groundSearchHeight = 80f;
@@ -110,19 +110,34 @@ namespace SDG.Unturned
                 return;
             }
 
-            // A single failed sector should not stall population on a steep or obstructed map.
-            // Try a bounded number of different sectors per interval; every candidate still passes
-            // the spawn service's ground, slope, occupancy, bounds and spacing checks.
+            // Use the map-authored vanilla player spawn points as portable anchors. Do not
+            // silently invent coordinates on maps that have no usable spawn definitions.
+            List<PlayerSpawnpoint> spawnAnchors = LevelPlayers.spawns;
+            if (spawnAnchors == null || spawnAnchors.Count == 0)
+            {
+                Debug.LogWarning("[MobileNPCPopulationDirector] The loaded map has no vanilla player spawn points; population will retry after the next spawn interval.", this);
+                return;
+            }
+
+            // Try a bounded number of anchors/sectors per interval. Anchors are only regional
+            // hints: every actual candidate still passes ground, slope, occupancy, bounds,
+            // player visibility and NPC spacing checks in the spawn service.
             int spawnedCount = 0;
             string error = null;
             int sectorAttempts = Mathf.Clamp(Mathf.Min(4, maximumAttemptsPerSpawn), 1, 4);
             for (int sector = 0; sector < sectorAttempts && spawnedCount == 0; ++sector)
             {
+                PlayerSpawnpoint anchor = spawnAnchors[Random.Range(0, spawnAnchors.Count)];
+                if (anchor == null)
+                {
+                    continue;
+                }
+
                 float angle = Random.Range(0f, Mathf.PI * 2f);
                 float distance = Random.Range(
                     Mathf.Max(10f, spawnDistance * 0.85f),
                     Mathf.Max(12f, spawnDistance * 1.45f));
-                Vector3 regionCenter = player.transform.position
+                Vector3 regionCenter = anchor.point
                     + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * distance;
 
                 spawnedThisAttempt.Clear();
