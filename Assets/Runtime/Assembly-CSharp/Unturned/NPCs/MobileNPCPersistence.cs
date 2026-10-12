@@ -22,6 +22,7 @@ namespace SDG.Unturned
 		private static float nextSaveTime;
 		private static float nextDeferredRestoreTime;
 		private static bool restoredForCurrentMap;
+		private static bool preserveExistingSnapshot;
 		private static string currentMapKey;
 		private static readonly List<NPCRecord> FailedRestoreRecords = new List<NPCRecord>();
 
@@ -82,6 +83,7 @@ namespace SDG.Unturned
 
 			currentMapKey = null;
 			restoredForCurrentMap = false;
+			preserveExistingSnapshot = false;
 			FailedRestoreRecords.Clear();
 			nextSaveTime = 0f;
 			nextDeferredRestoreTime = 0f;
@@ -97,6 +99,7 @@ namespace SDG.Unturned
 			{
 				currentMapKey = mapKey;
 				restoredForCurrentMap = false;
+				preserveExistingSnapshot = false;
 				FailedRestoreRecords.Clear();
 				nextSaveTime = Time.time + SaveInterval;
 				nextDeferredRestoreTime = Time.time + DeferredRestoreInterval;
@@ -143,9 +146,14 @@ namespace SDG.Unturned
 				SaveFile save = LoadSaveFile(path, mapKey);
 				if (save == null || save.npcs == null)
 				{
-					Debug.LogWarning("[MobileNPCPersistence] No valid primary or backup snapshot was found for " + path);
+					// Do not let the next periodic save replace an unreadable snapshot with
+					// an empty file. Keep the source files untouched for manual recovery.
+					preserveExistingSnapshot = true;
+					Debug.LogWarning("[MobileNPCPersistence] No valid primary or backup snapshot was found for " + path
+						+ "; preserving existing files instead of overwriting them.");
 					return;
 				}
+				preserveExistingSnapshot = false;
 
 				MobileNPCRegistry.CopyActiveDrivers(ActiveDriverScratch);
 				int activeAtStart = ActiveDriverScratch.Count;
@@ -185,7 +193,9 @@ namespace SDG.Unturned
 			}
 			catch (Exception exception)
 			{
-				Debug.LogError("[MobileNPCPersistence] Failed to read snapshot '" + path + "': " + exception);
+				preserveExistingSnapshot = File.Exists(path) || File.Exists(path + ".bak");
+				Debug.LogError("[MobileNPCPersistence] Failed to read snapshot '" + path + "': " + exception
+					+ (preserveExistingSnapshot ? " Existing snapshot files will be preserved." : string.Empty));
 			}
 		}
 
@@ -312,6 +322,13 @@ namespace SDG.Unturned
 
 		private static void SaveServer(string mapKey)
 		{
+			if (preserveExistingSnapshot)
+			{
+				Debug.LogWarning("[MobileNPCPersistence] Skipping save for '" + mapKey
+					+ "' because an existing snapshot could not be loaded safely.");
+				return;
+			}
+
 			MobileNPCRegistry.CopyActiveDrivers(ActiveDriverScratch);
 			SaveFile save = new SaveFile { mapKey = mapKey };
 			for (int i = 0; i < ActiveDriverScratch.Count; ++i)
