@@ -101,6 +101,9 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - [ ] Verify the NPC enters a building through an open doorway instead of pushing directly into its exterior wall.
 - [ ] Verify the bounded grid planner reconstructs a continuous route around a wall and advances through each waypoint without oscillation.
 - [ ] Verify the planner does not select a node on a nearby roof/floor above or below the NPC; current-floor height filtering must be tested on multi-storey buildings.
+- [ ] Place two blocking colliders that form a tight grid corner; verify diagonal route edges cannot cut between them when either adjacent cardinal cell is blocked.
+- [ ] Put the preferred goal cell behind an unwalkable barrier; verify the planner chooses a reachable node on the NPC's side rather than a geometrically close node across the barrier.
+- [ ] Dynamically block a waypoint after a route is created; verify stuck recovery clears the stale route and a later bounded search selects a different reachable path.
 - [ ] Profile route planning with multiple NPCs blocked at once; each search must remain bounded to 81 grid nodes and route attempts must respect the retry cooldown.
 - [ ] Verify it traverses an L-shaped corridor and a room with furniture, then continues to the original tactical destination.
 - [ ] Verify a closed door or blocked passage does not cause an infinite search loop or per-frame route rebuild.
