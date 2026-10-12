@@ -1249,6 +1249,16 @@ namespace SDG.Unturned
 				return;
 			}
 
+			// A visible player is a stronger stimulus than a sound point or search waypoint.
+			// This also prevents a new gunshot / internal search leg from pulling a zombie
+			// away from a player standing in clear view within the close-priority radius.
+			Player priorityPlayer = FindPriorityVisiblePlayer();
+			if (priorityPlayer != null)
+			{
+				alert(priorityPlayer);
+				return;
+			}
+
 			if (isInvestigationIdle)
 			{
 				isInvestigationIdle = false;
@@ -1363,6 +1373,58 @@ namespace SDG.Unturned
 					}
 				}
 			}
+		}
+
+		/// <summary>
+		/// Finds the nearest living player within the close-priority radius when the
+		/// zombie has a clean line of sight. This is intentionally checked before
+		/// accepting noise/search-point destinations.
+		/// </summary>
+		private Player FindPriorityVisiblePlayer()
+		{
+			if (!Provider.isServer || Provider.clients == null)
+			{
+				return null;
+			}
+
+			const float prioritySightRange = 20.0f;
+			const float prioritySightRangeSquared = prioritySightRange * prioritySightRange;
+			Vector3 eye = transform.position + Vector3.up * 1.55f;
+			Player best = null;
+			float bestDistanceSquared = prioritySightRangeSquared;
+
+			for (int i = 0; i < Provider.clients.Count; ++i)
+			{
+				SteamPlayer steamPlayer = Provider.clients[i];
+				Player candidate = steamPlayer != null ? steamPlayer.player : null;
+				if (candidate == null || candidate.life == null || candidate.life.isDead
+					|| !candidate.gameObject.activeInHierarchy)
+				{
+					continue;
+				}
+
+				Vector3 aimPoint = candidate.transform.position + Vector3.up * 1.0f;
+				Vector3 offset = aimPoint - eye;
+				float distanceSquared = offset.sqrMagnitude;
+				if (distanceSquared < 0.01f || distanceSquared > bestDistanceSquared)
+				{
+					continue;
+				}
+
+				float distance = Mathf.Sqrt(distanceSquared);
+				// Check only the segment before the player so the player's own collider
+				// cannot be mistaken for an obstruction.
+				if (Physics.Raycast(eye, offset / distance, Mathf.Max(0.01f, distance - 0.1f),
+					RayMasks.BLOCK_SENTRY, QueryTriggerInteraction.Ignore))
+				{
+					continue;
+				}
+
+				best = candidate;
+				bestDistanceSquared = distanceSquared;
+			}
+
+			return best;
 		}
 
 		public void updateStates()
@@ -2080,10 +2142,12 @@ namespace SDG.Unturned
 				isInvestigationIdle = false;
 				if (Time.time < investigationUntil && investigationWandersRemaining > 0)
 				{
-					for (int attempt = 0; attempt < 8; ++attempt)
+					for (int attempt = 0; attempt < 12; ++attempt)
 					{
 						float angle = Random.value * Mathf.PI * 2.0f;
-						float distance = Random.Range(5.0f, INVESTIGATION_WANDER_RADIUS);
+						// Keep search legs relatively local. Long random legs often cross walls
+						// or leave a small navigation island, causing the zombie to turn in place.
+						float distance = Random.Range(4.0f, 10.0f);
 						Vector3 searchPoint = investigationCenter + new Vector3(Mathf.Cos(angle) * distance, 0.0f, Mathf.Sin(angle) * distance);
 						if (!LevelNavigation.checkNavigation(searchPoint))
 						{
@@ -2163,7 +2227,7 @@ namespace SDG.Unturned
 					else
 					{
 						isInvestigationIdle = true;
-						investigationIdleUntil = Time.time + Random.Range(2.0f, 5.0f);
+						investigationIdleUntil = Time.time + Random.Range(0.75f, 1.75f);
 						setTicking(true);
 					}
 					return;
