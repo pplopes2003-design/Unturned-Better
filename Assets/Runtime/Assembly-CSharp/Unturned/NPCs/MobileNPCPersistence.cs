@@ -65,7 +65,7 @@ namespace SDG.Unturned
 			nextSaveTime = 0f;
 		}
 
-		public static void TickServer(GameObject prefab)
+		public static void TickServer(GameObject prefab, int maximumRestoredNPCs)
 		{
 			if (!Provider.isServer || !Level.isLoaded || prefab == null)
 				return;
@@ -81,7 +81,7 @@ namespace SDG.Unturned
 
 			if (!restoredForCurrentMap)
 			{
-				RestoreServer(prefab, mapKey);
+				RestoreServer(prefab, mapKey, Mathf.Clamp(maximumRestoredNPCs, 1, 40));
 				restoredForCurrentMap = true;
 				nextSaveTime = Time.time + SaveInterval;
 				return;
@@ -100,7 +100,7 @@ namespace SDG.Unturned
 				SaveServer(currentMapKey);
 		}
 
-		private static void RestoreServer(GameObject prefab, string mapKey)
+		private static void RestoreServer(GameObject prefab, string mapKey, int maximumRestoredNPCs)
 		{
 			string path = GetSavePath(mapKey);
 			FailedRestoreRecords.Clear();
@@ -123,6 +123,10 @@ namespace SDG.Unturned
 				for (int i = 0; i < save.npcs.Count; ++i)
 				{
 					NPCRecord record = save.npcs[i];
+					// Preserve records beyond the configured cap for a later run instead of
+					// creating an oversized population or discarding saved NPCs.
+					if (restored >= maximumRestoredNPCs)
+						continue;
 					if (record == null || !IsFinite(record.px) || !IsFinite(record.py) || !IsFinite(record.pz))
 					{
 						FailedRestoreRecords.Remove(record);
