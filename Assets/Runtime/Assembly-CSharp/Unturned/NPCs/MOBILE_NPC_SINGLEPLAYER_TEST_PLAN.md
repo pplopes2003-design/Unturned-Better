@@ -38,6 +38,9 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - [ ] Verify friendly and neutral roles do not automatically behave as hostile targets under the intended disposition rules.
 
 ## 3. Groups, death, and replacements
+- [ ] Spawn same-faction NPCs close together; verify group membership never mixes roles/factions and respects the maximum group size of four.
+- [ ] Verify a faction/role change removes the NPC from its former group and reassigns it consistently; if the old group becomes empty, it dissolves.
+- [ ] Verify Raiders are hostile to Survivors, Military and Traders, while unrelated/neutral relationships do not trigger automatic faction fire.
 - [ ] Observe newly spawned NPCs joining groups of the intended maximum size and sharing a group settlement anchor.
 - [ ] Kill one member while another member survives; confirm the corpse cleanup and replacement cooldown are independent.
 - [ ] After the respawn delay, confirm the replacement rejoins the surviving group when that group still exists.
@@ -63,6 +66,8 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - [ ] Change maps and return; verify map-key isolation and that deferred records from the previous map are not restored into the new map.
 
 ## 6. Friendly trade and airdrops
+- [ ] Verify the airdrop contest toggle prevents NPCs from pursuing or transferring landed carepackage loot while disabled.
+- [ ] With multiple eligible NPCs near one landed crate, verify they cannot duplicate an item and the crate remains usable by the player while untransferred items remain.
 - [ ] If a host interaction/UI has been wired to `MobileNPCTradeService`, test purchase success, insufficient currency, changed stock, full player inventory, and refund paths.
 - [ ] Confirm trade cannot run on clients, at a distance, with dead players, or with non-friendly traders.
 - [ ] Start an NPC moving toward a world drop, then trigger combat or fill its inventory; verify the loot goal is cancelled and movement returns to the higher-priority behavior.
@@ -126,3 +131,6 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - [ ] Cycle difficulty through Easy, Normal, Hard; verify reaction delay and shot spread change while NPC fire remains imperfect.
 - [ ] Toggle airdrop contest off/on; verify NPCs stop pursuing/looting landed crates while disabled and resume when enabled.
 - [ ] Cycle default spawn role and verify newly spawned NPCs receive the selected role while existing NPCs retain their current disposition.
+- [ ] Turn population off before loading a save; verify saved NPC records are not restored until population is enabled again.
+- [ ] Turn population off after NPCs are active; verify no new NPCs/replacements appear, live NPC state continues to autosave, and existing NPCs are not silently deleted.
+- [ ] Verify Easy has longer reaction delay and wider spread than Normal; Hard has shorter reaction delay and tighter spread, without becoming perfectly accurate.
