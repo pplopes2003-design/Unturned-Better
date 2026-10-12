@@ -57,14 +57,15 @@ namespace SDG.Unturned
             int seed = unchecked(GetInstanceID() * 397 ^ transform.position.GetHashCode());
             System.Random random = new System.Random(seed);
 
-            if (availableFaces.Count > 0)
-                clothes.face = availableFaces[random.Next(availableFaces.Count)];
+            // Face 0 is the native fallback if the bundle probe did not find a face
+            // texture. Normally the probe selects only face IDs that exist in this build.
+            clothes.face = availableFaces.Count > 0
+                ? availableFaces[random.Next(availableFaces.Count)]
+                : (byte)0;
             if (availableHair.Count > 0)
                 clothes.hair = availableHair[random.Next(availableHair.Count)];
             if (availableBeards.Count > 0)
-                clothes.beard = random.Next(100) < 42
-                    ? availableBeards[random.Next(availableBeards.Count)]
-                    : (byte)0;
+                clothes.beard = availableBeards[random.Next(availableBeards.Count)];
 
             Color skin = SkinPalette[random.Next(SkinPalette.Length)];
             clothes.skin = skin;
@@ -85,12 +86,12 @@ namespace SDG.Unturned
             if (hasScannedAssets)
                 return;
 
-            hasScannedAssets = true;
             if (Assets.coreMasterBundle == null)
             {
                 Debug.LogWarning("[MobileNPCAppearance] Core asset bundle is unavailable; NPCs will retain default face assets.");
                 return;
             }
+            hasScannedAssets = true;
 
             // Probe the actual loaded bundle instead of assuming every numeric index exists.
             for (byte index = 0; index < 32; ++index)
