@@ -163,7 +163,6 @@ namespace SDG.Unturned
 				case EItemType.BARRICADE:
 				case EItemType.STORAGE:
 				case EItemType.STRUCTURE:
-				case EItemType.SUPPLY:
 				{
 					MobileNPCSettlementPlanner settlementPlanner = GetComponent<MobileNPCSettlementPlanner>();
 					bool needsSettlementSupplies = settlementPlanner != null && !settlementPlanner.HasChosenSite
@@ -172,6 +171,11 @@ namespace SDG.Unturned
 					score = needsSettlementSupplies ? 58f + buildingLootPreference * 20f : 12f + buildingLootPreference * 45f;
 					break;
 				}
+				case EItemType.SUPPLY:
+					// Supply-category items are not necessarily placeable buildables. Keep
+					// them at ordinary loot priority instead of counting them toward a base.
+					score = 18f;
+					break;
 				default:
 					score = 8f;
 					break;
