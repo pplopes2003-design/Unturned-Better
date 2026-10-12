@@ -299,13 +299,16 @@ namespace SDG.Unturned
 					{
 						ItemRecord item = record.items[itemIndex];
 						if (item == null || item.id <= 0 || item.id > ushort.MaxValue
-							|| item.amount <= 0 || item.amount > byte.MaxValue
+							|| item.amount < 0 || item.amount > byte.MaxValue
 							|| item.quality < 0 || item.quality > byte.MaxValue)
 							continue;
 	
 						// Do not restore corrupt or obsolete IDs as unusable simulated items.
 						// Valid items that exceed capacity still trigger rollback below.
-						if (!(Assets.find(EAssetType.ITEM, (ushort)item.id) is ItemAsset))
+						ItemAsset savedAsset = Assets.find(EAssetType.ITEM, (ushort)item.id) as ItemAsset;
+						if (savedAsset == null)
+							continue;
+						if (item.amount == 0 && (!(savedAsset is ItemMagazineAsset) || savedAsset.ShouldDeleteAtZeroAmount))
 							continue;
 
 						if (!inventory.TryStoreTransferredItem(new Item((ushort)item.id, (byte)item.amount,
