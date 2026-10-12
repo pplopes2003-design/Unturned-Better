@@ -10,7 +10,7 @@ Este plano cobre a fundação local dos NPCs móveis no Unturned/U3-SDK. Executa
 
 - [ ] Fechar Unity e Unity Hub e confirmar que os processos do Editor terminaram.
 - [ ] Apagar somente a pasta `Library` do projeto correto; preservar `Assets`, `Packages` e `ProjectSettings`.
-- [ ] Abrir com Unity 2022.3.62f1 e esperar a importação terminar.
+- [ ] Abrir com Unity 2022.3.62f3 e esperar a importação terminar.
 - [ ] Confirmar no Console que não existem erros C#.
 - [ ] Gerar uma build Windows em uma pasta fora da pasta do projeto.
 - [ ] Se falhar em `GenerateNativePluginsForAssemblies` ou limpeza de `AsyncPluginsFromLinker`, guardar o Editor.log completo: essa falha deve ser separada de erros de compilação C#.
@@ -45,7 +45,8 @@ Este plano cobre a fundação local dos NPCs móveis no Unturned/U3-SDK. Executa
 - [ ] Fazer uma cópia de segurança do arquivo JSON e testar recuperação: arquivo primário válido; primário inválido com `.bak` válido; ambos inválidos.
 - [ ] Confirmar que arquivo inválido gera aviso controlado e não impede iniciar uma partida.
 - [ ] Testar um registro com coordenadas inválidas e confirmar que ele não cria um NPC nem gera loop de erro por frame.
-- [ ] Testar uma posição bloqueada: o registro deve permanecer pendente e ser tentado novamente com intervalo, sem apagar silenciosamente os demais registros.
+- [ ] Testar uma posição bloqueada: o registro deve permanecer pendente e ser tentado novamente com intervalo, sem apagar silenciosamente os demais registros; registros bloqueados devem alternar na fila para não impedir a restauração dos seguintes.
+- [ ] Simular uma falha ao aplicar metadados de um snapshot: confirmar que a instância parcial é removida e o registro continua pendente, sem criar duplicatas.
 - [ ] Confirmar que salvar enquanto ainda há registros pendentes não os elimina.
 - [ ] Confirmar que outro personagem/mapa não carrega o snapshot deste mundo.
 - [ ] Não editar o arquivo de save real sem antes fazer cópia.
