@@ -104,8 +104,21 @@ namespace SDG.Unturned
 
 		private void TryPlaceNextPatternPiece()
 		{
+			// A shared stockpile is the first settlement objective. If none has been
+			// placed or carried, ask the recipe system for a storage item before spending
+			// available materials on perimeter defenses.
+			if (!centralStoragePlaced && !HasStorageBuildable())
+			{
+				Items sharedItems = centralStorage != null ? centralStorage.items : null;
+				if (inventory.TryCraftBuildableForSettlementServer(sharedItems, true))
+				{
+					Debug.Log("[MobileNPCSettlementBuilder] Crafted the settlement's missing central storage.");
+					return;
+				}
+			}
+
 			// Pattern: central storage, then four cardinal defensive positions.
-			// If no storage item exists, use only the perimeter pattern.
+			// If no storage recipe/material is available, the group may still build defenses.
 			bool placeStorage = !centralStoragePlaced && HasStorageBuildable();
 			int selectedSlot = -1;
 			ItemBarricadeAsset selectedAsset = null;
