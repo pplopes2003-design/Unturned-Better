@@ -39,6 +39,7 @@ namespace SDG.Unturned
 		private MobileNPCHumanoidPerception perception;
 		private MobileNPCInventory inventory;
 		private ItemGunAsset selectedGunAsset;
+		private uint selectedGunInstanceID;
 		private ushort selectedGunID;
 		private int pendingReloadRounds;
 		private ushort pendingReloadMagazineID;
@@ -71,6 +72,7 @@ namespace SDG.Unturned
 			roundsRemaining = 0;
 			pendingReloadRounds = 0;
 			selectedGunID = 0;
+			selectedGunInstanceID = 0;
 			shotsRemainingInBurst = RollBurstSize();
 		}
 
@@ -91,7 +93,7 @@ namespace SDG.Unturned
 				if (Time.time < reloadFinishedAt) return;
 
 				int loadedRounds = Mathf.Max(0, pendingReloadRounds);
-				bool ammoStateUpdated = inventory.TryUpdateGunAmmoServer(selectedGunID,
+				bool ammoStateUpdated = inventory.TryUpdateGunAmmoServer(selectedGunInstanceID,
 					(byte)Mathf.Clamp(loadedRounds, 0, 255), pendingReloadMagazineID);
 				reloadPending = false;
 				roundsRemaining = ammoStateUpdated ? loadedRounds : 0;
@@ -170,7 +172,7 @@ namespace SDG.Unturned
 				return;
 			}
 
-			if (!inventory.TryUpdateGunAmmoServer(selectedGunID, (byte)Mathf.Clamp(roundsRemaining - 1, 0, 255)))
+			if (!inventory.TryUpdateGunAmmoServer(selectedGunInstanceID, (byte)Mathf.Clamp(roundsRemaining - 1, 0, 255)))
 			{
 				// Fail closed: do not commit a shot if its ammunition state cannot be saved.
 				nextShotTime = Time.time + 1.0f;
@@ -279,23 +281,25 @@ namespace SDG.Unturned
 		{
 			// Keep the current weapon while it has rounds or a compatible reload available;
 			// otherwise a newly looted gun could silently discard a magazine mid-reload.
-			if (inventory != null && selectedGunID != 0 && selectedGunAsset != null
-				&& inventory.ContainsItemID(selectedGunID)
+			if (inventory != null && selectedGunInstanceID != 0 && selectedGunAsset != null
+				&& inventory.ContainsGunInstanceServer(selectedGunInstanceID)
 				&& (roundsRemaining > 0 || inventory.TryFindCompatibleMagazine(selectedGunAsset, out int ignoredSlot, out ItemMagazineAsset ignoredMagazine)))
 			{
 				return;
 			}
 
-			if (inventory == null || !inventory.TryGetBestGun(out Item gun, out ItemGunAsset gunAsset))
+			if (inventory == null || !inventory.TryGetBestGun(out uint gunInstanceID, out Item gun, out ItemGunAsset gunAsset))
 			{
 				selectedGunID = 0;
+				selectedGunInstanceID = 0;
 				selectedGunAsset = null;
 				roundsRemaining = 0;
 				return;
 			}
 
-			if (selectedGunID == gun.id && selectedGunAsset == gunAsset) return;
+			if (selectedGunInstanceID == gunInstanceID && selectedGunAsset == gunAsset) return;
 
+			selectedGunInstanceID = gunInstanceID;
 			selectedGunID = gun.id;
 			selectedGunAsset = gunAsset;
 			roundsRemaining = 0;
@@ -347,7 +351,7 @@ namespace SDG.Unturned
 				return;
 			}
 
-			if (!inventory.CanUpdateGunAmmoServer(selectedGunID)
+			if (!inventory.CanUpdateGunAmmoServer(selectedGunInstanceID)
 				|| !inventory.TryFindCompatibleMagazine(selectedGunAsset, out int magazineSlot, out ItemMagazineAsset magazineAsset)
 				|| !inventory.TryTakeItemServer(magazineSlot, out Item consumedMagazine))
 			{
