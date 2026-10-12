@@ -34,7 +34,7 @@ namespace SDG.Unturned
 		public bool TryStoreTransferredItem(Item transferredItem)
 		{
 			if (!Provider.isServer || transferredItem == null || transferredItem.id == 0
-				|| transferredItem.amount == 0 || !HasSpace)
+				|| !CanStoreItemAmount(transferredItem) || !HasSpace)
 			{
 				return false;
 			}
@@ -46,6 +46,14 @@ namespace SDG.Unturned
 				transferredItem.quality, stateCopy));
 			slotInstanceIDs.Add(AllocateSlotInstanceID());
 			return true;
+		}
+
+		private static bool CanStoreItemAmount(Item item)
+		{
+			if (item == null || item.id == 0) return false;
+			if (item.amount > 0) return true;
+			ItemAsset asset = Assets.find(EAssetType.ITEM, item.id) as ItemAsset;
+			return asset is ItemMagazineAsset && !asset.ShouldDeleteAtZeroAmount;
 		}
 
 		/// <summary>Reserves one inventory slot for a transaction that may need rollback.</summary>
@@ -60,7 +68,7 @@ namespace SDG.Unturned
 		public bool TryStoreReservedItemServer(Item transferredItem)
 		{
 			if (!Provider.isServer || reservedSlots <= 0 || slots.Count >= Capacity
-				|| transferredItem == null || transferredItem.id == 0 || transferredItem.amount == 0)
+				|| !CanStoreItemAmount(transferredItem))
 				return false;
 			byte[] stateCopy = transferredItem.state != null
 				? (byte[])transferredItem.state.Clone()
@@ -175,37 +183,52 @@ namespace SDG.Unturned
 			int index = FindSlotByInstanceID(instanceID);
 			if (index < 0) return false;
 			Item stored = slots[index];
-			return stored != null && stored.state != null && stored.state.Length >= 11
+			return stored != null && stored.state != null && stored.state.Length >= 18
 				&& Assets.find(EAssetType.ITEM, stored.id) is ItemGunAsset;
 		}
 
 		/// <summary>Persists ammo state into the exact stored gun instance.</summary>
-		public bool TryUpdateGunAmmoServer(ushort gunID, byte roundsRemaining, ushort? loadedMagazineID = null)
+		public bool TryUpdateGunAmmoServer(ushort gunID, byte roundsRemaining, ushort? loadedMagazineID = null, byte? loadedMagazineQuality = null)
 		{
 			if (!Provider.isServer || gunID == 0) return false;
 			for (int index = 0; index < slots.Count; ++index)
 				if (slots[index] != null && slots[index].id == gunID)
-					return TryUpdateGunAmmoServer(slotInstanceIDs[index], roundsRemaining, loadedMagazineID);
+					return TryUpdateGunAmmoServer(slotInstanceIDs[index], roundsRemaining, loadedMagazineID, loadedMagazineQuality);
 			return false;
 		}
 
-		public bool TryUpdateGunAmmoServer(uint instanceID, byte roundsRemaining, ushort? loadedMagazineID = null)
+		public bool TryUpdateGunAmmoServer(uint instanceID, byte roundsRemaining, ushort? loadedMagazineID = null, byte? loadedMagazineQuality = null)
 		{
 			if (!Provider.isServer || instanceID == 0) return false;
 			int index = FindSlotByInstanceID(instanceID);
 			if (index < 0) return false;
 			Item stored = slots[index];
 			if (stored == null || !(Assets.find(EAssetType.ITEM, stored.id) is ItemGunAsset)
-				|| stored.state == null || stored.state.Length < 11) return false;
+				|| stored.state == null || stored.state.Length < 18) return false;
 			byte[] stateCopy = (byte[])stored.state.Clone();
 			if (loadedMagazineID.HasValue)
 			{
 				byte[] magazineBytes = System.BitConverter.GetBytes(loadedMagazineID.Value);
 				stateCopy[8] = magazineBytes[0];
 				stateCopy[9] = magazineBytes[1];
+				if (loadedMagazineQuality.HasValue) stateCopy[17] = loadedMagazineQuality.Value;
 			}
 			stateCopy[10] = roundsRemaining;
 			slots[index] = new Item(stored.id, stored.amount, stored.quality, stateCopy);
+			return true;
+		}
+
+		public bool TryGetGunSnapshotServer(uint instanceID, out Item snapshot)
+		{
+			snapshot = null;
+			if (!Provider.isServer || instanceID == 0) return false;
+			int index = FindSlotByInstanceID(instanceID);
+			if (index < 0) return false;
+			Item stored = slots[index];
+			if (stored == null || !(Assets.find(EAssetType.ITEM, stored.id) is ItemGunAsset)
+				|| stored.state == null || stored.state.Length < 18) return false;
+			byte[] stateCopy = (byte[])stored.state.Clone();
+			snapshot = new Item(stored.id, stored.amount, stored.quality, stateCopy);
 			return true;
 		}
 
