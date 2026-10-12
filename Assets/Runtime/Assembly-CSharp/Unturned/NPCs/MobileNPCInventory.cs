@@ -237,6 +237,120 @@ namespace SDG.Unturned
 			return Provider.isServer && instanceID != 0 && FindSlotByInstanceID(instanceID) >= 0;
 		}
 
+		/// <summary>
+		/// Crafts one vanilla recipe that produces a placeable barricade/storage/structure.
+		/// This intentionally supports only simple recipes whose inputs are represented as
+		/// discrete item slots; recipes requiring tools, skills, workstations, target items,
+		/// NPC quest conditions, or special operations are left untouched.
+		/// </summary>
+		public bool TryCraftBuildableForSettlementServer()
+		{
+			if (!Provider.isServer || !HasSpace || !Level.isLoaded)
+				return false;
+
+			List<ItemAsset> itemAssets = new List<ItemAsset>();
+			Assets.find(itemAssets);
+			for (int assetIndex = 0; assetIndex < itemAssets.Count; ++assetIndex)
+			{
+				ItemAsset sourceAsset = itemAssets[assetIndex];
+				if (sourceAsset == null || sourceAsset.blueprints == null || sourceAsset.blueprints.Count == 0)
+					continue;
+
+				for (int blueprintIndex = 0; blueprintIndex < sourceAsset.blueprints.Count; ++blueprintIndex)
+				{
+					Blueprint blueprint = sourceAsset.blueprints[blueprintIndex];
+					if (!IsSimpleSettlementBlueprint(blueprint))
+						continue;
+
+					ItemAsset outputAsset = blueprint.outputs[0].FindItemAsset();
+					if (outputAsset == null || outputAsset.id == 0
+						|| !(outputAsset is ItemBarricadeAsset || outputAsset is ItemStructureAsset)
+						|| blueprint.outputs[0].amount < 1 || blueprint.outputs[0].amount > byte.MaxValue)
+						continue;
+
+					List<int> consumedIndices = new List<int>();
+					if (!TryReserveBlueprintInputs(blueprint, consumedIndices))
+						continue;
+
+					// Ensure crafting cannot consume the ingredients and then fail because the
+					// output has nowhere to go. At least one consumed slot can be reused.
+					if (slots.Count - consumedIndices.Count >= Capacity)
+						continue;
+
+					consumedIndices.Sort();
+					for (int i = consumedIndices.Count - 1; i >= 0; --i)
+					{
+						int slot = consumedIndices[i];
+						slots.RemoveAt(slot);
+						slotInstanceIDs.RemoveAt(slot);
+					}
+
+					Item output = new Item(outputAsset.id, (byte)blueprint.outputs[0].amount, 100, new byte[0]);
+					if (!TryStoreTransferredItem(output))
+					{
+						// The capacity check above should make this unreachable, but fail closed.
+						UnturnedLog.warn("[MobileNPCInventory] A settlement crafting output could not be stored.");
+						return false;
+					}
+
+					Debug.Log("[MobileNPCInventory] NPC crafted " + outputAsset.FriendlyName
+						+ " from vanilla blueprint " + blueprint + ".");
+					return true;
+				}
+			}
+			return false;
+		}
+
+		private static bool IsSimpleSettlementBlueprint(Blueprint blueprint)
+		{
+			if (blueprint == null || blueprint.outputs == null || blueprint.outputs.Length != 1
+				|| blueprint.supplies == null || blueprint.supplies.Length == 0
+				|| blueprint.TargetItem != null || blueprint.Operation != EBlueprintOperation.None
+				|| blueprint.RequiresSkill || !string.IsNullOrEmpty(blueprint.map)
+				|| blueprint.RequiresStaticTags != null && blueprint.RequiresStaticTags.Length > 0
+				|| blueprint.GetApplicableRequiredNearbyCraftingTags() != null
+				|| blueprint.questConditions != null && blueprint.questConditions.Length > 0)
+				return false;
+
+			for (int i = 0; i < blueprint.supplies.Length; ++i)
+			{
+				BlueprintSupply supply = blueprint.supplies[i];
+				if (supply == null || supply.amount < 1 || supply.CountingMethod != ECraftingInputCountingMethod.TotalItems)
+					return false;
+				ItemAsset inputAsset = supply.FindItemAsset();
+				if (inputAsset == null || inputAsset.id == 0)
+					return false;
+			}
+			return true;
+		}
+
+		private bool TryReserveBlueprintInputs(Blueprint blueprint, List<int> consumedIndices)
+		{
+			bool[] claimed = new bool[slots.Count];
+			for (int supplyIndex = 0; supplyIndex < blueprint.supplies.Length; ++supplyIndex)
+			{
+				BlueprintSupply supply = blueprint.supplies[supplyIndex];
+				ItemAsset inputAsset = supply.FindItemAsset();
+				int found = 0;
+				for (int slotIndex = 0; slotIndex < slots.Count && found < supply.amount; ++slotIndex)
+				{
+					Item item = slots[slotIndex];
+					if (claimed[slotIndex] || item == null || item.id != inputAsset.id)
+						continue;
+					if (item.amount == 0 && !supply.ShouldCountEmptyAsOne)
+						continue;
+
+					claimed[slotIndex] = true;
+					found++;
+					if (supply.ShouldConsume)
+						consumedIndices.Add(slotIndex);
+				}
+				if (found < supply.amount)
+					return false;
+			}
+			return true;
+		}
+
 		private int FindSlotByInstanceID(uint instanceID)
 		{
 			for (int index = 0; index < slotInstanceIDs.Count; ++index)
