@@ -161,6 +161,7 @@ namespace SDG.Unturned
 			register(new CommandQuest(Localization.read("/Server/ServerCommandQuest.dat")));
 			register(new CommandVehicle(Localization.read("/Server/ServerCommandVehicle.dat")));
 			register(new CommandAnimal(Localization.read("/Server/ServerCommandAnimal.dat")));
+			register(new CommandMobileNPC(emptyPlaceholder));
 			register(new CommandTeleport(Localization.read("/Server/ServerCommandTeleport.dat")));
 
 			register(new CommandTimeout(Localization.read("/Server/ServerCommandTimeout.dat")));
