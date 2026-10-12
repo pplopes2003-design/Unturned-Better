@@ -116,8 +116,8 @@ namespace SDG.Unturned
 
 				ChosenSite = ground;
 				siteChosen = true;
-				MobileNPCGroupMember groupMember = GetComponent<MobileNPCGroupMember>();
-				groupMember?.SetGroupAnchorServer(ground);
+				MobileNPCGroupMember settlementGroupMember = GetComponent<MobileNPCGroupMember>();
+				settlementGroupMember?.SetGroupAnchorServer(ground);
 				Debug.Log("[MobileNPCSettlementPlanner] Mobile NPC selected a provisional settlement anchor at " + ground
 					+ ". No structures have been placed yet.");
 				return;
