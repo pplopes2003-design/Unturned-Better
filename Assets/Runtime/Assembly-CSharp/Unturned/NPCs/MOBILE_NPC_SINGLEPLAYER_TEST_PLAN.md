@@ -104,6 +104,7 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - [ ] Place two blocking colliders that form a tight grid corner; verify diagonal route edges cannot cut between them when either adjacent cardinal cell is blocked.
 - [ ] Put the preferred goal cell behind an unwalkable barrier; verify the planner chooses a reachable node on the NPC's side rather than a geometrically close node across the barrier.
 - [ ] Dynamically block a waypoint after a route is created; verify stuck recovery clears the stale route and a later bounded search selects a different reachable path.
+- [ ] Close a door or move another NPC into the next route segment after planning; verify the motor invalidates the stale route and retries through its cooldown-limited detour logic.
 - [ ] Profile route planning with multiple NPCs blocked at once; each search must remain bounded to 81 grid nodes and route attempts must respect the retry cooldown.
 - [ ] Verify it traverses an L-shaped corridor and a room with furniture, then continues to the original tactical destination.
 - [ ] Verify a closed door or blocked passage does not cause an infinite search loop or per-frame route rebuild.
