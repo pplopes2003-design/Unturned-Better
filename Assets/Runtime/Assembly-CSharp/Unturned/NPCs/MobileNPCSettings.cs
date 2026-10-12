@@ -17,6 +17,14 @@ namespace SDG.Unturned
 		private const string DifficultyKey = "MobileNPCs.Difficulty";
 		private const string AirdropKey = "MobileNPCs.AirdropContest";
 		private const string RoleKey = "MobileNPCs.DefaultRole";
+		private const string MixKey = "MobileNPCs.PopulationMix";
+
+		public enum PopulationMix
+		{
+			Balanced = 0,
+			HostileHeavy = 1,
+			Peaceful = 2
+		}
 
 		public enum Difficulty
 		{
@@ -53,6 +61,33 @@ namespace SDG.Unturned
 		{
 			get => (MobileNPCHumanoidDisposition.Role)Mathf.Clamp(PlayerPrefs.GetInt(RoleKey, (int)MobileNPCHumanoidDisposition.Role.Hostile), 0, 2);
 			set { PlayerPrefs.SetInt(RoleKey, Mathf.Clamp((int)value, 0, 2)); Save(); }
+		}
+
+		public static PopulationMix CurrentPopulationMix
+		{
+			get => (PopulationMix)Mathf.Clamp(PlayerPrefs.GetInt(MixKey, (int)PopulationMix.Balanced), 0, 2);
+			set { PlayerPrefs.SetInt(MixKey, Mathf.Clamp((int)value, 0, 2)); Save(); }
+		}
+
+		/// <summary>Weighted role selection for automatic world population, independent of the manual test-spawn role.</summary>
+		public static MobileNPCHumanoidDisposition.Role SelectPopulationRole()
+		{
+			int roll = Random.Range(0, 100);
+			switch (CurrentPopulationMix)
+			{
+				case PopulationMix.HostileHeavy:
+					if (roll < 70) return MobileNPCHumanoidDisposition.Role.Hostile;
+					if (roll < 90) return MobileNPCHumanoidDisposition.Role.Friendly;
+					return MobileNPCHumanoidDisposition.Role.Neutral;
+				case PopulationMix.Peaceful:
+					if (roll < 20) return MobileNPCHumanoidDisposition.Role.Hostile;
+					if (roll < 70) return MobileNPCHumanoidDisposition.Role.Friendly;
+					return MobileNPCHumanoidDisposition.Role.Neutral;
+				default:
+					if (roll < 50) return MobileNPCHumanoidDisposition.Role.Hostile;
+					if (roll < 80) return MobileNPCHumanoidDisposition.Role.Friendly;
+					return MobileNPCHumanoidDisposition.Role.Neutral;
+			}
 		}
 
 		public static float ReactionTimeMultiplier
