@@ -95,9 +95,12 @@ namespace SDG.Unturned
             // legacy prefab or retaining its player/NPC-specific gameplay behaviours.
             GameObject visual = Object.Instantiate(visualPrefab, template.transform, false);
             visual.name = "HumanoidVisual";
+            // Keep the prefab-authored local scale: NPC_Client may rely on its
+            // original scale to match the game's humanoid rig. Overwriting it with
+            // Vector3.one can make the mesh incorrectly sized or move its bounds
+            // outside the expected camera framing.
             visual.transform.localPosition = Vector3.zero;
             visual.transform.localRotation = Quaternion.identity;
-            visual.transform.localScale = Vector3.one;
 
             // NPC_Client is authored on the game's dedicated NPC layer. Some local
             // player-camera setups do not include that layer, making a successfully
@@ -112,14 +115,44 @@ namespace SDG.Unturned
             // The source asset is only a visual template. Explicitly retain its mesh
             // renderers while removing legacy gameplay scripts and collision bodies.
             Renderer[] visualRenderers = visual.GetComponentsInChildren<Renderer>(true);
+            int usableRendererCount = 0;
             for (int i = 0; i < visualRenderers.Length; ++i)
             {
-                visualRenderers[i].enabled = true;
+                Renderer renderer = visualRenderers[i];
+                renderer.enabled = true;
+                renderer.forceRenderingOff = false;
+                renderer.allowOcclusionWhenDynamic = false;
+
+                if (renderer is SkinnedMeshRenderer skinnedRenderer)
+                {
+                    // Keep the rig rendering even if its initial bind-pose bounds are
+                    // outside the camera frustum before the first animation update.
+                    skinnedRenderer.updateWhenOffscreen = true;
+                    if (skinnedRenderer.sharedMesh != null && skinnedRenderer.sharedMesh.vertexCount > 0)
+                    {
+                        ++usableRendererCount;
+                    }
+                }
+                else if (renderer is MeshRenderer meshRenderer)
+                {
+                    MeshFilter meshFilter = meshRenderer.GetComponent<MeshFilter>();
+                    if (meshFilter != null && meshFilter.sharedMesh != null && meshFilter.sharedMesh.vertexCount > 0)
+                    {
+                        ++usableRendererCount;
+                    }
+                }
             }
 
-            if (visualRenderers.Length == 0)
+            Debug.Log("[MobileNPCPopulationBootstrap] NPC_Client visual audit: scale="
+                + visual.transform.localScale + ", renderers=" + visualRenderers.Length
+                + ", usableMeshRenderers=" + usableRendererCount
+                + ", localPosition=" + visual.transform.localPosition + ".");
+
+            if (visualRenderers.Length == 0 || usableRendererCount == 0)
             {
-                Debug.LogError("[MobileNPCPopulationBootstrap] NPC_Client contains no renderers; refusing to initialize an invisible mobile NPC population.");
+                Debug.LogError("[MobileNPCPopulationBootstrap] NPC_Client has no usable mesh renderer (renderer count="
+                    + visualRenderers.Length + ", usable meshes=" + usableRendererCount
+                    + "); refusing to initialize an invisible mobile NPC population.");
                 DestroyExistingRuntimeObjects();
                 return;
             }
