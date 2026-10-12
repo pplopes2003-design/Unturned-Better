@@ -106,7 +106,7 @@ namespace SDG.Unturned
 				groundMask, maximumSlope, out Vector3 ground, out _))
 				return;
 
-			float itemOffset = placeStructure ? selectedStructureAsset.offset : selectedAsset.offset;
+			float itemOffset = placeStructure ? 0f : selectedAsset.offset;
 			Vector3 placePosition = ground + Vector3.up * Mathf.Clamp(itemOffset, -0.5f, 1.5f);
 			if (Physics.CheckSphere(placePosition + Vector3.up * 1.0f,
 				Mathf.Clamp(clearanceRadius, 0.4f, 1.2f), obstructionMask, QueryTriggerInteraction.Ignore))
