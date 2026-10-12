@@ -329,7 +329,11 @@ namespace SDG.Unturned
 			bool groundedBeforeMove = IsGroundedUsingPlayerProbe();
 			if (groundedBeforeMove && velocity.y < 0.0f)
 			{
-				velocity.y = -2.0f;
+				// A small constant downward velocity can accumulate into visible sinking
+				// when a map's terrain collider is raycastable but does not resolve the
+				// CharacterController contact reliably. Stay grounded without pushing the
+				// capsule through the surface; gravity resumes as soon as the probe fails.
+				velocity.y = 0.0f;
 			}
 
 			// PlayerMovement applies Unity gravity with a 3x multiplier while airborne and
@@ -380,6 +384,22 @@ namespace SDG.Unturned
 				Collider hitCollider = hits[i].collider;
 				if (hitCollider != null && !IsOwnCollider(hitCollider)
 					&& Vector3.Angle(hits[i].normal, Vector3.up) <= 55f)
+				{
+					return true;
+				}
+			}
+
+			// Some terrain colliders are reported by a ray but missed by the short
+			// sphere cast when the capsule is within its skin-width tolerance. The
+			// Player.log confirms that BLOCK_COLLISION can see the terrain, so use a
+			// short center ray as a second grounded signal before applying gravity.
+			RaycastHit[] groundHits = Physics.RaycastAll(transform.position + Vector3.up * 0.15f,
+				Vector3.down, 0.30f, RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+			for (int i = 0; i < groundHits.Length; ++i)
+			{
+				Collider hitCollider = groundHits[i].collider;
+				if (hitCollider != null && !IsOwnCollider(hitCollider)
+					&& Vector3.Angle(groundHits[i].normal, Vector3.up) <= 55f)
 				{
 					return true;
 				}
