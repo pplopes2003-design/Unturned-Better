@@ -310,6 +310,14 @@ namespace SDG.Unturned
 							}
 						}
 					}
+					else if (focus != null && focus.GetComponentInParent<MobileNPCHumanoidDisposition>() is MobileNPCHumanoidDisposition mobileNPCDisposition
+						&& mobileNPCDisposition.CurrentRole != MobileNPCHumanoidDisposition.Role.Hostile && !PlayerUI.window.showCursor)
+					{
+						PlayerUI.hint(focus, EPlayerMessage.TALK,
+							mobileNPCDisposition.CurrentRole == MobileNPCHumanoidDisposition.Role.Friendly
+								? "Falar / negociar"
+								: "Conversar", Color.white);
+					}
 					else if (purchaseAsset != null && player.movement.purchaseNode != null && !PlayerUI.window.showCursor)
 					{
 						PlayerUI.hint(null, EPlayerMessage.PURCHASE, "", Color.white, purchaseAsset.itemName, player.movement.purchaseNode.cost);
@@ -485,6 +493,10 @@ namespace SDG.Unturned
 										{
 											interactable.use();
 										}
+									}
+									else if (focus != null && focus.GetComponentInParent<MobileNPCHumanoidDisposition>() is MobileNPCHumanoidDisposition mobileNPCDisposition)
+									{
+										MobileNPCInteractionService.InteractLocal(player, mobileNPCDisposition);
 									}
 									else if (purchaseAsset != null)
 									{
