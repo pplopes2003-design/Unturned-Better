@@ -33,7 +33,7 @@ namespace SDG.Unturned
         [Header("Population")]
         [SerializeField] private GameObject mobileNpcPrefab;
         [SerializeField] private bool populationEnabled = true;
-        [SerializeField, Min(1)] private int maximumAlive = 12;
+        [SerializeField, Range(1, 40)] private int maximumAlive = 20;
         [SerializeField, Min(1)] private int maximumAttemptsPerSpawn = 24;
         [SerializeField, Min(1f)] private float spawnInterval = 18f;
         [SerializeField, Min(1f)] private float deadBodyLifetime = 30f;
@@ -70,7 +70,7 @@ namespace SDG.Unturned
         private void Update()
         {
             CleanupDeadBodies();
-            MobileNPCPersistence.TickServer(mobileNpcPrefab);
+            MobileNPCPersistence.TickServer(mobileNpcPrefab, Mathf.Clamp(maximumAlive, 1, 40));
             MobileNPCAirdropContest.TickServer();
 
             if (!populationEnabled || !Provider.isServer || mobileNpcPrefab == null || Time.time < nextSpawnTime)
