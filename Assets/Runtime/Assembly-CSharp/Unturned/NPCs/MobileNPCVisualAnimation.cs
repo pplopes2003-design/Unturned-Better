@@ -21,6 +21,7 @@ namespace SDG.Unturned
 
         private MobileNPCHumanoidMotor motor;
         private MobileNPCBrainDriver brain;
+        private MobileNPCHumanoidCombat combat;
         private Animation legacyAnimation;
         private Animator animatorFallback;
         private string idleClip;
@@ -28,11 +29,17 @@ namespace SDG.Unturned
         private string runClip;
         private string currentClip;
         private float nextFootstepTime;
+        private float attackAnimationUntil;
 
         private void Awake()
         {
             motor = GetComponent<MobileNPCHumanoidMotor>();
             brain = GetComponent<MobileNPCBrainDriver>();
+            combat = GetComponent<MobileNPCHumanoidCombat>();
+            if (combat != null)
+            {
+                combat.AttackStarted += PlayAttackAnimation;
+            }
             legacyAnimation = GetComponentInChildren<Animation>(true);
             if (legacyAnimation != null)
             {
@@ -63,6 +70,11 @@ namespace SDG.Unturned
         private void Update()
         {
             if (motor == null)
+            {
+                return;
+            }
+
+            if (legacyAnimation != null && Time.time < attackAnimationUntil)
             {
                 return;
             }
@@ -150,6 +162,35 @@ namespace SDG.Unturned
             parameters.SetLinearRolloff(1f, 32f);
             parameters.Play();
 #endif
+        }
+
+        private void PlayAttackAnimation()
+        {
+            if (legacyAnimation == null)
+            {
+                return;
+            }
+
+            string clipName = Random.value < 0.5f ? "Idle_Kick_Left" : "Idle_Kick_Right";
+            AnimationState state = legacyAnimation[clipName];
+            if (state == null)
+            {
+                Debug.LogWarning("[MobileNPCVisualAnimation] No native melee animation clip named '" + clipName + "'.", this);
+                return;
+            }
+
+            state.wrapMode = WrapMode.Once;
+            attackAnimationUntil = Time.time + Mathf.Max(0.2f, state.length);
+            currentClip = clipName;
+            legacyAnimation.CrossFade(clipName, Mathf.Min(crossFadeDuration, 0.08f));
+        }
+
+        private void OnDestroy()
+        {
+            if (combat != null)
+            {
+                combat.AttackStarted -= PlayAttackAnimation;
+            }
         }
 
         private void ResolveClips()
