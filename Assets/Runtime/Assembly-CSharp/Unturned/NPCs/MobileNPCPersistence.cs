@@ -87,6 +87,11 @@ namespace SDG.Unturned
 				return;
 			}
 
+			// Resume deferred snapshot records as population slots become available. One
+			// attempt per tick keeps restoration bounded and prevents a burst of instantiation.
+			if (FailedRestoreRecords.Count > 0)
+				RestorePendingRecordsServer(prefab, Mathf.Clamp(maximumRestoredNPCs, 1, 40));
+
 			if (Time.time >= nextSaveTime)
 			{
 				nextSaveTime = Time.time + SaveInterval;
@@ -123,82 +128,26 @@ namespace SDG.Unturned
 				for (int i = 0; i < save.npcs.Count; ++i)
 				{
 					NPCRecord record = save.npcs[i];
-					// Preserve records beyond the configured cap for a later run instead of
-					// creating an oversized population or discarding saved NPCs.
-					if (restored >= maximumRestoredNPCs)
-						continue;
 					if (record == null || !IsFinite(record.px) || !IsFinite(record.py) || !IsFinite(record.pz))
 					{
 						FailedRestoreRecords.Remove(record);
 						continue;
 					}
 
-					Vector3 position = new Vector3(record.px, record.py, record.pz);
-					Quaternion rotation = new Quaternion(record.rx, record.ry, record.rz, record.rw);
-					if (!IsFinite(rotation.x) || !IsFinite(rotation.y) || !IsFinite(rotation.z) || !IsFinite(rotation.w)
-						|| rotation.sqrMagnitude < 0.001f)
-						rotation = Quaternion.identity;
-
-					MobileNPCHumanoidDisposition.Role role = (MobileNPCHumanoidDisposition.Role)record.role;
-					if (role != MobileNPCHumanoidDisposition.Role.Hostile
-						&& role != MobileNPCHumanoidDisposition.Role.Friendly
-						&& role != MobileNPCHumanoidDisposition.Role.Neutral)
-						role = MobileNPCHumanoidDisposition.Role.Hostile;
-
-					if (!MobileNPCSpawnService.TrySpawnServer(prefab, position, rotation, role, out GameObject instance, out string error))
-					{
-						// Keep failed records in subsequent snapshots instead of silently deleting them
-						// when a later periodic save captures only successfully restored NPCs.
-						Debug.LogWarning("[MobileNPCPersistence] Could not restore NPC at " + position + "; keeping its snapshot for a later load: " + error);
+					if (restored >= maximumRestoredNPCs)
 						continue;
-					}
 
-					MobileNPCFaction faction = instance.GetComponent<MobileNPCFaction>();
-					if (faction != null && record.faction >= (int)MobileNPCFaction.Id.Unaffiliated
-						&& record.faction <= (int)MobileNPCFaction.Id.Traders
-						&& faction.CurrentFaction != (MobileNPCFaction.Id)record.faction)
-						faction.SetFactionServer((MobileNPCFaction.Id)record.faction);
-
-					MobileNPCHumanoidVitals restoredVitals = instance.GetComponent<MobileNPCHumanoidVitals>();
-					if (restoredVitals != null && IsFinite(record.health) && record.health > 0f)
+					if (TryRestoreRecordServer(prefab, record, out string error))
 					{
-						float damageToRestore = Mathf.Max(0f, restoredVitals.MaximumHealth - record.health);
-						if (damageToRestore > 0f)
-							restoredVitals.ApplyDamage(damageToRestore);
+						FailedRestoreRecords.Remove(record);
+						restored++;
 					}
-
-					MobileNPCGroupMember groupMember = instance.GetComponent<MobileNPCGroupMember>();
-					if (groupMember != null && IsFinite(record.ax) && IsFinite(record.ay) && IsFinite(record.az))
+					else
 					{
-						Vector3 savedAnchor = new Vector3(record.ax, record.ay, record.az);
-						if (record.groupId > 0)
-						{
-							groupMember.SetGroupAnchorServer(record.groupId, savedAnchor, record.hasSettlement);
-						}
-						else if (record.hasSettlement)
-						{
-							// Backward compatibility with snapshots created before group IDs were persisted.
-							groupMember.SetGroupAnchorServer(savedAnchor);
-						}
+						Debug.LogWarning("[MobileNPCPersistence] Could not restore NPC at ("
+							+ record.px + ", " + record.py + ", " + record.pz
+							+ "); keeping its snapshot for a later attempt: " + error);
 					}
-
-					MobileNPCInventory inventory = instance.GetComponent<MobileNPCInventory>();
-					if (inventory != null && record.items != null)
-					{
-						for (int itemIndex = 0; itemIndex < record.items.Count; ++itemIndex)
-						{
-							ItemRecord item = record.items[itemIndex];
-							if (item == null || item.id <= 0 || item.id > ushort.MaxValue
-								|| item.amount <= 0 || item.amount > byte.MaxValue
-								|| item.quality < 0 || item.quality > byte.MaxValue)
-								continue;
-
-							inventory.TryStoreTransferredItem(new Item((ushort)item.id, (byte)item.amount,
-								(byte)item.quality, item.state != null ? (byte[])item.state.Clone() : new byte[0]));
-						}
-					}
-					FailedRestoreRecords.Remove(record);
-					restored++;
 				}
 
 				Debug.Log("[MobileNPCPersistence] Restored " + restored + " of " + save.npcs.Count
@@ -208,6 +157,98 @@ namespace SDG.Unturned
 			{
 				Debug.LogError("[MobileNPCPersistence] Failed to read snapshot '" + path + "': " + exception);
 			}
+		}
+
+		private static void RestorePendingRecordsServer(GameObject prefab, int maximumAlive)
+		{
+			MobileNPCRegistry.CopyActiveDrivers(ActiveDriverScratch);
+			if (ActiveDriverScratch.Count >= maximumAlive)
+				return;
+
+			for (int i = 0; i < FailedRestoreRecords.Count; ++i)
+			{
+				NPCRecord record = FailedRestoreRecords[i];
+				if (record == null || !IsFinite(record.px) || !IsFinite(record.py) || !IsFinite(record.pz))
+				{
+					FailedRestoreRecords.RemoveAt(i);
+					return;
+				}
+
+				if (TryRestoreRecordServer(prefab, record, out string error))
+				{
+					FailedRestoreRecords.RemoveAt(i);
+					Debug.Log("[MobileNPCPersistence] Restored one deferred NPC snapshot record; "
+						+ FailedRestoreRecords.Count + " record(s) remain pending.");
+				}
+				else
+				{
+					// Avoid retrying every frame when a position is obstructed or a prefab is invalid.
+					if (!string.IsNullOrEmpty(error))
+						Debug.LogWarning("[MobileNPCPersistence] Deferred NPC restore will be retried later: " + error);
+				}
+				return;
+			}
+		}
+
+		private static bool TryRestoreRecordServer(GameObject prefab, NPCRecord record, out string error)
+		{
+			error = null;
+			Vector3 position = new Vector3(record.px, record.py, record.pz);
+			Quaternion rotation = new Quaternion(record.rx, record.ry, record.rz, record.rw);
+			if (!IsFinite(rotation.x) || !IsFinite(rotation.y) || !IsFinite(rotation.z) || !IsFinite(rotation.w)
+				|| rotation.sqrMagnitude < 0.001f)
+				rotation = Quaternion.identity;
+
+			MobileNPCHumanoidDisposition.Role role = (MobileNPCHumanoidDisposition.Role)record.role;
+			if (role != MobileNPCHumanoidDisposition.Role.Hostile
+				&& role != MobileNPCHumanoidDisposition.Role.Friendly
+				&& role != MobileNPCHumanoidDisposition.Role.Neutral)
+				role = MobileNPCHumanoidDisposition.Role.Hostile;
+
+			if (!MobileNPCSpawnService.TrySpawnServer(prefab, position, rotation, role,
+				out GameObject instance, out error))
+				return false;
+
+			MobileNPCFaction faction = instance.GetComponent<MobileNPCFaction>();
+			if (faction != null && record.faction >= (int)MobileNPCFaction.Id.Unaffiliated
+				&& record.faction <= (int)MobileNPCFaction.Id.Traders
+				&& faction.CurrentFaction != (MobileNPCFaction.Id)record.faction)
+				faction.SetFactionServer((MobileNPCFaction.Id)record.faction);
+
+			MobileNPCHumanoidVitals restoredVitals = instance.GetComponent<MobileNPCHumanoidVitals>();
+			if (restoredVitals != null && IsFinite(record.health) && record.health > 0f)
+			{
+				float damageToRestore = Mathf.Max(0f, restoredVitals.MaximumHealth - record.health);
+				if (damageToRestore > 0f)
+					restoredVitals.ApplyDamage(damageToRestore);
+			}
+
+			MobileNPCGroupMember groupMember = instance.GetComponent<MobileNPCGroupMember>();
+			if (groupMember != null && IsFinite(record.ax) && IsFinite(record.ay) && IsFinite(record.az))
+			{
+				Vector3 savedAnchor = new Vector3(record.ax, record.ay, record.az);
+				if (record.groupId > 0)
+					groupMember.SetGroupAnchorServer(record.groupId, savedAnchor, record.hasSettlement);
+				else if (record.hasSettlement)
+					groupMember.SetGroupAnchorServer(savedAnchor);
+			}
+
+			MobileNPCInventory inventory = instance.GetComponent<MobileNPCInventory>();
+			if (inventory != null && record.items != null)
+			{
+				for (int itemIndex = 0; itemIndex < record.items.Count; ++itemIndex)
+				{
+					ItemRecord item = record.items[itemIndex];
+					if (item == null || item.id <= 0 || item.id > ushort.MaxValue
+						|| item.amount <= 0 || item.amount > byte.MaxValue
+						|| item.quality < 0 || item.quality > byte.MaxValue)
+						continue;
+
+					inventory.TryStoreTransferredItem(new Item((ushort)item.id, (byte)item.amount,
+						(byte)item.quality, item.state != null ? (byte[])item.state.Clone() : new byte[0]));
+				}
+			}
+			return true;
 		}
 
 		private static void SaveServer(string mapKey)
