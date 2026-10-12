@@ -2,6 +2,11 @@
 
 This checklist is for in-game validation of the mobile NPC foundation. It is not evidence that these tests have already passed. Run against a disposable world/save and record the game build, map, population cap, and console output for each test.
 
+## Spawn-source implementation decision (planned, not yet wired)
+- Use the map's predefined vanilla player-spawn points as candidate anchors for mobile NPC placement, rather than inventing map-specific coordinates.
+- Treat these anchors as candidate regions only: apply a configurable offset/ring, safe-ground and slope checks, capsule occupancy, player-distance checks, and spacing from existing NPCs before spawning.
+- If a map has no usable player-spawn points or all candidates fail validation, log a bounded warning and retry later; never bypass placement safety checks.
+
 ## 1. Startup and population cap
 - [ ] Launch a new single-player world on a supported map; confirm the mobile NPC bootstrap initializes without exceptions.
 - [ ] Observe initial spawns over several population intervals; verify the number of living mobile NPCs never exceeds the configured cap (default 20).
@@ -81,4 +86,5 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - [ ] Place an NPC with a tactical destination behind a small wall/obstacle; verify it chooses a short detour waypoint and resumes the original destination instead of replacing the brain goal.
 - [ ] Move the destination while the NPC is detouring; verify the stale waypoint is discarded and steering tracks the updated goal.
 - [ ] Place the NPC in a fully enclosed corner or blocked corridor; verify detour attempts are bounded, no per-frame ground searches occur, and the existing stuck-recovery behavior remains responsive.
+- [ ] Keep a tactical NPC blocked until stuck recovery activates; verify it clears the failed detour waypoint and attempts a fresh detour rather than repeatedly selecting the stale point.
 - [ ] Verify detour waypoint selection rejects unsafe ground, steep slopes, and positions blocked by nearby colliders.
