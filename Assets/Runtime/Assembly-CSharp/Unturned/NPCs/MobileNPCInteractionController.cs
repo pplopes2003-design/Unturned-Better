@@ -13,7 +13,7 @@ namespace SDG.Unturned
 	/// While trading, hold the item you want to offer, then select a stock slot with 1-9.
 	/// </summary>
 	[DisallowMultipleComponent]
-	internal sealed class MobileNPCInteractionController : MonoBehaviour
+	public sealed class MobileNPCInteractionController : MonoBehaviour
 	{
 		private enum MenuState
 		{
@@ -318,8 +318,12 @@ namespace SDG.Unturned
 
 			if (MobileNPCAllianceService.TryOfferAllianceServer(activePlayer, activeNPC, pendingCurrencyItemId, 1, 4f, out string error))
 			{
+				MobileNPCCompanionContract contract = activeNPC.GetComponent<MobileNPCCompanionContract>();
+				bool escortAssigned = contract != null && contract.AssignServer(activePlayer);
 				PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
-					"Aliança aceita. Agora pertenço aos sobreviventes e combaterei saqueadores hostis. Ainda não sou uma escolta que segue automaticamente o jogador.");
+					escortAssigned
+						? "Aliança aceita. Agora pertenço aos sobreviventes, vou acompanhar você quando estiver fora de combate e enfrentarei saqueadores hostis que detectar."
+						: "Aliança aceita. Agora pertenço aos sobreviventes e enfrentarei saqueadores hostis que detectar, mas não consegui iniciar a escolta.");
 				Clear();
 			}
 			else
