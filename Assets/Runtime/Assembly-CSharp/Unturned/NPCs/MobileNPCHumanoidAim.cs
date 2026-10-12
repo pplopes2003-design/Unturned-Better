@@ -109,7 +109,7 @@ namespace SDG.Unturned
 			// Aim above the root pivot: humanoid target transforms commonly sit at the feet.
 			// Keeping this offset configurable avoids every rifle firing toward the ground.
 			Vector3 aimPoint = trackedTarget.position + Vector3.up * Mathf.Max(0.0f, targetAimHeight)
-			\t+ estimatedTargetVelocity * Mathf.Max(0.0f, leadTime);
+							+ estimatedTargetVelocity * Mathf.Max(0.0f, leadTime);
 			Vector3 toTarget = aimPoint - muzzlePosition;
 			if (toTarget.sqrMagnitude < 0.0001f)
 			{
