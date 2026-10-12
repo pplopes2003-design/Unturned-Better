@@ -2020,9 +2020,11 @@ namespace SDG.Unturned
 					ERagdollEffect ragdollEffect = player.equipment.getUseableRagdollEffect();
 
 					// Mobile NPCs are not Players or Zombies in the vanilla raycast enum.
-					// Resolve their server-owned vitals directly from the hit collider.
-					MobileNPCHumanoidVitals mobileNPCVitals = info.transform != null
-						? info.transform.GetComponentInParent<MobileNPCHumanoidVitals>()
+					// The authoritative gun input carries its collider separately; use that
+					// transform first so the server resolves our custom hitbox reliably.
+					Transform gunHitTransform = info.colliderTransform != null ? info.colliderTransform : info.transform;
+					MobileNPCHumanoidVitals mobileNPCVitals = gunHitTransform != null
+						? gunHitTransform.GetComponentInParent<MobileNPCHumanoidVitals>()
 						: null;
 					if (mobileNPCVitals != null)
 					{
