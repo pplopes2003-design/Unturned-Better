@@ -265,7 +265,7 @@ namespace SDG.Unturned
 			GroupId = 0;
 		}
 
-		/// <summary>Shares construction progress so a successor leader does not restart the pattern.
+		/// <summary>Shares construction progress so a successor leader does not restart the pattern.</summary>
 		public void RecordSettlementPiecePlacedServer(bool isCentralStorage)
 		{
 			if (!Provider.isServer || !initialized || leftGroup || !groups.TryGetValue(GroupId, out GroupRecord group))
