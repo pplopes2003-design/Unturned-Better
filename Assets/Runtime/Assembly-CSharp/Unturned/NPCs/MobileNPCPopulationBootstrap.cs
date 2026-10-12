@@ -109,7 +109,12 @@ namespace SDG.Unturned
             // Vector3.one can make the mesh incorrectly sized or move its bounds
             // outside the expected camera framing.
             visual.transform.localPosition = Vector3.zero;
-            visual.transform.localRotation = Quaternion.identity;
+            // NPC_Client's skin is authored in a rig coordinate frame whose long axis
+            // is currently mapped onto world Z when parented directly to the world root.
+            // The player presentation normally supplies the missing -90 degree X-axis
+            // correction. This standalone mobile visual has no Player presentation object,
+            // so apply that correction at the visual root to stand the humanoid upright.
+            visual.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
 
             // Keep the native NPC_Client render layer. The checked-in prefab is authored
             // on layer 16 (Medium), which Unturned's character rendering expects. Default
