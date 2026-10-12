@@ -67,6 +67,13 @@ namespace SDG.Unturned
             nextSpawnTime = Time.time + Mathf.Max(1f, spawnInterval);
         }
 
+        private void OnApplicationQuit()
+        {
+            // The persistence helper is static; explicitly connect its final flush to
+            // Unity's application lifecycle so the last changes do not wait for autosave.
+            MobileNPCPersistence.SaveOnApplicationQuitServer();
+        }
+
         private void Update()
         {
             CleanupDeadBodies();
