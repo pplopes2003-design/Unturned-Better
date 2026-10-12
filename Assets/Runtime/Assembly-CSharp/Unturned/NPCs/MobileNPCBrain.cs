@@ -18,6 +18,7 @@ namespace SDG.Unturned
 			Idle,
 			Investigating,
 			Pursuing,
+			Following,
 			Returning
 		}
 
@@ -61,6 +62,18 @@ namespace SDG.Unturned
 			investigationSearchCount = 0;
 			hasDestination = true;
 			state = State.Pursuing;
+		}
+
+		/// <summary>Sets a short-lived companion destination when no combat target is active.</summary>
+		public void SetFollowDestination(Vector3 position)
+		{
+			if (state == State.Pursuing && target != null)
+				return;
+
+			target = null;
+			destination = position;
+			hasDestination = true;
+			state = State.Following;
 		}
 
 		/// <summary>Reports a sound or point of interest observed by the server.</summary>
@@ -112,6 +125,15 @@ namespace SDG.Unturned
 				return;
 			}
 
+			// The companion contract refreshes this destination at a low frequency.
+			if (state == State.Following)
+			{
+				if (!hasDestination)
+					state = State.Idle;
+				else
+					return;
+			}
+
 			if (state == State.Investigating && now >= investigationDeadline)
 			{
 				if (hasSpawnPosition)
@@ -143,6 +165,11 @@ namespace SDG.Unturned
 			{
 				state = State.Idle;
 				hasDestination = false;
+			}
+			else if (state == State.Following)
+			{
+				hasDestination = false;
+				state = State.Idle;
 			}
 			else if (state == State.Investigating)
 			{
