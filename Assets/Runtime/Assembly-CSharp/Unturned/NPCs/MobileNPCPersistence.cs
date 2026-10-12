@@ -38,6 +38,7 @@ namespace SDG.Unturned
 			public float rx, ry, rz, rw;
 			public int role;
 			public int faction;
+			public int groupId;
 			public float health;
 			public bool hasSettlement;
 			public float ax, ay, az;
