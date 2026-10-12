@@ -156,45 +156,37 @@ namespace SDG.Unturned
         {
             if (legacyAnimation == null)
             {
+                Debug.LogWarning("[MobileNPCVisualAnimation] NPC_Client has no legacy Animation component; "
+                    + (animatorFallback != null
+                        ? "the authored Animator controller will run without custom locomotion mapping."
+                        : "no supported animation system was found."), this);
                 return;
             }
 
-            string firstClip = null;
-            foreach (AnimationState state in legacyAnimation)
+            // These names are confirmed in the checked-in source asset metadata:
+            // Human/Basic/Idle/Animation.fbx -> Idle_Stand
+            // Human/Basic/Move/Animation.fbx -> Move_Walk, Move_Run.
+            // Do not infer roles from substrings: NPC_Client also contains many
+            // Idle_* gestures, which are not suitable locomotion states.
+            idleClip = "Idle_Stand";
+            walkClip = "Move_Walk";
+            runClip = "Move_Run";
+
+            ValidateRequiredClip(idleClip);
+            ValidateRequiredClip(walkClip);
+            ValidateRequiredClip(runClip);
+
+            Debug.Log("[MobileNPCVisualAnimation] Explicit locomotion map: idle=" + idleClip
+                + ", walk=" + walkClip + ", run=" + runClip + ".", this);
+        }
+
+        private void ValidateRequiredClip(string clipName)
+        {
+            if (legacyAnimation[clipName] == null)
             {
-                if (state == null || string.IsNullOrEmpty(state.name))
-                {
-                    continue;
-                }
-
-                if (firstClip == null)
-                {
-                    firstClip = state.name;
-                }
-
-                string name = state.name.ToLowerInvariant();
-                if (idleClip == null && (name.Contains("idle") || name.Contains("stand")))
-                {
-                    idleClip = state.name;
-                }
-                if (walkClip == null && (name.Contains("walk") || name.Contains("move")))
-                {
-                    walkClip = state.name;
-                }
-                if (runClip == null && (name.Contains("run") || name.Contains("sprint")))
-                {
-                    runClip = state.name;
-                }
-            }
-
-            if (idleClip == null)
-            {
-                idleClip = firstClip;
-            }
-
-            if (walkClip == null)
-            {
-                walkClip = runClip;
+                Debug.LogError("[MobileNPCVisualAnimation] Required clip '" + clipName
+                    + "' is missing from NPC_Client's Animation component. Check the prefab's m_Animations references.",
+                    this);
             }
         }
 
