@@ -23,8 +23,30 @@ namespace SDG.Unturned
 		}
 
 		[SerializeField] private Role role = Role.Hostile;
+		[SerializeField] private string displayName;
+
+		private static readonly string[] GivenNames =
+		{
+			"Alex", "Ana", "Bruno", "Camila", "Daniel", "Elisa", "Felipe", "Gabriela",
+			"Helena", "Igor", "Julia", "Lucas", "Marina", "Nicolas", "Rafael", "Sofia"
+		};
+		private static readonly string[] FamilyNames =
+		{
+			"Alves", "Barros", "Costa", "Dias", "Ferreira", "Lima", "Mendes", "Nogueira",
+			"Oliveira", "Pereira", "Ramos", "Rocha", "Santos", "Silva", "Souza", "Teixeira"
+		};
 
 		public Role CurrentRole => role;
+		public string DisplayName => string.IsNullOrWhiteSpace(displayName) ? "Sobrevivente" : displayName;
+
+		private void Awake()
+		{
+			if (string.IsNullOrWhiteSpace(displayName))
+			{
+				displayName = GivenNames[Random.Range(0, GivenNames.Length)] + " "
+					+ FamilyNames[Random.Range(0, FamilyNames.Length)];
+			}
+		}
 		public bool CanEngagePlayers => role == Role.Hostile;
 		public bool CanEngageMobileNPCs => role != Role.Neutral;
 
