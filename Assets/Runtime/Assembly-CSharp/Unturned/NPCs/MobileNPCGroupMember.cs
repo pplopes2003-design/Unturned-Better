@@ -29,6 +29,9 @@ namespace SDG.Unturned
 			public readonly HashSet<MobileNPCGroupMember> Members = new HashSet<MobileNPCGroupMember>();
 			public MobileNPCGroupMember Leader;
 			public bool HasSettlement;
+			public int SettlementPiecesPlaced;
+			public int SettlementPerimeterPiecesPlaced;
+			public bool SettlementCentralStoragePlaced;
 			public MobileNPCHumanoidDisposition.Role Role;
 			public MobileNPCFaction.Id Faction;
 		}
@@ -45,6 +48,12 @@ namespace SDG.Unturned
 			&& groups.TryGetValue(GroupId, out GroupRecord currentGroup) && currentGroup.Leader == this;
 		public bool HasSettlement => initialized && !leftGroup && GroupId > 0
 			&& groups.TryGetValue(GroupId, out GroupRecord settlementGroup) && settlementGroup.HasSettlement;
+		public int SettlementPiecesPlaced => initialized && !leftGroup && GroupId > 0
+			&& groups.TryGetValue(GroupId, out GroupRecord progressGroup) ? progressGroup.SettlementPiecesPlaced : 0;
+		public int SettlementPerimeterPiecesPlaced => initialized && !leftGroup && GroupId > 0
+			&& groups.TryGetValue(GroupId, out GroupRecord perimeterGroup) ? perimeterGroup.SettlementPerimeterPiecesPlaced : 0;
+		public bool SettlementCentralStoragePlaced => initialized && !leftGroup && GroupId > 0
+			&& groups.TryGetValue(GroupId, out GroupRecord storageGroup) && storageGroup.SettlementCentralStoragePlaced;
 
 		private void Awake()
 		{
@@ -254,6 +263,18 @@ namespace SDG.Unturned
 				}
 			}
 			GroupId = 0;
+		}
+
+		/// <summary>Shares construction progress so a successor leader does not restart the pattern.
+		public void RecordSettlementPiecePlacedServer(bool isCentralStorage)
+		{
+			if (!Provider.isServer || !initialized || leftGroup || !groups.TryGetValue(GroupId, out GroupRecord group))
+				return;
+			group.SettlementPiecesPlaced = Mathf.Min(5, group.SettlementPiecesPlaced + 1);
+			if (isCentralStorage)
+				group.SettlementCentralStoragePlaced = true;
+			else
+				group.SettlementPerimeterPiecesPlaced = Mathf.Min(4, group.SettlementPerimeterPiecesPlaced + 1);
 		}
 
 		/// <summary>Restores a saved group identity and shared settlement anchor after snapshot loading.</summary>
