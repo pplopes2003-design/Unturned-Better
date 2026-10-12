@@ -32,6 +32,7 @@ namespace SDG.Unturned
 		private int pendingStockSlot = -1;
 		private ushort pendingCurrencyItemId;
 		private bool tradeUsesExperience;
+		private bool tradeUsesCash;
 		private uint pendingExperienceCost;
 		private string lastPrompt;
 		private float nextPromptRefreshTime;
@@ -93,13 +94,21 @@ namespace SDG.Unturned
 			{
 				if (Input.GetKeyDown(KeyCode.Keypad1))
 				{
-					tradeUsesExperience = true;
-					OpenTradeMenu("Pagamento selecionado: pontos de experiência (XP).");
+					tradeUsesCash = true;
+					tradeUsesExperience = false;
+					OpenTradeMenu("Pagamento selecionado: notas e moedas canadenses.");
 				}
 				else if (Input.GetKeyDown(KeyCode.Keypad2))
 				{
+					tradeUsesCash = false;
 					tradeUsesExperience = false;
 					OpenTradeMenu("Pagamento selecionado: troca de item.");
+				}
+				else if (Input.GetKeyDown(KeyCode.Keypad3))
+				{
+					tradeUsesCash = false;
+					tradeUsesExperience = true;
+					OpenTradeMenu("Pagamento selecionado: pontos de experiência (XP).");
 				}
 				return;
 			}
@@ -191,7 +200,7 @@ namespace SDG.Unturned
 				: npcName + ": sou sobrevivente; podemos negociar uma aliança.";
 			ShowPrompt(
 				(string.IsNullOrEmpty(notice) ? "" : notice + "\n")
-				+ greeting + "\nOpções (teclado numérico):\n1. Comércio (pagar com XP ou trocar item)\n2. Propor aliança (oferecer 1 item)\n3. Conversar\nESC. Fechar");
+				+ greeting + "\nOpções (teclado numérico):\n1. Comércio (notas/moedas, XP ou troca)\n2. Propor aliança (oferecer 1 item)\n3. Conversar\nESC. Fechar");
 		}
 
 		private void ShowTradePaymentMenu()
@@ -204,10 +213,10 @@ namespace SDG.Unturned
 
 			state = MenuState.ChooseTradePayment;
 			ShowPrompt(activeNPC.DisplayName + " — escolha como pagar:\n"
-				+ "1. Pontos de experiência (XP)\n"
+				+ "1. Notas e moedas ($ CAD)\n"
 				+ "2. Trocar um item do inventário\n"
-				+ "Use o teclado numérico. ESC para fechar.\n"
-				+ "O Unturned base não possui carteira universal de dinheiro; a primeira opção usa XP nativo do jogo.");
+				+ "3. Pontos de experiência (XP)\n"
+				+ "Use o teclado numérico. ESC para fechar.");
 		}
 
 		private void OpenTradeMenu(string notice = null)
@@ -234,7 +243,9 @@ namespace SDG.Unturned
 			if (!string.IsNullOrEmpty(notice))
 				message.Append(notice).Append("\n");
 			message.Append(activeNPC.DisplayName).Append(" — estoque.\n");
-			if (tradeUsesExperience)
+			if (tradeUsesCash)
+				message.Append("Pagamento: notas e moedas ($ CAD); o troco é devolvido.\n");
+			else if (tradeUsesExperience)
 				message.Append("Pagamento: XP do jogo; preço indicado em cada item.\n");
 			else if (heldAsset == null)
 				message.Append("AVISO: segure o item que deseja oferecer antes de escolher.\n");
@@ -250,7 +261,9 @@ namespace SDG.Unturned
 				message.Append(i + 1).Append(". ")
 					.Append(asset != null ? asset.itemName : "Item " + item.id)
 					.Append(" (x").Append(item.amount).Append(")");
-				if (tradeUsesExperience)
+				if (tradeUsesCash)
+					message.Append(" — $").Append(GetCashPrice(item)).Append(" CAD");
+				else if (tradeUsesExperience)
 					message.Append(" — ").Append(GetExperiencePrice(item)).Append(" XP");
 				message.Append("\n");
 			}
@@ -275,6 +288,18 @@ namespace SDG.Unturned
 			}
 
 			pendingStockSlot = stockSlot;
+			if (tradeUsesCash)
+			{
+				pendingCurrencyItemId = 0;
+				pendingExperienceCost = GetCashPrice(stock);
+				state = MenuState.ConfirmPurchase;
+				ItemAsset cashStockAsset = Assets.find(EAssetType.ITEM, stock.id) as ItemAsset;
+				ShowPrompt("Confirmar compra com dinheiro?\nVocê paga: $" + pendingExperienceCost + " CAD"
+					+ "\nVocê recebe: " + stock.amount + "x " + (cashStockAsset != null ? cashStockAsset.itemName : "Item " + stock.id)
+					+ "\nO sistema selecionará notas/moedas e devolverá o troco.\nTeclado numérico: 1. Confirmar  |  2. Cancelar");
+				return;
+			}
+
 			if (tradeUsesExperience)
 			{
 				pendingCurrencyItemId = 0;
@@ -308,6 +333,12 @@ namespace SDG.Unturned
 				+ "\nTeclado numérico: 1. Confirmar  |  2. Cancelar");
 		}
 
+		private static uint GetCashPrice(Item stock)
+		{
+			// Prototype pricing per complete stock slot; tune item categories and rarity later.
+			return stock == null ? 10u : (uint)Mathf.Clamp(10 + stock.amount * 5, 10, 500);
+		}
+
 		private static uint GetExperiencePrice(Item stock)
 		{
 			return stock == null ? 100u : (uint)Mathf.Clamp(50 + stock.amount * 10, 50, 2600);
@@ -318,6 +349,21 @@ namespace SDG.Unturned
 			if (activeNPC == null || activePlayer == null || pendingStockSlot < 0)
 			{
 				Clear();
+				return;
+			}
+
+			if (tradeUsesCash)
+			{
+				MobileNPCInventory cashInventory = activeNPC.GetComponent<MobileNPCInventory>();
+				uint price = pendingExperienceCost;
+				bool purchased = MobileNPCTradeService.TryPurchaseSlotWithCashServer(activePlayer,
+					cashInventory, activeNPC, pendingStockSlot, price, 4f, out string cashError);
+				pendingStockSlot = -1;
+				pendingExperienceCost = 0;
+				state = MenuState.TradeStock;
+				OpenTradeMenu(purchased
+					? "Compra concluída por $" + price + " CAD."
+					: "Compra não concluída: " + cashError);
 				return;
 			}
 
@@ -448,6 +494,7 @@ namespace SDG.Unturned
 			pendingExperienceCost = 0;
 			lastPrompt = null;
 			tradeUsesExperience = false;
+			tradeUsesCash = false;
 			state = MenuState.Closed;
 		}
 	}
