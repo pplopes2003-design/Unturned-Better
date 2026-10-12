@@ -92,6 +92,7 @@ namespace SDG.Unturned
             template.AddComponent<MobileNPCHumanoidRangedCombat>();
             template.AddComponent<MobileNPCRangedPresentation>();
             template.AddComponent<MobileNPCVisualAnimation>();
+            template.AddComponent<MobileNPCVisualGuard>();
             template.AddComponent<MobileNPCInventory>();
             template.AddComponent<MobileNPCLooting>();
             template.AddComponent<MobileNPCMedicalUse>();
