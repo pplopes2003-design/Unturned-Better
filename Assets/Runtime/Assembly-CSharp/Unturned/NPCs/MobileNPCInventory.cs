@@ -120,6 +120,20 @@ namespace SDG.Unturned
 		}
 
 		/// <summary>Consumes the first stored item in a vanilla category, returning a defensive snapshot.</summary>
+		/// <summary>Checks whether the selected gun has a writable vanilla state before consuming ammunition.</summary>
+		public bool CanUpdateGunAmmoServer(ushort gunID)
+		{
+			if (!Provider.isServer || gunID == 0) return false;
+			for (int index = 0; index < slots.Count; ++index)
+			{
+				Item stored = slots[index];
+				if (stored == null || stored.id != gunID) continue;
+				return stored.state != null && stored.state.Length >= 11
+					&& Assets.find(EAssetType.ITEM, stored.id) is ItemGunAsset;
+			}
+			return false;
+		}
+
 		/// <summary>Persists the simulated loaded magazine and round count into the stored gun state.</summary>
 		public bool TryUpdateGunAmmoServer(ushort gunID, byte roundsRemaining, ushort? loadedMagazineID = null)
 		{
