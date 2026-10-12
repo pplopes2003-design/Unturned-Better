@@ -19,6 +19,7 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - [ ] Verify reload reads detached magazine rounds from Item.amount and capacity from ItemMagazineAsset.MaxAmountAsByte; empty magazines must not be selected.
 - [ ] Verify Ammo_Per_Shot values greater than one consume the correct number of rounds, and Infinite_Ammo weapons do not decrement the magazine.
 - [ ] Interrupt reload by removing/disabling the NPC; verify the reserved magazine is returned rather than lost.
+- [ ] While reloading, verify pickup/trade/settlement operations cannot consume the reserved inventory slot needed to roll back the magazine.
 - [ ] Verify failed gun-state updates return the consumed magazine and never grant free rounds.
 - [ ] Verify the simulated magazine reload cycle does not duplicate rounds, and compare the project’s state-byte assumptions against vanilla item assets.
 - [ ] Store two copies of the same gun asset with different ammo states; confirm firing/reloading updates only the selected instance.
