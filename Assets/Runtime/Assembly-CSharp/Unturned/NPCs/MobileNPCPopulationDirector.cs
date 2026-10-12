@@ -77,10 +77,11 @@ namespace SDG.Unturned
         private void Update()
         {
             // Development convenience: F8 requests one nearby NPC for a focused smoke test.
-            // This remains server-side and obeys the configured population cap.
+            // Manual test spawns bypass the automatic population cap, while normal world
+            // population continues to obey it. This remains server-side only.
             if (Provider.isServer && Input.GetKeyDown(KeyCode.F8))
             {
-                TrySpawnNPCNearPlayer(MobileNPCSettings.DefaultRole);
+                TrySpawnNPCNearPlayer(MobileNPCSettings.DefaultRole, true);
             }
 
             CleanupDeadBodies();
@@ -296,6 +297,16 @@ namespace SDG.Unturned
         /// <summary>Creates one nearby NPC for a local single-player chat command or developer hotkey.</summary>
         public bool TrySpawnNPCNearPlayer(MobileNPCHumanoidDisposition.Role requestedRole)
         {
+            return TrySpawnNPCNearPlayer(requestedRole, false);
+        }
+
+        /// <summary>
+        /// Creates one nearby NPC. Authorized manual test calls may bypass the automatic
+        /// population cap; this does not change the cap used by the population director.
+        /// The caller is responsible for gating bypass requests behind the game's cheats option.
+        /// </summary>
+        public bool TrySpawnNPCNearPlayer(MobileNPCHumanoidDisposition.Role requestedRole, bool bypassPopulationLimit)
+        {
             if (!MobileNPCSettings.Enabled || mobileNpcPrefab == null)
             {
                 Debug.Log("[MobileNPCPopulationDirector] Nearby test spawn skipped: mobile NPC population is disabled or prefab is missing.", this);
@@ -303,7 +314,7 @@ namespace SDG.Unturned
             }
 
             int populationLimit = Mathf.Clamp(MobileNPCSettings.MaximumAlive, 1, 40);
-            if (MobileNPCRegistry.CountLivingDrivers() >= populationLimit)
+            if (!bypassPopulationLimit && MobileNPCRegistry.CountLivingDrivers() >= populationLimit)
             {
                 Debug.Log("[MobileNPCPopulationDirector] Nearby test spawn skipped: configured population cap is already reached (" + populationLimit + ").", this);
                 return false;
