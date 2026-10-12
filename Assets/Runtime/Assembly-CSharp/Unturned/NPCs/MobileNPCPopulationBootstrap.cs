@@ -343,7 +343,7 @@ namespace SDG.Unturned
 
             MonoBehaviour[] legacyBehaviours = visual.GetComponentsInChildren<MonoBehaviour>(true);
             int disabledLegacyBehaviourCount = 0;
-            int preservedAnimationBehaviourCount = 0;
+            int preservedVisualBehaviourCount = 0;
             for (int i = 0; i < legacyBehaviours.Length; ++i)
             {
                 MonoBehaviour behaviour = legacyBehaviours[i];
@@ -359,7 +359,7 @@ namespace SDG.Unturned
                 if (behaviour is Animation || behaviour is Animator || behaviour is HumanClothes)
                 {
                     behaviour.enabled = true;
-                    ++preservedAnimationBehaviourCount;
+                    ++preservedVisualBehaviourCount;
                     continue;
                 }
 
@@ -368,8 +368,8 @@ namespace SDG.Unturned
             }
 
             Debug.Log("[MobileNPCPopulationBootstrap] Visual behaviour audit: disabledLegacy="
-                + disabledLegacyBehaviourCount + ", preservedAnimationSystems="
-                + preservedAnimationBehaviourCount + ".");
+                + disabledLegacyBehaviourCount + ", preservedVisualSystems="
+                + preservedVisualBehaviourCount + ".");
 
             directorObject = new GameObject("MobileNPCPopulationDirector_Runtime");
             MobileNPCPopulationDirector director = directorObject.AddComponent<MobileNPCPopulationDirector>();
