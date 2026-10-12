@@ -73,6 +73,11 @@ namespace SDG.Unturned
             MobileNPCPersistence.TickServer(mobileNpcPrefab, Mathf.Clamp(maximumAlive, 1, 40));
             MobileNPCAirdropContest.TickServer();
 
+            // Restored NPCs and any instances created by another authorized spawn path
+            // must also enter lifecycle tracking so deaths get cleanup and replacement timers.
+            MobileNPCRegistry.CopyActiveDrivers(activeDrivers);
+            TrackUntrackedActiveNPCs();
+
             if (!populationEnabled || !Provider.isServer || mobileNpcPrefab == null || Time.time < nextSpawnTime)
             {
                 return;
@@ -169,6 +174,39 @@ namespace SDG.Unturned
             {
                 // Retry only after the normal interval; never run spawn searches every frame.
                 Debug.LogWarning("[MobileNPCPopulationDirector] No safe spawn found after trying multiple sectors: " + error, this);
+            }
+        }
+
+        private void TrackUntrackedActiveNPCs()
+        {
+            for (int i = 0; i < activeDrivers.Count; ++i)
+            {
+                MobileNPCBrainDriver driver = activeDrivers[i];
+                if (driver == null || driver.gameObject == null)
+                    continue;
+
+                GameObject instance = driver.gameObject;
+                bool alreadyTracked = false;
+                for (int trackedIndex = 0; trackedIndex < trackedNPCs.Count; ++trackedIndex)
+                {
+                    if (trackedNPCs[trackedIndex].Instance == instance)
+                    {
+                        alreadyTracked = true;
+                        break;
+                    }
+                }
+
+                if (alreadyTracked)
+                    continue;
+
+                MobileNPCGroupMember groupMember = instance.GetComponent<MobileNPCGroupMember>();
+                trackedNPCs.Add(new TrackedNPC
+                {
+                    Instance = instance,
+                    Vitals = instance.GetComponent<MobileNPCHumanoidVitals>(),
+                    GroupId = groupMember != null ? groupMember.GroupId : 0,
+                    CleanupAt = float.PositiveInfinity
+                });
             }
         }
 
