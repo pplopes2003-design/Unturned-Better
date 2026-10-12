@@ -34,10 +34,20 @@ namespace SDG.Unturned
 		/// </summary>
 		public bool IsHostileTo(MobileNPCHumanoidDisposition other)
 		{
-			if (other == null || other == this || role == Role.Neutral || other.role == Role.Neutral)
-			{
+			if (other == null || other == this)
 				return false;
+
+			MobileNPCFaction ownFaction = GetComponent<MobileNPCFaction>();
+			MobileNPCFaction otherFaction = other.GetComponent<MobileNPCFaction>();
+			if (ownFaction != null && otherFaction != null
+				&& ownFaction.CurrentFaction != MobileNPCFaction.Id.Unaffiliated
+				&& otherFaction.CurrentFaction != MobileNPCFaction.Id.Unaffiliated)
+			{
+				return ownFaction.IsHostileTo(otherFaction);
 			}
+
+			if (role == Role.Neutral || other.role == Role.Neutral)
+				return false;
 
 			return role != other.role;
 		}
