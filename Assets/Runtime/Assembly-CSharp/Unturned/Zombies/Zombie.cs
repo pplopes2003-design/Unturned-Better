@@ -1164,6 +1164,7 @@ namespace SDG.Unturned
 				target.position = player.transform.position;
 				seeker.CanSearch = true;
 				seeker.CanMove = true;
+				setTicking(true);
 
 				if (isMega)
 				{
