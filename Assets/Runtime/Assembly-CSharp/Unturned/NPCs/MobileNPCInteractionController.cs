@@ -19,13 +19,17 @@ namespace SDG.Unturned
 		{
 			Closed,
 			Main,
-			TradeStock
+			TradeStock,
+			ConfirmPurchase,
+			ConfirmAlliance
 		}
 
 		private static MobileNPCInteractionController instance;
 		private Player activePlayer;
 		private MobileNPCHumanoidDisposition activeNPC;
 		private MenuState state;
+		private int pendingStockSlot = -1;
+		private ushort pendingCurrencyItemId;
 
 		private void Awake()
 		{
@@ -74,50 +78,71 @@ namespace SDG.Unturned
 				return;
 			}
 
+			if (state == MenuState.ConfirmPurchase)
+			{
+				if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1))
+					ConfirmPurchase();
+				else if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2))
+				{
+					state = MenuState.TradeStock;
+					OpenTradeMenu();
+				}
+				return;
+			}
+
+			if (state == MenuState.ConfirmAlliance)
+			{
+				if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1))
+					ConfirmAllianceOffer();
+				else if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2))
+					ShowMainMenu();
+				return;
+			}
+
 			if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1))
 			{
 				if (state == MenuState.Main)
 					OpenTradeMenu();
 				else if (state == MenuState.TradeStock)
-					TryBuyStockSlot(0);
+					SelectStockSlot(0);
 			}
 			else if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2))
 			{
 				if (state == MenuState.Main)
 					TryOfferAlliance();
 				else if (state == MenuState.TradeStock)
-					TryBuyStockSlot(1);
+					SelectStockSlot(1);
 			}
 			else if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3))
 			{
 				if (state == MenuState.Main)
 					ShowConversation();
 				else if (state == MenuState.TradeStock)
-					TryBuyStockSlot(2);
+					SelectStockSlot(2);
 			}
 			else if (Input.GetKeyDown(KeyCode.Alpha4) || Input.GetKeyDown(KeyCode.Keypad4))
 			{
-				if (state == MenuState.TradeStock) TryBuyStockSlot(3);
+				if (state == MenuState.TradeStock) SelectStockSlot(3);
 			}
 			else if (Input.GetKeyDown(KeyCode.Alpha5) || Input.GetKeyDown(KeyCode.Keypad5))
 			{
-				if (state == MenuState.TradeStock) TryBuyStockSlot(4);
+				if (state == MenuState.TradeStock) SelectStockSlot(4);
 			}
 			else if (Input.GetKeyDown(KeyCode.Alpha6) || Input.GetKeyDown(KeyCode.Keypad6))
 			{
-				if (state == MenuState.TradeStock) TryBuyStockSlot(5);
+				if (state == MenuState.TradeStock) SelectStockSlot(5);
 			}
 			else if (Input.GetKeyDown(KeyCode.Alpha7) || Input.GetKeyDown(KeyCode.Keypad7))
 			{
-				if (state == MenuState.TradeStock) TryBuyStockSlot(6);
+				if (state == MenuState.TradeStock) SelectStockSlot(6);
 			}
 			else if (Input.GetKeyDown(KeyCode.Alpha8) || Input.GetKeyDown(KeyCode.Keypad8))
 			{
-				if (state == MenuState.TradeStock) TryBuyStockSlot(7);
+				if (state == MenuState.TradeStock) SelectStockSlot(7);
 			}
 			else if (Input.GetKeyDown(KeyCode.Alpha9) || Input.GetKeyDown(KeyCode.Keypad9))
 			{
-				if (state == MenuState.TradeStock) TryBuyStockSlot(8);
+				if (state == MenuState.TradeStock) SelectStockSlot(8);
 			}
 		}
 
@@ -176,7 +201,7 @@ namespace SDG.Unturned
 			PlayerUI.message(EPlayerMessage.NPC_CUSTOM, message.ToString());
 		}
 
-		private void TryBuyStockSlot(int stockSlot)
+		private void SelectStockSlot(int stockSlot)
 		{
 			if (activeNPC == null || activePlayer == null)
 			{
@@ -191,22 +216,63 @@ namespace SDG.Unturned
 				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Segure o item que deseja oferecer como pagamento e tente novamente.");
 				return;
 			}
-			if (inventory != null && inventory.TryGetItemSnapshot(stockSlot, out Item stock) && stock != null
-				&& stock.id == heldAsset.id)
+			if (inventory == null || !inventory.TryGetItemSnapshot(stockSlot, out Item stock) || stock == null)
+			{
+				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Esse item não está mais no estoque. Escolha outro.");
+				OpenTradeMenu();
+				return;
+			}
+			if (stock.id == heldAsset.id)
 			{
 				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Escolha um item diferente do que está oferecendo.");
 				return;
 			}
 
-			if (MobileNPCTradeService.TryPurchaseSlotServer(activePlayer, inventory, activeNPC,
-				stockSlot, heldAsset.id, 1, 4f, out string error))
+			ItemAsset stockAsset = Assets.find(EAssetType.ITEM, stock.id) as ItemAsset;
+			pendingStockSlot = stockSlot;
+			pendingCurrencyItemId = heldAsset.id;
+			state = MenuState.ConfirmPurchase;
+			PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
+				"Confirmar troca?\nVocê entrega: 1 " + heldAsset.itemName
+				+ "\nVocê recebe: 1 " + (stockAsset != null ? stockAsset.itemName : "Item " + stock.id)
+				+ "\n1. Confirmar\n2. Cancelar");
+		}
+
+		private void ConfirmPurchase()
+		{
+			if (activeNPC == null || activePlayer == null || pendingStockSlot < 0)
 			{
-				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Troca concluída: você entregou 1 " + heldAsset.itemName + ".");
+				Clear();
+				return;
+			}
+
+			ItemAsset heldAsset = activePlayer.equipment != null ? activePlayer.equipment.asset as ItemAsset : null;
+			if (heldAsset == null || heldAsset.id != pendingCurrencyItemId)
+			{
+				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "A troca foi cancelada porque o item de pagamento mudou. Segure o item e tente novamente.");
+				pendingStockSlot = -1;
+				pendingCurrencyItemId = 0;
+				state = MenuState.TradeStock;
+				OpenTradeMenu();
+				return;
+			}
+
+			MobileNPCInventory inventory = activeNPC.GetComponent<MobileNPCInventory>();
+			if (MobileNPCTradeService.TryPurchaseSlotServer(activePlayer, inventory, activeNPC,
+				pendingStockSlot, pendingCurrencyItemId, 1, 4f, out string error))
+			{
+				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Troca concluída. Você entregou 1 " + heldAsset.itemName + ".");
+				pendingStockSlot = -1;
+				pendingCurrencyItemId = 0;
+				state = MenuState.TradeStock;
 				OpenTradeMenu();
 			}
 			else
 			{
-				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Troca não concluída: " + error);
+				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Troca não concluída: " + error + "\n1. Tentar escolher outro item");
+				pendingStockSlot = -1;
+				pendingCurrencyItemId = 0;
+				state = MenuState.TradeStock;
 			}
 		}
 
@@ -225,7 +291,32 @@ namespace SDG.Unturned
 				return;
 			}
 
-			if (MobileNPCAllianceService.TryOfferAllianceServer(activePlayer, activeNPC, heldAsset.id, 1, 4f, out string error))
+			pendingCurrencyItemId = heldAsset.id;
+			state = MenuState.ConfirmAlliance;
+			PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
+				"Proposta de aliança: entregar 1 " + heldAsset.itemName
+				+ " para que o sobrevivente se una à facção dos sobreviventes e lute contra saqueadores hostis.\n"
+				+ "A aliança ainda não ativa escolta pessoal nem combate contra zumbis.\n1. Confirmar oferta\n2. Cancelar");
+		}
+
+		private void ConfirmAllianceOffer()
+		{
+			if (activeNPC == null || activePlayer == null || pendingCurrencyItemId == 0)
+			{
+				Clear();
+				return;
+			}
+
+			ItemAsset heldAsset = activePlayer.equipment != null ? activePlayer.equipment.asset as ItemAsset : null;
+			if (heldAsset == null || heldAsset.id != pendingCurrencyItemId)
+			{
+				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Oferta cancelada: o item segurado mudou. Segure o item e faça a proposta novamente.");
+				pendingCurrencyItemId = 0;
+				ShowMainMenu();
+				return;
+			}
+
+			if (MobileNPCAllianceService.TryOfferAllianceServer(activePlayer, activeNPC, pendingCurrencyItemId, 1, 4f, out string error))
 			{
 				PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
 					"Aliança aceita. Agora pertenço aos sobreviventes e combaterei saqueadores hostis. Ainda não sou uma escolta que segue automaticamente o jogador.");
@@ -234,6 +325,8 @@ namespace SDG.Unturned
 			else
 			{
 				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Aliança recusada: " + error);
+				pendingCurrencyItemId = 0;
+				ShowMainMenu();
 			}
 		}
 
@@ -252,6 +345,8 @@ namespace SDG.Unturned
 		{
 			activePlayer = null;
 			activeNPC = null;
+			pendingStockSlot = -1;
+			pendingCurrencyItemId = 0;
 			state = MenuState.Closed;
 		}
 	}
