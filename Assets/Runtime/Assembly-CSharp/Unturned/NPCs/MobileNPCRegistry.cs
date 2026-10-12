@@ -53,6 +53,31 @@ namespace SDG.Unturned
 			}
 		}
 
+		/// <summary>Broadcasts a server-confirmed gunshot as a stimulus to mobile NPCs in hearing range.</summary>
+		public static void NotifyGunfire(Vector3 shooterPosition, float radius, Player shooter)
+		{
+			if (!Provider.isServer || float.IsNaN(radius) || float.IsInfinity(radius) || radius <= 0f)
+				return;
+
+			activeDrivers.RemoveWhere(driver => driver == null || !driver.isActiveAndEnabled);
+			float radiusSquared = radius * radius;
+			foreach (MobileNPCBrainDriver driver in activeDrivers)
+			{
+				if (driver == null || !driver.gameObject.activeInHierarchy)
+					continue;
+
+				MobileNPCHumanoidVitals vitals = driver.GetComponent<MobileNPCHumanoidVitals>();
+				if (vitals != null && vitals.IsDead)
+					continue;
+
+				Vector3 offset = driver.transform.position - shooterPosition;
+				if (offset.sqrMagnitude > radiusSquared)
+					continue;
+
+				driver.ReportIncomingFire(shooterPosition, shooter != null ? shooter.transform : null);
+			}
+		}
+
 		/// <summary>
 		/// Copies currently active server drivers into a caller-owned list. Stale Unity
 		/// objects are pruned, and the registry's internal collection is never exposed.
