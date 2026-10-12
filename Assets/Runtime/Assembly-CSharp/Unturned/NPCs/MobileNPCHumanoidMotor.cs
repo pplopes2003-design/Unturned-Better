@@ -91,6 +91,8 @@ namespace SDG.Unturned
 		private Vector3 detourGoalSnapshot;
 		private float nextDetourAttemptTime;
 		private readonly List<Vector3> routeWaypoints = new List<Vector3>(16);
+		private readonly List<RegionCoordinate> explorationRegions = new List<RegionCoordinate>(16);
+		private readonly List<LevelObject> explorationObjects = new List<LevelObject>(64);
 		// Reuse the bounded search workspace so several blocked NPCs do not allocate
 		// five arrays and a reconstruction list on every route-planning attempt.
 		private readonly Vector3[] routeSearchPositions = new Vector3[RouteGridNodeLimit];
@@ -1022,12 +1024,23 @@ namespace SDG.Unturned
 				return;
 			}
 
+			float effectiveRoamingRadius = Mathf.Min(Mathf.Max(2f, roamingRadius), HomeTerritoryRadius);
+
+			// Prefer visiting large map objects (including many building shells) instead of
+			// selecting only empty terrain. The destination is an approach point outside the
+			// object, so this remains collision-aware and does not teleport through walls.
+			if (Random.value < 0.7f && TryChooseStructureExplorationPoint(effectiveRoamingRadius, out Vector3 structurePoint))
+			{
+				roamingDestination = structurePoint;
+				hasRoamingDestination = true;
+				return;
+			}
+
 			// Use bounded attempts and the same ground/slope/clip-volume checks as spawn placement.
 			// This is waypoint roaming, not navmesh pathfinding; walls can still block a route.
 			for (int attempt = 0; attempt < 8; ++attempt)
 			{
 				float angle = Random.Range(0f, Mathf.PI * 2f);
-				float effectiveRoamingRadius = Mathf.Min(Mathf.Max(2f, roamingRadius), HomeTerritoryRadius);
 				float radius = Random.Range(Mathf.Max(2f, effectiveRoamingRadius * 0.35f), effectiveRoamingRadius);
 				Vector3 candidate = spawnPosition + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * radius;
 				if (MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, Mathf.Max(1f, roamingSearchHeight),
@@ -1042,6 +1055,70 @@ namespace SDG.Unturned
 
 			// Back off when this terrain patch has no valid candidate; do not search every frame.
 			nextRoamingDecisionTime = Time.time + Random.Range(3f, 7f);
+		}
+
+		private bool TryChooseStructureExplorationPoint(float radius, out Vector3 destination)
+		{
+			destination = Vector3.zero;
+			if (LevelObjects.objects == null)
+				return false;
+
+			explorationRegions.Clear();
+			explorationObjects.Clear();
+			Regions.getRegionsInRadius(transform.position, Mathf.Max(2f, radius), explorationRegions);
+			for (int regionIndex = 0; regionIndex < explorationRegions.Count; ++regionIndex)
+			{
+				RegionCoordinate coordinate = explorationRegions[regionIndex];
+				if (coordinate.x >= LevelObjects.objects.GetLength(0)
+					|| coordinate.y >= LevelObjects.objects.GetLength(1))
+					continue;
+
+				List<LevelObject> regionObjects = LevelObjects.objects[coordinate.x, coordinate.y];
+				if (regionObjects == null)
+					continue;
+
+				for (int objectIndex = 0; objectIndex < regionObjects.Count; ++objectIndex)
+				{
+					LevelObject levelObject = regionObjects[objectIndex];
+					if (levelObject == null || levelObject.transform == null || levelObject.asset == null
+						|| levelObject.asset.type != EObjectType.LARGE)
+						continue;
+
+					Vector3 offset = levelObject.transform.position - transform.position;
+					offset.y = 0f;
+					if (offset.sqrMagnitude < 36f || offset.sqrMagnitude > radius * radius)
+						continue;
+
+					explorationObjects.Add(levelObject);
+				}
+			}
+
+			if (explorationObjects.Count == 0)
+				return false;
+
+			// Try several different nearby large objects; don't get stuck repeatedly
+			// selecting an inaccessible shell or a prop on an unsafe slope.
+			int attempts = Mathf.Min(6, explorationObjects.Count);
+			for (int attempt = 0; attempt < attempts; ++attempt)
+			{
+				int index = Random.Range(0, explorationObjects.Count);
+				LevelObject levelObject = explorationObjects[index];
+				explorationObjects.RemoveAt(index);
+				if (levelObject == null || levelObject.transform == null)
+					continue;
+
+				Vector2 offset = Random.insideUnitCircle.normalized * Random.Range(3f, 7f);
+				Vector3 candidate = levelObject.transform.position + new Vector3(offset.x, 0f, offset.y);
+				if (MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, Mathf.Max(1f, roamingSearchHeight),
+					Mathf.Max(0f, roamingMaximumDrop), roamingGroundMask, roamingMaximumSlope,
+					out Vector3 resolved, out _))
+				{
+					destination = resolved;
+					return true;
+				}
+			}
+
+			return false;
 		}
 
 		/// <summary>Set only from authoritative server-side perception.</summary>
