@@ -117,3 +117,12 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - [ ] Route-grid occupancy overflow: densely populate the test area until the non-alloc overlap buffer saturates; confirm the full-query fallback still rejects cells occupied by external colliders.
 
 - [ ] Route-planning allocation regression: trigger repeated blocked-route searches for several NPCs and verify the per-NPC 81-node workspace is reused, with walkability/closed state cleared between searches and no stale predecessor/cost data leaking into the next route.
+
+
+## 9. In-menu single-player controls (new; needs Unity validation)
+- [ ] Open Configuration > Mobile NPCs; confirm the page opens, values are readable, and Back returns to Configuration.
+- [ ] Toggle mobile NPC population off/on; verify the director stops creating replacements while disabled and resumes on the next spawn interval when enabled.
+- [ ] Set population cap to 1 and 40; verify the active population never exceeds the chosen cap and persisted NPC records respect the same cap.
+- [ ] Cycle difficulty through Easy, Normal, Hard; verify reaction delay and shot spread change while NPC fire remains imperfect.
+- [ ] Toggle airdrop contest off/on; verify NPCs stop pursuing/looting landed crates while disabled and resume when enabled.
+- [ ] Cycle default spawn role and verify newly spawned NPCs receive the selected role while existing NPCs retain their current disposition.
