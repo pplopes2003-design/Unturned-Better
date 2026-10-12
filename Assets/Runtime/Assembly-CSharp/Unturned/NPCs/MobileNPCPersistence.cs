@@ -18,7 +18,9 @@ namespace SDG.Unturned
 	{
 		private const int CurrentVersion = 2;
 		private const float SaveInterval = 30f;
+		private const float DeferredRestoreInterval = 3f;
 		private static float nextSaveTime;
+		private static float nextDeferredRestoreTime;
 		private static bool restoredForCurrentMap;
 		private static string currentMapKey;
 		private static readonly List<NPCRecord> FailedRestoreRecords = new List<NPCRecord>();
@@ -63,6 +65,7 @@ namespace SDG.Unturned
 			restoredForCurrentMap = false;
 			FailedRestoreRecords.Clear();
 			nextSaveTime = 0f;
+			nextDeferredRestoreTime = 0f;
 		}
 
 		public static void TickServer(GameObject prefab, int maximumRestoredNPCs)
@@ -77,6 +80,7 @@ namespace SDG.Unturned
 				restoredForCurrentMap = false;
 				FailedRestoreRecords.Clear();
 				nextSaveTime = Time.time + SaveInterval;
+				nextDeferredRestoreTime = Time.time + DeferredRestoreInterval;
 			}
 
 			if (!restoredForCurrentMap)
@@ -89,8 +93,11 @@ namespace SDG.Unturned
 
 			// Resume deferred snapshot records as population slots become available. One
 			// attempt per tick keeps restoration bounded and prevents a burst of instantiation.
-			if (FailedRestoreRecords.Count > 0)
+			if (FailedRestoreRecords.Count > 0 && Time.time >= nextDeferredRestoreTime)
+			{
+				nextDeferredRestoreTime = Time.time + DeferredRestoreInterval;
 				RestorePendingRecordsServer(prefab, Mathf.Clamp(maximumRestoredNPCs, 1, 40));
+			}
 
 			if (Time.time >= nextSaveTime)
 			{
