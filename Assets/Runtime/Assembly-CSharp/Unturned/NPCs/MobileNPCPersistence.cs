@@ -37,6 +37,8 @@ namespace SDG.Unturned
 			public float rx, ry, rz, rw;
 			public int role;
 			public int faction;
+			public bool hasSettlement;
+			public float ax, ay, az;
 			public List<ItemRecord> items = new List<ItemRecord>();
 		}
 
@@ -130,6 +132,13 @@ namespace SDG.Unturned
 						&& faction.CurrentFaction != (MobileNPCFaction.Id)record.faction)
 						faction.SetFactionServer((MobileNPCFaction.Id)record.faction);
 
+					MobileNPCGroupMember groupMember = instance.GetComponent<MobileNPCGroupMember>();
+					if (record.hasSettlement && groupMember != null
+						&& IsFinite(record.ax) && IsFinite(record.ay) && IsFinite(record.az))
+					{
+						groupMember.SetGroupAnchorServer(new Vector3(record.ax, record.ay, record.az));
+					}
+
 					MobileNPCInventory inventory = instance.GetComponent<MobileNPCInventory>();
 					if (inventory != null && record.items != null)
 					{
@@ -185,6 +194,16 @@ namespace SDG.Unturned
 					role = disposition != null ? (int)disposition.CurrentRole : (int)MobileNPCHumanoidDisposition.Role.Hostile,
 					faction = faction != null ? (int)faction.CurrentFaction : (int)MobileNPCFaction.Id.Unaffiliated
 				};
+
+				MobileNPCGroupMember groupMember = driver.GetComponent<MobileNPCGroupMember>();
+				if (groupMember != null)
+				{
+					Vector3 anchor = groupMember.GroupAnchor;
+					record.hasSettlement = groupMember.HasSettlement;
+					record.ax = anchor.x;
+					record.ay = anchor.y;
+					record.az = anchor.z;
+				}
 
 				MobileNPCInventory inventory = driver.GetComponent<MobileNPCInventory>();
 				if (inventory != null)
