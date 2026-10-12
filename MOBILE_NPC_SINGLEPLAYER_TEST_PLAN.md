@@ -94,7 +94,7 @@ Este plano cobre a fundação local dos NPCs móveis no Unturned/U3-SDK. Executa
 - [ ] Confirmar que logs não crescem indefinidamente em funcionamento normal.
 - [ ] Trocar de mapa antes dos 30 s de autosave e depois retornar ao mapa original; conferir que o snapshot de saída foi gravado e os NPCs voltam sem duplicatas.
 - [ ] Trocar de mapa e retornar ao menu sem deixar bootstrap/diretor duplicado.
-- [ ] Encerrar normalmente e confirmar gravação final.
+- [ ] Encerrar normalmente e confirmar gravação final via `OnApplicationQuit`, inclusive após alterações feitas depois do último autosave.
 - [ ] Repetir o teste com um save novo e com um save existente.
 
 ## 9. Fora do escopo desta rodada
