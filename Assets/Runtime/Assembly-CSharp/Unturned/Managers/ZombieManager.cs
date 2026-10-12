@@ -1706,7 +1706,7 @@ namespace SDG.Unturned
 		// spatial cooldown avoids alerting the region repeatedly for one blast.
 		private static float lastNoiseAlertTime = -1000.0f;
 		private static Vector3 lastNoiseAlertPosition;
-		private const float NOISE_ALERT_COOLDOWN = 0.75f;
+		private const float NOISE_ALERT_COOLDOWN = 0.12f;
 
 		public static void alertZombiesToNoise(Vector3 position, float radius)
 		{
@@ -1718,7 +1718,7 @@ namespace SDG.Unturned
 
 			// Validate the source before consuming the cooldown, so an invalid or
 			// temporarily unavailable navigation region cannot suppress a real shot.
-			if (Time.time - lastNoiseAlertTime < NOISE_ALERT_COOLDOWN && (position - lastNoiseAlertPosition).sqrMagnitude < 64.0f)
+			if (Time.time - lastNoiseAlertTime < NOISE_ALERT_COOLDOWN && (position - lastNoiseAlertPosition).sqrMagnitude < 1.0f)
 			{
 				return;
 			}
@@ -1869,7 +1869,8 @@ namespace SDG.Unturned
 				return;
 			}
 
-			UpdateAmbientHordes();
+			// Do not autonomously redirect idle zombies to random destinations. Horde
+			// movement should be driven by actual player/noise stimuli, not invisible cues.
 
 			int start;
 			int end;
