@@ -15,7 +15,7 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - [ ] Fire nearby shots without exposing the player; verify noise investigation does not require direct visual contact.
 - [ ] Test ranged combat at short, medium, and long distances. Record hit rate and confirm aim is imperfect, with spread/suppression rather than sentry-like guaranteed hits.
 - [ ] Verify the default aim-height offset directs shots toward the humanoid upper body rather than the root/feet; adjust only on prefabs with a different pivot.
-- [ ] Verify the simulated magazine reload cycle does not duplicate rounds, and record whether vanilla magazine state can replace the prototype round-count model.
+- [ ] Verify firing only commits when the stored gun state accepts the decremented round count; a missing/short gun state must not consume a shot.\n- [ ] Verify reload reads loaded rounds from magazine state, refuses empty magazines, and does not grant rounds when the gun state update fails.\n- [ ] Verify the simulated magazine reload cycle does not duplicate rounds, and compare the project’s state-byte assumptions against vanilla item assets.
 - [ ] Verify friendly and neutral roles do not automatically behave as hostile targets under the intended disposition rules.
 
 ## 3. Groups, death, and replacements
