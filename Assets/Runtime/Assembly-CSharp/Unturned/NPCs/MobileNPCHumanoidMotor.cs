@@ -594,28 +594,11 @@ namespace SDG.Unturned
 				walkable[start] = true;
 			}
 			Vector3 goalFromBase = localGoal - basePosition;
+			// Keep the desired grid cell as a preference only. It may be blocked or
+			// disconnected, so choose the nearest reachable node after the graph search.
 			int goalX = Mathf.Clamp(RouteGridCenter + Mathf.RoundToInt(goalFromBase.x / RouteGridCellSize), 0, RouteGridSide - 1);
 			int goalZ = Mathf.Clamp(RouteGridCenter + Mathf.RoundToInt(goalFromBase.z / RouteGridCellSize), 0, RouteGridSide - 1);
-			int goal = goalZ * RouteGridSide + goalX;
-			if (!walkable[goal])
-			{
-				float nearest = float.PositiveInfinity;
-				int nearestIndex = -1;
-				for (int i = 0; i < RouteGridNodeLimit; ++i)
-				{
-					if (!walkable[i]) continue;
-					Vector3 delta = positions[i] - localGoal;
-					delta.y = 0f;
-					if (delta.sqrMagnitude < nearest)
-					{
-						nearest = delta.sqrMagnitude;
-						nearestIndex = i;
-					}
-				}
-				goal = nearestIndex;
-			}
-			if (goal < 0 || goal == start)
-				return false;
+			int preferredGoal = goalZ * RouteGridSide + goalX;
 
 			costs[start] = 0f;
 			for (int iteration = 0; iteration < RouteGridNodeLimit; ++iteration)
@@ -632,8 +615,6 @@ namespace SDG.Unturned
 				}
 				if (current < 0)
 					break;
-				if (current == goal)
-					break;
 				closed[current] = true;
 
 				int cx = current % RouteGridSide;
@@ -647,6 +628,18 @@ namespace SDG.Unturned
 					int next = nz * RouteGridSide + nx;
 					if (!walkable[next] || closed[next])
 						continue;
+
+					// A diagonal edge must not squeeze through a blocked grid corner.
+					// Both adjacent cardinal cells must be walkable before the diagonal
+					// can be considered, even if its own sphere cast happens to be clear.
+					if (RouteGridDirections[d].x != 0 && RouteGridDirections[d].y != 0)
+					{
+						int horizontalSide = cz * RouteGridSide + nx;
+						int verticalSide = nz * RouteGridSide + cx;
+						if (!walkable[horizontalSide] || !walkable[verticalSide])
+							continue;
+					}
+
 					Vector3 edge = positions[next] - positions[current];
 					edge.y = 0f;
 					float edgeLength = edge.magnitude;
@@ -663,8 +656,31 @@ namespace SDG.Unturned
 				}
 			}
 
-			if (goal != start && previous[goal] < 0)
+			int goal = -1;
+			float bestGoalDistance = float.PositiveInfinity;
+			for (int i = 0; i < RouteGridNodeLimit; ++i)
+			{
+				if (!closed[i] || !walkable[i] || i == start)
+					continue;
+				Vector3 delta = positions[i] - localGoal;
+				delta.y = 0f;
+				float distance = delta.sqrMagnitude;
+				// Prefer the intended cell when reachable; otherwise route to the
+				// closest node that is actually connected to the NPC's start cell.
+				if (i == preferredGoal)
+				{
+					goal = i;
+					break;
+				}
+				if (distance < bestGoalDistance)
+				{
+					bestGoalDistance = distance;
+					goal = i;
+				}
+			}
+			if (goal < 0 || previous[goal] < 0)
 				return false;
+
 			List<Vector3> reversed = new List<Vector3>(RouteGridSide);
 			int cursor = goal;
 			while (cursor != start && cursor >= 0 && reversed.Count < RouteGridNodeLimit)
