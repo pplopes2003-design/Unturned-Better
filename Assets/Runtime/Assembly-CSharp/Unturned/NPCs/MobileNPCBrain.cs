@@ -28,6 +28,8 @@ namespace SDG.Unturned
 		private Transform target;
 		private Vector3 spawnPosition;
 		private Vector3 destination;
+		private Vector3 investigationCenter;
+		private int investigationSearchCount;
 		private float targetMemoryDeadline;
 		private float investigationDeadline;
 		private bool hasSpawnPosition;
@@ -55,6 +57,8 @@ namespace SDG.Unturned
 			target = visibleTarget;
 			targetMemoryDeadline = now + TargetMemoryDuration;
 			destination = visibleTarget.position;
+			investigationCenter = destination;
+			investigationSearchCount = 0;
 			hasDestination = true;
 			state = State.Pursuing;
 		}
@@ -69,6 +73,8 @@ namespace SDG.Unturned
 
 			target = null;
 			destination = position;
+			investigationCenter = position;
+			investigationSearchCount = 0;
 			hasDestination = true;
 			investigationDeadline = now + Mathf.Max(0.1f, duration);
 			state = State.Investigating;
@@ -96,11 +102,13 @@ namespace SDG.Unturned
 					return;
 				}
 
+				investigationCenter = destination;
 				target = null;
 				state = State.Investigating;
+				investigationSearchCount = 0;
 				investigationDeadline = now + InvestigationDuration;
-				// Search the last known target location before returning home.
-				investigationDeadline = Mathf.Max(investigationDeadline, now + 0.1f);
+				destination = investigationCenter;
+				hasDestination = true;
 				return;
 			}
 
@@ -138,8 +146,21 @@ namespace SDG.Unturned
 			}
 			else if (state == State.Investigating)
 			{
-				// The perception/locomotion layer may provide another search point.
-				hasDestination = false;
+				// Search a small deterministic spiral around the last known position rather
+				// than immediately falling back to random roaming after reaching the clue.
+				if (investigationSearchCount < 3)
+				{
+					float angle = (investigationSearchCount * 137.5f) * Mathf.Deg2Rad;
+					float radius = 3.5f + investigationSearchCount * 2.0f;
+					Vector3 offset = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * radius;
+					destination = investigationCenter + offset;
+					investigationSearchCount++;
+					hasDestination = true;
+				}
+				else
+				{
+					hasDestination = false;
+				}
 			}
 		}
 
@@ -150,6 +171,8 @@ namespace SDG.Unturned
 			hasDestination = false;
 			targetMemoryDeadline = 0.0f;
 			investigationDeadline = 0.0f;
+			investigationCenter = Vector3.zero;
+			investigationSearchCount = 0;
 			destination = hasSpawnPosition ? spawnPosition : Vector3.zero;
 		}
 	}
