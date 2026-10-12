@@ -22,6 +22,7 @@ namespace SDG.Unturned
         private MobileNPCHumanoidMotor motor;
         private MobileNPCBrainDriver brain;
         private Animation legacyAnimation;
+        private Animator animatorFallback;
         private string idleClip;
         private string walkClip;
         private string runClip;
@@ -33,6 +34,24 @@ namespace SDG.Unturned
             motor = GetComponent<MobileNPCHumanoidMotor>();
             brain = GetComponent<MobileNPCBrainDriver>();
             legacyAnimation = GetComponentInChildren<Animation>(true);
+            if (legacyAnimation != null)
+            {
+                // NPC_Client's legacy rig is driven by Unity's Animation component.
+                // The bootstrap strips gameplay scripts, but must not leave this
+                // component disabled or the skinned model remains in bind pose.
+                legacyAnimation.enabled = true;
+            }
+            else
+            {
+                // Some game builds may ship an Animator-driven variant. Preserve its
+                // authored controller rather than guessing parameter/state names.
+                animatorFallback = GetComponentInChildren<Animator>(true);
+                if (animatorFallback != null)
+                {
+                    animatorFallback.enabled = true;
+                    animatorFallback.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+                }
+            }
             ResolveClips();
         }
 
@@ -43,8 +62,27 @@ namespace SDG.Unturned
 
         private void Update()
         {
-            if (legacyAnimation == null || motor == null)
+            if (motor == null)
             {
+                return;
+            }
+
+            if (legacyAnimation == null)
+            {
+                // An Animator controller, when present, owns its own default locomotion
+                // state machine. Do not force unverified parameters on the native asset.
+                if (animatorFallback != null && !animatorFallback.enabled)
+                {
+                    animatorFallback.enabled = true;
+                }
+                if (motor.IsMoving)
+                {
+                    PlayFootstepIfDue(brain != null && brain.CurrentState == MobileNPCBrain.State.Pursuing);
+                }
+                else
+                {
+                    nextFootstepTime = 0f;
+                }
                 return;
             }
 
