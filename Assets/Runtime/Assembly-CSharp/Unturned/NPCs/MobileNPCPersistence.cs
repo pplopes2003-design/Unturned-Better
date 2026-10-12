@@ -286,6 +286,11 @@ namespace SDG.Unturned
 							|| item.quality < 0 || item.quality > byte.MaxValue)
 							continue;
 	
+						// Do not restore corrupt or obsolete IDs as unusable simulated items.
+						// Valid items that exceed capacity still trigger rollback below.
+						if (!(Assets.find(EAssetType.ITEM, (ushort)item.id) is ItemAsset))
+							continue;
+
 						if (!inventory.TryStoreTransferredItem(new Item((ushort)item.id, (byte)item.amount,
 							(byte)item.quality, item.state != null ? (byte[])item.state.Clone() : new byte[0])))
 							throw new InvalidOperationException("Saved inventory exceeds capacity or contains an item that cannot be restored.");
