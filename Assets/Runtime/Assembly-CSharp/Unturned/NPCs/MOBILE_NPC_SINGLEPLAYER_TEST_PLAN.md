@@ -95,10 +95,13 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 
 
 ## 8. Indoor navigation (not implemented yet)
-- Current movement uses short local obstacle avoidance and one temporary detour waypoint. It does not yet guarantee routing through doors/corridors or around an entire building.
+- Current movement now attempts a bounded 9×9 local ground grid (1.25 m cells, at most 81 nodes) and reconstructs a multi-waypoint route around local obstacles; a single-hop detour remains as fallback. This is not map-wide pathfinding and does not guarantee routing through an entire building.
 - The U3 SDK pathfinding abstraction can compile to `UnturnedPathfinding_Empty` when `WITH_ASPFP` is not enabled; do not assume a usable baked navmesh/path query is available in the target build. The mobile NPC implementation must not call undocumented pathfinding APIs.
-- Planned approach: implement a bounded, physics-tested multi-waypoint route planner for the current floor, with safe-ground sampling, humanoid-clearance checks, bounded search work, and a fallback when no route is found. Multi-floor/stair transitions need a separate explicit validation pass.
+- Implemented in source: bounded local grid search, safe-ground sampling constrained near the current floor, and physics probes along candidate edges. Still requires Unity compilation and in-game validation; multi-floor/stair transitions need a separate explicit validation pass.
 - [ ] Verify the NPC enters a building through an open doorway instead of pushing directly into its exterior wall.
+- [ ] Verify the bounded grid planner reconstructs a continuous route around a wall and advances through each waypoint without oscillation.
+- [ ] Verify the planner does not select a node on a nearby roof/floor above or below the NPC; current-floor height filtering must be tested on multi-storey buildings.
+- [ ] Profile route planning with multiple NPCs blocked at once; each search must remain bounded to 81 grid nodes and route attempts must respect the retry cooldown.
 - [ ] Verify it traverses an L-shaped corridor and a room with furniture, then continues to the original tactical destination.
 - [ ] Verify a closed door or blocked passage does not cause an infinite search loop or per-frame route rebuild.
 - [ ] Verify floor sampling stays on the NPC's current level and does not select the roof or a floor above/below it.
