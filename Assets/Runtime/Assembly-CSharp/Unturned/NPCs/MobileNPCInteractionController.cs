@@ -425,9 +425,10 @@ namespace SDG.Unturned
 			if (activeNPC == null)
 				return;
 			ShowPrompt(
-				activeNPC.CurrentRole == MobileNPCHumanoidDisposition.Role.Friendly
-									? activeNPC.DisplayName + ": procuro comida, água, munição e materiais. Posso trocar suprimentos e aceitar uma oferta de aliança."
-					: activeNPC.DisplayName + ": não quero briga. Se trouxer um suprimento, podemos firmar uma aliança; eu acompanho você fora de combate e enfrento saqueadores e zumbis que detectar.");
+				(activeNPC.CurrentRole == MobileNPCHumanoidDisposition.Role.Friendly
+					? activeNPC.DisplayName + ": procuro comida, água, munição e materiais. Posso trocar suprimentos e aceitar uma oferta de aliança."
+					: activeNPC.DisplayName + ": não quero briga. Se trouxer um suprimento, podemos firmar uma aliança; eu acompanho você fora de combate e enfrento saqueadores e zumbis que detectar.")
+				+ "\nOpções: 1. Comércio  |  2. Aliança  |  3. Conversar  |  ESC. Fechar");
 			state = MenuState.Main;
 		}
 
