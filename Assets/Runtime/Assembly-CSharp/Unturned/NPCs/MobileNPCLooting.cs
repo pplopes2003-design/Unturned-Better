@@ -156,8 +156,11 @@ namespace SDG.Unturned
 					break;
 				case EItemType.FOOD:
 				case EItemType.WATER:
-					score = 52f;
+				{
+					MobileNPCSurvivalNeeds needs = GetComponent<MobileNPCSurvivalNeeds>();
+					score = needs != null ? needs.GetNeedPriority(type) : 52f;
 					break;
+				}
 				case EItemType.BACKPACK:
 					score = 46f;
 					break;
