@@ -15,6 +15,7 @@ namespace SDG.Unturned
 		private static ISleekButton enabledButton;
 		private static ISleekButton airdropButton;
 		private static ISleekButton roleButton;
+		private static ISleekButton mixButton;
 		private static bool constructed;
 
 		public static void open()
@@ -59,8 +60,10 @@ namespace SDG.Unturned
 			airdropButton.OnClicked += onClickedAirdrop;
 			roleButton = CreateButton(-150, 120, 300, 40);
 			roleButton.OnClicked += onClickedRole;
+			mixButton = CreateButton(-170, 175, 340, 40);
+			mixButton.OnClicked += onClickedMix;
 
-			ISleekButton back = CreateButton(-100, 185, 200, 40);
+			ISleekButton back = CreateButton(-100, 230, 200, 40);
 			back.Text = "Back";
 			back.OnClicked += onClickedBack;
 			RefreshLabels();
@@ -87,7 +90,8 @@ namespace SDG.Unturned
 			difficultyButton.Text = "Difficulty: " + MobileNPCSettings.CurrentDifficulty;
 			enabledButton.Text = "NPC spawning/restoring: " + (MobileNPCSettings.Enabled ? "ON" : "OFF");
 			airdropButton.Text = "Airdrop contest: " + (MobileNPCSettings.AirdropContestEnabled ? "ON" : "OFF");
-			roleButton.Text = "Default new NPC role: " + MobileNPCSettings.DefaultRole;
+			roleButton.Text = "Manual test-spawn role: " + MobileNPCSettings.DefaultRole;
+			mixButton.Text = "World population mix: " + MixLabel(MobileNPCSettings.CurrentPopulationMix);
 		}
 
 		private static void onClickedPopulationDown(ISleekElement button)
@@ -128,6 +132,22 @@ namespace SDG.Unturned
 		private static void onClickedRole(ISleekElement button)
 		{
 			MobileNPCSettings.DefaultRole = (MobileNPCHumanoidDisposition.Role)(((int)MobileNPCSettings.DefaultRole + 1) % 3);
+			RefreshLabels();
+		}
+
+		private static string MixLabel(MobileNPCSettings.PopulationMix mix)
+		{
+			switch (mix)
+			{
+				case MobileNPCSettings.PopulationMix.HostileHeavy: return "Hostile-heavy (70/20/10)";
+				case MobileNPCSettings.PopulationMix.Peaceful: return "Peaceful (20/50/30)";
+				default: return "Balanced (50/30/20)";
+			}
+		}
+
+		private static void onClickedMix(ISleekElement button)
+		{
+			MobileNPCSettings.CurrentPopulationMix = (MobileNPCSettings.PopulationMix)(((int)MobileNPCSettings.CurrentPopulationMix + 1) % 3);
 			RefreshLabels();
 		}
 
