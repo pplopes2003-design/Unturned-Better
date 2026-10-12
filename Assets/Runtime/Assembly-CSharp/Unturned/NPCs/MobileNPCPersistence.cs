@@ -156,7 +156,7 @@ namespace SDG.Unturned
 				preserveExistingSnapshot = false;
 
 				MobileNPCRegistry.CopyActiveDrivers(ActiveDriverScratch);
-				int activeAtStart = ActiveDriverScratch.Count;
+				int activeAtStart = MobileNPCRegistry.CountLivingDrivers();
 				int restored = 0;
 				// Count already-active mobile NPCs as part of the same population cap. This
 				// protects against restoration running after another bootstrap has spawned NPCs.
@@ -202,7 +202,7 @@ namespace SDG.Unturned
 		private static void RestorePendingRecordsServer(GameObject prefab, int maximumAlive)
 		{
 			MobileNPCRegistry.CopyActiveDrivers(ActiveDriverScratch);
-			if (ActiveDriverScratch.Count >= maximumAlive || FailedRestoreRecords.Count == 0)
+			if (MobileNPCRegistry.CountLivingDrivers() >= maximumAlive || FailedRestoreRecords.Count == 0)
 				return;
 
 			// Process exactly one pending record per interval. Keeping this bounded avoids
