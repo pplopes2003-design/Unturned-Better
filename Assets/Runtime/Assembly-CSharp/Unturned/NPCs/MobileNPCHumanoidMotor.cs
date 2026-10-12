@@ -48,6 +48,7 @@ namespace SDG.Unturned
 
 		private static readonly float[] FallbackSteeringAngles = { -90f, 90f, -135f, 135f, 180f };
 		private static readonly RaycastHit[] ObstacleHitBuffer = new RaycastHit[16];
+		private static readonly Collider[] RouteOccupancyBuffer = new Collider[32];
 		private const int RouteGridSide = 9;
 		private const int RouteGridCenter = RouteGridSide / 2;
 		private const float RouteGridCellSize = 1.25f;
@@ -736,7 +737,32 @@ namespace SDG.Unturned
 			float halfSegment = Mathf.Max(0f, height * 0.5f - radius);
 			Vector3 bottom = center - Vector3.up * halfSegment;
 			Vector3 top = center + Vector3.up * halfSegment;
-			return Physics.CheckCapsule(bottom, top, radius, obstacleMask, QueryTriggerInteraction.Ignore);
+
+			// CheckCapsule cannot exclude this NPC's own CharacterController. Using it
+			// directly marks nearby grid cells as occupied by the NPC itself and can
+			// disconnect the local route graph before path search even begins.
+			int hitCount = Physics.OverlapCapsuleNonAlloc(bottom, top, radius,
+				RouteOccupancyBuffer, obstacleMask, QueryTriggerInteraction.Ignore);
+			if (hitCount >= RouteOccupancyBuffer.Length)
+			{
+				// Only allocate on buffer saturation; the full query avoids accepting a
+				// genuinely blocked cell because the non-alloc result was truncated.
+				Collider[] allHits = Physics.OverlapCapsule(bottom, top, radius,
+					obstacleMask, QueryTriggerInteraction.Ignore);
+				for (int i = 0; i < allHits.Length; ++i)
+				{
+					if (!IsOwnCollider(allHits[i]))
+						return true;
+				}
+				return false;
+			}
+
+			for (int i = 0; i < hitCount; ++i)
+			{
+				if (!IsOwnCollider(RouteOccupancyBuffer[i]))
+					return true;
+			}
+			return false;
 		}
 
 		private void TryChooseRoamingDestination()
