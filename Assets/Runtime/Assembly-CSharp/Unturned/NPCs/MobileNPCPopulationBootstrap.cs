@@ -118,7 +118,7 @@ namespace SDG.Unturned
             director.Configure(template);
 
             Debug.Log("[MobileNPCPopulationBootstrap] Single-player mobile NPC population initialized for loaded map "
-                + level + ". Experimental local entities only; network replication and persistent settlements are not implemented.");
+                + level + ". Experimental local entities only; local NPC snapshots are persisted, but network replication is not implemented.");
         }
 
         private static void DestroyExistingRuntimeObjects()
