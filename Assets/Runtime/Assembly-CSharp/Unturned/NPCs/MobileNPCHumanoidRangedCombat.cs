@@ -154,18 +154,22 @@ namespace SDG.Unturned
 			Player targetPlayer = ResolveTargetPlayer(targetTransform);
 			MobileNPCHumanoidDisposition targetNPC = targetTransform.GetComponent<MobileNPCHumanoidDisposition>();
 			if (targetNPC == null) targetNPC = targetTransform.GetComponentInParent<MobileNPCHumanoidDisposition>();
+			Zombie targetZombie = targetTransform.GetComponent<Zombie>();
+			if (targetZombie == null) targetZombie = targetTransform.GetComponentInParent<Zombie>();
 			MobileNPCHumanoidDisposition ownDisposition = GetComponent<MobileNPCHumanoidDisposition>();
 			MobileNPCHumanoidVitals targetVitals = targetNPC != null ? targetNPC.GetComponent<MobileNPCHumanoidVitals>() : null;
 			if (targetPlayer != null)
 			{
 				if (targetPlayer.life == null || targetPlayer.life.isDead || perception.VisiblePlayer != targetPlayer)
-				{
 					return;
-				}
 			}
-			else if (targetNPC == null || targetVitals == null || targetVitals.IsDead
-				|| perception.VisibleNPC != targetNPC
-				|| !MobileNPCHumanoidDisposition.AreHostile(ownDisposition, targetNPC))
+			else if (targetNPC != null)
+			{
+				if (targetVitals == null || targetVitals.IsDead || perception.VisibleNPC != targetNPC
+					|| !MobileNPCHumanoidDisposition.AreHostile(ownDisposition, targetNPC))
+					return;
+			}
+			else if (targetZombie == null || targetZombie.isDead || perception.VisibleZombie != targetZombie)
 			{
 				return;
 			}
@@ -284,7 +288,7 @@ namespace SDG.Unturned
 					EPlayerKill kill;
 					DamageTool.damagePlayer(parameters, out kill);
 				}
-				else
+				else if (targetNPC != null)
 				{
 					MobileNPCHumanoidDisposition hitNPC = hit.transform.GetComponent<MobileNPCHumanoidDisposition>();
 					if (hitNPC == null) hitNPC = hit.transform.GetComponentInParent<MobileNPCHumanoidDisposition>();
@@ -294,6 +298,17 @@ namespace SDG.Unturned
 					{
 						float hitDamage = GetWeaponDamage();
 						hitVitals.ApplyDamage(hitDamage, shotDirection * hitDamage);
+					}
+				}
+				else if (targetZombie != null)
+				{
+					Zombie hitZombie = hit.transform.GetComponent<Zombie>();
+					if (hitZombie == null) hitZombie = hit.transform.GetComponentInParent<Zombie>();
+					if (hitZombie == targetZombie && !hitZombie.isDead)
+					{
+						int roundedDamage = Mathf.Clamp(Mathf.RoundToInt(GetWeaponDamage()), 1, ushort.MaxValue);
+						hitZombie.askDamage((ushort)roundedDamage, shotDirection * roundedDamage,
+							out _, out _, trackKill: false, dropLoot: true);
 					}
 				}
 			}
