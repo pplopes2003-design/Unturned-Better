@@ -243,7 +243,7 @@ namespace SDG.Unturned
 		/// discrete item slots; recipes requiring tools, skills, workstations, target items,
 		/// NPC quest conditions, or special operations are left untouched.
 		/// </summary>
-		public bool TryCraftBuildableForSettlementServer()
+		public bool TryCraftBuildableForSettlementServer(Items sharedStorage = null)
 		{
 			if (!Provider.isServer || !Level.isLoaded)
 				return false;
@@ -269,7 +269,14 @@ namespace SDG.Unturned
 						continue;
 
 					List<int> consumedIndices = new List<int>();
-					if (!TryReserveBlueprintInputs(blueprint, consumedIndices) || consumedIndices.Count == 0)
+					if (!TryReserveBlueprintInputs(blueprint, consumedIndices))
+					{
+						consumedIndices.Clear();
+						if (sharedStorage == null || !TryStageBlueprintInputsFromStorage(blueprint, sharedStorage)
+							|| !TryReserveBlueprintInputs(blueprint, consumedIndices))
+							continue;
+					}
+					if (consumedIndices.Count == 0)
 						continue;
 
 					// Ensure crafting cannot consume the ingredients and then fail because the
@@ -322,6 +329,56 @@ namespace SDG.Unturned
 					return false;
 			}
 			return true;
+		}
+
+		/// <summary>
+		/// Moves only the missing discrete recipe ingredients from the group's shared vanilla
+		/// storage into this NPC's inventory. Items are removed from storage only after the
+		/// NPC inventory accepts an exact snapshot; partial staging is safe and can be reused.
+		/// </summary>
+		private bool TryStageBlueprintInputsFromStorage(Blueprint blueprint, Items sharedStorage)
+		{
+			if (!Provider.isServer || blueprint == null || sharedStorage == null || sharedStorage.items == null)
+				return false;
+
+			bool movedAny = false;
+			for (int supplyIndex = 0; supplyIndex < blueprint.supplies.Length; ++supplyIndex)
+			{
+				BlueprintSupply supply = blueprint.supplies[supplyIndex];
+				ItemAsset inputAsset = supply.FindItemAsset();
+				if (inputAsset == null)
+					return false;
+
+				int have = 0;
+				for (int slot = 0; slot < slots.Count; ++slot)
+				{
+					Item item = slots[slot];
+					if (item != null && item.id == inputAsset.id
+						&& (item.amount > 0 || supply.ShouldCountEmptyAsOne))
+						have++;
+				}
+				int missing = Mathf.Max(0, supply.amount - have);
+				for (int storageIndex = sharedStorage.items.Count - 1; storageIndex >= 0 && missing > 0; --storageIndex)
+				{
+					ItemJar jar = sharedStorage.items[storageIndex];
+					Item stored = jar != null ? jar.item : null;
+					if (stored == null || stored.id != inputAsset.id
+						|| (stored.amount == 0 && !supply.ShouldCountEmptyAsOne) || !HasSpace)
+						continue;
+
+					Item snapshot = new Item(stored.id, stored.amount, stored.quality,
+						stored.state != null ? (byte[])stored.state.Clone() : new byte[0]);
+					if (!TryStoreTransferredItem(snapshot))
+						continue;
+
+					sharedStorage.removeItem((byte)storageIndex);
+					missing--;
+					movedAny = true;
+				}
+				if (missing > 0)
+					return false;
+			}
+			return movedAny;
 		}
 
 		private bool TryReserveBlueprintInputs(Blueprint blueprint, List<int> consumedIndices)
