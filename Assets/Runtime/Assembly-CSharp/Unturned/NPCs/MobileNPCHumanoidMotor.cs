@@ -220,6 +220,32 @@ namespace SDG.Unturned
 				Vector3 movementDestination = routeWaypointIndex < routeWaypoints.Count
 					? routeWaypoints[routeWaypointIndex]
 					: (hasDetourWaypoint ? detourWaypoint : destination);
+
+				// Routes are snapshots of the scene. If a door closes or an entity blocks
+				// the next segment after planning, discard the stale route and try again
+				// through the existing cooldown-limited detour path.
+				if (routeWaypointIndex < routeWaypoints.Count)
+				{
+					Vector3 routeOffset = movementDestination - transform.position;
+					routeOffset.y = 0f;
+					if (routeOffset.sqrMagnitude > 0.1f)
+					{
+						Vector3 routeOrigin = transform.position
+							+ Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f);
+						float routeRadius = Mathf.Clamp(obstacleProbeRadius, 0.05f,
+							Mathf.Max(0.05f, characterController.radius * 0.9f));
+						if (IsObstacleBlockingAlong(routeOrigin, routeRadius, routeOffset.normalized,
+							Mathf.Min(routeOffset.magnitude, Mathf.Max(0.5f, obstacleProbeDistance))))
+						{
+							routeWaypoints.Clear();
+							routeWaypointIndex = 0;
+							hasDetourWaypoint = false;
+							nextDetourAttemptTime = Time.time;
+							movementDestination = destination;
+						}
+					}
+				}
+
 				Vector3 goalOffset = destination - transform.position;
 				goalOffset.y = 0f;
 				if (!hasDetourWaypoint && routeWaypoints.Count == 0
