@@ -146,7 +146,7 @@ namespace SDG.Unturned
 			}
 		}
 
-		private void ShowMainMenu()
+		private void ShowMainMenu(string notice = null)
 		{
 			if (activeNPC == null)
 				return;
@@ -162,11 +162,13 @@ namespace SDG.Unturned
 				? "Mercador: tenho suprimentos para trocar."
 				: "Sobrevivente: ainda não somos aliados; posso ouvir uma proposta.";
 			PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
-				greeting + "\nTeclado numérico:\n1. Comércio (1 item segurado por um lote do estoque)\n2. Propor aliança (entregue 1 item segurado)\n3. Conversar\nESC. Fechar");
+				(string.IsNullOrEmpty(notice) ? "" : notice + "\\n")
+				+ greeting + "\\nTeclado numérico:\\n1. Comércio (1 item segurado por um lote do estoque)\\n2. Propor aliança (entregue 1 item segurado)\\n3. Conversar\\nESC. Fechar");
 		}
 
-		private void OpenTradeMenu()
+		private void OpenTradeMenu(string notice = null)
 		{
+			state = MenuState.Main;
 			if (activeNPC == null || activeNPC.CurrentRole != MobileNPCHumanoidDisposition.Role.Friendly)
 			{
 				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Este sobrevivente ainda não é um mercador aliado. Proponha uma aliança primeiro.");
@@ -221,8 +223,7 @@ namespace SDG.Unturned
 			}
 			if (inventory == null || !inventory.TryGetItemSnapshot(stockSlot, out Item stock) || stock == null)
 			{
-				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Esse item não está mais no estoque. Escolha outro.");
-				OpenTradeMenu();
+				OpenTradeMenu("Esse item não está mais no estoque. Escolha outro.");
 				return;
 			}
 			if (stock.id == heldAsset.id)
@@ -252,11 +253,10 @@ namespace SDG.Unturned
 			ItemAsset heldAsset = activePlayer.equipment != null ? activePlayer.equipment.asset as ItemAsset : null;
 			if (heldAsset == null || heldAsset.id != pendingCurrencyItemId)
 			{
-				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "A troca foi cancelada porque o item de pagamento mudou. Segure o item e tente novamente.");
 				pendingStockSlot = -1;
 				pendingCurrencyItemId = 0;
 				state = MenuState.TradeStock;
-				OpenTradeMenu();
+				OpenTradeMenu("Troca cancelada: o item de pagamento mudou. Segure o item e tente novamente.");
 				return;
 			}
 
@@ -264,11 +264,10 @@ namespace SDG.Unturned
 			if (MobileNPCTradeService.TryPurchaseSlotServer(activePlayer, inventory, activeNPC,
 				pendingStockSlot, pendingCurrencyItemId, 1, 4f, out string error))
 			{
-				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Troca concluída. Você entregou 1 " + heldAsset.itemName + ".");
 				pendingStockSlot = -1;
 				pendingCurrencyItemId = 0;
 				state = MenuState.TradeStock;
-				OpenTradeMenu();
+				OpenTradeMenu("Troca concluída. Você entregou 1 " + heldAsset.itemName + ".");
 			}
 			else
 			{
@@ -313,9 +312,8 @@ namespace SDG.Unturned
 			ItemAsset heldAsset = activePlayer.equipment != null ? activePlayer.equipment.asset as ItemAsset : null;
 			if (heldAsset == null || heldAsset.id != pendingCurrencyItemId)
 			{
-				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Oferta cancelada: o item segurado mudou. Segure o item e faça a proposta novamente.");
 				pendingCurrencyItemId = 0;
-				ShowMainMenu();
+				ShowMainMenu("Oferta cancelada: o item segurado mudou. Segure o item e faça a proposta novamente.");
 				return;
 			}
 
@@ -331,9 +329,8 @@ namespace SDG.Unturned
 			}
 			else
 			{
-				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Aliança recusada: " + error);
 				pendingCurrencyItemId = 0;
-				ShowMainMenu();
+				ShowMainMenu("Aliança recusada: " + error);
 			}
 		}
 
