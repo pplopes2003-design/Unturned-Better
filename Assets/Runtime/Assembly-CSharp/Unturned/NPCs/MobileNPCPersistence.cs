@@ -270,10 +270,15 @@ namespace SDG.Unturned
 			string name = Level.info != null ? Level.info.name : "UnknownMap";
 			if (string.IsNullOrEmpty(name))
 				name = "UnknownMap";
+
+			// Unturned assigns a stable server ID per selected single-player character.
+			// Include it so two different characters playing the same map never share NPC state.
+			string server = string.IsNullOrEmpty(Provider.serverID) ? "UnknownWorld" : Provider.serverID;
+			string key = server + "_" + name;
 			char[] invalid = Path.GetInvalidFileNameChars();
 			for (int i = 0; i < invalid.Length; ++i)
-				name = name.Replace(invalid[i], '_');
-			return name;
+				key = key.Replace(invalid[i], '_');
+			return key;
 		}
 
 		private static string GetSavePath(string mapKey)
