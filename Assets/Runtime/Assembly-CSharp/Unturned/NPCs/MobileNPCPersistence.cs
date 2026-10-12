@@ -21,6 +21,7 @@ namespace SDG.Unturned
 		private static float nextSaveTime;
 		private static bool restoredForCurrentMap;
 		private static string currentMapKey;
+		private static readonly List<NPCRecord> FailedRestoreRecords = new List<NPCRecord>();
 
 		[Serializable]
 		private sealed class SaveFile
@@ -61,6 +62,7 @@ namespace SDG.Unturned
 			{
 				currentMapKey = mapKey;
 				restoredForCurrentMap = false;
+				FailedRestoreRecords.Clear();
 				nextSaveTime = Time.time + SaveInterval;
 			}
 
@@ -88,6 +90,7 @@ namespace SDG.Unturned
 		private static void RestoreServer(GameObject prefab, string mapKey)
 		{
 			string path = GetSavePath(mapKey);
+			FailedRestoreRecords.Clear();
 			if (!File.Exists(path))
 				return;
 
@@ -122,7 +125,10 @@ namespace SDG.Unturned
 
 					if (!MobileNPCSpawnService.TrySpawnServer(prefab, position, rotation, role, out GameObject instance, out string error))
 					{
-						Debug.LogWarning("[MobileNPCPersistence] Could not restore NPC at " + position + ": " + error);
+						// Keep failed records in subsequent snapshots instead of silently deleting them
+						// when a later periodic save captures only successfully restored NPCs.
+						FailedRestoreRecords.Add(record);
+						Debug.LogWarning("[MobileNPCPersistence] Could not restore NPC at " + position + "; keeping its snapshot for a later load: " + error);
 						continue;
 					}
 
@@ -224,6 +230,8 @@ namespace SDG.Unturned
 
 				save.npcs.Add(record);
 			}
+
+			save.npcs.AddRange(FailedRestoreRecords);
 
 			string path = GetSavePath(mapKey);
 			string temporaryPath = path + ".tmp";
