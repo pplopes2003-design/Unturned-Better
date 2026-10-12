@@ -102,12 +102,12 @@ namespace SDG.Unturned
 				return true;
 			}
 
-			// Without a validated retreat point, hold the current position rather than
-			// selecting an arbitrary point that might lead toward the shooter.
-			currentGoal = Goal.SeekCover;
-			tacticalDestination = currentPosition;
-			hasTacticalDestination = true;
-			goalDeadline = now + CoverDuration;
+			// If no covered point was found, the host should validate a retreat point.
+			// Do not keep the NPC planted in its current exposed position just because
+			// a nearby hard-cover candidate was unavailable.
+			currentGoal = Goal.Retreat;
+			hasTacticalDestination = false;
+			goalDeadline = now + RetreatDuration;
 			return true;
 		}
 
