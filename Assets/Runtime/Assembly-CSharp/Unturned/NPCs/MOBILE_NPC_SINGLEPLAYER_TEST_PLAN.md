@@ -54,6 +54,7 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 ## 6. Friendly trade and airdrops
 - [ ] If a host interaction/UI has been wired to `MobileNPCTradeService`, test purchase success, insufficient currency, changed stock, full player inventory, and refund paths.
 - [ ] Confirm trade cannot run on clients, at a distance, with dead players, or with non-friendly traders.
+- [ ] Start an NPC moving toward a world drop, then trigger combat or fill its inventory; verify the loot goal is cancelled and movement returns to the higher-priority behavior.
 - [ ] Observe an airdrop land; verify eligible mobile NPCs move toward it, compete only after landing, and do not duplicate items or bypass storage/inventory rules.
 - [ ] Test airdrops with no eligible NPCs, a crate that disappears, and a crate in an inaccessible location.
 
