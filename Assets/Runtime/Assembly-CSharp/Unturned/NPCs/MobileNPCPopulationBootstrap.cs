@@ -111,14 +111,34 @@ namespace SDG.Unturned
             visual.transform.localPosition = Vector3.zero;
             visual.transform.localRotation = Quaternion.identity;
 
-            // NPC_Client is authored on the game's dedicated NPC layer. Some local
-            // player-camera setups do not include that layer, making a successfully
-            // spawned humanoid completely invisible. The mobile prototype is rendered
-            // as an ordinary world character, so explicitly use the default render layer.
+            // Keep the native NPC_Client render layer. The checked-in prefab is authored
+            // on layer 16 (Medium), which Unturned's character rendering expects. Default
+            // (0) is not a safe substitute because the gameplay camera may cull it.
+            int visualRenderLayer = visualPrefab.layer;
             Transform[] visualTransforms = visual.GetComponentsInChildren<Transform>(true);
             for (int i = 0; i < visualTransforms.Length; ++i)
             {
-                visualTransforms[i].gameObject.layer = 0;
+                visualTransforms[i].gameObject.layer = visualRenderLayer;
+            }
+
+            Camera mainCamera = Camera.main;
+            if (mainCamera != null)
+            {
+                bool cameraIncludesLayer = (mainCamera.cullingMask & (1 << visualRenderLayer)) != 0;
+                Debug.Log("[MobileNPCPopulationBootstrap] Render camera audit: camera=" + mainCamera.name
+                    + ", cameraMask=0x" + mainCamera.cullingMask.ToString("X8")
+                    + ", NPC_Client renderLayer=" + visualRenderLayer
+                    + ", cameraIncludesRenderLayer=" + cameraIncludesLayer + ".");
+                if (!cameraIncludesLayer)
+                {
+                    Debug.LogError("[MobileNPCPopulationBootstrap] Main camera culls the NPC_Client render layer. "
+                        + "The model and diagnostic marker cannot render until this camera/layer mismatch is fixed.");
+                }
+            }
+            else
+            {
+                Debug.LogWarning("[MobileNPCPopulationBootstrap] Camera.main is null during visual setup; "
+                    + "the NPC visual layer remains the native NPC_Client layer " + visualRenderLayer + ".");
             }
 
             // The source asset is only a visual template. Explicitly retain its mesh
