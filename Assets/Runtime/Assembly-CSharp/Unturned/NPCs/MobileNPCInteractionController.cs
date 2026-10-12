@@ -299,7 +299,7 @@ namespace SDG.Unturned
 			PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
 				"Proposta de aliança: entregar 1 " + heldAsset.itemName
 				+ " para que o sobrevivente se una à facção dos sobreviventes e lute contra saqueadores hostis.\n"
-				+ "A aliança ainda não ativa escolta pessoal nem combate contra zumbis.\nTeclado numérico: 1. Confirmar oferta  |  2. Cancelar");
+				+ "A aliança ativa escolta fora de combate e defesa contra saqueadores e zumbis visíveis.\nTeclado numérico: 1. Confirmar oferta  |  2. Cancelar");
 		}
 
 		private void ConfirmAllianceOffer()
@@ -344,7 +344,7 @@ namespace SDG.Unturned
 			PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
 				activeNPC.CurrentRole == MobileNPCHumanoidDisposition.Role.Friendly
 					? "Mercador: procuro comida, água, munição e materiais. Posso trocar suprimentos e aceitar uma oferta de aliança."
-					: "Sobrevivente: não quero briga. Se trouxer um suprimento, podemos negociar uma aliança; ela não garante escolta pessoal ainda.");
+					: "Sobrevivente: não quero briga. Se trouxer um suprimento, podemos firmar uma aliança; eu acompanho você fora de combate e enfrento saqueadores e zumbis que detectar.");
 			state = MenuState.Main;
 		}
 
