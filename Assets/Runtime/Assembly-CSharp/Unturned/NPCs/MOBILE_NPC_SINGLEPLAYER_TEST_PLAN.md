@@ -18,6 +18,8 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - [ ] Verify the default aim-height offset directs shots toward the humanoid upper body rather than the root/feet; adjust only on prefabs with a different pivot.
 - [ ] Verify firing only commits when the stored gun state accepts the decremented round count; a missing/short gun state must not consume a shot.
 - [ ] Verify reload reads detached magazine rounds from Item.amount and capacity from ItemMagazineAsset.MaxAmountAsByte; empty magazines must not be selected.
+- [ ] Swap a partially loaded magazine; verify the old magazine returns with its remaining rounds and durability, and the new magazine's durability is written into gun state.
+- [ ] Verify empty magazines that vanilla preserves can be stored and survive NPC save/restore without becoming reload candidates.
 - [ ] Verify Ammo_Per_Shot values greater than one consume the correct number of rounds, and Infinite_Ammo weapons do not decrement the magazine.
 - [ ] Verify a weapon with no compatible attached magazine cannot fire, including assets configured with Ammo_Per_Shot = 0.
 - [ ] Interrupt reload by removing/disabling the NPC; verify the reserved magazine is returned rather than lost.
