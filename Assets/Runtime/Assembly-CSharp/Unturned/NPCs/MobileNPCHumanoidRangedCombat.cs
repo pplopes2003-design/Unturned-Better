@@ -134,7 +134,9 @@ namespace SDG.Unturned
 				return;
 			}
 
-			if (brain.CurrentState != MobileNPCBrain.State.Pursuing || Time.time < nextShotTime)
+			if (brain.CurrentState != MobileNPCBrain.State.Pursuing
+				|| brain.CurrentGoal == MobileNPCTactics.Goal.Retreat
+				|| Time.time < nextShotTime)
 			{
 				return;
 			}
