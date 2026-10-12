@@ -38,6 +38,7 @@ namespace SDG.Unturned
 		private bool centralStoragePlaced;
 		private int perimeterPiecesPlaced;
 		private InteractableStorage centralStorage;
+		private bool hasReconciledExistingSettlement;
 
 		public int PlacedPieces => placedPieces;
 
@@ -83,6 +84,15 @@ namespace SDG.Unturned
 				centralStoragePlaced |= groupMember.SettlementCentralStoragePlaced;
 			}
 
+			// Vanilla structures survive world reloads independently of this NPC snapshot.
+			// Re-discover the central storage and skip already occupied perimeter slots so
+			// a restored settlement does not try to place duplicate pieces at the same points.
+			if (!hasReconciledExistingSettlement)
+				ReconcileExistingSettlement(groupMember);
+
+			if (placedPieces >= Mathf.Clamp(maximumPieces, 1, 5) || Time.time < nextBuildTime)
+				return;
+
 			nextBuildTime = Time.time + Mathf.Max(2f, buildInterval);
 			if (driver.Target != null || driver.CurrentGoal != MobileNPCTactics.Goal.None
 				|| Vector3.Distance(motor.transform.position, planner.ChosenSite) > motor.HomeTerritoryRadius)
@@ -116,11 +126,8 @@ namespace SDG.Unturned
 			}
 			else
 			{
-				if (perimeterPiecesPlaced >= 4)
+				if (!TrySelectAvailablePerimeterSlot(out candidate, out angle))
 					return;
-				angle = perimeterPiecesPlaced * 90f;
-				Vector3 radial = Quaternion.Euler(0f, angle, 0f) * Vector3.forward;
-				candidate = planner.ChosenSite + radial * Mathf.Max(2f, perimeterRadius);
 			}
 
 			// A blocked pattern point is retried next interval instead of inventing
@@ -206,6 +213,74 @@ namespace SDG.Unturned
 		/// Transfers non-construction supplies into the NPC's central vanilla storage.
 		/// Items are removed from the simulated inventory only after Items accepts them.
 		/// </summary>
+
+		/// <summary>
+		/// Reconnects to vanilla-saved storage after loading a map and advances past
+		/// perimeter points that are already occupied. Vanilla world objects remain the
+		/// source of truth; this component never serializes or recreates those structures.
+		/// </summary>
+		private void ReconcileExistingSettlement(MobileNPCGroupMember groupMember)
+		{
+			hasReconciledExistingSettlement = true;
+			if (centralStorage == null)
+			{
+				InteractableStorage[] storages = Object.FindObjectsOfType<InteractableStorage>();
+				float bestDistanceSquared = 3.5f * 3.5f;
+				for (int i = 0; i < storages.Length; ++i)
+				{
+					InteractableStorage candidate = storages[i];
+					if (candidate == null || candidate.items == null)
+						continue;
+
+					float distanceSquared = (candidate.transform.position - planner.ChosenSite).sqrMagnitude;
+					if (distanceSquared >= bestDistanceSquared)
+						continue;
+
+					bestDistanceSquared = distanceSquared;
+					centralStorage = candidate;
+				}
+			}
+
+			if (centralStorage != null)
+				centralStoragePlaced = true;
+		}
+
+		/// <summary>
+		/// Keeps the fixed four-point pattern moving forward when a saved structure or
+		/// terrain obstruction already occupies a slot. Invalid ground is skipped rather
+		/// than causing the leader to retry the same impossible point forever.
+		/// </summary>
+		private bool TrySelectAvailablePerimeterSlot(out Vector3 candidate, out float angle)
+		{
+			candidate = Vector3.zero;
+			angle = 0f;
+			while (perimeterPiecesPlaced < 4)
+			{
+				angle = perimeterPiecesPlaced * 90f;
+				Vector3 radial = Quaternion.Euler(0f, angle, 0f) * Vector3.forward;
+				Vector3 slot = planner.ChosenSite + radial * Mathf.Max(2f, perimeterRadius);
+				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(slot, searchHeight, maximumDrop,
+					groundMask, maximumSlope, out Vector3 ground, out _))
+				{
+					perimeterPiecesPlaced++;
+					continue;
+				}
+
+				Vector3 placePosition = ground + Vector3.up;
+				if (Physics.CheckSphere(placePosition, Mathf.Clamp(clearanceRadius, 0.4f, 1.2f),
+					obstructionMask, QueryTriggerInteraction.Ignore))
+				{
+					perimeterPiecesPlaced++;
+					continue;
+				}
+
+				candidate = ground;
+				return true;
+			}
+
+			return false;
+		}
+
 		private void TryTransferSuppliesToCentralStorage()
 		{
 			if (!Provider.isServer || centralStorage == null || centralStorage.items == null
