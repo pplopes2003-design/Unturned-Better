@@ -115,3 +115,5 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 
 - [ ] Route-grid occupancy regression: place the NPC in an open area and confirm its own CharacterController/child colliders do not mark neighboring grid cells as blocked; verify nearby walls and other NPCs still block cells.
 - [ ] Route-grid occupancy overflow: densely populate the test area until the non-alloc overlap buffer saturates; confirm the full-query fallback still rejects cells occupied by external colliders.
+
+- [ ] Route-planning allocation regression: trigger repeated blocked-route searches for several NPCs and verify the per-NPC 81-node workspace is reused, with walkability/closed state cleared between searches and no stale predecessor/cost data leaking into the next route.
