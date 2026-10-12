@@ -23,6 +23,29 @@ namespace SDG.Unturned
 			Traders = 5
 		}
 
+		private void Awake()
+		{
+			if (faction != Id.Unaffiliated)
+				return;
+
+			MobileNPCHumanoidDisposition disposition = GetComponent<MobileNPCHumanoidDisposition>();
+			if (disposition == null)
+				return;
+
+			switch (disposition.CurrentRole)
+			{
+				case MobileNPCHumanoidDisposition.Role.Hostile:
+					faction = Id.Raiders;
+					break;
+				case MobileNPCHumanoidDisposition.Role.Friendly:
+					faction = Id.Traders;
+					break;
+				default:
+					faction = Id.Scavengers;
+					break;
+			}
+		}
+
 		public enum Relationship
 		{
 			Allied,
