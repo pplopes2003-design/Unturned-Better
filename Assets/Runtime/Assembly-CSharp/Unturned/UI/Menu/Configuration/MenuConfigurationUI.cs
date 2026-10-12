@@ -17,6 +17,7 @@ namespace SDG.Unturned
 		private static SleekButtonIcon controlsButton;
 		private static SleekButtonIcon audioButton;
 		private static SleekButtonIcon backButton;
+		private static ISleekButton mobileNPCButton;
 
 		public static void open()
 		{
@@ -69,6 +70,12 @@ namespace SDG.Unturned
 		private static void onClickedAudioButton(ISleekElement button)
 		{
 			audioMenu.open();
+			close();
+		}
+
+		private static void onClickedMobileNPCButton(ISleekElement button)
+		{
+			MenuConfigurationMobileNPCUI.open();
 			close();
 		}
 
@@ -172,6 +179,19 @@ namespace SDG.Unturned
 			container.AddChild(audioButton);
 			verticalOffset += 60;
 
+			mobileNPCButton = Glazier.Get().CreateButton();
+			mobileNPCButton.PositionOffset_X = -100;
+			mobileNPCButton.PositionOffset_Y = verticalOffset;
+			mobileNPCButton.PositionScale_X = 0.5f;
+			mobileNPCButton.PositionScale_Y = 0.5f;
+			mobileNPCButton.SizeOffset_X = 200;
+			mobileNPCButton.SizeOffset_Y = 50;
+			mobileNPCButton.Text = "Mobile NPCs";
+			mobileNPCButton.TooltipText = "Configure single-player mobile NPC population and behavior";
+			mobileNPCButton.OnClicked += onClickedMobileNPCButton;
+			container.AddChild(mobileNPCButton);
+			verticalOffset += 60;
+
 			backButton = new SleekButtonIcon(MenuDashboardUI.icons.load<Texture2D>("Exit"));
 			backButton.PositionOffset_X = -100;
 			backButton.PositionOffset_Y = verticalOffset;
@@ -191,6 +211,7 @@ namespace SDG.Unturned
 			new MenuConfigurationDisplayUI();
 			new MenuConfigurationGraphicsUI();
 			new MenuConfigurationControlsUI();
+			new MenuConfigurationMobileNPCUI();
 
 			audioMenu = new MenuConfigurationAudioUI();
 			audioMenu.PositionOffset_X = 10;
