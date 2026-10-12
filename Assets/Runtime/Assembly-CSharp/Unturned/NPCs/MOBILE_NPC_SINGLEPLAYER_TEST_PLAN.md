@@ -159,3 +159,9 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - [ ] Keep a player as the selected target, then generate another noise point; verify the zombie does not abandon the player pursuit for the noise.
 - [ ] Break line of sight or move beyond the close-priority radius; verify the zombie can investigate the last known sound position and then search nearby reachable points.
 - [ ] Verify investigation pauses are brief (under 1.75 seconds), the zombie moves between local search points, and failed/unreachable points do not leave it endlessly turning in place.
+
+
+## 12. Zombie investigation regression
+- Verify gunshots trigger nearby zombies promptly.
+- Verify investigation moves between reachable points instead of turning in place.
+- Verify a player with clear line of sight within 20 m takes priority over sound-point investigation.
