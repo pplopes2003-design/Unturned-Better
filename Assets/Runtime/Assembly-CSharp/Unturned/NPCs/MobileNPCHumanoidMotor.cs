@@ -2,6 +2,7 @@
 // This file is part of the U3 SDK: https://github.com/smartlydressedgames/u3-sdk/    //
 // Please refer to the included LICENSE.txt for copyright notice and license details. //
 ////////////////////////////////////////////////////////////////////////////////////////
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace SDG.Unturned
@@ -39,7 +40,7 @@ namespace SDG.Unturned
 		[SerializeField, Range(0f, 60f)] private float roamingMaximumSlope = 38f;
 		[SerializeField] private LayerMask roamingGroundMask = ~0;
 
-		[Header("Local obstacle avoidance and short detours (not global pathfinding)")]
+		[Header("Local obstacle avoidance and bounded indoor route planning")]
 		[SerializeField, Min(0.5f)] private float obstacleProbeDistance = 1.6f;
 		[SerializeField, Min(0.05f)] private float obstacleProbeRadius = 0.28f;
 		[SerializeField, Range(15f, 80f)] private float obstacleAvoidanceAngle = 48f;
@@ -47,6 +48,17 @@ namespace SDG.Unturned
 
 		private static readonly float[] FallbackSteeringAngles = { -90f, 90f, -135f, 135f, 180f };
 		private static readonly RaycastHit[] ObstacleHitBuffer = new RaycastHit[16];
+		private const int RouteGridSide = 9;
+		private const int RouteGridCenter = RouteGridSide / 2;
+		private const float RouteGridCellSize = 1.25f;
+		private const int RouteGridNodeLimit = RouteGridSide * RouteGridSide;
+		private static readonly Vector2Int[] RouteGridDirections =
+		{
+			new Vector2Int(1, 0), new Vector2Int(-1, 0),
+			new Vector2Int(0, 1), new Vector2Int(0, -1),
+			new Vector2Int(1, 1), new Vector2Int(1, -1),
+			new Vector2Int(-1, 1), new Vector2Int(-1, -1)
+		};
 
 		private CharacterController characterController;
 		private MobileNPCBrainDriver brainDriver;
@@ -67,6 +79,9 @@ namespace SDG.Unturned
 		private Vector3 detourWaypoint;
 		private Vector3 detourGoalSnapshot;
 		private float nextDetourAttemptTime;
+		private readonly List<Vector3> routeWaypoints = new List<Vector3>(16);
+		private int routeWaypointIndex;
+		private float nextRoutePlanTime;
 
 		public bool IsInitialized => hasInitialized;
 		public bool IsMoving { get; private set; }
@@ -187,21 +202,35 @@ namespace SDG.Unturned
 				if (!hasDetourWaypoint || (destination - detourGoalSnapshot).sqrMagnitude > 9f)
 				{
 					hasDetourWaypoint = false;
+					routeWaypoints.Clear();
+					routeWaypointIndex = 0;
 				}
-				if (hasDetourWaypoint && (transform.position - detourWaypoint).sqrMagnitude <= 1.5625f)
+				if (routeWaypointIndex < routeWaypoints.Count
+					&& (transform.position - routeWaypoints[routeWaypointIndex]).sqrMagnitude <= 1.0f)
 				{
-					hasDetourWaypoint = false;
-					nextDetourAttemptTime = Time.time + 0.35f;
+					++routeWaypointIndex;
+					if (routeWaypointIndex >= routeWaypoints.Count)
+					{
+						routeWaypoints.Clear();
+						routeWaypointIndex = 0;
+						hasDetourWaypoint = false;
+						nextDetourAttemptTime = Time.time + 0.35f;
+					}
 				}
-				Vector3 movementDestination = hasDetourWaypoint ? detourWaypoint : destination;
+				Vector3 movementDestination = routeWaypointIndex < routeWaypoints.Count
+					? routeWaypoints[routeWaypointIndex]
+					: (hasDetourWaypoint ? detourWaypoint : destination);
 				Vector3 goalOffset = destination - transform.position;
 				goalOffset.y = 0f;
-				if (!hasDetourWaypoint && goalOffset.sqrMagnitude > stoppingDistance * stoppingDistance
+				if (!hasDetourWaypoint && routeWaypoints.Count == 0
+					&& goalOffset.sqrMagnitude > stoppingDistance * stoppingDistance
 					&& Time.time >= nextDetourAttemptTime
 					&& IsObstacleBlocking(goalOffset.normalized))
 				{
 					TryCreateDetourWaypoint(destination);
-					if (hasDetourWaypoint)
+					if (routeWaypointIndex < routeWaypoints.Count)
+						movementDestination = routeWaypoints[routeWaypointIndex];
+					else if (hasDetourWaypoint)
 						movementDestination = detourWaypoint;
 				}
 				Vector3 offset = movementDestination - transform.position;
@@ -304,6 +333,8 @@ namespace SDG.Unturned
 				// A failed detour must not keep pulling the NPC toward the same unusable point.
 				// Clear it so the next bounded attempt can choose a different side.
 				hasDetourWaypoint = false;
+				routeWaypoints.Clear();
+				routeWaypointIndex = 0;
 				nextDetourAttemptTime = Time.time + 0.2f;
 				recoverySteeringAngle = Random.value < 0.5f ? -90f : 90f;
 				useRecoverySteering = true;
@@ -436,6 +467,19 @@ namespace SDG.Unturned
 			if (toGoal.sqrMagnitude < 0.01f)
 				return;
 
+			// First try a bounded local grid search. The grid is centered on the NPC,
+			// limited to 81 nodes, and resolves only ground close to the current floor.
+			// A distant goal is approached in successive local segments rather than
+			// expanding the search without limit.
+			if (TryBuildLocalRoute(destination))
+			{
+				detourGoalSnapshot = destination;
+				hasDetourWaypoint = false;
+				return;
+			}
+
+			// Conservative fallback: retain the prior single-hop detour when the grid
+			// cannot find a route in the bounded search area.
 			Vector3 desired = toGoal.normalized;
 			Vector3 origin = transform.position + Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f);
 			float radius = Mathf.Clamp(obstacleProbeRadius, 0.05f, Mathf.Max(0.05f, characterController.radius * 0.9f));
@@ -460,22 +504,15 @@ namespace SDG.Unturned
 				resolvedOffset.y = 0f;
 				if (resolvedOffset.sqrMagnitude < 1f)
 					continue;
-
-				// Ground resolution can shift the candidate horizontally on uneven terrain.
-				// Re-probe the actual resolved route so that shift does not put the waypoint
-				// behind the very wall this detour was meant to avoid.
 				Vector3 resolvedDirection = resolvedOffset.normalized;
 				if (IsObstacleBlockingAlong(origin, radius, resolvedDirection,
 					Mathf.Min(resolvedOffset.magnitude, step)))
-				{
 					continue;
-				}
 
 				float progress = Vector3.Dot(resolvedDirection, desired);
-				float currentGoalDistance = toGoal.magnitude;
 				Vector3 candidateGoalOffset = destination - resolved;
 				candidateGoalOffset.y = 0f;
-				float goalDistanceImprovement = currentGoalDistance - candidateGoalOffset.magnitude;
+				float goalDistanceImprovement = toGoal.magnitude - candidateGoalOffset.magnitude;
 				float score = progress * 3f + goalDistanceImprovement * 0.5f - resolvedOffset.magnitude * 0.05f;
 				if (score > bestScore)
 				{
@@ -490,6 +527,161 @@ namespace SDG.Unturned
 				detourGoalSnapshot = destination;
 				hasDetourWaypoint = true;
 			}
+		}
+
+		private bool TryBuildLocalRoute(Vector3 destination)
+		{
+			if (Time.time < nextRoutePlanTime)
+				return false;
+			nextRoutePlanTime = Time.time + 0.75f;
+
+			Vector3 goalOffset = destination - transform.position;
+			goalOffset.y = 0f;
+			if (goalOffset.sqrMagnitude < 0.01f)
+				return false;
+
+			Vector3 localGoal = transform.position + Vector3.ClampMagnitude(goalOffset, RouteGridCenter * RouteGridCellSize);
+			Vector3[] positions = new Vector3[RouteGridNodeLimit];
+			bool[] walkable = new bool[RouteGridNodeLimit];
+			float[] costs = new float[RouteGridNodeLimit];
+			int[] previous = new int[RouteGridNodeLimit];
+			bool[] closed = new bool[RouteGridNodeLimit];
+			for (int i = 0; i < RouteGridNodeLimit; ++i)
+			{
+				costs[i] = float.PositiveInfinity;
+				previous[i] = -1;
+			}
+
+			Vector3 basePosition = transform.position;
+			float floorY = basePosition.y;
+			float maxFloorDelta = Mathf.Clamp(characterController.height * 0.45f, 0.8f, 1.25f);
+			float routeRadius = Mathf.Clamp(obstacleProbeRadius, 0.05f, Mathf.Max(0.05f, characterController.radius * 0.9f));
+			for (int z = 0; z < RouteGridSide; ++z)
+			{
+				for (int x = 0; x < RouteGridSide; ++x)
+				{
+					int index = z * RouteGridSide + x;
+					Vector3 candidate = basePosition + new Vector3(
+						(x - RouteGridCenter) * RouteGridCellSize, 0f,
+						(z - RouteGridCenter) * RouteGridCellSize);
+					if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate,
+						1.6f, 2.2f, roamingGroundMask, roamingMaximumSlope,
+						out Vector3 resolved, out _))
+						continue;
+					if (Mathf.Abs(resolved.y - floorY) > maxFloorDelta)
+						continue;
+
+					Vector3 mid = resolved + Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f);
+					Vector3 horizontal = resolved - basePosition;
+					horizontal.y = 0f;
+					if (horizontal.sqrMagnitude > 0.2f
+						&& IsObstacleBlockingAlong(mid, routeRadius, horizontal.normalized,
+							Mathf.Min(RouteGridCellSize * 0.35f, horizontal.magnitude)))
+						continue;
+
+					positions[index] = resolved;
+					walkable[index] = true;
+				}
+			}
+
+			int start = RouteGridCenter * RouteGridSide + RouteGridCenter;
+			if (!walkable[start])
+			{
+				positions[start] = basePosition;
+				walkable[start] = true;
+			}
+			Vector3 goalFromBase = localGoal - basePosition;
+			int goalX = Mathf.Clamp(RouteGridCenter + Mathf.RoundToInt(goalFromBase.x / RouteGridCellSize), 0, RouteGridSide - 1);
+			int goalZ = Mathf.Clamp(RouteGridCenter + Mathf.RoundToInt(goalFromBase.z / RouteGridCellSize), 0, RouteGridSide - 1);
+			int goal = goalZ * RouteGridSide + goalX;
+			if (!walkable[goal])
+			{
+				float nearest = float.PositiveInfinity;
+				int nearestIndex = -1;
+				for (int i = 0; i < RouteGridNodeLimit; ++i)
+				{
+					if (!walkable[i]) continue;
+					Vector3 delta = positions[i] - localGoal;
+					delta.y = 0f;
+					if (delta.sqrMagnitude < nearest)
+					{
+						nearest = delta.sqrMagnitude;
+						nearestIndex = i;
+					}
+				}
+				goal = nearestIndex;
+			}
+			if (goal < 0 || goal == start)
+				return false;
+
+			costs[start] = 0f;
+			for (int iteration = 0; iteration < RouteGridNodeLimit; ++iteration)
+			{
+				int current = -1;
+				float bestCost = float.PositiveInfinity;
+				for (int i = 0; i < RouteGridNodeLimit; ++i)
+				{
+					if (!closed[i] && walkable[i] && costs[i] < bestCost)
+					{
+						bestCost = costs[i];
+						current = i;
+					}
+				}
+				if (current < 0)
+					break;
+				if (current == goal)
+					break;
+				closed[current] = true;
+
+				int cx = current % RouteGridSide;
+				int cz = current / RouteGridSide;
+				for (int d = 0; d < RouteGridDirections.Length; ++d)
+				{
+					int nx = cx + RouteGridDirections[d].x;
+					int nz = cz + RouteGridDirections[d].y;
+					if (nx < 0 || nx >= RouteGridSide || nz < 0 || nz >= RouteGridSide)
+						continue;
+					int next = nz * RouteGridSide + nx;
+					if (!walkable[next] || closed[next])
+						continue;
+					Vector3 edge = positions[next] - positions[current];
+					edge.y = 0f;
+					float edgeLength = edge.magnitude;
+					if (edgeLength < 0.1f || IsObstacleBlockingAlong(
+						positions[current] + Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f),
+						routeRadius, edge.normalized, edgeLength))
+						continue;
+					float tentative = costs[current] + edgeLength;
+					if (tentative < costs[next])
+					{
+						costs[next] = tentative;
+						previous[next] = current;
+					}
+				}
+			}
+
+			if (goal != start && previous[goal] < 0)
+				return false;
+			List<Vector3> reversed = new List<Vector3>(RouteGridSide);
+			int cursor = goal;
+			while (cursor != start && cursor >= 0 && reversed.Count < RouteGridNodeLimit)
+			{
+				reversed.Add(positions[cursor]);
+				cursor = previous[cursor];
+			}
+			if (cursor != start || reversed.Count == 0)
+				return false;
+
+			routeWaypoints.Clear();
+			for (int i = reversed.Count - 1; i >= 0; --i)
+			{
+				Vector3 point = reversed[i];
+				if (i == 0 && Vector3.Distance(point, localGoal) < 1.0f)
+					point = localGoal;
+				routeWaypoints.Add(point);
+			}
+			routeWaypointIndex = 0;
+			return routeWaypoints.Count > 0;
 		}
 
 		private void TryChooseRoamingDestination()
