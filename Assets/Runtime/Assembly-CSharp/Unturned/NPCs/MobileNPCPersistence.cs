@@ -255,6 +255,20 @@ namespace SDG.Unturned
 		{
 			error = null;
 			Vector3 position = new Vector3(record.px, record.py, record.pz);
+			// Older snapshots may contain NPCs that fell through an unloaded or missing
+			// terrain collider. Recover their saved X/Z on validated map ground instead
+			// of retrying an impossible Y coordinate forever.
+			if (position.y < -10f || !Level.checkSafeIncludingClipVolumes(position))
+			{
+				Vector3 groundCandidate = new Vector3(position.x, 0f, position.z);
+				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(groundCandidate, 1000f, 1500f,
+					~0, 50f, out Vector3 recoveredPosition, out string recoveryError))
+				{
+					error = "Saved position is invalid and no safe ground could be recovered at its X/Z: " + recoveryError;
+					return false;
+				}
+				position = recoveredPosition;
+			}
 			Quaternion rotation = new Quaternion(record.rx, record.ry, record.rz, record.rw);
 			float rotationMagnitudeSquared = rotation.x * rotation.x + rotation.y * rotation.y
 				+ rotation.z * rotation.z + rotation.w * rotation.w;
@@ -364,13 +378,24 @@ namespace SDG.Unturned
 				if (vitals != null && vitals.IsDead)
 					continue;
 
+				// Never persist a falling/out-of-bounds NPC; that would turn a bad
+				// transform into a permanent deferred-restore record across launches.
+				Vector3 savedPosition = driver.transform.position;
+				if (!IsFinite(savedPosition.x) || !IsFinite(savedPosition.y) || !IsFinite(savedPosition.z)
+					|| savedPosition.y < -10f || !Level.checkSafeIncludingClipVolumes(savedPosition))
+				{
+					Debug.LogWarning("[MobileNPCPersistence] Skipping invalid/out-of-bounds mobile NPC transform at "
+						+ savedPosition + " while saving map '" + mapKey + "'.");
+					continue;
+				}
+
 				MobileNPCHumanoidDisposition disposition = driver.GetComponent<MobileNPCHumanoidDisposition>();
 				MobileNPCFaction faction = driver.GetComponent<MobileNPCFaction>();
 				NPCRecord record = new NPCRecord
 				{
-					px = driver.transform.position.x,
-					py = driver.transform.position.y,
-					pz = driver.transform.position.z,
+					px = savedPosition.x,
+					py = savedPosition.y,
+					pz = savedPosition.z,
 					rx = driver.transform.rotation.x,
 					ry = driver.transform.rotation.y,
 					rz = driver.transform.rotation.z,
