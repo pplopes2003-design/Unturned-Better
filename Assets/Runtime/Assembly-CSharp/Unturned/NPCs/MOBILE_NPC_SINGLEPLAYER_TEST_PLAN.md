@@ -11,6 +11,7 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 
 ## 2. Combat and humanoid behavior
 - [ ] Confirm hostile mobile NPCs can detect a nearby player and transition into pursuit/attack behavior.
+- [ ] Verify melee attacks require a confirmed target collider and stop at walls/other intervening entities.
 - [ ] Break line of sight and move away; verify the NPC reacts to last-known position and eventually returns/abandons pursuit instead of tracking the player indefinitely.
 - [ ] Fire nearby shots without exposing the player; verify noise investigation does not require direct visual contact.
 - [ ] Test ranged combat at short, medium, and long distances. Record hit rate and confirm aim is imperfect, with spread/suppression rather than sentry-like guaranteed hits.
