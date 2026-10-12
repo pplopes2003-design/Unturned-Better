@@ -17,6 +17,7 @@ namespace SDG.Unturned
 	public sealed class MobileNPCGroupMember : MonoBehaviour
 	{
 		private static readonly Dictionary<int, GroupRecord> groups = new Dictionary<int, GroupRecord>();
+		private static readonly Dictionary<int, int> restoredGroupIdMap = new Dictionary<int, int>();
 		private static int nextGroupId = 1;
 		private const float GroupJoinRadius = 140f;
 		private const int MaximumGroupSize = 4;
@@ -267,26 +268,37 @@ namespace SDG.Unturned
 			MobileNPCHumanoidDisposition.Role role = disposition != null
 				? disposition.CurrentRole : MobileNPCHumanoidDisposition.Role.Neutral;
 			MobileNPCFaction.Id faction = GetCurrentFaction(role);
-			if (groups.TryGetValue(savedGroupId, out GroupRecord target))
+
+			// Snapshot group IDs belong to the save file, not this runtime session. Map them
+			// to fresh runtime IDs so auto-created groups cannot accidentally collide.
+			if (!restoredGroupIdMap.TryGetValue(savedGroupId, out int runtimeGroupId))
 			{
-				PruneDeadMembers(target);
-				if (target.Role != role || target.Faction != faction || target.Members.Count >= MaximumGroupSize)
-					return false;
+				runtimeGroupId = nextGroupId++;
+				while (groups.ContainsKey(runtimeGroupId))
+					runtimeGroupId = nextGroupId++;
+				restoredGroupIdMap.Add(savedGroupId, runtimeGroupId);
 			}
-			else
+
+			if (!groups.TryGetValue(runtimeGroupId, out GroupRecord target))
 			{
 				target = new GroupRecord
 				{
-					Id = savedGroupId,
+					Id = runtimeGroupId,
 					Anchor = savedAnchor,
 					Role = role,
 					Faction = faction,
 					HasSettlement = hasSettlement
 				};
-				groups.Add(savedGroupId, target);
+				groups.Add(runtimeGroupId, target);
+			}
+			else
+			{
+				PruneDeadMembers(target);
+				if (target.Role != role || target.Faction != faction || target.Members.Count >= MaximumGroupSize)
+					return false;
 			}
 
-			if (GroupId != savedGroupId)
+			if (GroupId != runtimeGroupId)
 				RemoveFromCurrentGroupServer(false);
 
 			GroupId = target.Id;
@@ -296,7 +308,7 @@ namespace SDG.Unturned
 				target.Leader = this;
 			if (motor != null)
 				motor.TrySetHomePositionServer(target.Anchor);
-			nextGroupId = Mathf.Max(nextGroupId, savedGroupId + 1);
+			nextGroupId = Mathf.Max(nextGroupId, runtimeGroupId + 1);
 
 			// A later record can be the first member encountered with settlement data.
 			// Apply the saved anchor through the shared setter so every member is synchronized.
@@ -311,6 +323,7 @@ namespace SDG.Unturned
 			if (!Provider.isServer)
 				return;
 			groups.Clear();
+			restoredGroupIdMap.Clear();
 			nextGroupId = 1;
 		}
 	}
