@@ -73,7 +73,7 @@ namespace SDG.Unturned
 			// Pattern: central storage, then four cardinal defensive positions.
 			// If no storage item exists, use only the perimeter pattern.
 			bool placeStorage = !centralStoragePlaced && HasStorageBuildable();
-			int selectedSlot;
+			int selectedSlot = -1;
 			ItemBarricadeAsset selectedAsset = null;
 			ItemStructureAsset selectedStructureAsset = null;
 
