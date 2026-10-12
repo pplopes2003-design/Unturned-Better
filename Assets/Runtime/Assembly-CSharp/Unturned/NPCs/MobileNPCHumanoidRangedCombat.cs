@@ -428,7 +428,7 @@ namespace SDG.Unturned
 			Item oldMagazine = null;
 			if (oldMagazineAsset != null && (oldMagazineRounds > 0
 				|| (!selectedGunAsset.shouldDeleteEmptyMagazines && !oldMagazineAsset.ShouldDeleteAtZeroAmount)))
-				oldMagazine = new Item(oldMagazineID, oldMagazineRounds, gunSnapshot.state[17]);
+				oldMagazine = new Item(oldMagazineID, (byte)Mathf.Min(oldMagazineRounds, oldMagazineAsset.MaxAmountAsByte), gunSnapshot.state[17]);
 
 			pendingReloadRounds = Mathf.Min(availableRounds, magazineAsset.MaxAmountAsByte);
 			pendingReloadMagazineID = consumedMagazine.id;
