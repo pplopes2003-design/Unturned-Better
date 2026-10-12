@@ -2940,16 +2940,26 @@ namespace SDG.Unturned
 			{
 				if (!isUpdated)
 				{
-					if (Mathf.Abs(lastUpdatedPos.x - transform.position.x) > Provider.UPDATE_DISTANCE || Mathf.Abs(lastUpdatedPos.y - transform.position.y) > Provider.UPDATE_DISTANCE || Mathf.Abs(lastUpdatedPos.z - transform.position.z) > Provider.UPDATE_DISTANCE || Mathf.Abs(lastUpdatedAngle - transform.rotation.eulerAngles.y) > 1)
+					bool hasMoved = Mathf.Abs(lastUpdatedPos.x - transform.position.x) > Provider.UPDATE_DISTANCE
+						|| Mathf.Abs(lastUpdatedPos.y - transform.position.y) > Provider.UPDATE_DISTANCE
+						|| Mathf.Abs(lastUpdatedPos.z - transform.position.z) > Provider.UPDATE_DISTANCE;
+					bool hasRotated = Mathf.Abs(lastUpdatedAngle - transform.rotation.eulerAngles.y) > 1;
+
+					if (hasMoved || hasRotated)
 					{
 						lastUpdatedPos = transform.position;
 						lastUpdatedAngle = transform.rotation.eulerAngles.y;
 
 						isUpdated = true;
 						zombieRegion.updates++;
+					}
 
+					// Rotation alone is not progress. Previously a zombie turning against
+					// a wall cleared isStuck every network update, preventing the point-hunt
+					// recovery timer from ever selecting another investigation waypoint.
+					if (hasMoved)
+					{
 						isStuck = false;
-
 						lastStuck = Time.time;
 						stuckSearchTimer = 0.0f;
 					}
