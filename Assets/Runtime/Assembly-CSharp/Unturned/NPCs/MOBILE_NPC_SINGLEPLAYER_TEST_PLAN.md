@@ -90,3 +90,5 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - [ ] Place the NPC in a fully enclosed corner or blocked corridor; verify detour attempts are bounded, no per-frame ground searches occur, and the existing stuck-recovery behavior remains responsive.
 - [ ] Keep a tactical NPC blocked until stuck recovery activates; verify it clears the failed detour waypoint and attempts a fresh detour rather than repeatedly selecting the stale point.
 - [ ] Verify detour waypoint selection rejects unsafe ground, steep slopes, and positions blocked by nearby colliders.
+- [ ] On uneven ground beside a wall, verify the ground-resolved detour candidate is re-probed from the NPC's actual position and rejected if that resolved route is still blocked.
+- [ ] Compare detour candidates by both alignment and reduction in remaining goal distance; verify side-steps are allowed when needed but clearly regressive candidates are deprioritized.
