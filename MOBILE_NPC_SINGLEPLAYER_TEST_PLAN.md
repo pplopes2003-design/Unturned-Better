@@ -58,6 +58,7 @@ Este plano cobre a fundação local dos NPCs móveis no Unturned/U3-SDK. Executa
 
 - [ ] Confirmar que NPCs investigam ruídos, perseguem alvos detectados e retornam quando perdem o alvo.
 - [ ] Testar perda de linha de visão e memória de alvo; NPC não deve perseguir indefinidamente uma posição antiga.
+- [ ] Ao perder o alvo, confirmar que o NPC revisita a última posição conhecida e percorre três pontos de busca próximos antes de retomar a rotina normal; ruídos também devem gerar busca local.
 - [ ] Confirmar que aliados não se atacam por erro de relação de facção.
 - [ ] Testar combate a curta, média e longa distância, usando cobertura e obstáculos.
 - [ ] Verificar que tiros são limitados por rajadas, pausas, recarga e dispersão; não devem se comportar como sentries com precisão perfeita.
