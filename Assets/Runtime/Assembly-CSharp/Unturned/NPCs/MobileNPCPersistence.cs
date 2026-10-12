@@ -16,7 +16,7 @@ namespace SDG.Unturned
 	/// </summary>
 	internal static class MobileNPCPersistence
 	{
-		private const int CurrentVersion = 1;
+		private const int CurrentVersion = 2;
 		private const float SaveInterval = 30f;
 		private static float nextSaveTime;
 		private static bool restoredForCurrentMap;
@@ -164,11 +164,18 @@ namespace SDG.Unturned
 					}
 
 					MobileNPCGroupMember groupMember = instance.GetComponent<MobileNPCGroupMember>();
-					if (groupMember != null && record.groupId > 0
-						&& IsFinite(record.ax) && IsFinite(record.ay) && IsFinite(record.az))
+					if (groupMember != null && IsFinite(record.ax) && IsFinite(record.ay) && IsFinite(record.az))
 					{
-						groupMember.SetGroupAnchorServer(record.groupId,
-							new Vector3(record.ax, record.ay, record.az), record.hasSettlement);
+						Vector3 savedAnchor = new Vector3(record.ax, record.ay, record.az);
+						if (record.groupId > 0)
+						{
+							groupMember.SetGroupAnchorServer(record.groupId, savedAnchor, record.hasSettlement);
+						}
+						else if (record.hasSettlement)
+						{
+							// Backward compatibility with snapshots created before group IDs were persisted.
+							groupMember.SetGroupAnchorServer(savedAnchor);
+						}
 					}
 
 					MobileNPCInventory inventory = instance.GetComponent<MobileNPCInventory>();
@@ -306,7 +313,7 @@ namespace SDG.Unturned
 				try
 				{
 					SaveFile save = JsonUtility.FromJson<SaveFile>(File.ReadAllText(candidates[i]));
-					if (save != null && save.version == CurrentVersion && save.npcs != null
+					if (save != null && save.version >= 1 && save.version <= CurrentVersion && save.npcs != null
 						&& string.Equals(save.mapKey, mapKey, StringComparison.Ordinal))
 					{
 						if (i > 0)
