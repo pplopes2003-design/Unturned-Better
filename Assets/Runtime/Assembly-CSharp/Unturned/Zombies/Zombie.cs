@@ -1338,6 +1338,7 @@ namespace SDG.Unturned
 					seeker.CanSearch = true;
 					seeker.CanMove = true;
 					setTicking(true);
+					setTicking(true);
 				}
 				else if (isInvestigationWanderTarget)
 				{
