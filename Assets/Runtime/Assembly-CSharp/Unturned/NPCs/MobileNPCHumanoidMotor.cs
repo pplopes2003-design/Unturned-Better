@@ -74,6 +74,7 @@ namespace SDG.Unturned
 		private float nextStuckCheckTime;
 		private float nextGroundSafetyCheckTime;
 		private float nextGroundFailureLogTime;
+		private float nextFallingDiagnosticTime;
 		private float blockedMovementDuration;
 		private bool useRecoverySteering;
 		private float recoverySteeringUntil;
@@ -400,6 +401,11 @@ namespace SDG.Unturned
 			// gravity can accelerate into an unrecoverable fall. RaycastAll lets us ignore
 			// the NPC's own CharacterController and visual hierarchy explicitly.
 			float currentY = transform.position.y;
+			if (currentY < spawnPosition.y - 1.5f && Time.time >= nextFallingDiagnosticTime)
+			{
+				nextFallingDiagnosticTime = Time.time + 2.0f;
+				DiagnoseFallingNPC(currentY);
+			}
 			Vector3 localOrigin = transform.position + Vector3.up * 1.0f;
 			bool foundGround = TryFindRecoveryGround(localOrigin, 10f, currentY, out RaycastHit hit);
 
@@ -454,6 +460,36 @@ namespace SDG.Unturned
 			characterController.enabled = true;
 			Debug.LogWarning("[MobileNPCHumanoidMotor] Recovered NPC after unexpected terrain fall; grounded at "
 				+ recoveredPosition + ". Check map collision layers if this repeats.", this);
+		}
+
+		/// <summary>Reports collision state only while falling, to distinguish a bad ground mask from a disabled/non-colliding controller.</summary>
+		private void DiagnoseFallingNPC(float currentY)
+		{
+			Vector3 probeOrigin = new Vector3(transform.position.x, Mathf.Max(currentY + 2f, spawnPosition.y + 2f), transform.position.z);
+			float probeDistance = Mathf.Max(10f, probeOrigin.y - currentY + 5f);
+			bool hitAnyGround = false;
+			string anyGround = "none";
+			RaycastHit[] allHits = Physics.RaycastAll(probeOrigin, Vector3.down, probeDistance, ~0, QueryTriggerInteraction.Ignore);
+			for (int i = 0; i < allHits.Length; ++i)
+			{
+				if (allHits[i].collider == null || IsOwnCollider(allHits[i].collider) || Vector3.Angle(allHits[i].normal, Vector3.up) > 55f)
+					continue;
+				hitAnyGround = true;
+				anyGround = allHits[i].collider.name + "(layer=" + allHits[i].collider.gameObject.layer + ", y=" + allHits[i].point.y.ToString("F2") + ")";
+				break;
+			}
+			bool hitBlockCollision = Physics.Raycast(probeOrigin, Vector3.down, out RaycastHit blockHit, probeDistance, RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+			Debug.LogWarning("[MobileNPCHumanoidMotor] FALL DIAGNOSTIC: pos=" + transform.position
+				+ ", spawn=" + spawnPosition + ", active=" + gameObject.activeInHierarchy
+				+ ", layer=" + gameObject.layer + ", controllerEnabled=" + characterController.enabled
+				+ ", detectCollisions=" + characterController.detectCollisions + ", grounded=" + characterController.isGrounded
+				+ ", radius=" + characterController.radius + ", height=" + characterController.height
+				+ ", center=" + characterController.center + ", skinWidth=" + characterController.skinWidth
+				+ ", stepOffset=" + characterController.stepOffset + ", slopeLimit=" + characterController.slopeLimit
+				+ ", hitWalkableWithAllLayers=" + hitAnyGround + ", allLayersGround=" + anyGround
+				+ ", hitBlockCollision=" + hitBlockCollision
+				+ (hitBlockCollision ? ", blockGround=" + blockHit.collider.name + "(layer=" + blockHit.collider.gameObject.layer + ", y=" + blockHit.point.y.ToString("F2") + ")" : "")
+				+ ", ownRootColliders=" + GetComponents<Collider>().Length + ".", this);
 		}
 
 		private bool TryFindRecoveryGround(Vector3 origin, float distance, float preferredY, out RaycastHit selectedHit)
