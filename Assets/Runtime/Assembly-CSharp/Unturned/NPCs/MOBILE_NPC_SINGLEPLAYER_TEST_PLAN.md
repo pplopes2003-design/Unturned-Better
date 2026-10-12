@@ -74,3 +74,6 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - The population/persistence logic is intended for single-player first. A successful local spawn does not prove that the entity is correctly replicated or saved by the vanilla game.
 - Trade currently exposes a server-authoritative service primitive; this checklist does not imply a player-facing interaction UI exists.
 - Record pass/fail results rather than marking a test passed based only on static source inspection.
+
+- [ ] Verify local obstacle probes do not treat the NPC's own CharacterController/child colliders as walls, and still detect nearby walls and other NPCs.
+- [ ] Force a dense collider scene that fills the non-alloc obstacle-hit buffer; verify the complete fallback query still detects blocking geometry.
