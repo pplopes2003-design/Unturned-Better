@@ -301,10 +301,35 @@ namespace SDG.Unturned
             }
 
             MonoBehaviour[] legacyBehaviours = visual.GetComponentsInChildren<MonoBehaviour>(true);
+            int disabledLegacyBehaviourCount = 0;
+            int preservedAnimationBehaviourCount = 0;
             for (int i = 0; i < legacyBehaviours.Length; ++i)
             {
-                legacyBehaviours[i].enabled = false;
+                MonoBehaviour behaviour = legacyBehaviours[i];
+                if (behaviour == null)
+                {
+                    continue;
+                }
+
+                // The native humanoid rig depends on its Animation/Animator component
+                // to update the skeleton. Disabling every MonoBehaviour also disabled
+                // the renderer's animation driver, leaving the skinned mesh in its
+                // bind pose. Keep animation systems alive; strip only legacy gameplay
+                // behaviours from the visual-only template.
+                if (behaviour is Animation || behaviour is Animator)
+                {
+                    behaviour.enabled = true;
+                    ++preservedAnimationBehaviourCount;
+                    continue;
+                }
+
+                behaviour.enabled = false;
+                ++disabledLegacyBehaviourCount;
             }
+
+            Debug.Log("[MobileNPCPopulationBootstrap] Visual behaviour audit: disabledLegacy="
+                + disabledLegacyBehaviourCount + ", preservedAnimationSystems="
+                + preservedAnimationBehaviourCount + ".");
 
             directorObject = new GameObject("MobileNPCPopulationDirector_Runtime");
             MobileNPCPopulationDirector director = directorObject.AddComponent<MobileNPCPopulationDirector>();
