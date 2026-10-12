@@ -1,0 +1,258 @@
+////////////////////////////////////////////////////////////////////////////////////////
+// This file is part of the U3 SDK: https://github.com/smartlydressedgames/u3-sdk/    //
+// Please refer to the included LICENSE.txt for copyright notice and license details. //
+////////////////////////////////////////////////////////////////////////////////////////
+using System.Text;
+using UnityEngine;
+
+namespace SDG.Unturned
+{
+	/// <summary>
+	/// Small keyboard-driven interaction flow for single-player mobile NPCs.
+	/// Uses the native custom-message surface rather than creating a parallel UI system.
+	/// While trading, hold the item you want to offer, then select a stock slot with 1-9.
+	/// </summary>
+	[DisallowMultipleComponent]
+	internal sealed class MobileNPCInteractionController : MonoBehaviour
+	{
+		private enum MenuState
+		{
+			Closed,
+			Main,
+			TradeStock
+		}
+
+		private static MobileNPCInteractionController instance;
+		private Player activePlayer;
+		private MobileNPCHumanoidDisposition activeNPC;
+		private MenuState state;
+
+		private void Awake()
+		{
+			instance = this;
+		}
+
+		private void OnDestroy()
+		{
+			if (instance == this)
+				instance = null;
+			Clear();
+		}
+
+		public static void Open(Player player, MobileNPCHumanoidDisposition npc)
+		{
+			if (instance == null || player == null || npc == null)
+			{
+				if (player != null)
+					PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "A interface de interação dos sobreviventes não está disponível.");
+				return;
+			}
+
+			instance.activePlayer = player;
+			instance.activeNPC = npc;
+			instance.state = MenuState.Main;
+			instance.ShowMainMenu();
+		}
+
+		private void Update()
+		{
+			if (state == MenuState.Closed)
+				return;
+
+			if (!Provider.isServer || activePlayer == null || activeNPC == null
+				|| !activePlayer.life.IsAlive || activeNPC.GetComponent<MobileNPCHumanoidVitals>() is MobileNPCHumanoidVitals vitals && vitals.IsDead
+				|| (activePlayer.transform.position - activeNPC.transform.position).sqrMagnitude > 16f)
+			{
+				Clear();
+				return;
+			}
+
+			if (Input.GetKeyDown(KeyCode.Escape))
+			{
+				Clear();
+				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Conversa encerrada.");
+				return;
+			}
+
+			if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1))
+			{
+				if (state == MenuState.Main)
+					OpenTradeMenu();
+				else if (state == MenuState.TradeStock)
+					TryBuyStockSlot(0);
+			}
+			else if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2))
+			{
+				if (state == MenuState.Main)
+					TryOfferAlliance();
+				else if (state == MenuState.TradeStock)
+					TryBuyStockSlot(1);
+			}
+			else if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3))
+			{
+				if (state == MenuState.Main)
+					ShowConversation();
+				else if (state == MenuState.TradeStock)
+					TryBuyStockSlot(2);
+			}
+			else if (Input.GetKeyDown(KeyCode.Alpha4) || Input.GetKeyDown(KeyCode.Keypad4))
+			{
+				if (state == MenuState.TradeStock) TryBuyStockSlot(3);
+			}
+			else if (Input.GetKeyDown(KeyCode.Alpha5) || Input.GetKeyDown(KeyCode.Keypad5))
+			{
+				if (state == MenuState.TradeStock) TryBuyStockSlot(4);
+			}
+			else if (Input.GetKeyDown(KeyCode.Alpha6) || Input.GetKeyDown(KeyCode.Keypad6))
+			{
+				if (state == MenuState.TradeStock) TryBuyStockSlot(5);
+			}
+			else if (Input.GetKeyDown(KeyCode.Alpha7) || Input.GetKeyDown(KeyCode.Keypad7))
+			{
+				if (state == MenuState.TradeStock) TryBuyStockSlot(6);
+			}
+			else if (Input.GetKeyDown(KeyCode.Alpha8) || Input.GetKeyDown(KeyCode.Keypad8))
+			{
+				if (state == MenuState.TradeStock) TryBuyStockSlot(7);
+			}
+			else if (Input.GetKeyDown(KeyCode.Alpha9) || Input.GetKeyDown(KeyCode.Keypad9))
+			{
+				if (state == MenuState.TradeStock) TryBuyStockSlot(8);
+			}
+		}
+
+		private void ShowMainMenu()
+		{
+			if (activeNPC == null)
+				return;
+
+			if (activeNPC.CurrentRole == MobileNPCHumanoidDisposition.Role.Hostile)
+			{
+				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Hostil: não aceita conversa. Abaixe-se ou afaste-se.");
+				Clear();
+				return;
+			}
+
+			PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
+				"Sobrevivente — escolha uma opção:\n1. Comércio (troca 1 item por 1 item)\n2. Propor aliança (entregue 1 item segurado)\n3. Conversar\nESC. Fechar");
+		}
+
+		private void OpenTradeMenu()
+		{
+			if (activeNPC == null || activeNPC.CurrentRole != MobileNPCHumanoidDisposition.Role.Friendly)
+			{
+				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Este sobrevivente ainda não é um mercador aliado. Proponha uma aliança primeiro.");
+				return;
+			}
+
+			MobileNPCInventory inventory = activeNPC.GetComponent<MobileNPCInventory>();
+			if (inventory == null || inventory.UsedSlots == 0)
+			{
+				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Mercador: meu estoque está vazio. Volte quando eu tiver encontrado suprimentos.");
+				return;
+			}
+
+			ItemAsset heldAsset = activePlayer != null && activePlayer.equipment != null
+				? activePlayer.equipment.asset as ItemAsset : null;
+			StringBuilder message = new StringBuilder();
+			message.Append("Mercador — estoque (1 item do seu item segurado por 1 item do estoque).\n");
+			if (heldAsset == null)
+				message.Append("AVISO: segure o item que deseja oferecer antes de escolher.\n");
+			else
+				message.Append("Oferta atual: ").Append(heldAsset.itemName).Append(" x1.\n");
+
+			int shown = Mathf.Min(9, inventory.UsedSlots);
+			for (int i = 0; i < shown; ++i)
+			{
+				if (!inventory.TryGetItemSnapshot(i, out Item item) || item == null)
+					continue;
+				ItemAsset asset = Assets.find(EAssetType.ITEM, item.id) as ItemAsset;
+				message.Append(i + 1).Append(". ")
+					.Append(asset != null ? asset.itemName : "Item " + item.id)
+					.Append(" (x").Append(item.amount).Append(")\n");
+			}
+			message.Append("Pressione o número do item desejado. ESC para fechar.");
+			state = MenuState.TradeStock;
+			PlayerUI.message(EPlayerMessage.NPC_CUSTOM, message.ToString());
+		}
+
+		private void TryBuyStockSlot(int stockSlot)
+		{
+			if (activeNPC == null || activePlayer == null)
+			{
+				Clear();
+				return;
+			}
+
+			MobileNPCInventory inventory = activeNPC.GetComponent<MobileNPCInventory>();
+			ItemAsset heldAsset = activePlayer.equipment != null ? activePlayer.equipment.asset as ItemAsset : null;
+			if (heldAsset == null || heldAsset.id == 0)
+			{
+				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Segure o item que deseja oferecer como pagamento e tente novamente.");
+				return;
+			}
+			if (inventory != null && inventory.TryGetItemSnapshot(stockSlot, out Item stock) && stock != null
+				&& stock.id == heldAsset.id)
+			{
+				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Escolha um item diferente do que está oferecendo.");
+				return;
+			}
+
+			if (MobileNPCTradeService.TryPurchaseSlotServer(activePlayer, inventory, activeNPC,
+				stockSlot, heldAsset.id, 1, 4f, out string error))
+			{
+				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Troca concluída: você entregou 1 " + heldAsset.itemName + ".");
+				OpenTradeMenu();
+			}
+			else
+			{
+				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Troca não concluída: " + error);
+			}
+		}
+
+		private void TryOfferAlliance()
+		{
+			if (activeNPC == null || activePlayer == null)
+			{
+				Clear();
+				return;
+			}
+
+			ItemAsset heldAsset = activePlayer.equipment != null ? activePlayer.equipment.asset as ItemAsset : null;
+			if (heldAsset == null || heldAsset.id == 0)
+			{
+				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Para propor aliança, segure o item que deseja oferecer como pagamento.");
+				return;
+			}
+
+			if (MobileNPCAllianceService.TryOfferAllianceServer(activePlayer, activeNPC, heldAsset.id, 1, 4f, out string error))
+			{
+				PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
+					"Aliança aceita. Agora pertenço aos sobreviventes e combaterei saqueadores hostis. Ainda não sou uma escolta que segue automaticamente o jogador.");
+				Clear();
+			}
+			else
+			{
+				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "Aliança recusada: " + error);
+			}
+		}
+
+		private void ShowConversation()
+		{
+			if (activeNPC == null)
+				return;
+			PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
+				activeNPC.CurrentRole == MobileNPCHumanoidDisposition.Role.Friendly
+					? "Mercador: procuro comida, água, munição e materiais. Posso trocar suprimentos e aceitar uma oferta de aliança."
+					: "Sobrevivente: não quero briga. Se trouxer um suprimento, podemos negociar uma aliança; ela não garante escolta pessoal ainda.");
+			state = MenuState.Main;
+		}
+
+		private void Clear()
+		{
+			activePlayer = null;
+			activeNPC = null;
+			state = MenuState.Closed;
+		}
+	}
+}
