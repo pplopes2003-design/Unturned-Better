@@ -225,7 +225,7 @@ namespace SDG.Unturned
 						ItemJar jar = items.getItem((byte)index);
 						if (jar == null || jar.item == null || jar.item.id != itemId) continue;
 						uint neededUnits = (remaining + unitValue - 1) / unitValue;
-					byte taken = (byte)Mathf.Min(jar.item.amount, neededUnits);
+					byte taken = (byte)(jar.item.amount < neededUnits ? jar.item.amount : neededUnits);
 					if (taken == 0) continue;
 					plannedPayment.Add(new PaymentSlice
 					{
