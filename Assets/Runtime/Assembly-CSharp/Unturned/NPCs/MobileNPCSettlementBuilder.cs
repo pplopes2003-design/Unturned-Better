@@ -69,6 +69,13 @@ namespace SDG.Unturned
 				|| placedPieces >= Mathf.Clamp(maximumPieces, 1, 5) || Time.time < nextBuildTime)
 				return;
 
+			// The settlement is a group resource: only its elected living leader may
+			// place pieces. Otherwise every member with the shared anchor could build
+			// the same pattern concurrently and consume supplies redundantly.
+			MobileNPCGroupMember groupMember = GetComponent<MobileNPCGroupMember>();
+			if (groupMember != null && !groupMember.CanPlanSettlement)
+				return;
+
 			nextBuildTime = Time.time + Mathf.Max(2f, buildInterval);
 			if (driver.Target != null || driver.CurrentGoal != MobileNPCTactics.Goal.None
 				|| Vector3.Distance(motor.transform.position, planner.ChosenSite) > motor.HomeTerritoryRadius)
