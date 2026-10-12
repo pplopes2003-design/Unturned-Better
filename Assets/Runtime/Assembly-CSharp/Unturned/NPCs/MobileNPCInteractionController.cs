@@ -119,6 +119,9 @@ namespace SDG.Unturned
 					ConfirmPurchase();
 				else if (Input.GetKeyDown(KeyCode.Keypad2))
 				{
+					pendingStockSlot = -1;
+					pendingCurrencyItemId = 0;
+					pendingExperienceCost = 0;
 					state = MenuState.TradeStock;
 					OpenTradeMenu();
 				}
