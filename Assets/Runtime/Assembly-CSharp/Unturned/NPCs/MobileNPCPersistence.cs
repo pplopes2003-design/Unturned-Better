@@ -102,6 +102,8 @@ namespace SDG.Unturned
 		{
 			string path = GetSavePath(mapKey);
 			FailedRestoreRecords.Clear();
+			if (!File.Exists(path) && File.Exists(path + ".bak"))
+				path += ".bak";
 			if (!File.Exists(path))
 				return;
 
@@ -250,11 +252,25 @@ namespace SDG.Unturned
 			{
 				Directory.CreateDirectory(Path.GetDirectoryName(path));
 				File.WriteAllText(temporaryPath, JsonUtility.ToJson(save, true));
-				if (File.Exists(path))
+				if (!File.Exists(path))
 				{
-					File.Delete(path);
+					File.Move(temporaryPath, path);
 				}
-				File.Move(temporaryPath, path);
+				else
+				{
+					string backupPath = path + ".bak";
+					try
+					{
+						File.Replace(temporaryPath, path, backupPath);
+					}
+					catch
+					{
+						// Compatibility fallback for filesystems without atomic replace support.
+						File.Copy(path, backupPath, true);
+						File.Delete(path);
+						File.Move(temporaryPath, path);
+					}
+				}
 			}
 			catch (Exception exception)
 			{
