@@ -317,6 +317,17 @@ namespace SDG.Unturned
 				}
 			}
 
+			if (hasDestination && planarDirection.sqrMagnitude <= 0.0001f && !hasBrainDestination)
+			{
+				// If terrain-aware steering rejects every direction, abandon this roaming
+				// waypoint and sample a different ground point rather than freezing forever.
+				hasRoamingDestination = false;
+				hasDetourWaypoint = false;
+				routeWaypoints.Clear();
+				routeWaypointIndex = 0;
+				nextRoamingDecisionTime = Time.time + Random.Range(0.4f, 1.2f);
+			}
+
 			bool wantedToMove = planarDirection.sqrMagnitude > 0.0001f;
 			if (wantedToMove)
 			{
@@ -1174,7 +1185,10 @@ namespace SDG.Unturned
 
 					Vector3 offset = levelObject.transform.position - transform.position;
 					offset.y = 0f;
-					if (offset.sqrMagnitude < 36f || offset.sqrMagnitude > radius * radius)
+					Vector3 fromHome = levelObject.transform.position - spawnPosition;
+					fromHome.y = 0f;
+					if (offset.sqrMagnitude < 36f || offset.sqrMagnitude > radius * radius
+						|| fromHome.sqrMagnitude > HomeTerritoryRadius * HomeTerritoryRadius)
 						continue;
 
 					explorationObjects.Add(levelObject);
