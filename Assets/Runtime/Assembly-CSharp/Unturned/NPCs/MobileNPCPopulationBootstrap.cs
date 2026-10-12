@@ -98,7 +98,6 @@ namespace SDG.Unturned
             {
                 rigidbodies[i].isKinematic = true;
                 rigidbodies[i].detectCollisions = false;
-                rigidbodies[i].enabled = false;
             }
 
             Collider[] colliders = visual.GetComponentsInChildren<Collider>(true);
