@@ -79,7 +79,7 @@ namespace SDG.Unturned
             // Development convenience: F8 requests one nearby NPC for a focused smoke test.
             // Manual test spawns bypass the automatic population cap, while normal world
             // population continues to obey it. This remains server-side only.
-            if (Provider.isServer && Input.GetKeyDown(KeyCode.F8))
+            if (Provider.isServer && Provider.hasCheats && Input.GetKeyDown(KeyCode.F8))
             {
                 TrySpawnNPCNearPlayer(MobileNPCSettings.DefaultRole, true);
             }
