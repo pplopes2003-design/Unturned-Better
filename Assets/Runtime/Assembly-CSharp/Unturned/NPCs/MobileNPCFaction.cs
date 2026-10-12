@@ -75,6 +75,7 @@ namespace SDG.Unturned
 				return;
 
 			faction = value;
+			usesRoleDefaultFaction = false;
 			MobileNPCBrainDriver brain = GetComponent<MobileNPCBrainDriver>();
 			if (brain != null)
 				brain.ResetServer();
