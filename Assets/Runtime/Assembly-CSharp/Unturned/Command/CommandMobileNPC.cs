@@ -18,6 +18,13 @@ namespace SDG.Unturned
                 return;
             }
 
+            // Use Unturned's native cheats switch as the single gate for manual test tools.
+            if (!Provider.hasCheats)
+            {
+                CommandWindow.LogError("Enable cheats in Unturned before using mobile NPC test commands.");
+                return;
+            }
+
             string[] parts = (parameter ?? string.Empty).Split(new[] { '/', ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length == 0 || !string.Equals(parts[0], "spawn", System.StringComparison.OrdinalIgnoreCase))
             {
@@ -58,7 +65,7 @@ namespace SDG.Unturned
                 return;
             }
 
-            if (director.TrySpawnNPCNearPlayer(role))
+            if (director.TrySpawnNPCNearPlayer(role, true))
             {
                 CommandWindow.Log("Spawned one nearby mobile NPC with role: " + role + ".");
             }
