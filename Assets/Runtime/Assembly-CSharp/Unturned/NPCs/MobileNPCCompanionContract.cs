@@ -38,7 +38,7 @@ namespace SDG.Unturned
 
 			playerTarget = player.transform;
 			nextUpdateTime = 0f;
-			Debug.Log("[MobileNPCCompanionContract] " + name + " accepted an escort contract with player " + player.channel.owner.playerID.steamID + ".");
+			Debug.Log("[MobileNPCCompanionContract] " + name + " accepted an escort contract.");
 			return true;
 		}
 
