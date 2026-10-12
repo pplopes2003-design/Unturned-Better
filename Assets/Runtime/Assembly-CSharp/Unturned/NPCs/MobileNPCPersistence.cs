@@ -308,7 +308,16 @@ namespace SDG.Unturned
 						&& string.Equals(save.mapKey, mapKey, StringComparison.Ordinal))
 					{
 						if (i > 0)
+						{
 							Debug.LogWarning("[MobileNPCPersistence] Recovering NPCs from backup snapshot " + candidates[i]);
+							// Repair the primary before the next periodic save, otherwise a later
+							// atomic replace could overwrite the good backup with the corrupt file.
+							try { File.Copy(candidates[i], path, true); }
+							catch (Exception repairException)
+							{
+								Debug.LogWarning("[MobileNPCPersistence] Could not repair the primary snapshot: " + repairException.Message);
+							}
+						}
 						return save;
 					}
 				}
