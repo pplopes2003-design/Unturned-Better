@@ -176,6 +176,13 @@ namespace SDG.Unturned
             ValidateRequiredClip(walkClip);
             ValidateRequiredClip(runClip);
 
+            // The source importer marks the movement clips as looping, but set the
+            // runtime state explicitly as well so prefab/global wrap settings cannot
+            // turn walking or running into a one-shot animation.
+            SetLoopingState(idleClip);
+            SetLoopingState(walkClip);
+            SetLoopingState(runClip);
+
             Debug.Log("[MobileNPCVisualAnimation] Explicit locomotion map: idle=" + idleClip
                 + ", walk=" + walkClip + ", run=" + runClip + ".", this);
         }
@@ -187,6 +194,15 @@ namespace SDG.Unturned
                 Debug.LogError("[MobileNPCVisualAnimation] Required clip '" + clipName
                     + "' is missing from NPC_Client's Animation component. Check the prefab's m_Animations references.",
                     this);
+            }
+        }
+
+        private void SetLoopingState(string clipName)
+        {
+            AnimationState state = legacyAnimation != null ? legacyAnimation[clipName] : null;
+            if (state != null)
+            {
+                state.wrapMode = WrapMode.Loop;
             }
         }
 
