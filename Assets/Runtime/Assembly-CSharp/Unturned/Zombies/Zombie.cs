@@ -366,6 +366,7 @@ namespace SDG.Unturned
 		private float investigationUntil;
 		private int investigationWandersRemaining;
 		private bool isInvestigationWanderTarget;
+		private int stuckPointRecoveryAttempts;
 		private const float INVESTIGATION_WANDER_RADIUS = 18.0f;
 		private const int INVESTIGATION_MAX_WANDERS = 3;
 		private bool isStunned;
@@ -1271,6 +1272,7 @@ namespace SDG.Unturned
 			// internal search legs, and the return-to-spawn leg keep their own state.
 			if (!isInvestigationWanderTarget && !isReturningToSpawn && (!isHunting || huntType == EHuntType.POINT))
 			{
+				stuckPointRecoveryAttempts = 0;
 				investigationCenter = newPosition;
 				investigationUntil = Time.time + 55.0f;
 				investigationWandersRemaining = INVESTIGATION_MAX_WANDERS;
@@ -2017,6 +2019,74 @@ namespace SDG.Unturned
 		}
 
 		/// <summary>
+		/// If a sound-point hunt is blocked by a wall or corner, choose a nearby navigable
+		/// waypoint with a clear short approach. Keep investigationCenter unchanged so
+		/// the zombie resumes searching around the original sound after reaching it.
+		/// </summary>
+		private bool TryRedirectStuckPointHunt()
+		{
+			const int maxRecoveryAttempts = 3;
+			if (stuckPointRecoveryAttempts >= maxRecoveryAttempts || seeker == null || !seeker.CanMove)
+			{
+				return false;
+			}
+
+			Vector3 origin = transform.position;
+			Vector3 originalDestination = target.position;
+			Vector3 bestCandidate = Vector3.zero;
+			float bestScore = float.PositiveInfinity;
+			bool foundCandidate = false;
+			const int candidateCount = 20;
+			Vector3 rayOrigin = origin + Vector3.up * 0.75f;
+
+			for (int i = 0; i < candidateCount; ++i)
+			{
+				float angle = (Mathf.PI * 2f * i) / candidateCount;
+				float radius = (i % 2 == 0) ? 2.5f : 4.0f;
+				Vector3 candidate = origin + new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
+				if ((candidate - origin).sqrMagnitude < 4f || !LevelNavigation.checkNavigation(candidate))
+				{
+					continue;
+				}
+
+				Vector3 candidateRayPoint = candidate + Vector3.up * 0.75f;
+				if (Physics.Linecast(rayOrigin, candidateRayPoint, RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore))
+				{
+					continue;
+				}
+
+				float distanceToSound = (candidate - originalDestination).sqrMagnitude;
+				float distanceFromZombie = (candidate - origin).sqrMagnitude;
+				float score = distanceToSound + distanceFromZombie * 0.15f;
+				if (score < bestScore)
+				{
+					bestScore = score;
+					bestCandidate = candidate;
+					foundCandidate = true;
+				}
+			}
+
+			if (!foundCandidate)
+			{
+				return false;
+			}
+
+			++stuckPointRecoveryAttempts;
+			target.position = bestCandidate;
+			lastHunted = Time.time;
+			lastStuck = Time.time;
+			stuckSearchTimer = 0f;
+			isMoving = false;
+			isStuck = false;
+			seeker.CanSearch = true;
+			seeker.CanMove = true;
+			setTicking(true);
+			Debug.Log("[Zombie] Redirected stuck sound investigation to a nearby navigable waypoint (attempt "
+				+ stuckPointRecoveryAttempts + "/" + maxRecoveryAttempts + ").", this);
+			return true;
+		}
+
+		/// <summary>
 		/// Called when zombie does not have a target, but has been stuck for a period.
 		/// </summary>
 		private void findTargetWhileStuck()
@@ -2224,6 +2294,11 @@ namespace SDG.Unturned
 			}
 			else if (huntType == EHuntType.POINT)
 			{
+				if (isStuck && Time.time - lastHunted > 2.0f && TryRedirectStuckPointHunt())
+				{
+					return;
+				}
+
 				if ((!isMoving || isStuck) && Time.time - lastHunted > 4f)
 				{
 					bool wasReturningToSpawn = isReturningToSpawn;
