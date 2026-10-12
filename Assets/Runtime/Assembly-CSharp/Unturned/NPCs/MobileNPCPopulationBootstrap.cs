@@ -46,6 +46,9 @@ namespace SDG.Unturned
                 return;
             }
 
+            // Flush the outgoing map before group state and the persistence queue are reset.
+            // This is especially important when changing maps before the 30-second autosave.
+            MobileNPCPersistence.PrepareForMapTransitionServer();
             MobileNPCGroupMember.ResetAllServerGroups();
             MobileNPCPersistence.ResetForLoadedMapServer();
             MobileNPCAirdropContest.ResetServer();
