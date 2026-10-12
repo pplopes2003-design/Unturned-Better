@@ -273,6 +273,20 @@ namespace SDG.Unturned
 			PublishDecisionIfChanged();
 		}
 
+		/// <summary>Updates a companion follow destination without overriding an active combat target.</summary>
+		public void SetFollowDestinationServer(Vector3 destination)
+		{
+			if (!CanAcceptServerInput || brain == null
+				|| float.IsNaN(destination.x) || float.IsInfinity(destination.x)
+				|| float.IsNaN(destination.y) || float.IsInfinity(destination.y)
+				|| float.IsNaN(destination.z) || float.IsInfinity(destination.z)
+				|| brain.CurrentState == MobileNPCBrain.State.Pursuing && brain.Target != null)
+				return;
+
+			brain.SetFollowDestination(destination);
+			PublishDecisionIfChanged();
+		}
+
 		/// <summary>Updates the return-home anchor without resetting current combat state.</summary>
 		public void SetHomePositionServer(Vector3 homePosition)
 		{
