@@ -90,10 +90,16 @@ namespace SDG.Unturned
 			{
 				if (Time.time < reloadFinishedAt) return;
 
+				int loadedRounds = Mathf.Max(0, pendingReloadRounds);
+				bool ammoStateUpdated = inventory.TryUpdateGunAmmoServer(selectedGunID,
+					(byte)Mathf.Clamp(loadedRounds, 0, 255), pendingReloadMagazineID);
 				reloadPending = false;
-				roundsRemaining = Mathf.Max(0, pendingReloadRounds);
+				roundsRemaining = ammoStateUpdated ? loadedRounds : 0;
+				if (!ammoStateUpdated)
+				{
+					Debug.LogWarning("Mobile NPC reload aborted because the stored gun state could not be updated.", this);
+				}
 				pendingReloadRounds = 0;
-				inventory.TryUpdateGunAmmoServer(selectedGunID, (byte)Mathf.Clamp(roundsRemaining, 0, 255), pendingReloadMagazineID);
 				pendingReloadMagazineID = 0;
 				shotsRemainingInBurst = RollBurstSize();
 				waitingForBurstPause = false;
@@ -164,8 +170,13 @@ namespace SDG.Unturned
 				return;
 			}
 
+			if (!inventory.TryUpdateGunAmmoServer(selectedGunID, (byte)Mathf.Clamp(roundsRemaining - 1, 0, 255)))
+			{
+				// Fail closed: do not commit a shot if its ammunition state cannot be saved.
+				nextShotTime = Time.time + 1.0f;
+				return;
+			}
 			roundsRemaining--;
-			inventory.TryUpdateGunAmmoServer(selectedGunID, (byte)Mathf.Clamp(roundsRemaining, 0, 255));
 			ShotFired?.Invoke();
 
 			shotsRemainingInBurst = Mathf.Max(0, shotsRemainingInBurst - 1);
@@ -336,18 +347,29 @@ namespace SDG.Unturned
 				return;
 			}
 
-			if (!inventory.TryFindCompatibleMagazine(selectedGunAsset, out int magazineSlot, out ItemMagazineAsset magazineAsset)
+			if (!inventory.CanUpdateGunAmmoServer(selectedGunID)
+				|| !inventory.TryFindCompatibleMagazine(selectedGunAsset, out int magazineSlot, out ItemMagazineAsset magazineAsset)
 				|| !inventory.TryTakeItemServer(magazineSlot, out Item consumedMagazine))
 			{
 				roundsRemaining = 0;
-				// Do not poll for ammunition every frame when no compatible magazine exists.
+				// Do not poll for ammunition every frame when no compatible magazine exists
+				// or the vanilla gun state cannot represent its loaded magazine.
 				nextShotTime = Time.time + 1.0f;
 				return;
 			}
 
-			// The dropped magazine's amount is the available round count in this prototype.
-			// Caliber compatibility is real asset metadata; ballistics remain simulated.
-			pendingReloadRounds = Mathf.Clamp(consumedMagazine.amount, 1, Mathf.Max(1, Mathf.Min(magazineCapacity, magazineAsset.MaxAmount)));
+			// Vanilla magazine state stores the loaded round count; Item.amount is not
+			// a reliable substitute because most magazine items have amount == 1.
+			int availableRounds = consumedMagazine.state != null && consumedMagazine.state.Length > 0
+				? consumedMagazine.state[0] : 0;
+			if (availableRounds <= 0)
+			{
+				inventory.TryStoreTransferredItem(consumedMagazine);
+				roundsRemaining = 0;
+				nextShotTime = Time.time + 1.0f;
+				return;
+			}
+			pendingReloadRounds = Mathf.Clamp(availableRounds, 1, Mathf.Max(1, Mathf.Min(magazineCapacity, magazineAsset.MaxAmount)));
 			pendingReloadMagazineID = consumedMagazine.id;
 			reloadPending = true;
 			float weaponReloadDuration = selectedGunAsset.reloadTime > 0f ? selectedGunAsset.reloadTime : reloadDuration;
