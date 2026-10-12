@@ -883,7 +883,9 @@ namespace SDG.Unturned
 			// with bounds to avoid silent long-range rifles or excessive aggro from short-range guns.
 			if (Provider.isServer && player != null && player.transform != null)
 			{
-				ZombieManager.alertZombiesToNoise(player.transform.position, Mathf.Clamp(equippedGunAsset.range * 0.75f, 45.0f, 120.0f));
+				float gunshotRadius = Mathf.Clamp(equippedGunAsset.range * 0.75f, 45.0f, 120.0f);
+				ZombieManager.alertZombiesToNoise(player.transform.position, gunshotRadius);
+				MobileNPCRegistry.NotifyGunfire(player.transform.position, gunshotRadius, player);
 			}
 
 			float quality = player.equipment.quality / 100f;
