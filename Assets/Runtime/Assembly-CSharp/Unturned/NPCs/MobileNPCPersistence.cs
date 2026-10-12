@@ -173,31 +173,29 @@ namespace SDG.Unturned
 		private static void RestorePendingRecordsServer(GameObject prefab, int maximumAlive)
 		{
 			MobileNPCRegistry.CopyActiveDrivers(ActiveDriverScratch);
-			if (ActiveDriverScratch.Count >= maximumAlive)
+			if (ActiveDriverScratch.Count >= maximumAlive || FailedRestoreRecords.Count == 0)
 				return;
 
-			for (int i = 0; i < FailedRestoreRecords.Count; ++i)
+			// Process exactly one pending record per interval. Keeping this bounded avoids
+			// a burst of instantiation and makes the intended one-at-a-time behavior explicit.
+			NPCRecord record = FailedRestoreRecords[0];
+			if (record == null || !IsFinite(record.px) || !IsFinite(record.py) || !IsFinite(record.pz))
 			{
-				NPCRecord record = FailedRestoreRecords[i];
-				if (record == null || !IsFinite(record.px) || !IsFinite(record.py) || !IsFinite(record.pz))
-				{
-					FailedRestoreRecords.RemoveAt(i);
-					return;
-				}
-
-				if (TryRestoreRecordServer(prefab, record, out string error))
-				{
-					FailedRestoreRecords.RemoveAt(i);
-					Debug.Log("[MobileNPCPersistence] Restored one deferred NPC snapshot record; "
-						+ FailedRestoreRecords.Count + " record(s) remain pending.");
-				}
-				else
-				{
-					// Avoid retrying every frame when a position is obstructed or a prefab is invalid.
-					if (!string.IsNullOrEmpty(error))
-						Debug.LogWarning("[MobileNPCPersistence] Deferred NPC restore will be retried later: " + error);
-				}
+				FailedRestoreRecords.RemoveAt(0);
 				return;
+			}
+
+			if (TryRestoreRecordServer(prefab, record, out string error))
+			{
+				FailedRestoreRecords.RemoveAt(0);
+				Debug.Log("[MobileNPCPersistence] Restored one deferred NPC snapshot record; "
+					+ FailedRestoreRecords.Count + " record(s) remain pending.");
+			}
+			else
+			{
+				// Avoid retrying every frame when a position is obstructed or a prefab is invalid.
+				if (!string.IsNullOrEmpty(error))
+					Debug.LogWarning("[MobileNPCPersistence] Deferred NPC restore will be retried later: " + error);
 			}
 		}
 
