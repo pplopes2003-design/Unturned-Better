@@ -49,8 +49,12 @@ namespace SDG.Unturned
 
 			populationLabel = CreateButton(-130, -100, 260, 40);
 			populationLabel.onClickedButton += onClickedPopulationLabel;
-			CreateButton(-230, -100, 80, 40).onClickedButton += onClickedPopulationDown;
-			CreateButton(150, -100, 80, 40).onClickedButton += onClickedPopulationUp;
+			SleekButtonIcon populationDown = CreateButton(-230, -100, 80, 40);
+			populationDown.text = "-";
+			populationDown.onClickedButton += onClickedPopulationDown;
+			SleekButtonIcon populationUp = CreateButton(150, -100, 80, 40);
+			populationUp.text = "+";
+			populationUp.onClickedButton += onClickedPopulationUp;
 
 			difficultyButton = CreateButton(-150, -45, 300, 40);
 			difficultyButton.onClickedButton += onClickedDifficulty;
@@ -63,7 +67,7 @@ namespace SDG.Unturned
 			mixButton = CreateButton(-170, 175, 340, 40);
 			mixButton.onClickedButton += onClickedMix;
 
-			ISleekButton back = CreateButton(-100, 230, 200, 40);
+			SleekButtonIcon back = CreateButton(-100, 230, 200, 40);
 			back.text = "Back";
 			back.onClickedButton += onClickedBack;
 			RefreshLabels();
