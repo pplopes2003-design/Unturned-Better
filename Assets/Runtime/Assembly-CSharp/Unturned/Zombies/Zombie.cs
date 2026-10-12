@@ -1273,6 +1273,22 @@ namespace SDG.Unturned
 				return;
 			}
 
+			if (!isHunting && !isLeaving)
+			{
+				if (speciality == EZombieSpeciality.CRAWLER)
+				{
+					ZombieManager.sendZombieStartle(this, Random.value < 0.5f ? (byte) 3 : (byte) 6);
+				}
+				else if (speciality == EZombieSpeciality.SPRINTER)
+				{
+					ZombieManager.sendZombieStartle(this, Random.value < 0.5f ? (byte) 4 : (byte) 5);
+				}
+				else
+				{
+					ZombieManager.sendZombieStartle(this, (byte) Random.Range(0, 3));
+				}
+			}
+
 			isInvestigationIdle = false;
 			isReturningToSpawn = false;
 			investigationWandersRemaining = 0;
@@ -1435,9 +1451,8 @@ namespace SDG.Unturned
 		}
 
 		/// <summary>
-		/// Finds the nearest living player within the close-priority radius when the
-		/// zombie has a clean line of sight. This is intentionally checked before
-		/// accepting noise/search-point destinations.
+		/// Finds the nearest living mobile NPC within the close-priority radius when the
+		/// zombie has a clean line of sight. Player targets are checked first by the caller.
 		/// </summary>
 		private MobileNPCHumanoidVitals FindPriorityVisibleNPC()
 		{
