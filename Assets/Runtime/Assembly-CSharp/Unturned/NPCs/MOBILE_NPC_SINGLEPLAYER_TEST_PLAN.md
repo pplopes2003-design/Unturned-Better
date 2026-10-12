@@ -111,3 +111,7 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - [ ] Verify floor sampling stays on the NPC's current level and does not select the roof or a floor above/below it.
 - [ ] Verify stair traversal between floors; if no safe transition is found, the NPC should report/abandon the route rather than oscillate between levels.
 - [ ] Verify routes remain bounded in cost at population caps 10 and 20, including several NPCs navigating indoors at once.
+
+
+- [ ] Route-grid occupancy regression: place the NPC in an open area and confirm its own CharacterController/child colliders do not mark neighboring grid cells as blocked; verify nearby walls and other NPCs still block cells.
+- [ ] Route-grid occupancy overflow: densely populate the test area until the non-alloc overlap buffer saturates; confirm the full-query fallback still rejects cells occupied by external colliders.
