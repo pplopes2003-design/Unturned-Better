@@ -73,6 +73,7 @@ namespace SDG.Unturned
 		private Vector3 lastStuckCheckPosition;
 		private float nextStuckCheckTime;
 		private float nextGroundSafetyCheckTime;
+		private float nextGroundFailureLogTime;
 		private float blockedMovementDuration;
 		private bool useRecoverySteering;
 		private float recoverySteeringUntil;
@@ -343,20 +344,52 @@ namespace SDG.Unturned
 				return;
 			}
 
-			// Anchor the ray to the spawn elevation too, so it can still reach terrain if
-			// the controller has already fallen far below the current map surface.
-			float originY = Mathf.Max(transform.position.y, spawnPosition.y) + 200f;
-			Vector3 origin = new Vector3(transform.position.x, originY, transform.position.z);
-			float distance = Mathf.Max(400f, originY - transform.position.y + 50f);
-			if (!Physics.Raycast(origin, Vector3.down, out RaycastHit hit, distance, ~0, QueryTriggerInteraction.Ignore))
+			// First probe close to the NPC. This detects a short collision failure before
+			// gravity can accelerate into an unrecoverable fall. RaycastAll lets us ignore
+			// the NPC's own CharacterController and visual hierarchy explicitly.
+			float currentY = transform.position.y;
+			Vector3 localOrigin = transform.position + Vector3.up * 1.0f;
+			bool foundGround = TryFindRecoveryGround(localOrigin, 10f, currentY, out RaycastHit hit);
+
+			// If the NPC has already fallen below the local probe, search from above its
+			// validated spawn elevation. This fallback is intentionally not used unless
+			// the local probe fails, to avoid preferring a distant roof over nearby ground.
+			if (!foundGround && currentY < spawnPosition.y - 0.75f)
+			{
+				Vector3 fallbackOrigin = new Vector3(transform.position.x, spawnPosition.y + 200f, transform.position.z);
+				float fallbackDistance = Mathf.Max(400f, fallbackOrigin.y - currentY + 50f);
+				foundGround = TryFindRecoveryGround(fallbackOrigin, fallbackDistance, spawnPosition.y, out hit);
+			}
+
+			if (!foundGround)
+			{
+				if (Time.time >= nextGroundFailureLogTime)
+				{
+					nextGroundFailureLogTime = Time.time + 5f;
+					Debug.LogWarning("[MobileNPCHumanoidMotor] Ground recovery probe found no walkable collider at x="
+						+ transform.position.x.ToString("F2") + ", z=" + transform.position.z.ToString("F2")
+						+ ", y=" + currentY.ToString("F2") + ", spawnY=" + spawnPosition.y.ToString("F2")
+						+ ". Inspect terrain collider/layer coverage.", this);
+				}
+				return;
+			}
+
+			// A walkable surface must be materially above the root; otherwise this is
+			// ordinary grounded movement and must not be snapped.
+			if (Vector3.Angle(hit.normal, Vector3.up) > 55f || currentY >= hit.point.y - 0.75f)
 				return;
 
-			if (Vector3.Angle(hit.normal, Vector3.up) > 55f || transform.position.y >= hit.point.y - 2.5f)
-				return;
-
-			Vector3 recoveredPosition = hit.point + Vector3.up * 0.08f;
+			Vector3 recoveredPosition = hit.point + Vector3.up * 0.05f;
 			if (!Level.checkSafeIncludingClipVolumes(recoveredPosition))
+			{
+				if (Time.time >= nextGroundFailureLogTime)
+				{
+					nextGroundFailureLogTime = Time.time + 5f;
+					Debug.LogWarning("[MobileNPCHumanoidMotor] Found ground at " + hit.point
+						+ " but recovery was rejected by level bounds/clip volumes.", this);
+				}
 				return;
+			}
 
 			characterController.enabled = false;
 			transform.position = recoveredPosition;
@@ -371,6 +404,31 @@ namespace SDG.Unturned
 				+ recoveredPosition + ". Check map collision layers if this repeats.", this);
 		}
 
+		private bool TryFindRecoveryGround(Vector3 origin, float distance, float preferredY, out RaycastHit selectedHit)
+		{
+			selectedHit = default(RaycastHit);
+			RaycastHit[] hits = Physics.RaycastAll(origin, Vector3.down, distance, ~0, QueryTriggerInteraction.Ignore);
+			float bestVerticalDifference = float.PositiveInfinity;
+			bool found = false;
+			for (int i = 0; i < hits.Length; ++i)
+			{
+				RaycastHit candidate = hits[i];
+				if (candidate.collider == null || IsOwnCollider(candidate.collider)
+					|| Vector3.Angle(candidate.normal, Vector3.up) > 55f)
+				{
+					continue;
+				}
+
+				float verticalDifference = Mathf.Abs(candidate.point.y - preferredY);
+				if (verticalDifference < bestVerticalDifference)
+				{
+					bestVerticalDifference = verticalDifference;
+					selectedHit = candidate;
+					found = true;
+				}
+			}
+			return found;
+		}
 		private void UpdateStuckRecovery(bool wantedToMove, float deltaTime)
 		{
 			if (Time.time < nextStuckCheckTime)
