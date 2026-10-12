@@ -109,19 +109,19 @@ namespace SDG.Unturned
 			}
 			else
 			{
-			for (int i = 0; i < hitCount; ++i)
-			{
-				Transform hitTransform = lineOfSightHits[i].transform;
-				if (hitTransform == null || hitTransform == transform || hitTransform.IsChildOf(transform))
+				for (int i = 0; i < hitCount; ++i)
 				{
-					continue;
+					Transform hitTransform = lineOfSightHits[i].transform;
+					if (hitTransform == null || hitTransform == transform || hitTransform.IsChildOf(transform))
+					{
+						continue;
+					}
+					if (lineOfSightHits[i].distance < nearestDistance)
+					{
+						nearestDistance = lineOfSightHits[i].distance;
+						nearestTransform = hitTransform;
+					}
 				}
-				if (lineOfSightHits[i].distance < nearestDistance)
-				{
-					nearestDistance = lineOfSightHits[i].distance;
-					nearestTransform = hitTransform;
-				}
-			}
 			}
 
 			// No collider hit means there is no confirmed line of sight. Never apply melee
