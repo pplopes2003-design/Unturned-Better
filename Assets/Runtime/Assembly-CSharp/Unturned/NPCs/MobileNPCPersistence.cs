@@ -103,18 +103,15 @@ namespace SDG.Unturned
 		{
 			string path = GetSavePath(mapKey);
 			FailedRestoreRecords.Clear();
-			if (!File.Exists(path) && File.Exists(path + ".bak"))
-				path += ".bak";
-			if (!File.Exists(path))
+			if (!File.Exists(path) && !File.Exists(path + ".bak"))
 				return;
 
 			try
 			{
-				SaveFile save = JsonUtility.FromJson<SaveFile>(File.ReadAllText(path));
-				if (save == null || save.version != CurrentVersion || save.npcs == null
-					|| !string.Equals(save.mapKey, mapKey, StringComparison.Ordinal))
+				SaveFile save = LoadSaveFile(path, mapKey);
+				if (save == null || save.npcs == null)
 				{
-					Debug.LogWarning("[MobileNPCPersistence] Snapshot version or map key did not match; ignoring " + path);
+					Debug.LogWarning("[MobileNPCPersistence] No valid primary or backup snapshot was found for " + path);
 					return;
 				}
 
@@ -293,6 +290,33 @@ namespace SDG.Unturned
 				Debug.LogError("[MobileNPCPersistence] Failed to save snapshot '" + path + "': " + exception);
 				try { if (File.Exists(temporaryPath)) File.Delete(temporaryPath); } catch { }
 			}
+		}
+
+		private static SaveFile LoadSaveFile(string path, string mapKey)
+		{
+			string[] candidates = { path, path + ".bak" };
+			for (int i = 0; i < candidates.Length; ++i)
+			{
+				if (!File.Exists(candidates[i]))
+					continue;
+
+				try
+				{
+					SaveFile save = JsonUtility.FromJson<SaveFile>(File.ReadAllText(candidates[i]));
+					if (save != null && save.version == CurrentVersion && save.npcs != null
+						&& string.Equals(save.mapKey, mapKey, StringComparison.Ordinal))
+					{
+						if (i > 0)
+							Debug.LogWarning("[MobileNPCPersistence] Recovering NPCs from backup snapshot " + candidates[i]);
+						return save;
+					}
+				}
+				catch (Exception exception)
+				{
+					Debug.LogWarning("[MobileNPCPersistence] Snapshot could not be read from " + candidates[i] + ": " + exception.Message);
+				}
+			}
+			return null;
 		}
 
 		private static readonly List<MobileNPCBrainDriver> ActiveDriverScratch = new List<MobileNPCBrainDriver>(32);
