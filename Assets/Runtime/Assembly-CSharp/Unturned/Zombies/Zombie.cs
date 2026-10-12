@@ -1293,6 +1293,11 @@ namespace SDG.Unturned
 			isReturningToSpawn = false;
 			investigationWandersRemaining = 0;
 			mobileNPCTarget = newTarget;
+			// The zombie has already confirmed line of sight to this NPC. Feed that
+			// validated threat back to the NPC brain so differing collider/raycast setups
+			// cannot leave the NPC idle while a zombie is actively hunting it.
+			MobileNPCBrainDriver targetBrain = newTarget.GetComponent<MobileNPCBrainDriver>();
+			targetBrain?.ReportVisibleTarget(transform);
 			isHunting = true;
 			huntType = EHuntType.PLAYER;
 			isLeaving = false;
