@@ -294,65 +294,14 @@ namespace SDG.Unturned
 			target.Members.Add(this);
 			if (target.Leader == null)
 				target.Leader = this;
-			if (hasSettlement && !target.HasSettlement)
-			{
-				target.Anchor = savedAnchor;
-				target.HasSettlement = true;
-				GroupAnchor = savedAnchor;
-			}
 			if (motor != null)
 				motor.TrySetHomePositionServer(target.Anchor);
 			nextGroupId = Mathf.Max(nextGroupId, savedGroupId + 1);
-			return true;
-		}
 
-		public bool RestoreGroupMembershipServer(int savedGroupId, Vector3 savedAnchor, bool hasSettlement)
-		{
-			if (!Provider.isServer || !initialized || leftGroup || savedGroupId <= 0)
-				return false;
-			if (float.IsNaN(savedAnchor.x) || float.IsInfinity(savedAnchor.x)
-				|| float.IsNaN(savedAnchor.y) || float.IsInfinity(savedAnchor.y)
-				|| float.IsNaN(savedAnchor.z) || float.IsInfinity(savedAnchor.z))
-				return false;
-
-			MobileNPCHumanoidDisposition.Role role = disposition != null
-				? disposition.CurrentRole : MobileNPCHumanoidDisposition.Role.Neutral;
-			MobileNPCFaction.Id faction = GetCurrentFaction(role);
-			if (!groups.TryGetValue(savedGroupId, out GroupRecord target))
-			{
-				target = new GroupRecord
-				{
-					Id = savedGroupId,
-					Anchor = savedAnchor,
-					Role = role,
-					Faction = faction,
-					HasSettlement = hasSettlement
-				};
-				groups.Add(savedGroupId, target);
-			}
-			else
-			{
-				PruneDeadMembers(target);
-				if (target.Role != role || target.Faction != faction || target.Members.Count >= MaximumGroupSize)
-					return false;
-			}
-
-			if (GroupId != savedGroupId)
-				RemoveFromCurrentGroupServer(false);
-			GroupId = target.Id;
-			GroupAnchor = target.Anchor;
-			target.Members.Add(this);
-			if (target.Leader == null)
-				target.Leader = this;
-			if (hasSettlement && !target.HasSettlement)
-			{
-				target.Anchor = savedAnchor;
-				target.HasSettlement = true;
-				GroupAnchor = savedAnchor;
-			}
-			if (motor != null)
-				motor.TrySetHomePositionServer(target.Anchor);
-			nextGroupId = Mathf.Max(nextGroupId, savedGroupId + 1);
+			// A later record can be the first member encountered with settlement data.
+			// Apply the saved anchor through the shared setter so every member is synchronized.
+			if (hasSettlement)
+				SetGroupAnchorServer(savedAnchor);
 			return true;
 		}
 
