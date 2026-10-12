@@ -72,7 +72,8 @@ namespace SDG.Unturned
 				lastTargetPosition = currentTarget.position;
 				estimatedTargetVelocity = Vector3.zero;
 				targetAcquiredAt = now;
-				currentReactionTime = Random.Range(Mathf.Min(minimumReactionTime, maximumReactionTime), Mathf.Max(minimumReactionTime, maximumReactionTime));
+				currentReactionTime = Random.Range(Mathf.Min(minimumReactionTime, maximumReactionTime), Mathf.Max(minimumReactionTime, maximumReactionTime))
+                    * MobileNPCSettings.ReactionTimeMultiplier;
 				hasTarget = true;
 				return;
 			}
@@ -116,7 +117,8 @@ namespace SDG.Unturned
 				return false;
 			}
 
-			float spread = baseSpreadDegrees + (1.0f - skill) * maximumSpreadDegrees + Mathf.Max(0f, weaponSpreadDegrees);
+			float spread = (baseSpreadDegrees + (1.0f - skill) * maximumSpreadDegrees + Mathf.Max(0f, weaponSpreadDegrees))
+                * MobileNPCSettings.AimSpreadMultiplier;
 			if (isMoving)
 			{
 				spread += movingSpreadDegrees;
