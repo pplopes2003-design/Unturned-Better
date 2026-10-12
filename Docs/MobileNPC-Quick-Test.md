@@ -27,14 +27,15 @@ The opt-in humanoid prototype is under `Assets/Runtime/Assembly-CSharp/Unturned/
 
 1. Open the project in the configured Unity Editor and wait for script import; check Console errors before launching.
 2. Start a disposable single-player map. The bootstrap should log that the population was initialized; it must not run on a dedicated server.
-3. Wait for the first spawn interval (default about 18 seconds). Confirm a visible humanoid appears outside immediate player range and that population remains capped.
-4. Approach within sight range and line of sight. Confirm the hostile NPC detects and pursues the player; observe whether the available legacy animation clips switch sensibly between idle and movement.
-5. Break line of sight: ranged combat should stop firing, aim tracking should clear, and the brain should investigate the last known position before returning.
-6. Check ground candidates near steep slopes, structures and map boundaries. Failed candidates should be skipped without repeated per-frame spawn attempts.
-7. Kill an NPC and verify the dead instance is cleaned up after the configured delay. Load a second map and confirm there is no duplicate population director.
-8. When no target or tactical destination is active, confirm an NPC periodically chooses a nearby roaming waypoint, walks toward it, pauses briefly after arrival, then chooses another. Verify it stays within its spawn-area roaming radius.
-9. Place or lure an NPC near a small obstacle. Check whether short-range steering chooses a clear side; then test walls and buildings to document cases where local avoidance cannot find a route.
-10. Record any compiler errors, Console exceptions, invisible model, incorrect scale/orientation, bad animation selection, or NPCs stuck against obstacles.
+3. For a quick nearby test, enter the map, face an open flat area and press **F8**. The development helper attempts to spawn one NPC about 7 metres away, respecting the configured population cap; check the Unity/player log for success or the reason it was skipped. If F8 does nothing, ensure the game window has keyboard focus and the current build includes the latest branch commit.
+4. Alternatively, wait for the normal spawn interval (default about 18 seconds). Automatic spawns are sampled around vanilla player-spawn anchors, so they can be much farther away and are deliberately kept outside immediate visibility.
+5. Approach within sight range and line of sight. Confirm the hostile NPC detects and pursues the player; observe whether the available legacy animation clips switch sensibly between idle and movement.
+6. Break line of sight: ranged combat should stop firing, aim tracking should clear, and the brain should investigate the last known position before returning.
+7. Check ground candidates near steep slopes, structures and map boundaries. Failed candidates should be skipped without repeated per-frame spawn attempts.
+8. Kill an NPC and verify the dead instance is cleaned up after the configured delay. Load a second map and confirm there is no duplicate population director.
+9. When no target or tactical destination is active, confirm an NPC periodically chooses a nearby roaming waypoint, walks toward it, pauses briefly after arrival, then chooses another. Verify it stays within its spawn-area roaming radius.
+10. Place or lure an NPC near a small obstacle. Check whether short-range steering chooses a clear side; then test walls and buildings to document cases where local avoidance cannot find a route.
+11. Record any compiler errors, Console exceptions, invisible model, incorrect scale/orientation, bad animation selection, or NPCs stuck against obstacles.
 
 This smoke test has not yet been run. The bootstrap is experimental and local-only; it does not add client replication, persistence, roaming, or base construction.
 
