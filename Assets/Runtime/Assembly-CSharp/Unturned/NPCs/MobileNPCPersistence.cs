@@ -193,7 +193,10 @@ namespace SDG.Unturned
 			}
 			else
 			{
-				// Avoid retrying every frame when a position is obstructed or a prefab is invalid.
+				// Rotate a failed record to the end of the queue. One permanently blocked
+				// location must not starve every later snapshot record indefinitely.
+				FailedRestoreRecords.RemoveAt(0);
+				FailedRestoreRecords.Add(record);
 				if (!string.IsNullOrEmpty(error))
 					Debug.LogWarning("[MobileNPCPersistence] Deferred NPC restore will be retried later: " + error);
 			}
