@@ -134,3 +134,10 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - [ ] Turn population off before loading a save; verify saved NPC records are not restored until population is enabled again.
 - [ ] Turn population off after NPCs are active; verify no new NPCs/replacements appear, live NPC state continues to autosave, and existing NPCs are not silently deleted.
 - [ ] Verify Easy has longer reaction delay and wider spread than Normal; Hard has shorter reaction delay and tighter spread, without becoming perfectly accurate.
+
+
+## 10. Nearby developer spawn helper
+- [ ] In a disposable single-player save, focus the game window, face an open flat area, and press F8.
+- [ ] Confirm one NPC appears roughly 7 metres away, faces the player, uses the configured default role, and is included in lifecycle tracking.
+- [ ] At the population cap, press F8 and verify it logs that the cap is reached without creating an extra NPC.
+- [ ] Test on uneven ground, near a building, and with population disabled; verify failures are logged rather than spawning outside safe level bounds.
