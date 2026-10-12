@@ -159,14 +159,21 @@ namespace SDG.Unturned
 
 		private Player FindVisiblePlayer()
 		{
-			Player[] players = FindObjectsOfType<Player>();
 			Player best = null;
 			float bestDistanceSquared = sightRange * sightRange;
 			Vector3 eye = transform.position + Vector3.up * eyeHeight;
 
-			for (int i = 0; i < players.Length; ++i)
+			// Iterate the authoritative connected-player collection instead of allocating
+			// a fresh scene-wide Player array for every NPC scan.
+			if (Provider.clients == null)
 			{
-				Player candidate = players[i];
+				return null;
+			}
+
+			for (int i = 0; i < Provider.clients.Count; ++i)
+			{
+				SteamPlayer steamPlayer = Provider.clients[i];
+				Player candidate = steamPlayer != null ? steamPlayer.player : null;
 				if (candidate == null || candidate == GetComponent<Player>()
 					|| candidate.life == null || candidate.life.isDead
 					|| candidate.gameObject == null || !candidate.gameObject.activeInHierarchy)
