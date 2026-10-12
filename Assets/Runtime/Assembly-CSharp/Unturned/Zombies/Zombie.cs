@@ -1338,7 +1338,6 @@ namespace SDG.Unturned
 					seeker.CanSearch = true;
 					seeker.CanMove = true;
 					setTicking(true);
-					setTicking(true);
 				}
 				else if (isInvestigationWanderTarget)
 				{
@@ -2225,7 +2224,7 @@ namespace SDG.Unturned
 			}
 			else if (huntType == EHuntType.POINT)
 			{
-				if ((!isMoving || isStuck) && Time.time - lastHunted > 10f)
+				if ((!isMoving || isStuck) && Time.time - lastHunted > 4f)
 				{
 					bool wasReturningToSpawn = isReturningToSpawn;
 					stop();
@@ -2236,7 +2235,7 @@ namespace SDG.Unturned
 					else
 					{
 						isInvestigationIdle = true;
-						investigationIdleUntil = Time.time + Random.Range(0.75f, 1.75f);
+						investigationIdleUntil = Time.time + Random.Range(0.35f, 0.8f);
 						setTicking(true);
 					}
 					return;
