@@ -301,6 +301,10 @@ namespace SDG.Unturned
 
 			if (brainDriver.HasDestination)
 			{
+				// A failed detour must not keep pulling the NPC toward the same unusable point.
+				// Clear it so the next bounded attempt can choose a different side.
+				hasDetourWaypoint = false;
+				nextDetourAttemptTime = Time.time + 0.2f;
 				recoverySteeringAngle = Random.value < 0.5f ? -90f : 90f;
 				useRecoverySteering = true;
 				recoverySteeringUntil = Time.time + 1.1f;
