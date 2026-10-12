@@ -2975,7 +2975,7 @@ namespace SDG.Unturned
 					if (!isLeaving && ZombieManager.canSpareWanderer)
 					{
 						float angle = Random.value * Mathf.PI * 2.0f;
-						float dist = Random.Range(0.5f, 1.0f);
+						float dist = Random.Range(4.0f, 8.0f);
 
 						isWandering = true;
 						ZombieManager.wanderingCount++;
