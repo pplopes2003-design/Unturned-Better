@@ -55,7 +55,7 @@ namespace SDG.Unturned
 			}
 
 			nextScanTime = Time.time + Mathf.Max(0.02f, scanInterval);
-			if (disposition == null || !disposition.CanEngageMobileNPCs && !disposition.CanEngagePlayers)
+			if (disposition == null)
 			{
 				visiblePlayer = null;
 				visibleNPC = null;
