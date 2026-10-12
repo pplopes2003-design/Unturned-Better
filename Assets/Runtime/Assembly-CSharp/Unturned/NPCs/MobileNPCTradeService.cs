@@ -40,7 +40,7 @@ namespace SDG.Unturned
 
 			if (player == null || player.life == null || player.life.isDead || player.inventory == null
 				|| traderInventory == null || disposition == null || disposition.CurrentRole != MobileNPCHumanoidDisposition.Role.Friendly
-				|| currencyItemId == 0 || currencyCost <= 0 || currencyCost > 255
+				|| currencyItemId == 0 || currencyCost <= 0 || currencyCost > 100000
 				|| float.IsNaN(maximumDistance) || float.IsInfinity(maximumDistance) || maximumDistance <= 0f)
 			{
 				error = "The player, trader, currency, price or interaction range is invalid.";
@@ -69,7 +69,8 @@ namespace SDG.Unturned
 
 			if (!RemovePayment(player, currencyItemId, currencyCost, payment))
 			{
-				error = "The payment could not be collected; no trade was completed.";
+				RefundPayment(player, payment);
+				error = "The payment could not be collected; payment was refunded.";
 				return false;
 			}
 
