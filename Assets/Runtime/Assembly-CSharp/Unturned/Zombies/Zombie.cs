@@ -2150,14 +2150,12 @@ namespace SDG.Unturned
 				isInvestigationIdle = false;
 				if (Time.time < investigationUntil && investigationWandersRemaining > 0)
 				{
-					for (int attempt = 0; attempt < 12; ++attempt)
+					for (int attempt = 0; attempt < 24; ++attempt)
 					{
 						float angle = Random.value * Mathf.PI * 2.0f;
-						// Keep search legs relatively local. Long random legs often cross walls
-						// or leave a small navigation island, causing the zombie to turn in place.
-						float distance = Random.Range(4.0f, 10.0f);
+						float distance = Random.Range(3.5f, 8.0f);
 						Vector3 searchPoint = investigationCenter + new Vector3(Mathf.Cos(angle) * distance, 0.0f, Mathf.Sin(angle) * distance);
-						if (!LevelNavigation.checkNavigation(searchPoint))
+						if ((searchPoint - transform.position).sqrMagnitude < 9.0f || !LevelNavigation.checkNavigation(searchPoint))
 						{
 							continue;
 						}
