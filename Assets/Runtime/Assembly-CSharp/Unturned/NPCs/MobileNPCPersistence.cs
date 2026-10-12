@@ -128,7 +128,11 @@ namespace SDG.Unturned
 					return;
 				}
 
+				MobileNPCRegistry.CopyActiveDrivers(ActiveDriverScratch);
+				int activeAtStart = ActiveDriverScratch.Count;
 				int restored = 0;
+				// Count already-active mobile NPCs as part of the same population cap. This
+				// protects against restoration running after another bootstrap has spawned NPCs.
 				// Keep all source records pending until each one has been restored successfully.
 				// If a later record throws unexpectedly, periodic saves will not erase the tail.
 				FailedRestoreRecords.AddRange(save.npcs);
@@ -141,7 +145,7 @@ namespace SDG.Unturned
 						continue;
 					}
 
-					if (restored >= maximumRestoredNPCs)
+					if (activeAtStart + restored >= maximumRestoredNPCs)
 						continue;
 
 					if (TryRestoreRecordServer(prefab, record, out string error))
