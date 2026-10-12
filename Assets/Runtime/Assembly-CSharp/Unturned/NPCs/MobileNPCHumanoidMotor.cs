@@ -570,6 +570,9 @@ namespace SDG.Unturned
 						continue;
 					if (Mathf.Abs(resolved.y - floorY) > maxFloorDelta)
 						continue;
+					if (index != RouteGridCenter * RouteGridSide + RouteGridCenter
+						&& IsRouteNodeOccupied(resolved, routeRadius))
+						continue;
 
 					Vector3 mid = resolved + Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f);
 					Vector3 horizontal = resolved - basePosition;
@@ -682,6 +685,16 @@ namespace SDG.Unturned
 			}
 			routeWaypointIndex = 0;
 			return routeWaypoints.Count > 0;
+		}
+
+		private bool IsRouteNodeOccupied(Vector3 groundPosition, float radius)
+		{
+			float height = Mathf.Max(radius * 2f, characterController.height);
+			Vector3 center = groundPosition + Vector3.up * (height * 0.5f);
+			float halfSegment = Mathf.Max(0f, height * 0.5f - radius);
+			Vector3 bottom = center - Vector3.up * halfSegment;
+			Vector3 top = center + Vector3.up * halfSegment;
+			return Physics.CheckCapsule(bottom, top, radius, obstacleMask, QueryTriggerInteraction.Ignore);
 		}
 
 		private void TryChooseRoamingDestination()
