@@ -92,3 +92,15 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - [ ] Verify detour waypoint selection rejects unsafe ground, steep slopes, and positions blocked by nearby colliders.
 - [ ] On uneven ground beside a wall, verify the ground-resolved detour candidate is re-probed from the NPC's actual position and rejected if that resolved route is still blocked.
 - [ ] Compare detour candidates by both alignment and reduction in remaining goal distance; verify side-steps are allowed when needed but clearly regressive candidates are deprioritized.
+
+
+## 8. Indoor navigation (not implemented yet)
+- Current movement uses short local obstacle avoidance and one temporary detour waypoint. It does not yet guarantee routing through doors/corridors or around an entire building.
+- The U3 SDK pathfinding abstraction can compile to `UnturnedPathfinding_Empty` when `WITH_ASPFP` is not enabled; do not assume a usable baked navmesh/path query is available in the target build. The mobile NPC implementation must not call undocumented pathfinding APIs.
+- Planned approach: implement a bounded, physics-tested multi-waypoint route planner for the current floor, with safe-ground sampling, humanoid-clearance checks, bounded search work, and a fallback when no route is found. Multi-floor/stair transitions need a separate explicit validation pass.
+- [ ] Verify the NPC enters a building through an open doorway instead of pushing directly into its exterior wall.
+- [ ] Verify it traverses an L-shaped corridor and a room with furniture, then continues to the original tactical destination.
+- [ ] Verify a closed door or blocked passage does not cause an infinite search loop or per-frame route rebuild.
+- [ ] Verify floor sampling stays on the NPC's current level and does not select the roof or a floor above/below it.
+- [ ] Verify stair traversal between floors; if no safe transition is found, the NPC should report/abandon the route rather than oscillate between levels.
+- [ ] Verify routes remain bounded in cost at population caps 10 and 20, including several NPCs navigating indoors at once.
