@@ -91,6 +91,23 @@ namespace SDG.Unturned
 				vitals.Died += OnDied;
 		}
 
+		/// <summary>
+		/// Reassigns membership after a server-side role or faction change so the NPC
+		/// cannot remain in a group whose recorded identity no longer matches its own.
+		/// </summary>
+		public void RefreshGroupMembershipServer()
+		{
+			if (!Provider.isServer || !initialized || leftGroup)
+				return;
+
+			if (vitals != null)
+				vitals.Died -= OnDied;
+
+			RemoveFromCurrentGroupServer(false);
+			initialized = false;
+			InitializeServer();
+		}
+
 		/// <summary>Moves the living group's shared home anchor when its planner chooses a base site.</summary>
 		public void SetGroupAnchorServer(Vector3 anchor)
 		{
