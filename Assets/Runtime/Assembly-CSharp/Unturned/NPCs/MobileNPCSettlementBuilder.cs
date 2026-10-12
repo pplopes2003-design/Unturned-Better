@@ -114,6 +114,13 @@ namespace SDG.Unturned
 
 			if (placeStructure)
 			{
+				// Apply vanilla housing rules before placement. Arbitrary coordinates are not
+				// enough for walls/pillars because they must connect to valid housing anchors.
+				string obstructionHint = null;
+				if (UseableHousingUtils.ValidatePendingPlacement(
+					selectedStructureAsset, ref placePosition, angle, ref obstructionHint) != EHousingPlacementResult.Success)
+					return;
+
 				// Use Unturned's authoritative structure manager so the piece is registered
 				// in the world and replicated through the vanilla structure pipeline.
 				if (!StructureManager.dropStructure(
