@@ -29,6 +29,7 @@ namespace SDG.Unturned
 			public MobileNPCGroupMember Leader;
 			public bool HasSettlement;
 			public MobileNPCHumanoidDisposition.Role Role;
+			public MobileNPCFaction.Id Faction;
 		}
 
 		private MobileNPCHumanoidVitals vitals;
@@ -60,7 +61,8 @@ namespace SDG.Unturned
 			initialized = true;
 			MobileNPCHumanoidDisposition.Role role = disposition != null
 				? disposition.CurrentRole : MobileNPCHumanoidDisposition.Role.Neutral;
-			GroupRecord group = FindNearestGroup(transform.position, role);
+			MobileNPCFaction.Id faction = GetCurrentFaction(role);
+			GroupRecord group = FindNearestGroup(transform.position, role, faction);
 			bool createdGroup = group == null;
 			if (group == null)
 			{
@@ -68,7 +70,8 @@ namespace SDG.Unturned
 				{
 					Id = nextGroupId++,
 					Anchor = motor.HomePosition,
-					Role = role
+					Role = role,
+					Faction = faction
 				};
 				groups.Add(group.Id, group);
 			}
@@ -110,14 +113,27 @@ namespace SDG.Unturned
 			}
 		}
 
-		private static GroupRecord FindNearestGroup(Vector3 position, MobileNPCHumanoidDisposition.Role role)
+		private MobileNPCFaction.Id GetCurrentFaction(MobileNPCHumanoidDisposition.Role fallbackRole)
+		{
+			MobileNPCFaction faction = GetComponent<MobileNPCFaction>();
+			if (faction != null)
+				return faction.CurrentFaction;
+			switch (fallbackRole)
+			{
+				case MobileNPCHumanoidDisposition.Role.Hostile: return MobileNPCFaction.Id.Raiders;
+				case MobileNPCHumanoidDisposition.Role.Friendly: return MobileNPCFaction.Id.Traders;
+				default: return MobileNPCFaction.Id.Scavengers;
+			}
+		}
+
+		private static GroupRecord FindNearestGroup(Vector3 position, MobileNPCHumanoidDisposition.Role role, MobileNPCFaction.Id faction)
 		{
 			GroupRecord nearest = null;
 			float bestDistanceSquared = GroupJoinRadius * GroupJoinRadius;
 			foreach (GroupRecord group in groups.Values)
 			{
 				PruneDeadMembers(group);
-				if (group.Members.Count == 0 || group.Members.Count >= MaximumGroupSize || group.Role != role)
+				if (group.Members.Count == 0 || group.Members.Count >= MaximumGroupSize || group.Role != role || group.Faction != faction)
 					continue;
 
 				Vector3 offset = group.Anchor - position;
@@ -166,7 +182,9 @@ namespace SDG.Unturned
 			PruneDeadMembers(target);
 			MobileNPCHumanoidDisposition.Role role = disposition != null
 				? disposition.CurrentRole : MobileNPCHumanoidDisposition.Role.Neutral;
-			if (target.Members.Count == 0 || target.Members.Count >= MaximumGroupSize || target.Role != role)
+			MobileNPCFaction.Id faction = GetCurrentFaction(role);
+			if (target.Members.Count == 0 || target.Members.Count >= MaximumGroupSize
+				|| target.Role != role || target.Faction != faction)
 				return false;
 
 			RemoveFromCurrentGroupServer(false);
