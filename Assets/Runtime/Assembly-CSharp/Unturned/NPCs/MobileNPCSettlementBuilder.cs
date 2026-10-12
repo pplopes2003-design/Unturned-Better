@@ -75,6 +75,13 @@ namespace SDG.Unturned
 			MobileNPCGroupMember groupMember = GetComponent<MobileNPCGroupMember>();
 			if (groupMember != null && !groupMember.CanPlanSettlement)
 				return;
+			if (groupMember != null)
+			{
+				// A successor inherits construction progress instead of placing the same pattern again.
+				placedPieces = Mathf.Max(placedPieces, groupMember.SettlementPiecesPlaced);
+				perimeterPiecesPlaced = Mathf.Max(perimeterPiecesPlaced, groupMember.SettlementPerimeterPiecesPlaced);
+				centralStoragePlaced |= groupMember.SettlementCentralStoragePlaced;
+			}
 
 			nextBuildTime = Time.time + Mathf.Max(2f, buildInterval);
 			if (driver.Target != null || driver.CurrentGoal != MobileNPCTactics.Goal.None
@@ -176,6 +183,8 @@ namespace SDG.Unturned
 			}
 
 			placedPieces++;
+			MobileNPCGroupMember progressMember = GetComponent<MobileNPCGroupMember>();
+			progressMember?.RecordSettlementPiecePlacedServer(placeStorage);
 			if (placeStorage)
 			{
 				centralStoragePlaced = true;
