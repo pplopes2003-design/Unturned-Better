@@ -23,15 +23,28 @@ namespace SDG.Unturned
 			Traders = 5
 		}
 
+		private bool usesRoleDefaultFaction;
+
 		private void Awake()
 		{
 			if (faction != Id.Unaffiliated)
+				return;
+
+			usesRoleDefaultFaction = true;
+			SynchronizeDefaultFactionFromRole();
+		}
+
+		/// <summary>Updates only automatically assigned identities; explicit faction choices are preserved.</summary>
+		internal void SynchronizeDefaultFactionFromRole()
+		{
+			if (!usesRoleDefaultFaction && faction != Id.Unaffiliated)
 				return;
 
 			MobileNPCHumanoidDisposition disposition = GetComponent<MobileNPCHumanoidDisposition>();
 			if (disposition == null)
 				return;
 
+			usesRoleDefaultFaction = true;
 			switch (disposition.CurrentRole)
 			{
 				case MobileNPCHumanoidDisposition.Role.Hostile:
