@@ -58,9 +58,18 @@ namespace SDG.Unturned
 				return;
 			nextThinkTime = Time.time + Mathf.Max(0.5f, thinkInterval);
 
+			// Starvation damage must never be skipped just because the NPC has an active goal.
+			if ((hunger <= 0f || thirst <= 0f) && Time.time >= nextDamageTime)
+			{
+				nextDamageTime = Time.time + Mathf.Max(1f, damageInterval);
+				vitals.ApplyDamage(Mathf.Max(0.1f, starvationDamage));
+			}
+
 			MobileNPCBrainDriver driver = GetComponent<MobileNPCBrainDriver>();
-			// Combat and urgent tactical movement take precedence over stopping to eat.
-			if (driver != null && (driver.Target != null || driver.CurrentGoal != MobileNPCTactics.Goal.None))
+			// Only defer eating during active combat; exploration/looting goals should not
+			// prevent an NPC from consuming supplies it already carries.
+			if (driver != null && driver.Target != null
+				&& driver.CurrentState == MobileNPCBrain.State.Pursuing)
 				return;
 
 			if (hunger <= 65f && inventory.TryConsumeFirstItemOfType(EItemType.FOOD, out _))
@@ -68,12 +77,6 @@ namespace SDG.Unturned
 
 			if (thirst <= 65f && inventory.TryConsumeFirstItemOfType(EItemType.WATER, out _))
 				thirst = Mathf.Min(100f, thirst + Mathf.Max(0f, waterRestore));
-
-			if ((hunger <= 0f || thirst <= 0f) && Time.time >= nextDamageTime)
-			{
-				nextDamageTime = Time.time + Mathf.Max(1f, damageInterval);
-				vitals.ApplyDamage(Mathf.Max(0.1f, starvationDamage));
-			}
 		}
 
 		/// <summary>Used by loot scoring to prioritize food or water when the agent is running low.</summary>
