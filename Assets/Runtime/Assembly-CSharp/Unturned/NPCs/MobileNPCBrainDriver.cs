@@ -183,7 +183,13 @@ namespace SDG.Unturned
 						Player hitPlayer = hit.transform.GetComponent<Player>();
 						if (hitPlayer == null)
 							hitPlayer = hit.transform.GetComponentInParent<Player>();
-						if (hitPlayer == null && (candidate - transform.position).sqrMagnitude > 1f)
+
+						// Ignore terrain/floor intersections and hits at the candidate endpoint:
+						// usable cover should be a substantial, roughly vertical obstruction.
+						bool substantialObstruction = hit.distance < rayOffset.magnitude - 0.75f
+							&& Vector3.Angle(hit.normal, Vector3.up) > 50f;
+						if (hitPlayer == null && substantialObstruction
+							&& (candidate - transform.position).sqrMagnitude > 1f)
 							return candidate;
 					}
 				}
