@@ -206,9 +206,18 @@ namespace SDG.Unturned
 			error = null;
 			Vector3 position = new Vector3(record.px, record.py, record.pz);
 			Quaternion rotation = new Quaternion(record.rx, record.ry, record.rz, record.rw);
+			float rotationMagnitudeSquared = rotation.x * rotation.x + rotation.y * rotation.y
+				+ rotation.z * rotation.z + rotation.w * rotation.w;
 			if (!IsFinite(rotation.x) || !IsFinite(rotation.y) || !IsFinite(rotation.z) || !IsFinite(rotation.w)
-				|| rotation.sqrMagnitude < 0.001f)
+				|| !IsFinite(rotationMagnitudeSquared) || rotationMagnitudeSquared < 0.001f)
+			{
 				rotation = Quaternion.identity;
+			}
+			else
+			{
+				// Snapshot data may contain a non-unit quaternion; normalize it before spawning.
+				rotation = Quaternion.Normalize(rotation);
+			}
 
 			MobileNPCHumanoidDisposition.Role role = (MobileNPCHumanoidDisposition.Role)record.role;
 			if (role != MobileNPCHumanoidDisposition.Role.Hostile
