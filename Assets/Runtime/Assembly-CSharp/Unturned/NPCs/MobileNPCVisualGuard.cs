@@ -76,9 +76,13 @@ namespace SDG.Unturned
                     continue;
                 }
 
-                if (nodes[i].gameObject.layer != 0)
+                // Preserve the render layer authored by NPC_Client. The game uses
+                // named layers such as Medium (16); moving the mesh to Default (0)
+                // can place it outside Unturned's gameplay camera culling mask.
+                int renderLayer = visualRoot.gameObject.layer;
+                if (nodes[i].gameObject.layer != renderLayer)
                 {
-                    nodes[i].gameObject.layer = 0;
+                    nodes[i].gameObject.layer = renderLayer;
                 }
 
                 if (!nodes[i].gameObject.activeSelf)
@@ -148,6 +152,8 @@ namespace SDG.Unturned
             Bounds bodyBounds = new Bounds(bodyCenter, FallbackBoundsSize);
             bool bodyInCameraView = GeometryUtility.TestPlanesAABB(
                 GeometryUtility.CalculateFrustumPlanes(camera), bodyBounds);
+            int renderLayer = visualRoot.gameObject.layer;
+            bool cameraIncludesRenderLayer = (camera.cullingMask & (1 << renderLayer)) != 0;
 
             // This is deliberately a diagnostic fallback, not the NPC's normal model.
             // If the real humanoid is visible it stays disabled; if it is not, the capsule
@@ -157,9 +163,13 @@ namespace SDG.Unturned
             if (needsFallback && !warnedAboutFallback)
             {
                 warnedAboutFallback = true;
-                Debug.LogWarning("[MobileNPCVisualGuard] NPC body is inside the main camera view, "
-                    + "but NPC_Client renderers are not visible. Showing a temporary capsule marker. "
-                    + "Check shader/material compatibility and renderer bounds.", this);
+                Debug.LogWarning("[MobileNPCVisualGuard] NPC body is in the main camera frustum, "
+                    + "but NPC_Client renderers are not visible. camera=" + camera.name
+                    + ", cameraMask=0x" + camera.cullingMask.ToString("X8")
+                    + ", renderLayer=" + renderLayer + ", cameraIncludesLayer=" + cameraIncludesRenderLayer
+                    + ", rendererCount=" + visualRenderers.Length
+                    + ", bounds=" + bodyBounds + ". A temporary capsule was requested; inspect this "
+                    + "camera/layer audit if it is still invisible.", this);
             }
         }
 
@@ -178,7 +188,8 @@ namespace SDG.Unturned
             {
                 fallbackObject = GameObject.CreatePrimitive(PrimitiveType.Capsule);
                 fallbackObject.name = "NPC_VISUAL_DIAGNOSTIC_FALLBACK";
-                fallbackObject.layer = 0;
+                // Use the same layer as the native NPC_Client prefab, not Default.
+                fallbackObject.layer = visualRoot != null ? visualRoot.gameObject.layer : gameObject.layer;
                 fallbackObject.transform.SetParent(transform, false);
                 fallbackObject.transform.localPosition = new Vector3(0f, 0.95f, 0f);
                 fallbackObject.transform.localRotation = Quaternion.identity;
@@ -191,10 +202,12 @@ namespace SDG.Unturned
                 }
 
                 fallbackRenderer = fallbackObject.GetComponent<Renderer>();
-                Shader shader = Shader.Find("Standard");
+                // Prefer an unlit diagnostic material so lighting/shadow settings cannot
+                // make the marker look black. Standard remains a fallback for stripped variants.
+                Shader shader = Shader.Find("Unlit/Color");
                 if (shader == null)
                 {
-                    shader = Shader.Find("Unlit/Color");
+                    shader = Shader.Find("Standard");
                 }
 
                 if (fallbackRenderer != null && shader != null)
