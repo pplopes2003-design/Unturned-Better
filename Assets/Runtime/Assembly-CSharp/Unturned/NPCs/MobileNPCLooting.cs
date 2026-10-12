@@ -17,7 +17,7 @@ namespace SDG.Unturned
 	[RequireComponent(typeof(MobileNPCInventory))]
 	public sealed class MobileNPCLooting : MonoBehaviour
 	{
-		[SerializeField, Min(2f)] private float scanRadius = 10f;
+		[SerializeField, Min(2f)] private float scanRadius = 28f;
 		[SerializeField, Min(0.5f)] private float pickupDistance = 1.4f;
 		[SerializeField, Min(0.5f)] private float scanInterval = 2.5f;
 		[SerializeField, Range(0f, 1f)] private float buildingLootPreference = 0.25f;
