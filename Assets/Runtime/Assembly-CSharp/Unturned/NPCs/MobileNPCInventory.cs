@@ -118,7 +118,8 @@ namespace SDG.Unturned
 				Item stored = slots[index];
 				if (stored == null) continue;
 				ItemMagazineAsset candidate = Assets.find(EAssetType.ITEM, stored.id) as ItemMagazineAsset;
-				if (candidate == null || candidate.calibers == null || candidate.calibers.Length == 0) continue;
+				if (candidate == null || stored.amount == 0 || candidate.MaxAmountAsByte == 0
+					|| candidate.calibers == null || candidate.calibers.Length == 0) continue;
 				if (!candidate.CalibersContainAnyOfIds(gunAsset.magazineCalibers)) continue;
 
 				slotIndex = index;
