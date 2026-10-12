@@ -255,7 +255,18 @@ namespace SDG.Unturned
 				Ray ray = new Ray(player.look.aim.position, player.look.aim.forward);
 				RaycastInfo info = DamageTool.raycast(ray, ((ItemWeaponAsset) player.equipment.asset).range, RayMasks.DAMAGE_CLIENT, ignorePlayer: player);
 
-				if (info.player != null && equippedMeleeAsset.playerDamageMultiplier.damage > 1 && (DamageTool.isPlayerAllowedToDamagePlayer(player, info.player) || equippedMeleeAsset.bypassAllowedToDamagePlayer))
+				MobileNPCHumanoidVitals mobileNPCVitals = info.transform != null
+					? info.transform.GetComponentInParent<MobileNPCHumanoidVitals>()
+					: null;
+				if (mobileNPCVitals != null && equippedMeleeAsset.zombieOrPlayerDamageMultiplier.damage > 1)
+				{
+					if (Provider.provider.statisticsService.userStatisticsService.getStatistic("Accuracy_Hit", out data))
+					{
+						Provider.provider.statisticsService.userStatisticsService.setStatistic("Accuracy_Hit", data + 1);
+					}
+					PlayerUI.hitmark(info.point, false, EPlayerHit.ENTITIY);
+				}
+				else if (info.player != null && equippedMeleeAsset.playerDamageMultiplier.damage > 1 && (DamageTool.isPlayerAllowedToDamagePlayer(player, info.player) || equippedMeleeAsset.bypassAllowedToDamagePlayer))
 				{
 					if (Provider.provider.statisticsService.userStatisticsService.getStatistic("Accuracy_Hit", out data))
 					{
