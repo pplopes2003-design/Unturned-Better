@@ -53,3 +53,12 @@ Branch: `feature/npc-ai-foundation`
 ## Validation boundary
 
 The source has received static review, but Unity compilation and in-game behavior have not been verified in this environment. The runtime tests above are necessary before treating these systems as working features.
+
+
+## Settlement crafting (experimental)
+
+The settlement builder now attempts one native item blueprint when it cannot find a carried barricade, storage item, or structure to place. It searches loaded vanilla/workshop item assets and only accepts a deliberately narrow subset of recipes: one placeable output, discrete-slot inputs, at least one consumed ingredient, and no target-item operation, skill requirement, map restriction, nearby workstation tag, static tag, or NPC quest condition. Inputs are taken only from the NPC's own runtime inventory; no ingredients are created for free.
+
+This is an initial safe subset, not yet full parity with the player's crafting menu. Recipes using stacked-amount counting, tools-only inputs, multiple outputs, repair/refill, special operations, workstation requirements, or NPC conditions are skipped. The crafting loop does not yet withdraw ingredients from the settlement's vanilla storage container, and crafting/building progress is not persisted as a separate NPC recipe queue. These limits should be verified in the development build before expanding the supported recipe set.
+
+Suggested test: give a settlement leader the exact ingredients for a vanilla recipe that produces a barricade or structure, ensure it has no buildable in inventory, then observe the log for a successful craft and confirm that the resulting item is consumed by a later placement attempt. Repeat with a missing ingredient and confirm it does not craft.
