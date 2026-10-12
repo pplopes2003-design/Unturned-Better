@@ -8,9 +8,9 @@ using UnityEngine;
 namespace SDG.Unturned
 {
 	/// <summary>
-	/// Lightweight server-authoritative perception for opt-in mobile humanoids.
-	/// Finds the nearest living player inside range, field of view, and unobstructed line of sight.
-	/// Network spawning/replication remains the responsibility of the host entity system.
+	/// Server-authoritative perception for mobile humanoids.
+	/// Prioritizes visible players, then hostile mobile NPCs, then zombies using range,
+	/// field-of-view, and unobstructed line-of-sight checks.
 	/// </summary>
 	[DisallowMultipleComponent]
 	[RequireComponent(typeof(MobileNPCBrainDriver))]
