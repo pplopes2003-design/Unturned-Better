@@ -38,6 +38,7 @@ namespace SDG.Unturned
 		private MobileNPCHumanoidPerception perception;
 		private MobileNPCInventory inventory;
 		private ItemGunAsset selectedGunAsset;
+		private bool selectedGunHasCompatibleMagazine;
 		private uint selectedGunInstanceID;
 		private ushort selectedGunID;
 		private int pendingReloadRounds;
@@ -73,6 +74,7 @@ namespace SDG.Unturned
 			pendingReloadRounds = 0;
 			selectedGunID = 0;
 			selectedGunInstanceID = 0;
+			selectedGunHasCompatibleMagazine = false;
 			shotsRemainingInBurst = RollBurstSize();
 		}
 
@@ -100,6 +102,7 @@ namespace SDG.Unturned
 					(byte)Mathf.Clamp(loadedRounds, 0, 255), pendingReloadMagazineID);
 				reloadPending = false;
 				roundsRemaining = ammoStateUpdated ? loadedRounds : 0;
+				selectedGunHasCompatibleMagazine = ammoStateUpdated;
 				if (!ammoStateUpdated)
 				{
 					Debug.LogWarning("Mobile NPC reload aborted because the stored gun state could not be updated; returning the reserved magazine.", this);
@@ -173,6 +176,12 @@ namespace SDG.Unturned
 			float weaponSpreadDegrees = selectedGunAsset != null ? selectedGunAsset.baseSpreadAngleRadians * Mathf.Rad2Deg : 0f;
 			if (!aim.TryGetShotDirection(muzzle, IsMoving(), skill, weaponSpreadDegrees, out Vector3 shotDirection))
 			{
+				return;
+			}
+
+			if (!selectedGunHasCompatibleMagazine)
+			{
+				BeginReload();
 				return;
 			}
 
@@ -308,6 +317,7 @@ namespace SDG.Unturned
 				selectedGunID = 0;
 				selectedGunInstanceID = 0;
 				selectedGunAsset = null;
+				selectedGunHasCompatibleMagazine = false;
 				roundsRemaining = 0;
 				return;
 			}
@@ -328,6 +338,7 @@ namespace SDG.Unturned
 				|| loadedMagazine.calibers == null || gunAsset.magazineCalibers == null
 				|| gunAsset.magazineCalibers.Length == 0
 				|| !loadedMagazine.CalibersContainAnyOfIds(gunAsset.magazineCalibers)) return;
+			selectedGunHasCompatibleMagazine = true;
 			roundsRemaining = Mathf.Min(gun.state[10], loadedMagazine.MaxAmountAsByte);
 			if (roundsRemaining != gun.state[10])
 				inventory.TryUpdateGunAmmoServer(selectedGunInstanceID, (byte)roundsRemaining, loadedMagazineID);
