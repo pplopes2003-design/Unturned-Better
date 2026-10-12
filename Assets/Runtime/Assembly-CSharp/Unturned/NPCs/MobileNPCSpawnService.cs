@@ -236,6 +236,15 @@ namespace SDG.Unturned
 			{
 				spawned.SetActive(true);
 			}
+			CharacterController controller = spawned.GetComponent<CharacterController>();
+			// Zombie.tick() performs a one-time downward CharacterController.Move after
+			// spawning so the capsule resolves against Unturned's Agent/world collision.
+			// Do this before capturing the motor's home/spawn position.
+			if (controller != null && controller.enabled)
+			{
+				controller.Move(Vector3.down);
+			}
+
 			MobileNPCHumanoidDisposition disposition = spawned.GetComponent<MobileNPCHumanoidDisposition>();
 			MobileNPCHumanoidMotor motor = spawned.GetComponent<MobileNPCHumanoidMotor>();
 			MobileNPCHumanoidVitals vitals = spawned.GetComponent<MobileNPCHumanoidVitals>();
