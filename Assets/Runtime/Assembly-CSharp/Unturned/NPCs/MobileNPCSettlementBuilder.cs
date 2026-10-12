@@ -74,8 +74,14 @@ namespace SDG.Unturned
 			// If no storage item exists, use only the perimeter pattern.
 			bool placeStorage = !centralStoragePlaced && HasStorageBuildable();
 			int selectedSlot;
-			ItemBarricadeAsset selectedAsset;
-			if (!TrySelectBuildable(placeStorage, out selectedSlot, out selectedAsset))
+			ItemBarricadeAsset selectedAsset = null;
+			ItemStructureAsset selectedStructureAsset = null;
+
+			// Prefer vanilla wall/pillar/floor structures for the perimeter when available.
+			// Storage remains a barricade because vanilla storage containers are barricades.
+			bool placeStructure = !placeStorage
+				&& TrySelectStructureBuildable(out selectedSlot, out selectedStructureAsset);
+			if (!placeStructure && !TrySelectBuildable(placeStorage, out selectedSlot, out selectedAsset))
 				return;
 
 			Vector3 candidate;
@@ -100,20 +106,33 @@ namespace SDG.Unturned
 				groundMask, maximumSlope, out Vector3 ground, out _))
 				return;
 
-			Vector3 placePosition = ground + Vector3.up * Mathf.Clamp(selectedAsset.offset, -0.5f, 1.5f);
-			if (Physics.CheckSphere(placePosition + Vector3.up * 1.4f,
+			float itemOffset = placeStructure ? selectedStructureAsset.offset : selectedAsset.offset;
+			Vector3 placePosition = ground + Vector3.up * Mathf.Clamp(itemOffset, -0.5f, 1.5f);
+			if (Physics.CheckSphere(placePosition + Vector3.up * 1.0f,
 				Mathf.Clamp(clearanceRadius, 0.4f, 1.2f), obstructionMask, QueryTriggerInteraction.Ignore))
 				return;
 
-			Barricade barricade = new Barricade(selectedAsset);
-			Transform placed = BarricadeManager.dropBarricade(
-				barricade, null, placePosition, 0f, angle, 0f, 0UL, 0UL);
-			if (placed == null)
-				return;
+			if (placeStructure)
+			{
+				// Use Unturned's authoritative structure manager so the piece is registered
+				// in the world and replicated through the vanilla structure pipeline.
+				if (!StructureManager.dropStructure(
+					new Structure(selectedStructureAsset, selectedStructureAsset.health),
+					placePosition, 0f, angle, 0f, 0UL, 0UL))
+					return;
+			}
+			else
+			{
+				Barricade barricade = new Barricade(selectedAsset);
+				Transform placed = BarricadeManager.dropBarricade(
+					barricade, null, placePosition, 0f, angle, 0f, 0UL, 0UL);
+				if (placed == null)
+					return;
+			}
 
 			if (!inventory.TryTakeItemServer(selectedSlot, out _))
 			{
-				UnturnedLog.warn("[MobileNPCSettlementBuilder] Placed a barricade but could not remove its inventory item.");
+				UnturnedLog.warn("[MobileNPCSettlementBuilder] Placed a buildable but could not remove its inventory item.");
 				return;
 			}
 
@@ -123,8 +142,9 @@ namespace SDG.Unturned
 			else
 				perimeterPiecesPlaced++;
 
+			string placedName = placeStructure ? selectedStructureAsset.name : selectedAsset.name;
 			Debug.Log("[MobileNPCSettlementBuilder] Placed fixed-pattern settlement piece "
-				+ selectedAsset.name + " (" + placedPieces + "/" + Mathf.Clamp(maximumPieces, 1, 5) + ").");
+				+ placedName + " (" + placedPieces + "/" + Mathf.Clamp(maximumPieces, 1, 5) + ").");
 		}
 
 		private bool HasStorageBuildable()
@@ -138,6 +158,52 @@ namespace SDG.Unturned
 					return true;
 			}
 			return false;
+		}
+
+		private bool TrySelectStructureBuildable(out int selectedSlot, out ItemStructureAsset selectedAsset)
+		{
+			selectedSlot = -1;
+			selectedAsset = null;
+			int bestPriority = 0;
+
+			for (int slot = 0; slot < inventory.UsedSlots; ++slot)
+			{
+				if (!inventory.TryGetItemSnapshot(slot, out Item item) || item == null)
+					continue;
+
+				ItemStructureAsset asset = Assets.find(EAssetType.ITEM, item.id) as ItemStructureAsset;
+				if (asset == null || asset.structure == null)
+					continue;
+
+				int priority;
+				switch (asset.construct)
+				{
+					case EConstruct.WALL:
+					case EConstruct.RAMPART:
+						priority = 90;
+						break;
+					case EConstruct.PILLAR:
+						priority = 80;
+						break;
+					case EConstruct.FLOOR:
+						priority = 70;
+						break;
+					default:
+						// Excludes roofs, ramps, doors, ladders, and other complex pieces
+						// until the settlement planner supports their placement requirements.
+						priority = 0;
+						break;
+				}
+
+				if (priority <= bestPriority)
+					continue;
+
+				bestPriority = priority;
+				selectedSlot = slot;
+				selectedAsset = asset;
+			}
+
+			return selectedSlot >= 0 && selectedAsset != null;
 		}
 
 		private bool TrySelectBuildable(bool storageOnly, out int selectedSlot, out ItemBarricadeAsset selectedAsset)
