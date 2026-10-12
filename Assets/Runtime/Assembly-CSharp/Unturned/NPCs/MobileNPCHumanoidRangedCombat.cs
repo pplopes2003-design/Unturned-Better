@@ -44,6 +44,7 @@ namespace SDG.Unturned
 		private int pendingReloadRounds;
 		private ushort pendingReloadMagazineID;
 		private Item pendingReloadMagazine;
+		private Item pendingReplacedMagazine;
 		private int roundsRemaining;
 		private float nextShotTime;
 		private float reloadFinishedAt;
@@ -98,21 +99,27 @@ namespace SDG.Unturned
 				if (Time.time < reloadFinishedAt) return;
 
 				int loadedRounds = Mathf.Max(0, pendingReloadRounds);
+				byte magazineQuality = pendingReloadMagazine != null ? pendingReloadMagazine.quality : (byte)100;
 				bool ammoStateUpdated = inventory.TryUpdateGunAmmoServer(selectedGunInstanceID,
-					(byte)Mathf.Clamp(loadedRounds, 0, 255), pendingReloadMagazineID);
+					(byte)Mathf.Clamp(loadedRounds, 0, 255), pendingReloadMagazineID, magazineQuality);
 				reloadPending = false;
 				roundsRemaining = ammoStateUpdated ? loadedRounds : 0;
 				selectedGunHasCompatibleMagazine = ammoStateUpdated;
 				if (!ammoStateUpdated)
 				{
 					Debug.LogWarning("Mobile NPC reload aborted because the stored gun state could not be updated; returning the reserved magazine.", this);
+					pendingReplacedMagazine = null;
 					TryReturnPendingMagazine();
 				}
 				else
 				{
-					// The attached magazine is now represented by the gun's stored state.
-					inventory.ReleaseReservedSlotServer();
-					pendingReloadMagazine = null;
+					// Swapping magazines returns the old magazine with its remaining rounds and durability.
+					pendingReloadMagazine = pendingReplacedMagazine;
+					pendingReplacedMagazine = null;
+					if (pendingReloadMagazine != null)
+						TryReturnPendingMagazine();
+					else
+						inventory.ReleaseReservedSlotServer();
 				}
 				pendingReloadRounds = 0;
 				pendingReloadMagazineID = 0;
@@ -381,12 +388,17 @@ namespace SDG.Unturned
 			}
 
 			if (!inventory.CanUpdateGunAmmoServer(selectedGunInstanceID)
-				|| !inventory.TryFindCompatibleMagazine(selectedGunAsset, out int magazineSlot, out ItemMagazineAsset magazineAsset)
+				|| !inventory.TryGetGunSnapshotServer(selectedGunInstanceID, out Item gunSnapshot))
+			{
+				roundsRemaining = 0;
+				nextShotTime = Time.time + 1.0f;
+				return;
+			}
+
+			if (!inventory.TryFindCompatibleMagazine(selectedGunAsset, out int magazineSlot, out ItemMagazineAsset magazineAsset)
 				|| !inventory.TryTakeItemServer(magazineSlot, out Item consumedMagazine))
 			{
 				roundsRemaining = 0;
-				// Do not poll for ammunition every frame when no compatible magazine exists
-				// or the vanilla gun state cannot represent its loaded magazine.
 				nextShotTime = Time.time + 1.0f;
 				return;
 			}
@@ -407,9 +419,21 @@ namespace SDG.Unturned
 				nextShotTime = Time.time + 1.0f;
 				return;
 			}
+
+			// Capture the magazine that is currently attached so its remaining rounds and
+			// durability can be returned when the new magazine is committed.
+			ushort oldMagazineID = System.BitConverter.ToUInt16(gunSnapshot.state, 8);
+			byte oldMagazineRounds = gunSnapshot.state[10];
+			ItemMagazineAsset oldMagazineAsset = Assets.find(EAssetType.ITEM, oldMagazineID) as ItemMagazineAsset;
+			Item oldMagazine = null;
+			if (oldMagazineAsset != null && (oldMagazineRounds > 0
+				|| (!selectedGunAsset.shouldDeleteEmptyMagazines && !oldMagazineAsset.ShouldDeleteAtZeroAmount)))
+				oldMagazine = new Item(oldMagazineID, oldMagazineRounds, gunSnapshot.state[17]);
+
 			pendingReloadRounds = Mathf.Min(availableRounds, magazineAsset.MaxAmountAsByte);
 			pendingReloadMagazineID = consumedMagazine.id;
 			pendingReloadMagazine = consumedMagazine;
+			pendingReplacedMagazine = oldMagazine;
 			reloadPending = true;
 			float weaponReloadDuration = selectedGunAsset.reloadTime > 0f ? selectedGunAsset.reloadTime : reloadDuration;
 			reloadFinishedAt = Time.time + Mathf.Max(0.1f, weaponReloadDuration);
