@@ -20,11 +20,12 @@ namespace SDG.Unturned
 		// Runtime-only identity keeps duplicate gun assets independently addressable.
 		private readonly List<uint> slotInstanceIDs = new List<uint>();
 		private uint nextSlotInstanceID = 1;
+		private int reservedSlots;
 
 		public int Capacity => Mathf.Max(1, capacity);
 		public int UsedSlots => slots.Count;
-		public int FreeSlots => Mathf.Max(0, Capacity - slots.Count);
-		public bool HasSpace => slots.Count < Capacity;
+		public int FreeSlots => Mathf.Max(0, Capacity - slots.Count - reservedSlots);
+		public bool HasSpace => slots.Count + reservedSlots < Capacity;
 
 		/// <summary>
 		/// Stores an owned item snapshot. The caller must already have exclusive
@@ -45,6 +46,35 @@ namespace SDG.Unturned
 				transferredItem.quality, stateCopy));
 			slotInstanceIDs.Add(AllocateSlotInstanceID());
 			return true;
+		}
+
+		/// <summary>Reserves one inventory slot for a transaction that may need rollback.</summary>
+		public bool TryReserveSlotServer()
+		{
+			if (!Provider.isServer || !HasSpace) return false;
+			reservedSlots++;
+			return true;
+		}
+
+		/// <summary>Consumes a reserved slot to restore the exact item held by a pending transaction.</summary>
+		public bool TryStoreReservedItemServer(Item transferredItem)
+		{
+			if (!Provider.isServer || reservedSlots <= 0 || slots.Count >= Capacity
+				|| transferredItem == null || transferredItem.id == 0 || transferredItem.amount == 0)
+				return false;
+			byte[] stateCopy = transferredItem.state != null
+				? (byte[])transferredItem.state.Clone()
+				: new byte[0];
+			slots.Add(new Item(transferredItem.id, transferredItem.amount, transferredItem.quality, stateCopy));
+			slotInstanceIDs.Add(AllocateSlotInstanceID());
+			reservedSlots--;
+			return true;
+		}
+
+		public void ReleaseReservedSlotServer()
+		{
+			if (Provider.isServer && reservedSlots > 0)
+				reservedSlots--;
 		}
 
 		/// <summary>
@@ -277,6 +307,7 @@ namespace SDG.Unturned
 			{
 				slots.Clear();
 				slotInstanceIDs.Clear();
+				reservedSlots = 0;
 			}
 		}
 	}
