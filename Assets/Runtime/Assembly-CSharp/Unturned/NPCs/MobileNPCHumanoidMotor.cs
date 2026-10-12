@@ -46,6 +46,7 @@ namespace SDG.Unturned
 		[SerializeField] private LayerMask obstacleMask = ~0;
 
 		private static readonly float[] FallbackSteeringAngles = { -90f, 90f, -135f, 135f, 180f };
+		private static readonly RaycastHit[] ObstacleHitBuffer = new RaycastHit[16];
 
 		private CharacterController characterController;
 		private MobileNPCBrainDriver brainDriver;
@@ -292,8 +293,44 @@ namespace SDG.Unturned
 
 			Vector3 origin = transform.position + Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f);
 			float probeRadius = Mathf.Clamp(obstacleProbeRadius, 0.05f, Mathf.Max(0.05f, characterController.radius * 0.9f));
-			return Physics.SphereCast(origin, probeRadius, direction.normalized, out _,
-				Mathf.Max(0.5f, obstacleProbeDistance), obstacleMask, QueryTriggerInteraction.Ignore);
+			return IsObstacleBlockingAlong(origin, probeRadius, direction.normalized,
+				Mathf.Max(0.5f, obstacleProbeDistance));
+		}
+
+
+		/// <summary>
+		/// Collision probe that ignores this humanoid's own colliders. NonAlloc is the
+		/// normal path; if the fixed buffer fills, fall back to a complete query so a
+		/// nearby obstruction cannot be missed because of result truncation.
+		/// </summary>
+		private bool IsObstacleBlockingAlong(Vector3 origin, float radius, Vector3 direction, float distance)
+		{
+			int hitCount = Physics.SphereCastNonAlloc(origin, radius, direction, ObstacleHitBuffer,
+				distance, obstacleMask, QueryTriggerInteraction.Ignore);
+			if (hitCount >= ObstacleHitBuffer.Length)
+			{
+				RaycastHit[] allHits = Physics.SphereCastAll(origin, radius, direction, distance,
+					obstacleMask, QueryTriggerInteraction.Ignore);
+				for (int i = 0; i < allHits.Length; ++i)
+				{
+					if (!IsOwnCollider(allHits[i].collider))
+						return true;
+				}
+				return false;
+			}
+
+			for (int i = 0; i < hitCount; ++i)
+			{
+				if (!IsOwnCollider(ObstacleHitBuffer[i].collider))
+					return true;
+			}
+			return false;
+		}
+
+		private bool IsOwnCollider(Collider hitCollider)
+		{
+			return hitCollider != null
+				&& (hitCollider.transform == transform || hitCollider.transform.IsChildOf(transform));
 		}
 
 		private Vector3 ApplyLocalObstacleAvoidance(Vector3 desiredDirection)
@@ -308,8 +345,7 @@ namespace SDG.Unturned
 			Vector3 origin = transform.position + Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f);
 			float probeDistance = Mathf.Max(0.5f, obstacleProbeDistance);
 			float probeRadius = Mathf.Clamp(obstacleProbeRadius, 0.05f, Mathf.Max(0.05f, characterController.radius * 0.9f));
-			if (!Physics.SphereCast(origin, probeRadius, desiredDirection, out _, probeDistance,
-				obstacleMask, QueryTriggerInteraction.Ignore))
+			if (!IsObstacleBlockingAlong(origin, probeRadius, desiredDirection, probeDistance))
 			{
 				return desiredDirection;
 			}
@@ -318,10 +354,8 @@ namespace SDG.Unturned
 			// This is deliberately short-range steering: it cannot route around large buildings.
 			Vector3 left = Quaternion.AngleAxis(-obstacleAvoidanceAngle, Vector3.up) * desiredDirection;
 			Vector3 right = Quaternion.AngleAxis(obstacleAvoidanceAngle, Vector3.up) * desiredDirection;
-			bool leftBlocked = Physics.SphereCast(origin, probeRadius, left, out _, probeDistance,
-				obstacleMask, QueryTriggerInteraction.Ignore);
-			bool rightBlocked = Physics.SphereCast(origin, probeRadius, right, out _, probeDistance,
-				obstacleMask, QueryTriggerInteraction.Ignore);
+			bool leftBlocked = IsObstacleBlockingAlong(origin, probeRadius, left, probeDistance);
+			bool rightBlocked = IsObstacleBlockingAlong(origin, probeRadius, right, probeDistance);
 
 			if (!leftBlocked && !rightBlocked)
 			{
@@ -343,8 +377,7 @@ namespace SDG.Unturned
 			for (int i = 0; i < FallbackSteeringAngles.Length; ++i)
 			{
 				Vector3 candidate = Quaternion.AngleAxis(FallbackSteeringAngles[i], Vector3.up) * desiredDirection;
-				if (Physics.SphereCast(origin, probeRadius, candidate, out _, probeDistance,
-					obstacleMask, QueryTriggerInteraction.Ignore))
+				if (IsObstacleBlockingAlong(origin, probeRadius, candidate, probeDistance))
 				{
 					continue;
 				}
