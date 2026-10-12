@@ -92,6 +92,69 @@ namespace SDG.Unturned
 			return true;
 		}
 
+		/// <summary>
+		/// Purchases one trader stock slot with the game's native experience points.
+		/// Unturned has no universal vanilla cash wallet, so XP is exposed as a separate
+		/// payment option rather than pretending a currency item or balance exists.
+		/// </summary>
+		public static bool TryPurchaseSlotWithExperienceServer(Player player, MobileNPCInventory traderInventory,
+			MobileNPCHumanoidDisposition disposition, int stockSlot, uint experienceCost,
+			float maximumDistance, out string error)
+		{
+			error = null;
+			if (!Provider.isServer)
+			{
+				error = "A compra só pode ser concluída pelo servidor.";
+				return false;
+			}
+
+			if (player == null || player.life == null || player.life.isDead || player.inventory == null
+				|| player.skills == null || traderInventory == null || disposition == null
+				|| disposition.CurrentRole != MobileNPCHumanoidDisposition.Role.Friendly
+				|| experienceCost == 0 || experienceCost > 1000000
+				|| float.IsNaN(maximumDistance) || float.IsInfinity(maximumDistance) || maximumDistance <= 0f)
+			{
+				error = "O jogador, mercador, preço ou alcance da compra é inválido.";
+				return false;
+			}
+
+			Vector3 offset = player.transform.position - traderInventory.transform.position;
+			if (offset.sqrMagnitude > maximumDistance * maximumDistance)
+			{
+				error = "Chegue mais perto do mercador antes de comprar.";
+				return false;
+			}
+
+			if (player.skills.experience < experienceCost)
+			{
+				error = "Você não tem XP suficiente para essa compra.";
+				return false;
+			}
+
+			if (!traderInventory.TryGetItemSnapshot(stockSlot, out Item snapshot) || snapshot == null)
+			{
+				error = "Esse item não está mais no estoque.";
+				return false;
+			}
+
+			if (!traderInventory.TryTakeItemServer(stockSlot, out Item stockItem) || stockItem == null)
+			{
+				error = "O estoque mudou durante a compra.";
+				return false;
+			}
+
+			player.skills.ServerModifyExperience(-((int)experienceCost));
+			if (!player.inventory.tryAddItem(stockItem, false))
+			{
+				traderInventory.TryStoreTransferredItem(stockItem);
+				player.skills.ServerModifyExperience((int)experienceCost);
+				error = "Não há espaço no inventário; o XP foi devolvido.";
+				return false;
+			}
+
+			return true;
+		}
+
 		private static bool TryCollectPayment(Player player, ushort currencyItemId, int currencyCost,
 			List<PaymentSlice> payment)
 		{
