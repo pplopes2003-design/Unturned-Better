@@ -77,7 +77,8 @@ namespace SDG.Unturned
 			// of continuing to trade melee hits until death. Only initiate this once per
 			// retreat so repeated perception scans do not keep resetting its escape route.
 			MobileNPCHumanoidVitals ownVitals = GetComponent<MobileNPCHumanoidVitals>();
-			if (zombieCandidate != null && ownVitals != null && ownVitals.HealthFraction <= 0.22f
+			if (playerCandidate == null && npcCandidate == null && zombieCandidate != null
+				&& ownVitals != null && ownVitals.HealthFraction <= 0.22f
 				&& brain.CurrentGoal != MobileNPCTactics.Goal.Retreat)
 			{
 				brain.ReportIncomingFire(zombieCandidate.transform.position, zombieCandidate.transform);
