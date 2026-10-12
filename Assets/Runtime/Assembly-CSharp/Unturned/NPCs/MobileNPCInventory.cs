@@ -272,9 +272,17 @@ namespace SDG.Unturned
 				if (asset == null || asset.type != type) continue;
 
 				byte[] stateCopy = stored.state != null ? (byte[])stored.state.Clone() : new byte[0];
-				consumedItem = new Item(stored.id, stored.amount, stored.quality, stateCopy);
-				slots.RemoveAt(i);
-				slotInstanceIDs.RemoveAt(i);
+				// Consume one unit rather than deleting an entire stack of food/water.
+				consumedItem = new Item(stored.id, 1, stored.quality, stateCopy);
+				if (stored.amount > 1)
+				{
+					slots[i] = new Item(stored.id, (byte)(stored.amount - 1), stored.quality, stateCopy);
+				}
+				else
+				{
+					slots.RemoveAt(i);
+					slotInstanceIDs.RemoveAt(i);
+				}
 				return true;
 			}
 			return false;
