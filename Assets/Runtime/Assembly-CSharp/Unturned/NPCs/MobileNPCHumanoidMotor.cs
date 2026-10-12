@@ -72,6 +72,7 @@ namespace SDG.Unturned
 		private float nextRoamingDecisionTime;
 		private Vector3 lastStuckCheckPosition;
 		private float nextStuckCheckTime;
+		private float nextGroundSafetyCheckTime;
 		private float blockedMovementDuration;
 		private bool useRecoverySteering;
 		private float recoverySteeringUntil;
@@ -182,6 +183,13 @@ namespace SDG.Unturned
 			if (deltaTime <= 0.0f)
 			{
 				return;
+			}
+
+			// Low-frequency guard against transient terrain-collision failures. Normal movement still uses CharacterController.Move.
+			if (Time.time >= nextGroundSafetyCheckTime)
+			{
+				nextGroundSafetyCheckTime = Time.time + 0.5f;
+				RecoverFromUnexpectedFall();
 			}
 
 			brainDriver.TickServer(targetIsVisible);
@@ -324,6 +332,43 @@ namespace SDG.Unturned
 			CollisionFlags collision = characterController.Move(motion * deltaTime);
 			IsMoving = planarDirection.sqrMagnitude > 0.0001f && (collision & CollisionFlags.Sides) == 0;
 			UpdateStuckRecovery(wantedToMove, deltaTime);
+		}
+
+		/// <summary>Prevents an unexpected terrain-collision failure from losing an NPC below the map.</summary>
+		private void RecoverFromUnexpectedFall()
+		{
+			if (!Provider.isServer || characterController == null || !characterController.enabled
+				|| float.IsNaN(transform.position.y) || float.IsInfinity(transform.position.y))
+			{
+				return;
+			}
+
+			// Anchor the ray to the spawn elevation too, so it can still reach terrain if
+			// the controller has already fallen far below the current map surface.
+			float originY = Mathf.Max(transform.position.y, spawnPosition.y) + 200f;
+			Vector3 origin = new Vector3(transform.position.x, originY, transform.position.z);
+			float distance = Mathf.Max(400f, originY - transform.position.y + 50f);
+			if (!Physics.Raycast(origin, Vector3.down, out RaycastHit hit, distance, ~0, QueryTriggerInteraction.Ignore))
+				return;
+
+			if (Vector3.Angle(hit.normal, Vector3.up) > 55f || transform.position.y >= hit.point.y - 2.5f)
+				return;
+
+			Vector3 recoveredPosition = hit.point + Vector3.up * 0.08f;
+			if (!Level.checkSafeIncludingClipVolumes(recoveredPosition))
+				return;
+
+			characterController.enabled = false;
+			transform.position = recoveredPosition;
+			velocity.y = 0f;
+			hasRoamingDestination = false;
+			hasDetourWaypoint = false;
+			routeWaypoints.Clear();
+			routeWaypointIndex = 0;
+			Physics.SyncTransforms();
+			characterController.enabled = true;
+			Debug.LogWarning("[MobileNPCHumanoidMotor] Recovered NPC after unexpected terrain fall; grounded at "
+				+ recoveredPosition + ". Check map collision layers if this repeats.", this);
 		}
 
 		private void UpdateStuckRecovery(bool wantedToMove, float deltaTime)
