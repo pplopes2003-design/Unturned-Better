@@ -85,7 +85,7 @@ namespace SDG.Unturned
 				return;
 			populationLabel.Text = "Maximum living NPCs: " + MobileNPCSettings.MaximumAlive;
 			difficultyButton.Text = "Difficulty: " + MobileNPCSettings.CurrentDifficulty;
-			enabledButton.Text = "Mobile NPC population: " + (MobileNPCSettings.Enabled ? "ON" : "OFF");
+			enabledButton.Text = "NPC spawning/restoring: " + (MobileNPCSettings.Enabled ? "ON" : "OFF");
 			airdropButton.Text = "Airdrop contest: " + (MobileNPCSettings.AirdropContestEnabled ? "ON" : "OFF");
 			roleButton.Text = "Default new NPC role: " + MobileNPCSettings.DefaultRole;
 		}
