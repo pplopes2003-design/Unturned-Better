@@ -60,6 +60,8 @@ namespace SDG.Unturned
 
 		public static int wanderingCount;
 		private static int tickIndex;
+		private static float nextMobileNPCTargetScan;
+		private const float MOBILE_NPC_TARGET_SCAN_INTERVAL = 0.35f;
 		private static bool hasWarnedMissingTickZombie;
 		private static List<Zombie> _tickingZombies;
 		public static List<Zombie> tickingZombies => _tickingZombies;
@@ -1867,6 +1869,21 @@ namespace SDG.Unturned
 			if (regions == null || tickingZombies == null)
 			{
 				return;
+			}
+
+			// Mobile NPCs are not Provider.clients, so vanilla player alerting cannot wake
+			// nearby zombies for them. Periodically test all zombies for nearby visible NPCs.
+			if (Provider.isServer && AllZombies != null && Time.time >= nextMobileNPCTargetScan)
+			{
+				nextMobileNPCTargetScan = Time.time + MOBILE_NPC_TARGET_SCAN_INTERVAL;
+				if (MobileNPCRegistry.CountLivingDrivers() > 0)
+				{
+					for (int i = 0; i < AllZombies.Count; ++i)
+					{
+						Zombie zombie = AllZombies[i];
+						zombie?.TryAcquireVisibleMobileNPCTarget();
+					}
+				}
 			}
 
 			// Do not autonomously redirect idle zombies to random destinations. Horde
