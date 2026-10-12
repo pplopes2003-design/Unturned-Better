@@ -83,6 +83,9 @@ namespace SDG.Unturned
 				return;
 			}
 
+			if (!reloadPending && pendingReloadMagazine != null)
+				TryReturnPendingMagazine();
+
 			if (!reloadPending)
 			{
 				RefreshSelectedGun();
@@ -105,6 +108,7 @@ namespace SDG.Unturned
 				else
 				{
 					// The attached magazine is now represented by the gun's stored state.
+					inventory.ReleaseReservedSlotServer();
 					pendingReloadMagazine = null;
 				}
 				pendingReloadRounds = 0;
@@ -385,6 +389,13 @@ namespace SDG.Unturned
 				nextShotTime = Time.time + 1.0f;
 				return;
 			}
+			if (!inventory.TryReserveSlotServer())
+			{
+				inventory.TryStoreTransferredItem(consumedMagazine);
+				roundsRemaining = 0;
+				nextShotTime = Time.time + 1.0f;
+				return;
+			}
 			pendingReloadRounds = Mathf.Min(availableRounds, magazineAsset.MaxAmountAsByte);
 			pendingReloadMagazineID = consumedMagazine.id;
 			pendingReloadMagazine = consumedMagazine;
@@ -397,7 +408,7 @@ namespace SDG.Unturned
 		private void TryReturnPendingMagazine()
 		{
 			if (pendingReloadMagazine == null || inventory == null || !Provider.isServer) return;
-			if (inventory.TryStoreTransferredItem(pendingReloadMagazine))
+			if (inventory.TryStoreReservedItemServer(pendingReloadMagazine))
 			{
 				pendingReloadMagazine = null;
 			}
