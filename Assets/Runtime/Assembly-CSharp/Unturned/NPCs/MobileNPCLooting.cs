@@ -38,15 +38,24 @@ namespace SDG.Unturned
 
 		private void Update()
 		{
-			if (!Provider.isServer || !Level.isLoaded || driver == null || inventory == null || !inventory.HasSpace)
+			if (!Provider.isServer || !Level.isLoaded || driver == null || inventory == null)
 			{
 				ClearTarget();
 				return;
 			}
 
+			if (!inventory.HasSpace)
+			{
+				// A full inventory invalidates the pickup objective; don't leave the motor
+				// following a stale loot destination after the target has been discarded.
+				ClearTarget(cancelLootGoal: true);
+				return;
+			}
+
 			if (driver.Target != null || (driver.CurrentGoal != MobileNPCTactics.Goal.None && !(hasTarget && driver.CurrentGoal == MobileNPCTactics.Goal.Loot)))
 			{
-				ClearTarget();
+				// Combat or another tactical order takes precedence over looting.
+				ClearTarget(cancelLootGoal: driver.CurrentGoal == MobileNPCTactics.Goal.Loot);
 				return;
 			}
 
@@ -210,8 +219,12 @@ namespace SDG.Unturned
 			return false;
 		}
 
-		private void ClearTarget()
+		private void ClearTarget(bool cancelLootGoal = false)
 		{
+			if (cancelLootGoal && driver != null && driver.CurrentGoal == MobileNPCTactics.Goal.Loot)
+			{
+				driver.ReportDestinationReached();
+			}
 			hasTarget = false;
 			targetInstanceID = 0;
 		}
