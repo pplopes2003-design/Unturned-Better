@@ -53,7 +53,7 @@ namespace SDG.Unturned
 			if (instance == null || player == null || npc == null)
 			{
 				if (player != null)
-					ShowPrompt( "A interface de interação dos sobreviventes não está disponível.");
+					PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "A interface de interação dos sobreviventes não está disponível.");
 				return;
 			}
 
