@@ -1693,7 +1693,7 @@ namespace SDG.Unturned
 						MobileNPCHumanoidVitals mobileNPCVitals = info.transform != null
 							? info.transform.GetComponentInParent<MobileNPCHumanoidVitals>()
 							: null;
-						if (mobileNPCVitals != null && equippedGunAsset.zombieOrPlayerDamageMultiplier.damage > 1)
+						if (mobileNPCVitals != null && equippedGunAsset.zombieOrPlayerDamageMultiplier.multiply(info.limb) > 1)
 						{
 							PlayerUI.hitmark(info.point, pellets > 1, EPlayerHit.ENTITIY);
 							if (hit != EPlayerHit.CRITICAL)
@@ -2028,7 +2028,7 @@ namespace SDG.Unturned
 					{
 						if (Provider.isServer && !mobileNPCVitals.IsDead)
 						{
-							float mobileNPCDamage = equippedGunAsset.zombieOrPlayerDamageMultiplier.damage * times;
+							float mobileNPCDamage = equippedGunAsset.zombieOrPlayerDamageMultiplier.multiply(info.limb) * times;
 							mobileNPCVitals.ApplyDamage(Mathf.Max(1f, mobileNPCDamage),
 								info.direction * Mathf.Max(1f, mobileNPCDamage));
 						}
