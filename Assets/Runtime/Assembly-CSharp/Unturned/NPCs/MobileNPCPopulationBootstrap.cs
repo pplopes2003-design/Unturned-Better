@@ -63,6 +63,11 @@ namespace SDG.Unturned
             }
 
             template = new GameObject("MobileHumanNPC_RuntimeTemplate");
+            // Unturned's zombie CharacterController runs on Agent (layer 24), not
+            // Default. The game's layer collision matrix gives Agent physical
+            // collision with the world; Default does not. Keep the humanoid root on
+            // Agent while the visual children are moved to Default below.
+            template.layer = LayerMasks.AGENT;
             template.SetActive(false);
 
             CharacterController controller = template.AddComponent<CharacterController>();
@@ -72,6 +77,9 @@ namespace SDG.Unturned
             controller.slopeLimit = 38f;
             controller.stepOffset = 0.3f;
             controller.skinWidth = 0.08f;
+            // Match Zombie.start(): zombie CharacterControllers do not use Unity's
+            // overlap recovery, which can push agents unpredictably around map geometry.
+            controller.enableOverlapRecovery = false;
 
             template.AddComponent<MobileNPCBrainDriver>();
             template.AddComponent<MobileNPCHumanoidMotor>();
@@ -211,7 +219,8 @@ namespace SDG.Unturned
             director.Configure(template);
 
             Debug.Log("[MobileNPCPopulationBootstrap] Single-player mobile NPC population initialized for loaded map "
-                + level + ". Experimental local entities only; local NPC snapshots are persisted, but network replication is not implemented.");
+                + level + " with root layer Agent (" + template.layer + ") and CharacterController overlap recovery disabled."
+                + " Experimental local entities only; local NPC snapshots are persisted, but network replication is not implemented.");
         }
 
         private static void DestroyExistingRuntimeObjects()
