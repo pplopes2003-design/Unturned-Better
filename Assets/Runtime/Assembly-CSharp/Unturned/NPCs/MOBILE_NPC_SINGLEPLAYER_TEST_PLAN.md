@@ -77,3 +77,8 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 
 - [ ] Verify local obstacle probes do not treat the NPC's own CharacterController/child colliders as walls, and still detect nearby walls and other NPCs.
 - [ ] Force a dense collider scene that fills the non-alloc obstacle-hit buffer; verify the complete fallback query still detects blocking geometry.
+
+- [ ] Place an NPC with a tactical destination behind a small wall/obstacle; verify it chooses a short detour waypoint and resumes the original destination instead of replacing the brain goal.
+- [ ] Move the destination while the NPC is detouring; verify the stale waypoint is discarded and steering tracks the updated goal.
+- [ ] Place the NPC in a fully enclosed corner or blocked corridor; verify detour attempts are bounded, no per-frame ground searches occur, and the existing stuck-recovery behavior remains responsive.
+- [ ] Verify detour waypoint selection rejects unsafe ground, steep slopes, and positions blocked by nearby colliders.
