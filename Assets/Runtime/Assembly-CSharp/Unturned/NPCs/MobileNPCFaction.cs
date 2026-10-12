@@ -74,7 +74,7 @@ namespace SDG.Unturned
 			if (!Provider.isServer)
 				return;
 
-			if (value < Id.Unaffiliated || value > Id.Traders)
+			if ((int)value < (int)Id.Unaffiliated || (int)value > (int)Id.Traders)
 				return;
 
 			faction = value;
