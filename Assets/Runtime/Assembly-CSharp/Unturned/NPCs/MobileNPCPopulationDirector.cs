@@ -80,7 +80,7 @@ namespace SDG.Unturned
             // This remains server-side and obeys the configured population cap.
             if (Provider.isServer && Input.GetKeyDown(KeyCode.F8))
             {
-                TrySpawnTestNPCNearPlayer();
+                TrySpawnNPCNearPlayer(MobileNPCSettings.DefaultRole);
             }
 
             CleanupDeadBodies();
@@ -159,7 +159,7 @@ namespace SDG.Unturned
                     Mathf.Max(0f, maximumDropDistance),
                     groundMask,
                     maximumSlopeAngle,
-                    MobileNPCSettings.DefaultRole,
+                    MobileNPCSettings.SelectPopulationRole(),
                     spawnedThisAttempt,
                     player.transform,
                     out spawnedCount,
@@ -293,26 +293,27 @@ namespace SDG.Unturned
             }
         }
 
-        private void TrySpawnTestNPCNearPlayer()
+        /// <summary>Creates one nearby NPC for a local single-player chat command or developer hotkey.</summary>
+        public bool TrySpawnNPCNearPlayer(MobileNPCHumanoidDisposition.Role requestedRole)
         {
             if (!MobileNPCSettings.Enabled || mobileNpcPrefab == null)
             {
-                Debug.Log("[MobileNPCPopulationDirector] F8 test spawn skipped: mobile NPC population is disabled or prefab is missing.", this);
-                return;
+                Debug.Log("[MobileNPCPopulationDirector] Nearby test spawn skipped: mobile NPC population is disabled or prefab is missing.", this);
+                return false;
             }
 
             int populationLimit = Mathf.Clamp(MobileNPCSettings.MaximumAlive, 1, 40);
             if (MobileNPCRegistry.CountLivingDrivers() >= populationLimit)
             {
-                Debug.Log("[MobileNPCPopulationDirector] F8 test spawn skipped: configured population cap is already reached (" + populationLimit + ").", this);
-                return;
+                Debug.Log("[MobileNPCPopulationDirector] Nearby test spawn skipped: configured population cap is already reached (" + populationLimit + ").", this);
+                return false;
             }
 
             Player player = FindLivingPlayer();
             if (player == null)
             {
-                Debug.Log("[MobileNPCPopulationDirector] F8 test spawn skipped: no living player was found.", this);
-                return;
+                Debug.Log("[MobileNPCPopulationDirector] Nearby test spawn skipped: no living player was found.", this);
+                return false;
             }
 
             Vector3 forward = player.transform.forward;
@@ -345,7 +346,7 @@ namespace SDG.Unturned
 
                 Quaternion rotation = Quaternion.LookRotation(player.transform.position - groundPosition, Vector3.up);
                 if (MobileNPCSpawnService.TrySpawnServer(mobileNpcPrefab, groundPosition, rotation,
-                    MobileNPCSettings.DefaultRole, out GameObject instance, out string spawnError))
+                    requestedRole, out GameObject instance, out string spawnError))
                 {
                     MobileNPCGroupMember groupMember = instance.GetComponent<MobileNPCGroupMember>();
                     trackedNPCs.Add(new TrackedNPC
@@ -355,17 +356,18 @@ namespace SDG.Unturned
                         GroupId = groupMember != null ? groupMember.GroupId : 0,
                         CleanupAt = float.PositiveInfinity
                     });
-                    Debug.Log("[MobileNPCPopulationDirector] F8 test NPC spawned near player at " + groundPosition + ".", instance);
-                    return;
+                    Debug.Log("[MobileNPCPopulationDirector] Test NPC (" + requestedRole + ") spawned near player at " + groundPosition + ".", instance);
+                    return true;
                 }
 
                 if (attempt == 7)
                 {
-                    Debug.LogWarning("[MobileNPCPopulationDirector] F8 test spawn failed. Last spawn error: " + spawnError, this);
+                    Debug.LogWarning("[MobileNPCPopulationDirector] Nearby test spawn failed. Last spawn error: " + spawnError, this);
                 }
             }
 
-            Debug.LogWarning("[MobileNPCPopulationDirector] F8 test spawn could not find safe ground within about 7 metres of the player. Try an open, flat area.", this);
+            Debug.LogWarning("[MobileNPCPopulationDirector] Nearby test spawn could not find safe ground within about 7 metres of the player. Try an open, flat area.", this);
+            return false;
         }
 
         private static Player FindLivingPlayer()
