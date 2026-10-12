@@ -70,6 +70,7 @@ namespace SDG.Unturned
         private void Update()
         {
             CleanupDeadBodies();
+            MobileNPCPersistence.TickServer(mobileNpcPrefab);
 
             if (!populationEnabled || !Provider.isServer || mobileNpcPrefab == null || Time.time < nextSpawnTime)
             {
@@ -221,6 +222,11 @@ namespace SDG.Unturned
                     trackedNPCs.RemoveAt(i);
                 }
             }
+        }
+
+        private void OnApplicationQuit()
+        {
+            MobileNPCPersistence.SaveOnApplicationQuitServer();
         }
 
         private static Player FindLivingPlayer()
