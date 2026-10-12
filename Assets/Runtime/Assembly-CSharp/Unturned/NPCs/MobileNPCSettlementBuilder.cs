@@ -2,6 +2,7 @@
 // This file is part of the U3 SDK: https://github.com/smartlydressedgames/u3-sdk/    //
 // Please refer to the included LICENSE.txt file for copyright notice and license details. //
 ////////////////////////////////////////////////////////////////////////////////////////
+using Steamworks;
 using UnityEngine;
 
 namespace SDG.Unturned
@@ -88,7 +89,7 @@ namespace SDG.Unturned
 			// Re-discover the central storage and skip already occupied perimeter slots so
 			// a restored settlement does not try to place duplicate pieces at the same points.
 			if (!hasReconciledExistingSettlement)
-				ReconcileExistingSettlement(groupMember);
+				ReconcileExistingSettlement();
 
 			if (placedPieces >= Mathf.Clamp(maximumPieces, 1, 5) || Time.time < nextBuildTime)
 				return;
@@ -210,16 +211,11 @@ namespace SDG.Unturned
 
 
 		/// <summary>
-		/// Transfers non-construction supplies into the NPC's central vanilla storage.
-		/// Items are removed from the simulated inventory only after Items accepts them.
-		/// </summary>
-
-		/// <summary>
 		/// Reconnects to vanilla-saved storage after loading a map and advances past
 		/// perimeter points that are already occupied. Vanilla world objects remain the
 		/// source of truth; this component never serializes or recreates those structures.
 		/// </summary>
-		private void ReconcileExistingSettlement(MobileNPCGroupMember groupMember)
+		private void ReconcileExistingSettlement()
 		{
 			hasReconciledExistingSettlement = true;
 			if (centralStorage == null)
@@ -229,7 +225,10 @@ namespace SDG.Unturned
 				for (int i = 0; i < storages.Length; ++i)
 				{
 					InteractableStorage candidate = storages[i];
-					if (candidate == null || candidate.items == null)
+					// NPC-built storage is placed with nil owner/group IDs. Never redirect
+					// NPC loot into a nearby player's private container.
+					if (candidate == null || candidate.items == null
+						|| candidate.owner != CSteamID.Nil || candidate.group != CSteamID.Nil)
 						continue;
 
 					float distanceSquared = (candidate.transform.position - planner.ChosenSite).sqrMagnitude;
@@ -281,6 +280,10 @@ namespace SDG.Unturned
 			return false;
 		}
 
+		/// <summary>
+		/// Transfers non-construction supplies into the NPC's central vanilla storage.
+		/// Items are removed from the simulated inventory only after Items accepts them.
+		/// </summary>
 		private void TryTransferSuppliesToCentralStorage()
 		{
 			if (!Provider.isServer || centralStorage == null || centralStorage.items == null
