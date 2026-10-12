@@ -116,7 +116,13 @@ namespace SDG.Unturned
 			bool placeStructure = !placeStorage
 				&& TrySelectStructureBuildable(out selectedSlot, out selectedStructureAsset);
 			if (!placeStructure && !TrySelectBuildable(placeStorage, out selectedSlot, out selectedAsset))
+			{
+				// If no suitable buildable is carried, try one safe vanilla recipe before
+				// the next construction interval. Ingredients are never invented.
+				if (inventory.TryCraftBuildableForSettlementServer())
+					Debug.Log("[MobileNPCSettlementBuilder] Crafted a buildable for the settlement; placement will be retried next interval.");
 				return;
+			}
 
 			Vector3 candidate;
 			float angle;
