@@ -18,10 +18,10 @@ namespace SDG.Unturned
                 return;
             }
 
-            string[] parts = (parameter ?? string.Empty).Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
+            string[] parts = (parameter ?? string.Empty).Split(new[] { '/', ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length == 0 || !string.Equals(parts[0], "spawn", System.StringComparison.OrdinalIgnoreCase))
             {
-                CommandWindow.Log("Usage: /mobilenpc spawn [hostile|friendly|neutral]");
+                CommandWindow.Log("Usage: /mobilenpc spawn/hostile (or spawn/friendly, spawn/neutral)");
                 return;
             }
 
