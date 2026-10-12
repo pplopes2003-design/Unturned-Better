@@ -37,7 +37,6 @@ namespace SDG.Unturned
                 switch (parts[1].ToLowerInvariant())
                 {
                     case "hostile":
-                    case "hostile":
                         role = MobileNPCHumanoidDisposition.Role.Hostile;
                         break;
                     case "friendly":
