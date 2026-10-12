@@ -94,6 +94,7 @@ Este plano cobre a fundação local dos NPCs móveis no Unturned/U3-SDK. Executa
 
 - [ ] Testar limite baixo (1–5) e limite recomendado (20).
 - [ ] Observar CPU/FPS por pelo menos 10 minutos; verificações periódicas não devem ocorrer sem intervalo.
+- [ ] Com 20 NPCs ativos, confirmar que a percepção de jogadores percorre a lista de clientes conectados sem gerar um array de cena por NPC a cada varredura; observar GC Alloc no Profiler.
 - [ ] Confirmar que logs não crescem indefinidamente em funcionamento normal.
 - [ ] Trocar de mapa antes dos 30 s de autosave e depois retornar ao mapa original; conferir que o snapshot de saída foi gravado e os NPCs voltam sem duplicatas.
 - [ ] Trocar de mapa e retornar ao menu sem deixar bootstrap/diretor duplicado.
