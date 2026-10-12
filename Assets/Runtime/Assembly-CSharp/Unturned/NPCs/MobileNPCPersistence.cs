@@ -38,6 +38,7 @@ namespace SDG.Unturned
 			public float rx, ry, rz, rw;
 			public int role;
 			public int faction;
+			public float health;
 			public bool hasSettlement;
 			public float ax, ay, az;
 			public List<ItemRecord> items = new List<ItemRecord>();
@@ -151,6 +152,14 @@ namespace SDG.Unturned
 						&& faction.CurrentFaction != (MobileNPCFaction.Id)record.faction)
 						faction.SetFactionServer((MobileNPCFaction.Id)record.faction);
 
+					MobileNPCHumanoidVitals restoredVitals = instance.GetComponent<MobileNPCHumanoidVitals>();
+					if (restoredVitals != null && IsFinite(record.health) && record.health > 0f)
+					{
+						float damageToRestore = Mathf.Max(0f, restoredVitals.MaximumHealth - record.health);
+						if (damageToRestore > 0f)
+							restoredVitals.ApplyDamage(damageToRestore);
+					}
+
 					MobileNPCGroupMember groupMember = instance.GetComponent<MobileNPCGroupMember>();
 					if (record.hasSettlement && groupMember != null
 						&& IsFinite(record.ax) && IsFinite(record.ay) && IsFinite(record.az))
@@ -211,7 +220,8 @@ namespace SDG.Unturned
 					rz = driver.transform.rotation.z,
 					rw = driver.transform.rotation.w,
 					role = disposition != null ? (int)disposition.CurrentRole : (int)MobileNPCHumanoidDisposition.Role.Hostile,
-					faction = faction != null ? (int)faction.CurrentFaction : (int)MobileNPCFaction.Id.Unaffiliated
+					faction = faction != null ? (int)faction.CurrentFaction : (int)MobileNPCFaction.Id.Unaffiliated,
+					health = vitals != null ? vitals.CurrentHealth : 100f
 				};
 
 				MobileNPCGroupMember groupMember = driver.GetComponent<MobileNPCGroupMember>();
