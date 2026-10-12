@@ -36,7 +36,8 @@ namespace SDG.Unturned
 
 		private void Update()
 		{
-			if (!Provider.isServer || brainDriver == null || brainDriver.CurrentState != MobileNPCBrain.State.Pursuing)
+			if (!Provider.isServer || brainDriver == null || brainDriver.CurrentState != MobileNPCBrain.State.Pursuing
+				|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat)
 			{
 				return;
 			}
@@ -129,11 +130,16 @@ namespace SDG.Unturned
 				}
 			}
 
-			// No collider hit means there is no confirmed line of sight. Never apply melee
-			// damage through walls or to a target that has no hittable body collider.
+			// Normally the nearest body collider must confirm the target. Some zombie
+			// prefabs expose a non-standard collider hierarchy, so permit an unobstructed
+			// linecast fallback for zombies only; players and NPCs remain fail-closed.
+			bool unobstructedZombieFallback = false;
 			if (nearestTransform == null)
 			{
-				return;
+				unobstructedZombieFallback = targetZombie != null
+					&& !Physics.Linecast(origin, targetPoint, lineOfSightMask, QueryTriggerInteraction.Ignore);
+				if (!unobstructedZombieFallback)
+					return;
 			}
 
 			if (targetPlayer != null)
@@ -148,7 +154,7 @@ namespace SDG.Unturned
 				if (hitNPC == null) hitNPC = nearestTransform.GetComponentInParent<MobileNPCHumanoidDisposition>();
 				if (hitNPC != targetNPC) return;
 			}
-			else
+			else if (!unobstructedZombieFallback)
 			{
 				Zombie hitZombie = nearestTransform.GetComponent<Zombie>();
 				if (hitZombie == null) hitZombie = nearestTransform.GetComponentInParent<Zombie>();
