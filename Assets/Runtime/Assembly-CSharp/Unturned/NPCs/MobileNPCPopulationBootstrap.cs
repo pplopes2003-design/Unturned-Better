@@ -374,6 +374,7 @@ namespace SDG.Unturned
 
             directorObject = new GameObject("MobileNPCPopulationDirector_Runtime");
             MobileNPCPopulationDirector director = directorObject.AddComponent<MobileNPCPopulationDirector>();
+            directorObject.AddComponent<MobileNPCInteractionController>();
             director.Configure(template);
 
             Debug.Log("[MobileNPCPopulationBootstrap] Single-player mobile NPC population initialized for loaded map "
