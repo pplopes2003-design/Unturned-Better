@@ -1,32 +1,55 @@
-# Mobile NPC population — runtime bootstrap and limits
+# Mobile NPC population — runtime bootstrap and current behavior
 
 Branch: `feature/npc-ai-foundation`
 
-## What is now wired
+## Runtime integration
 
-- `MobileNPCPopulationBootstrap` subscribes to `Level.onPostLevelLoaded` and, for a local server session (single-player), builds a runtime-only mobile humanoid template.
-- The template reuses the game's `Resources/Characters/NPC_Client.prefab` as a **visual child only**. The legacy prefab is not modified; its colliders and rigidbody are disabled and legacy gameplay MonoBehaviours are disabled.
-- The runtime root receives a `CharacterController`, brain driver, motor, perception, disposition, vitals, aim, melee/ranged combat, and the best-effort legacy animation adapter.
-- `MobileNPCPopulationDirector.Configure` receives the inactive template. The spawn service activates each clone before initializing it.
-- The population loop starts after the configured interval, spawns one NPC per attempt around the living player, and is capped at 12 active agents by default.
+- `MobileNPCPopulationBootstrap` creates a runtime-only humanoid template using the game's `Resources/Characters/NPC_Client.prefab` as a visual child.
+- The template receives the server-local brain, motor, perception, disposition/faction, vitals, combat, visual adapter, inventory, survival needs, looting, medical use, settlement planner/builder, group membership, and companion components.
+- The population director currently spawns around vanilla player-spawn anchors and uses a configurable active-population cap. This is not a fully map-wide population sampler.
+- The prototype remains single-player/local-server oriented. It must not be considered multiplayer-ready without replication and client-side movement presentation.
 
-## Single-player test
+## Roaming and terrain
 
-1. Open the project in the configured Unity Editor and wait for script import.
-2. Start a disposable single-player map.
-3. Check the Console for `[MobileNPCPopulationBootstrap]` and `[MobileNPCPopulationDirector]` messages.
-4. After roughly 18 seconds, look for a humanoid NPC outside immediate player range. If none appears, inspect the warning for rejected ground candidates, then verify the current map's collision layers and bounds.
-5. Move within sight range and line of sight. A hostile NPC should detect and pursue the player; firing and melee are experimental server-local prototypes.
-6. Verify that the model is visible and that available legacy animation clips are selected sensibly. Some visual assets may not have clip names containing idle/walk/run; in that case the animation adapter falls back to the first available clip or may remain static.
-7. Kill an NPC if possible and confirm the controller cleans up its body after the configured delay.
-8. Load a second map and confirm the bootstrap is recreated without duplicate directors.
+- Roaming/home territory defaults to a radius of **220 metres** around the current home anchor.
+- On open terrain, NPCs choose successive ground-validated waypoints roughly 24–72 metres ahead, generally maintaining their previous direction. Near the territory edge they turn inward.
+- They also prefer approaching nearby large map objects, which can lead them toward buildings. If no suitable structure exists, they continue over open terrain.
+- Local steering checks obstacles and the next short ground segment. If terrain validation rejects all directions, the current roaming waypoint is abandoned and a new one is sampled.
+- A stuck-movement watchdog detects very low movement over repeated checks. Roaming goals are discarded; tactical destinations attempt alternate local steering.
+- These are bounded local-route and ground checks, **not full navmesh pathfinding**. Complex interiors, doors, steep terrain, cliffs, and map-specific collision layers still need in-game testing.
 
-## Important boundaries
+## Groups: current decision rules
 
-- This is a runtime integration prototype, not a verified feature: **Unity compilation and in-game testing have not been performed in this environment**.
-- Spawn, damage, AI state and cleanup are local-server only. No generated network replication protocol or client interpolation has been added. Do not treat this as multiplayer-ready.
-- The population currently spawns around the player, not across a map-wide region sampler. NPCs do not yet build bases, persist inventory/health/faction/home, or restore settlements after reload.
-- The current brain supports idle, investigation, pursuit and return states; autonomous long-distance roaming and settlement behaviour are still pending.
-- The movement motor is collision-aware but does not pathfind around obstacles. NPCs can get stuck behind walls or terrain.
-- The runtime model adapter is best-effort and has not been validated against all animation states, sounds, or map collision layers.
-- Static dialogue NPCs, sentries, and zombie prefabs are not modified by this bootstrap.
+- `MobileNPCGroupMember` assigns a new NPC to the nearest eligible group within **140 metres**, or creates a new group if none qualifies.
+- Groups currently allow at most **4 living members** and only combine NPCs whose role and faction match.
+- The first member becomes leader. If a group leader dies, the living group can elect/use a successor through the existing group bookkeeping; delayed replacements can rejoin a still-living former group when eligible.
+- Group membership is runtime state. It is not yet a persistent, fully simulated social system: it does not independently model friendship, morale, supply lines, patrol schedules, or a sophisticated command hierarchy.
+
+## Settlement/base selection and construction
+
+- Only the living group leader may plan a settlement.
+- Planning begins after a delay and requires at least one construction-category item in the NPC inventory (barricade, storage, or structure).
+- The planner tests up to 10 candidate points about **7–18 metres** from the group's current home anchor, checking safe ground, slope, and local clearance.
+- Once a site is accepted, the group shares that anchor and its members' home anchors are updated.
+- The builder uses a constrained pattern, not free-form base design: it attempts a central storage barricade when supplies permit, then up to four defensive pieces around cardinal perimeter positions. Defaults are five total pieces, a 12-second initial delay, and 18 seconds between build attempts.
+- The builder prefers compatible vanilla structures/barricades from carried inventory and can transfer non-construction supplies into its central vanilla storage once that storage is available.
+- Site choice is not yet a strategic assessment of nearby loot, water, defensibility, faction borders, terrain chokepoints, or distance to the player. Those are future improvements.
+
+## Trading
+
+- The interaction controller supports item barter, XP, and vanilla Canadian notes/coins as payment modes.
+- Cash items use the vanilla IDs: $5 note 1051, $10 note 1052, $20 note 1053, $50 note 1054, $100 note 1055, $1 coin 1056, and $2 coin 1057.
+- Cash purchases are item-based, remove notes/coins from inventory, and return change using the same denominations. Prices are prototype values and need balancing.
+- XP remains available as a fallback while the cash flow is tested. A later iteration can make the currency asset/configuration selectable instead of hardcoding Canadian denominations.
+
+## Suggested test pass
+
+1. Let an NPC roam on a broad beach/field and check that it continues through multiple long waypoints instead of repeatedly returning to its spawn point.
+2. Watch it approach a nearby building and attempt to get around a slope, step, wall, or rock. Record the exact spot if it gets stuck.
+3. Spawn same-faction NPCs near each other and confirm the group stays at four members or fewer; then test a different role/faction nearby.
+4. Give a group leader construction items and allow enough time for a site decision and several build intervals. Confirm that only one group member builds the shared pattern.
+5. Buy an item using a mix of notes/coins where exact payment is impossible, and verify that the change and inventory are correct. Repeat with insufficient money and a full inventory.
+
+## Validation boundary
+
+The source has received static review, but Unity compilation and in-game behavior have not been verified in this environment. The runtime tests above are necessary before treating these systems as working features.
