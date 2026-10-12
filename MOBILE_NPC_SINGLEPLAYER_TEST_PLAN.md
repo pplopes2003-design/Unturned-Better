@@ -81,6 +81,7 @@ Este plano cobre a fundação local dos NPCs móveis no Unturned/U3-SDK. Executa
 - [ ] Confirmar que grupos respeitam tamanho máximo, distância, função e facção.
 - [ ] Mudar função/facção por uma rota autorizada e conferir que a associação ao grupo é atualizada.
 - [ ] Confirmar que apenas o líder vivo planeja o local do assentamento.
+- [ ] Confirmar que apenas o líder vivo constrói as peças do assentamento; outros membros não devem duplicar estruturas nem consumir materiais em paralelo, e um sucessor deve assumir após a morte do líder.
 - [ ] Dar a um NPC itens de construção válidos e verificar escolha de local em terreno seguro.
 - [ ] Verificar tentativa de construir armazenamento central e peças de perímetro apenas quando há itens válidos e local livre.
 - [ ] Testar local bloqueado, item ausente e construção interrompida; não deve consumir itens se a colocação falhar.
