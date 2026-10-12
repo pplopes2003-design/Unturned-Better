@@ -99,6 +99,36 @@ namespace SDG.Unturned
             visual.transform.localRotation = Quaternion.identity;
             visual.transform.localScale = Vector3.one;
 
+            // NPC_Client is authored on the game's dedicated NPC layer. Some local
+            // player-camera setups do not include that layer, making a successfully
+            // spawned humanoid completely invisible. The mobile prototype is rendered
+            // as an ordinary world character, so explicitly use the default render layer.
+            Transform[] visualTransforms = visual.GetComponentsInChildren<Transform>(true);
+            for (int i = 0; i < visualTransforms.Length; ++i)
+            {
+                visualTransforms[i].gameObject.layer = 0;
+            }
+
+            // The source asset is only a visual template. Explicitly retain its mesh
+            // renderers while removing legacy gameplay scripts and collision bodies.
+            Renderer[] visualRenderers = visual.GetComponentsInChildren<Renderer>(true);
+            for (int i = 0; i < visualRenderers.Length; ++i)
+            {
+                visualRenderers[i].enabled = true;
+            }
+
+            if (visualRenderers.Length == 0)
+            {
+                Debug.LogError("[MobileNPCPopulationBootstrap] NPC_Client contains no renderers; refusing to initialize an invisible mobile NPC population.");
+                DestroyExistingRuntimeObjects();
+                return;
+            }
+
+            // The root CharacterController is the mobile NPC's physical body. Keep it
+            // enabled independently of the legacy colliders removed from the visual rig.
+            controller.enabled = true;
+            controller.detectCollisions = true;
+
             Rigidbody[] rigidbodies = visual.GetComponentsInChildren<Rigidbody>(true);
             for (int i = 0; i < rigidbodies.Length; ++i)
             {
