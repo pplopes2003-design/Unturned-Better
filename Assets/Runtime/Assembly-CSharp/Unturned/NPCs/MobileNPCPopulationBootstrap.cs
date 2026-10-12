@@ -352,12 +352,11 @@ namespace SDG.Unturned
                     continue;
                 }
 
-                // The native humanoid rig depends on its Animation/Animator component
-                // to update the skeleton. Disabling every MonoBehaviour also disabled
-                // the renderer's animation driver, leaving the skinned mesh in its
-                // bind pose. Keep animation systems alive; strip only legacy gameplay
-                // behaviours from the visual-only template.
-                if (behaviour is Animation || behaviour is Animator)
+                // The native humanoid rig needs Animation/Animator, while HumanClothes creates
+                // and applies the game's skin/clothing material in Awake. Disabling
+                // HumanClothes before the inactive template is activated leaves both
+                // meshes white. Preserve these visual systems and strip gameplay scripts.
+                if (behaviour is Animation || behaviour is Animator || behaviour is HumanClothes)
                 {
                     behaviour.enabled = true;
                     ++preservedAnimationBehaviourCount;
