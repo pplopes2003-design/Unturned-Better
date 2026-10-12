@@ -67,6 +67,10 @@ namespace SDG.Unturned
 			role = newRole;
 			MobileNPCFaction faction = GetComponent<MobileNPCFaction>();
 			faction?.SynchronizeDefaultFactionFromRole();
+
+			MobileNPCGroupMember groupMember = GetComponent<MobileNPCGroupMember>();
+			groupMember?.RefreshGroupMembershipServer();
+
 			if (!CanEngagePlayers)
 			{
 				MobileNPCBrainDriver brain = GetComponent<MobileNPCBrainDriver>();
