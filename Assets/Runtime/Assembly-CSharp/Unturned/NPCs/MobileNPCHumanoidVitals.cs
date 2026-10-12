@@ -92,8 +92,19 @@ namespace SDG.Unturned
 		/// </summary>
 		public bool ApplyDamage(float damage, Vector3 hitImpulse)
 		{
-			if (!Provider.isServer || !initialized || isDead || float.IsNaN(damage) || float.IsInfinity(damage) || damage <= 0.0f
+			if (!Provider.isServer || isDead || float.IsNaN(damage) || float.IsInfinity(damage) || damage <= 0.0f
 				|| !IsFinite(hitImpulse.x) || !IsFinite(hitImpulse.y) || !IsFinite(hitImpulse.z))
+			{
+				return false;
+			}
+
+			// A hit can arrive on the same frame the spawned template is activated.
+			// Initialize synchronously rather than silently discarding the first damage event.
+			if (!initialized)
+			{
+				InitializeServer();
+			}
+			if (!initialized || isDead)
 			{
 				return false;
 			}
