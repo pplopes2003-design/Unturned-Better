@@ -136,7 +136,14 @@ namespace SDG.Unturned
 					Vector3 candidate = transform.position + away.normalized * 9f;
 					if (MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, 12f, 8f, ~0, 38f,
 						out Vector3 safeRetreat, out _))
+					{
 						tactics.ReportValidatedRetreatPoint(safeRetreat, Time.time);
+					}
+					else
+					{
+						// If the map offers no safe retreat point, avoid blindly charging the shooter.
+						brain.ReportNoise(transform.position, Time.time, 4f);
+					}
 				}
 			}
 			PublishDecisionIfChanged();
