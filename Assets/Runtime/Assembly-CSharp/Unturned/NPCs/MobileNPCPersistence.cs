@@ -230,44 +230,58 @@ namespace SDG.Unturned
 				out GameObject instance, out error))
 				return false;
 
-			MobileNPCFaction faction = instance.GetComponent<MobileNPCFaction>();
-			if (faction != null && record.faction >= (int)MobileNPCFaction.Id.Unaffiliated
-				&& record.faction <= (int)MobileNPCFaction.Id.Traders
-				&& faction.CurrentFaction != (MobileNPCFaction.Id)record.faction)
-				faction.SetFactionServer((MobileNPCFaction.Id)record.faction);
-
-			MobileNPCHumanoidVitals restoredVitals = instance.GetComponent<MobileNPCHumanoidVitals>();
-			if (restoredVitals != null && IsFinite(record.health) && record.health > 0f)
+			try
 			{
-				float damageToRestore = Mathf.Max(0f, restoredVitals.MaximumHealth - record.health);
-				if (damageToRestore > 0f)
-					restoredVitals.ApplyDamage(damageToRestore);
-			}
-
-			MobileNPCGroupMember groupMember = instance.GetComponent<MobileNPCGroupMember>();
-			if (groupMember != null && IsFinite(record.ax) && IsFinite(record.ay) && IsFinite(record.az))
-			{
-				Vector3 savedAnchor = new Vector3(record.ax, record.ay, record.az);
-				if (record.groupId > 0)
-					groupMember.SetGroupAnchorServer(record.groupId, savedAnchor, record.hasSettlement);
-				else if (record.hasSettlement)
-					groupMember.SetGroupAnchorServer(savedAnchor);
-			}
-
-			MobileNPCInventory inventory = instance.GetComponent<MobileNPCInventory>();
-			if (inventory != null && record.items != null)
-			{
-				for (int itemIndex = 0; itemIndex < record.items.Count; ++itemIndex)
+				MobileNPCFaction faction = instance.GetComponent<MobileNPCFaction>();
+				if (faction != null && record.faction >= (int)MobileNPCFaction.Id.Unaffiliated
+					&& record.faction <= (int)MobileNPCFaction.Id.Traders
+					&& faction.CurrentFaction != (MobileNPCFaction.Id)record.faction)
+					faction.SetFactionServer((MobileNPCFaction.Id)record.faction);
+	
+				MobileNPCHumanoidVitals restoredVitals = instance.GetComponent<MobileNPCHumanoidVitals>();
+				if (restoredVitals != null && IsFinite(record.health) && record.health > 0f)
 				{
-					ItemRecord item = record.items[itemIndex];
-					if (item == null || item.id <= 0 || item.id > ushort.MaxValue
-						|| item.amount <= 0 || item.amount > byte.MaxValue
-						|| item.quality < 0 || item.quality > byte.MaxValue)
-						continue;
-
-					inventory.TryStoreTransferredItem(new Item((ushort)item.id, (byte)item.amount,
-						(byte)item.quality, item.state != null ? (byte[])item.state.Clone() : new byte[0]));
+					float damageToRestore = Mathf.Max(0f, restoredVitals.MaximumHealth - record.health);
+					if (damageToRestore > 0f)
+						restoredVitals.ApplyDamage(damageToRestore);
 				}
+	
+				MobileNPCGroupMember groupMember = instance.GetComponent<MobileNPCGroupMember>();
+				if (groupMember != null && IsFinite(record.ax) && IsFinite(record.ay) && IsFinite(record.az))
+				{
+					Vector3 savedAnchor = new Vector3(record.ax, record.ay, record.az);
+					if (record.groupId > 0)
+						groupMember.SetGroupAnchorServer(record.groupId, savedAnchor, record.hasSettlement);
+					else if (record.hasSettlement)
+						groupMember.SetGroupAnchorServer(savedAnchor);
+				}
+	
+				MobileNPCInventory inventory = instance.GetComponent<MobileNPCInventory>();
+				if (inventory != null && record.items != null)
+				{
+					for (int itemIndex = 0; itemIndex < record.items.Count; ++itemIndex)
+					{
+						ItemRecord item = record.items[itemIndex];
+						if (item == null || item.id <= 0 || item.id > ushort.MaxValue
+							|| item.amount <= 0 || item.amount > byte.MaxValue
+							|| item.quality < 0 || item.quality > byte.MaxValue)
+							continue;
+	
+						if (!inventory.TryStoreTransferredItem(new Item((ushort)item.id, (byte)item.amount,
+							(byte)item.quality, item.state != null ? (byte[])item.state.Clone() : new byte[0])))
+							throw new InvalidOperationException("Saved inventory exceeds capacity or contains an item that cannot be restored.");
+					}
+				}
+			}
+			catch (Exception exception)
+			{
+				// Do not leave a half-restored NPC alive: the snapshot record will be retried.
+				// Destroying the instance also lets its group/lifecycle components clean up.
+				if (instance != null)
+					MobileNPCSpawnService.TryDespawnServer(instance, out _);
+				error = "Snapshot metadata could not be applied: " + exception.Message;
+				Debug.LogWarning("[MobileNPCPersistence] Rolled back a partially restored NPC: " + exception.Message);
+				return false;
 			}
 			return true;
 		}
