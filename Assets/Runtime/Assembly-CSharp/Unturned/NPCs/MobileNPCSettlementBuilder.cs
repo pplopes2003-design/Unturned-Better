@@ -37,6 +37,7 @@ namespace SDG.Unturned
 		private int placedPieces;
 		private bool centralStoragePlaced;
 		private int perimeterPiecesPlaced;
+		private InteractableStorage centralStorage;
 
 		public int PlacedPieces => placedPieces;
 
@@ -55,7 +56,15 @@ namespace SDG.Unturned
 
 		private void Update()
 		{
-			if (!Provider.isServer || !Level.isLoaded || planner == null || !planner.HasChosenSite
+			if (!Provider.isServer || !Level.isLoaded)
+				return;
+
+			// Move carried supplies into the vanilla container whenever its server-side
+			// InteractableStorage has finished initialization. Keep construction items
+			// in the NPC inventory so the settlement can continue expanding.
+			TryTransferSuppliesToCentralStorage();
+
+			if (planner == null || !planner.HasChosenSite
 				|| inventory == null || motor == null || driver == null || !motor.IsInitialized
 				|| placedPieces >= Mathf.Clamp(maximumPieces, 1, 5) || Time.time < nextBuildTime)
 				return;
@@ -112,6 +121,7 @@ namespace SDG.Unturned
 				Mathf.Clamp(clearanceRadius, 0.4f, 1.2f), obstructionMask, QueryTriggerInteraction.Ignore))
 				return;
 
+			Transform placedBarricade = null;
 			if (placeStructure)
 			{
 				// Apply vanilla housing rules before placement. Arbitrary coordinates are not
@@ -131,9 +141,9 @@ namespace SDG.Unturned
 			else
 			{
 				Barricade barricade = new Barricade(selectedAsset);
-				Transform placed = BarricadeManager.dropBarricade(
+				placedBarricade = BarricadeManager.dropBarricade(
 					barricade, null, placePosition, 0f, angle, 0f, 0UL, 0UL);
-				if (placed == null)
+				if (placedBarricade == null)
 					return;
 			}
 
@@ -145,13 +155,56 @@ namespace SDG.Unturned
 
 			placedPieces++;
 			if (placeStorage)
+			{
 				centralStoragePlaced = true;
+				centralStorage = placedBarricade != null
+					? placedBarricade.GetComponent<InteractableStorage>()
+					: null;
+				TryTransferSuppliesToCentralStorage();
+			}
 			else
 				perimeterPiecesPlaced++;
 
 			string placedName = placeStructure ? selectedStructureAsset.name : selectedAsset.name;
 			Debug.Log("[MobileNPCSettlementBuilder] Placed fixed-pattern settlement piece "
 				+ placedName + " (" + placedPieces + "/" + Mathf.Clamp(maximumPieces, 1, 5) + ").");
+		}
+
+
+		/// <summary>
+		/// Transfers non-construction supplies into the NPC's central vanilla storage.
+		/// Items are removed from the simulated inventory only after Items accepts them.
+		/// </summary>
+		private void TryTransferSuppliesToCentralStorage()
+		{
+			if (!Provider.isServer || centralStorage == null || centralStorage.items == null
+				|| inventory == null || inventory.UsedSlots == 0)
+				return;
+
+			bool changed = false;
+			for (int slot = inventory.UsedSlots - 1; slot >= 0; --slot)
+			{
+				if (!inventory.TryGetItemSnapshot(slot, out Item item) || item == null)
+					continue;
+
+				ItemAsset asset = Assets.find(EAssetType.ITEM, item.id) as ItemAsset;
+				if (asset == null || asset.type == EItemType.BARRICADE
+					|| asset.type == EItemType.STORAGE || asset.type == EItemType.STRUCTURE)
+					continue;
+
+				if (!centralStorage.items.tryAddItem(item, false))
+					continue;
+
+				if (!inventory.TryTakeItemServer(slot, out _))
+				{
+					UnturnedLog.warn("[MobileNPCSettlementBuilder] Storage accepted an item but inventory transfer failed.");
+					continue;
+				}
+				changed = true;
+			}
+
+			if (changed)
+				centralStorage.items.onStateUpdated?.Invoke();
 		}
 
 		private bool HasStorageBuildable()
