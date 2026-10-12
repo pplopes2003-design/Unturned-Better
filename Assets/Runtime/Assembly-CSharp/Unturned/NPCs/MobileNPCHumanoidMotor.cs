@@ -39,7 +39,7 @@ namespace SDG.Unturned
 
 		[Header("Autonomous roaming (local prototype)")]
 		[SerializeField] private bool roamingEnabled = true;
-		[SerializeField, Min(2f)] private float roamingRadius = 18f;
+		[SerializeField, Min(2f)] private float roamingRadius = 45f;
 		[SerializeField, Min(1f)] private float roamingPauseMin = 2f;
 		[SerializeField, Min(1f)] private float roamingPauseMax = 6f;
 		[SerializeField, Min(1f)] private float roamingSearchHeight = 50f;
