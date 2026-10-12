@@ -28,6 +28,7 @@ Este plano cobre a fundação local dos NPCs móveis no Unturned/U3-SDK. Executa
 
 - [ ] Confirmar que a população ativa não excede o limite configurado (padrão recomendado: 20; intervalo suportado: 1–40).
 - [ ] Confirmar que NPCs restaurados e NPCs criados por outras rotas contam para o mesmo limite.
+- [ ] Manter corpos mortos durante o tempo de limpeza e confirmar que eles não consomem vagas do limite de NPCs vivos; a restauração pendente também deve contar apenas vivos.
 - [ ] Matar um NPC e confirmar que ele para de combater/mover-se e deixa de ser contado como vivo.
 - [ ] Confirmar que o corpo é removido após o tempo configurado.
 - [ ] Confirmar que a reposição respeita o atraso configurado e não acontece imediatamente.
