@@ -35,11 +35,11 @@ namespace SDG.Unturned
 		[SerializeField, Min(0.1f)] private float swimMaximumVerticalSpeed = 1.5f;
 
 		[Header("Home territory")]
-		[SerializeField, Min(5f)] private float homeTerritoryRadius = 45f;
+		[SerializeField, Min(5f)] private float homeTerritoryRadius = 220f;
 
 		[Header("Autonomous roaming (local prototype)")]
 		[SerializeField] private bool roamingEnabled = true;
-		[SerializeField, Min(2f)] private float roamingRadius = 45f;
+		[SerializeField, Min(2f)] private float roamingRadius = 220f;
 		[SerializeField, Min(1f)] private float roamingPauseMin = 2f;
 		[SerializeField, Min(1f)] private float roamingPauseMax = 6f;
 		[SerializeField, Min(1f)] private float roamingSearchHeight = 50f;
@@ -103,6 +103,8 @@ namespace SDG.Unturned
 		private readonly List<Vector3> reversedRouteScratch = new List<Vector3>(RouteGridSide);
 		private int routeWaypointIndex;
 		private float nextRoutePlanTime;
+		private Vector3 lastRoamingDirection;
+		private bool hasLastRoamingDirection;
 
 		public bool IsInitialized => hasInitialized;
 		public bool IsMoving { get; private set; }
@@ -323,12 +325,12 @@ namespace SDG.Unturned
 				{
 					Vector3 recoveryDirection = Quaternion.AngleAxis(recoverySteeringAngle, Vector3.up) * requestedDirection;
 					planarDirection = IsObstacleBlocking(recoveryDirection)
-						? ApplyLocalObstacleAvoidance(requestedDirection)
-						: recoveryDirection;
+						? ApplyTerrainAwareSteering(requestedDirection, isUnderwater)
+						: ApplyTerrainAwareSteering(recoveryDirection, isUnderwater);
 				}
 				else
 				{
-					planarDirection = ApplyLocalObstacleAvoidance(requestedDirection);
+					planarDirection = ApplyTerrainAwareSteering(requestedDirection, isUnderwater);
 				}
 			}
 
@@ -667,6 +669,52 @@ namespace SDG.Unturned
 		{
 			return hitCollider != null
 				&& (hitCollider.transform == transform || hitCollider.transform.IsChildOf(transform));
+		}
+
+		private Vector3 ApplyTerrainAwareSteering(Vector3 desiredDirection, bool isUnderwater)
+		{
+			desiredDirection.y = 0f;
+			if (desiredDirection.sqrMagnitude < 0.0001f)
+				return Vector3.zero;
+			desiredDirection.Normalize();
+
+			Vector3 obstacleSafeDirection = ApplyLocalObstacleAvoidance(desiredDirection);
+			if (obstacleSafeDirection.sqrMagnitude < 0.0001f)
+				return Vector3.zero;
+			if (isUnderwater || HasWalkableGroundAhead(obstacleSafeDirection))
+				return obstacleSafeDirection;
+
+			// A clear ray is not enough on uneven ground: reject directions whose next
+			// short step has no nearby walkable surface, then try the sides. Swimming is
+			// exempt because the swim controller intentionally has no ground beneath it.
+			Vector3 bestDirection = Vector3.zero;
+			float bestAlignment = float.NegativeInfinity;
+			for (int i = 0; i < FallbackSteeringAngles.Length; ++i)
+			{
+				Vector3 candidate = Quaternion.AngleAxis(FallbackSteeringAngles[i], Vector3.up) * desiredDirection;
+				if (IsObstacleBlocking(candidate) || !HasWalkableGroundAhead(candidate))
+					continue;
+				float alignment = Vector3.Dot(candidate, desiredDirection);
+				if (alignment > bestAlignment)
+				{
+					bestAlignment = alignment;
+					bestDirection = candidate;
+				}
+			}
+			return bestDirection;
+		}
+
+		private bool HasWalkableGroundAhead(Vector3 direction)
+		{
+			direction.y = 0f;
+			if (direction.sqrMagnitude < 0.0001f)
+				return false;
+			direction.Normalize();
+			Vector3 candidate = transform.position + direction * Mathf.Clamp(obstacleProbeDistance + 0.6f, 1.5f, 3.0f);
+			if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, 5f, 3.5f,
+				roamingGroundMask, Mathf.Clamp(roamingMaximumSlope, 35f, 48f), out Vector3 ground, out _))
+				return false;
+			return Mathf.Abs(ground.y - transform.position.y) <= 2.25f;
 		}
 
 		private Vector3 ApplyLocalObstacleAvoidance(Vector3 desiredDirection)
@@ -1026,31 +1074,71 @@ namespace SDG.Unturned
 
 			float effectiveRoamingRadius = Mathf.Min(Mathf.Max(2f, roamingRadius), HomeTerritoryRadius);
 
-			// Prefer visiting large map objects (including many building shells) instead of
-			// selecting only empty terrain. The destination is an approach point outside the
-			// object, so this remains collision-aware and does not teleport through walls.
-			if (Random.value < 0.7f && TryChooseStructureExplorationPoint(effectiveRoamingRadius, out Vector3 structurePoint))
+			// Prefer actual map structures, but keep searching over open terrain when a
+			// beach, field or remote island has no nearby large objects.
+			if (Random.value < 0.55f && TryChooseStructureExplorationPoint(effectiveRoamingRadius, out Vector3 structurePoint))
 			{
 				roamingDestination = structurePoint;
+				Vector3 structureDirection = structurePoint - transform.position;
+				structureDirection.y = 0f;
+				if (structureDirection.sqrMagnitude > 0.01f)
+				{
+					lastRoamingDirection = structureDirection.normalized;
+					hasLastRoamingDirection = true;
+				}
 				hasRoamingDestination = true;
 				return;
 			}
 
-			// Use bounded attempts and the same ground/slope/clip-volume checks as spawn placement.
-			// This is waypoint roaming, not navmesh pathfinding; walls can still block a route.
-			for (int attempt = 0; attempt < 8; ++attempt)
+			// Continue in a roughly straight line for a while, validating each prospective
+			// ground point. If the NPC approaches the edge of its exploration radius, turn
+			// back inward instead of walking to the old spawn point and repeatedly restarting.
+			Vector3 fromHome = transform.position - spawnPosition;
+			fromHome.y = 0f;
+			Vector3 baseDirection;
+			if (fromHome.magnitude >= effectiveRoamingRadius * 0.72f)
 			{
-				float angle = Random.Range(0f, Mathf.PI * 2f);
-				float radius = Random.Range(Mathf.Max(2f, effectiveRoamingRadius * 0.35f), effectiveRoamingRadius);
-				Vector3 candidate = spawnPosition + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * radius;
-				if (MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, Mathf.Max(1f, roamingSearchHeight),
-					Mathf.Max(0f, roamingMaximumDrop), roamingGroundMask, roamingMaximumSlope,
-					out Vector3 resolved, out _))
-				{
-					roamingDestination = resolved;
-					hasRoamingDestination = true;
-					return;
-				}
+				baseDirection = -fromHome.normalized;
+			}
+			else if (hasLastRoamingDirection && lastRoamingDirection.sqrMagnitude > 0.01f)
+			{
+				baseDirection = lastRoamingDirection.normalized;
+			}
+			else
+			{
+				baseDirection = transform.forward;
+				baseDirection.y = 0f;
+				if (baseDirection.sqrMagnitude < 0.01f)
+					baseDirection = Random.insideUnitSphere;
+				baseDirection.y = 0f;
+				baseDirection.Normalize();
+			}
+
+			for (int attempt = 0; attempt < 12; ++attempt)
+			{
+				float turn = Random.Range(-48f, 48f) + (attempt > 5 ? Random.Range(-35f, 35f) : 0f);
+				Vector3 direction = Quaternion.AngleAxis(turn, Vector3.up) * baseDirection;
+				float distance = Random.Range(24f, 72f);
+				Vector3 candidate = transform.position + direction * distance;
+				Vector3 fromHomeCandidate = candidate - spawnPosition;
+				fromHomeCandidate.y = 0f;
+				if (fromHomeCandidate.sqrMagnitude > effectiveRoamingRadius * effectiveRoamingRadius)
+					continue;
+				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, Mathf.Max(1f, roamingSearchHeight),
+					Mathf.Min(8f, Mathf.Max(0f, roamingMaximumDrop)), roamingGroundMask,
+					Mathf.Clamp(roamingMaximumSlope, 25f, 42f), out Vector3 resolved, out _))
+					continue;
+				if (Mathf.Abs(resolved.y - transform.position.y) > 8f)
+					continue;
+				Vector3 resolvedDirection = resolved - transform.position;
+				resolvedDirection.y = 0f;
+				if (resolvedDirection.sqrMagnitude < 16f)
+					continue;
+				lastRoamingDirection = resolvedDirection.normalized;
+				hasLastRoamingDirection = true;
+				roamingDestination = resolved;
+				hasRoamingDestination = true;
+				return;
 			}
 
 			// Back off when this terrain patch has no valid candidate; do not search every frame.
