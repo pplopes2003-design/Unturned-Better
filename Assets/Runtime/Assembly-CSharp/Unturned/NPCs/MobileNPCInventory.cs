@@ -243,7 +243,7 @@ namespace SDG.Unturned
 		/// discrete item slots; recipes requiring tools, skills, workstations, target items,
 		/// NPC quest conditions, or special operations are left untouched.
 		/// </summary>
-		public bool TryCraftBuildableForSettlementServer(Items sharedStorage = null)
+		public bool TryCraftBuildableForSettlementServer(Items sharedStorage = null, bool storageOnly = false)
 		{
 			if (!Provider.isServer || !Level.isLoaded)
 				return false;
@@ -263,8 +263,11 @@ namespace SDG.Unturned
 						continue;
 
 					ItemAsset outputAsset = blueprint.outputs[0].FindItemAsset();
+					ItemBarricadeAsset outputBarricade = outputAsset as ItemBarricadeAsset;
+					bool outputIsStorage = outputBarricade != null && outputBarricade.build == EBuild.STORAGE;
 					if (outputAsset == null || outputAsset.id == 0
 						|| !(outputAsset is ItemBarricadeAsset || outputAsset is ItemStructureAsset)
+						|| (storageOnly && !outputIsStorage) || (!storageOnly && outputIsStorage)
 						|| blueprint.outputs[0].amount < 1 || blueprint.outputs[0].amount > byte.MaxValue)
 						continue;
 
