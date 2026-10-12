@@ -56,12 +56,12 @@ namespace SDG.Unturned
 
                 case MobileNPCHumanoidDisposition.Role.Friendly:
                     PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
-                        "Sobrevivente: Olá. Quero negociar, mas a interface de troca ainda não foi conectada.");
+                        "Mercador: Posso trocar suprimentos por itens que você trouxer. A negociação precisa mostrar o item, o custo e confirmar a troca antes de cobrar. A seleção visual de ofertas ainda está pendente.");
                     return true;
 
                 default:
                     PlayerUI.message(EPlayerMessage.NPC_CUSTOM,
-                        "Sobrevivente: Não quero briga. Mantenha distância e não aponte sua arma para mim.");
+                        "Sobrevivente: Não quero briga. Podemos negociar uma aliança em troca de suprimentos; se aceita, passo a lutar ao lado dos sobreviventes contra saqueadores. A escolha e confirmação da oferta ainda precisam da interface.");
                     return true;
             }
         }
