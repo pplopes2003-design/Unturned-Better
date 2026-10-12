@@ -71,6 +71,7 @@ namespace SDG.Unturned
         {
             CleanupDeadBodies();
             MobileNPCPersistence.TickServer(mobileNpcPrefab);
+            MobileNPCAirdropContest.TickServer();
 
             if (!populationEnabled || !Provider.isServer || mobileNpcPrefab == null || Time.time < nextSpawnTime)
             {
