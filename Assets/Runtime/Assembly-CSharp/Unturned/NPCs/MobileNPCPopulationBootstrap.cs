@@ -93,6 +93,7 @@ namespace SDG.Unturned
             template.AddComponent<MobileNPCRangedPresentation>();
             template.AddComponent<MobileNPCVisualAnimation>();
             template.AddComponent<MobileNPCVisualGuard>();
+            template.AddComponent<MobileNPCAppearance>();
             template.AddComponent<MobileNPCInventory>();
             template.AddComponent<MobileNPCSurvivalNeeds>();
             template.AddComponent<MobileNPCLooting>();
