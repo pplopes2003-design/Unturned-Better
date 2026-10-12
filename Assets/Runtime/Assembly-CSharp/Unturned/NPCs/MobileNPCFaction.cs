@@ -74,11 +74,17 @@ namespace SDG.Unturned
 			if (!Provider.isServer)
 				return;
 
+			if (value < Id.Unaffiliated || value > Id.Traders)
+				return;
+
 			faction = value;
 			usesRoleDefaultFaction = false;
 			MobileNPCBrainDriver brain = GetComponent<MobileNPCBrainDriver>();
 			if (brain != null)
 				brain.ResetServer();
+
+			MobileNPCGroupMember groupMember = GetComponent<MobileNPCGroupMember>();
+			groupMember?.RefreshGroupMembershipServer();
 		}
 
 		public static Relationship GetRelationship(Id first, Id second)
