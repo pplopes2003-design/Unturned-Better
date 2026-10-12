@@ -150,6 +150,7 @@ namespace SDG.Unturned
 		{
 			if (activeNPC == null)
 				return;
+			state = MenuState.Main;
 
 			if (activeNPC.CurrentRole == MobileNPCHumanoidDisposition.Role.Hostile)
 			{
