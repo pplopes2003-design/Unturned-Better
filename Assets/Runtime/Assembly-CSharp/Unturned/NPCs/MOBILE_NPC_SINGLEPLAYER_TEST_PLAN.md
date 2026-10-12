@@ -44,6 +44,7 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - [ ] Verify consumed build items are removed from the simulated inventory only after successful placement.
 - [ ] Confirm non-construction supplies transfer to the central vanilla storage without duplication or loss.
 - [ ] Leave and reload the world; verify placed vanilla structures/storage persist according to the game's normal world persistence.
+- [ ] After reloading a settlement, verify the builder reconnects to its existing NPC-owned central storage, does not transfer supplies into a nearby player's storage, and skips already occupied perimeter slots instead of retrying them forever.
 
 ## 5. Snapshot persistence and recovery
 - [ ] Move several mobile NPCs to different positions, give them different factions/health/inventory, and wait for the periodic save or exit cleanly.
