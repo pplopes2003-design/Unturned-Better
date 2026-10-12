@@ -258,7 +258,7 @@ namespace SDG.Unturned
 				MobileNPCHumanoidVitals mobileNPCVitals = info.transform != null
 					? info.transform.GetComponentInParent<MobileNPCHumanoidVitals>()
 					: null;
-				if (mobileNPCVitals != null && equippedMeleeAsset.zombieOrPlayerDamageMultiplier.damage > 1)
+				if (mobileNPCVitals != null && equippedMeleeAsset.zombieOrPlayerDamageMultiplier.multiply(info.limb) > 1)
 				{
 					if (Provider.provider.statisticsService.userStatisticsService.getStatistic("Accuracy_Hit", out data))
 					{
@@ -540,7 +540,7 @@ namespace SDG.Unturned
 				{
 					if (Provider.isServer && !mobileNPCVitals.IsDead)
 					{
-						float mobileNPCDamage = equippedMeleeAsset.zombieOrPlayerDamageMultiplier.damage * times;
+						float mobileNPCDamage = equippedMeleeAsset.zombieOrPlayerDamageMultiplier.multiply(info.limb) * times;
 						mobileNPCVitals.ApplyDamage(Mathf.Max(1f, mobileNPCDamage),
 							info.direction * Mathf.Max(1f, mobileNPCDamage));
 					}
