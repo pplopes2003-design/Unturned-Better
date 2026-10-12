@@ -180,7 +180,7 @@ namespace SDG.Unturned
 
 			if (activeNPC.CurrentRole == MobileNPCHumanoidDisposition.Role.Hostile)
 			{
-				ShowPrompt( "Hostil: não aceita conversa. Abaixe-se ou afaste-se.");
+				ShowPrompt(activeNPC.DisplayName + ": não aceito conversa. Abaixe-se ou afaste-se.");
 				Clear();
 				return;
 			}
