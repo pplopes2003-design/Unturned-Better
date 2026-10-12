@@ -231,6 +231,7 @@ namespace SDG.Unturned
 				MobileNPCGroupMember groupMember = driver.GetComponent<MobileNPCGroupMember>();
 				if (groupMember != null)
 				{
+					record.groupId = groupMember.GroupId;
 					Vector3 anchor = groupMember.GroupAnchor;
 					record.hasSettlement = groupMember.HasSettlement;
 					record.ax = anchor.x;
