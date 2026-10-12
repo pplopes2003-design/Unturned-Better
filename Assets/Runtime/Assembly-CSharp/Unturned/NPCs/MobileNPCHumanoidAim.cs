@@ -58,7 +58,8 @@ namespace SDG.Unturned
 
 			Transform currentTarget = perception != null
 				? (perception.VisiblePlayer != null ? perception.VisiblePlayer.transform
-					: perception.VisibleNPC != null ? perception.VisibleNPC.transform : null)
+					: perception.VisibleNPC != null ? perception.VisibleNPC.transform
+					: perception.VisibleZombie != null ? perception.VisibleZombie.transform : null)
 				: brainDriver.Target;
 			if (currentTarget == null)
 			{
