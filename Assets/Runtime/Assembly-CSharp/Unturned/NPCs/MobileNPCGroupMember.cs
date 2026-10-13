@@ -160,7 +160,8 @@ namespace SDG.Unturned
 
 			nextContactBroadcastAt = Time.time + ContactBroadcastCooldown;
 			MobileNPCHumanoidRangedCombat ownWeapon = GetComponent<MobileNPCHumanoidRangedCombat>();
-			bool canCover = ownWeapon != null && ownWeapon.SelectedGunAsset != null
+			bool canCover = CurrentSquadRole == SquadRole.None
+				&& ownWeapon != null && ownWeapon.SelectedGunAsset != null
 				&& ownWeapon.RoundsRemaining > 0 && !ownWeapon.IsReloading;
 			MobileNPCGroupMember advancingAlly = null;
 			Vector3 advancingClue = Vector3.zero;
