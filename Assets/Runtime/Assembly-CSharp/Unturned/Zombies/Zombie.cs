@@ -2467,8 +2467,13 @@ namespace SDG.Unturned
 					leave(false);
 					return;
 				}
-				else if (player.movement.nav == 255 || (player.stance.stance == EPlayerStance.SWIM && !SDG.Framework.Water.WaterUtility.isPointUnderwater(transform.position)))
+				else if (player.stance.stance == EPlayerStance.SWIM
+					&& !SDG.Framework.Water.WaterUtility.isPointUnderwater(transform.position))
 				{
+					// Retain the vanilla unreachable-swimmer escape. However, a player
+					// walking outside navigation bounds (nav == 255) is NOT a reason
+					// to abandon an already acquired live pursuit. The zombie's
+					// pathfinder may still fail to find a route; never teleport it.
 					leave(true);
 					return;
 				}
