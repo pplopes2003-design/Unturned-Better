@@ -258,6 +258,15 @@ namespace SDG.Unturned
 				DisableOnDeath<MobileNPCSettlementPlanner>();
 				DisableOnDeath<MobileNPCSettlementBuilder>();
 			}
+			// Stop the living hit volume from intercepting later damage rays. The
+			// authored ragdoll colliders below become the physical corpse instead.
+			Transform hitboxRoot = transform.Find("MobileNPCHitbox");
+			if (hitboxRoot != null)
+			{
+				Collider damageHitbox = hitboxRoot.GetComponent<Collider>();
+				if (damageHitbox != null)
+					damageHitbox.enabled = false;
+			}
 			// NPCs are local single-player entities, not native Player/Zombie instances.
 			// Activate the physical ragdoll already authored in NPC_Client instead of
 			// calling PlayerLife/RagdollTool with an incompatible entity or leaving the
