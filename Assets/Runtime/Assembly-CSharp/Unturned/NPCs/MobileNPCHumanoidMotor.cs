@@ -1201,7 +1201,10 @@ namespace SDG.Unturned
 			plannedJumpUsesVaultPlan = true;
 			isPlannedJumping = true;
 			velocity.y = plan.Impulse;
-			nextJumpTime = Time.time + Mathf.Max(0.8f, jumpCooldown);
+			// Permit an obstacle-by-obstacle sequence of real jumps after a
+			// verified landing, without airborne bunnyhops or a 2.5s forced
+			// delay between two adjacent low parapets.
+			nextJumpTime = Time.time + Mathf.Max(0.8f, plan.MaximumDuration + 0.15f);
 
 			// Do not write an airborne traversal as a walkable floor edge.
 			routeWaypoints.Clear();
@@ -1301,7 +1304,7 @@ namespace SDG.Unturned
 		private void RecoverFromUnexpectedFall()
 		{
 			if (!Provider.isServer || characterController == null || !characterController.enabled
-				|| IsTraversingLadder
+				|| IsTraversingLadder || isPlannedJumping
 				|| float.IsNaN(transform.position.y) || float.IsInfinity(transform.position.y))
 			{
 				return;
