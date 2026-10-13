@@ -427,3 +427,22 @@ Open trading with 9 stocked items. Verify option buttons 1-9 are separately clic
 ## 30. Near-entry known staircase handoff (source-only)
 
 Teach the same living NPC an authentic stair route, then position it roughly 0.7m, 0.9m, 2.4m and 2.6m from the genuinely observed stair entry with an upstairs target. Verify it never loses access merely crossing 2.5m, never warps or clips, and successfully validates approach/steps/final XYZ where feasible. With a new locked door or blockage, remembered entry must not bypass collisions. Verify with optional native A* unavailable and multiple bots; collect log/fps evidence. Source fix `8457dc4`, runtime untested.
+
+## 31. Multi-access / multi-room learned graph — FINAL DEV BUILD ONLY
+
+**Classification:** NAV-ACCESS-01 bounded route-network source scope is QUASE PRONTA — AGUARDANDO BUILD. No Unity compile/playtest or profiler measurements have been performed for these commits. Use one living NPC and ensure routes were actually traversed and completed, not merely marked as destinations.
+
+- [ ] **Same-floor multi-room:** NPC personally completes route A down corridor 1 and B from its actual exit through a native unlocked door to another room. Reposition in a third same-floor room within 25m of A start; objective is near B end and >5m away. Verify approach + both historical segments, physical door interaction, final 3D arrival, no door bypass.
+- [ ] **Two different staircases:** in a connected multilevel environment, teach routes A (up first stair), B (connecting upper corridor), C (down second stair), D (lower corridor), all directions recorded first-hand. With objective near D end, verify four observed stages are chained, correct floor, no teleport/wall/timing skip.
+- [ ] **Alternative access selection:** teach two independent ascents reaching comparable upstairs objectives. Block the initially selected staircase or its approach after learning; verify its entry is temporarily deprioritized and a physically accessible alternative is tried without erasing still-valid old routes. Remove blockage and verify route can be reconsidered.
+- [ ] **No invented reverse direction:** teach up-only route, request down-only target without a corresponding observed down route. Must not treat upward footprints as a free reversed portal.
+- [ ] **Unobserved gap between records:** two memorized corridors end/start ~1.5m apart but have a wall in between; graph may propose the edge, but physical validation MUST reject without clipping or reducing confidence in either old genuine journey.
+- [ ] **Door and terrain changes:** save routes, then close/lock a native door or destroy a bridge/stair section. Route validation must fail closed; no forced unlocked-by-memory traversal.
+- [ ] **Already at entry:** test NPC 0m, 0.3m, 0.7m, 0.9m, 2.4m from previously learned real access. None should be dropped merely for closeness; grounded/collision-checked first step required.
+- [ ] **Async native provider:** with usable native A* validate approach >5m and <=25m, including pending callback not canceled by a request to final destination. With backend absent, do not cross walls or invent a far-entry path; nearby same-floor/vertical fallback still works.
+- [ ] **Changing targets:** target moves to different room/floor during pending approach and during stage C. Old route indices/timers must clear without falsely marking destination reached or penalizing unrelated memory.
+- [ ] **Memory/persistence:** same surviving NPC saves/reloads routes; replacement after death has empty first-hand route graph; nearby allies without actual physically delivered communication have no instant copy.
+- [ ] **Population/performance:** 1/10/20/40 NPCs and active zombies near stairwell; inspect Player.log/Unity Profiler for raycast/ground validation spikes, GC allocations, native A* retry pressure, 0.12s shared admission, frame times, stuck counts and movement completion. Verify no starvation of low-priority NPCs or endless alternate-stair thrashing.
+- [ ] **Compilation:** validate all new C# signatures/Unity API usage and preprocessor variants with actual project Dev Build. On approval mark NAV-ACCESS-01 CONCLUÍDA (runtime verificado) for stated scope, or reopen and attach exact log/map/repro scenario.
+
+Related: `MOBILE_NPC_KNOWN_ACCESS_NAVIGATION_DESIGN.md` and permanent `MOBILE_NPC_PENDING_TASKS.md`. All tests unexecuted until the user consolidates final Dev Build.
