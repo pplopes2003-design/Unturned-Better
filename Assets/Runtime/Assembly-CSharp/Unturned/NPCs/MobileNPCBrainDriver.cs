@@ -97,7 +97,16 @@ namespace SDG.Unturned
 			if (visiblePlayer == null)
 				visiblePlayer = target.GetComponentInParent<Player>();
 			if (visiblePlayer != null && visiblePlayer.life != null && !visiblePlayer.life.isDead)
+			{
 				playerKnowledge.ObserveSight(visiblePlayer.transform.position, Time.time);
+				MobileNPCHumanoidDisposition ownDisposition = GetComponent<MobileNPCHumanoidDisposition>();
+				if (ownDisposition != null && ownDisposition.CanEngagePlayers)
+				{
+					MobileNPCGroupMember group = GetComponent<MobileNPCGroupMember>();
+					if (group != null)
+						group.BroadcastPlayerContactServer(visiblePlayer.transform.position);
+				}
+			}
 
 			// Ambush readiness is only armed by an actual concealed approach.
 			// Repeated perception scans do not reset its countdown.
