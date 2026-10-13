@@ -98,6 +98,7 @@ namespace SDG.Unturned
             template.AddComponent<MobileNPCVisualGuard>();
             template.AddComponent<MobileNPCAppearance>();
             template.AddComponent<MobileNPCInventory>();
+            template.AddComponent<MobileNPCDeathLoot>();
             template.AddComponent<MobileNPCSurvivalNeeds>();
             template.AddComponent<MobileNPCLooting>();
             template.AddComponent<MobileNPCMedicalUse>();
