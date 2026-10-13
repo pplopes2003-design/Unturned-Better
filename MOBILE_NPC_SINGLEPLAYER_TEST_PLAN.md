@@ -482,3 +482,20 @@ NAV-NATIVE-01 regression `6e59544a`: on licensed ASPFP runtime inspect selected 
 Technical design: `MOBILE_NPC_PLANNED_JUMP_DESIGN.md`. Commits `b92feff1`, `a1892748`, `04ccd8b0`, `03d4724a`, `b3c9080c`, `ba9c4b36`, `6571aaa5`.
 
 NAV-JUMP-01 follow-up (commit `489ed764`): park a vehicle low in front of NPC and confirm it cannot be treated as static jump obstacle. With visible hostile targeting NPC and brain goal SeekCover or Retreat, verify jump is suppressed in favor of safer real movement. Other valid ordinary movement goals may still use preflight hop. Untested until final Dev Build.
+
+## 34. Native ladder traversal — scoped nearby genuine Ladder (FINAL Dev Build)
+
+**Test only in user's consolidated Unity Dev Build.** `NAV-LADDER-NEAR-01` source status QUASE PRONTA — AGUARDANDO BUILD, NO runtime evidence.
+
+- [ ] Identify a real InteractableLadder map object with `Ladder` collider tag and `RayMasks.LADDER_INTERACT`. Place NPC on lower landing near authentic front. Give a target on confirmed upper platform. Record NPC positions every 0.2s, collider contact, physically grounded exit, real final XYZ arrival; no instant transform relocation or climbing a wall.
+- [ ] Place NPC on upper landing and goal near bottom of same real ladder. Descend and confirm ground exit and no fall through map.
+- [ ] Facing ladder from opposite legal side. Reject highly sloped/rotated/tagless colliders, normal solid walls and remote/midair starts. Check no ghost ladders created by memory.
+- [ ] Locked native door, wall or low ceiling between character and the ladder approach or at upper exit. Must refuse or stop at real collision, never phase through.
+- [ ] Map ladder with several tagged collider pieces, steep roof, offset exit and narrow landing. Record cases requiring next iteration. Source uses one continuous collider and a grounded destination close to its bounds; this is a scoped limitation, not a claim of generalized ladder navigation.
+- [ ] Destroy/disable collider while climbing, reassign target to a different floor mid-climb, injure NPC, interrupt by entering water and block rung with another survivor. Ensure no teleport or animation stuck, cancel or fail closed and use native gravity/collision.
+- [ ] Ensure NPC does not fire guns/punch, produce land-footstep zombie alerts, or record the vertical traversal as a normal personally walked same-floor corridor. On truly grounded exit, movement/pathfinding should resume to the remaining brain goal.
+- [ ] The visual NPC_Client prefab must actually have `Move_Climb` or `Idle_Climb` loaded to display that state; if absent check one warning and keep physics safe. No invented jump/vault clip.
+- [ ] 1, 10, 20, 40 NPCs competing for nearby ladders with Player/Zombie in the way. Inspect 0.18s shared entry budget, repeated retries, `Player.log`, Unity Profiler, collision, frame cost, no permanent crowd deadlock.
+- [ ] Compile motor, new `MobileNPCLadderTraversal.cs`, visual, combat and ranged scripts; verify all Unity/Unturned names/signatures in live Dev Build. User feedback moves **only** the scoped `NAV-LADDER-NEAR-01` to CONCLUÍDA or reopens it with evidence; `NAV-LADDER-01` parent remains open for A* links and other layouts.
+
+See `MOBILE_NPC_NATIVE_LADDER_DESIGN.md`, native `InteractableLadder.cs`, `PlayerStance.cs` and `PlayerMovement.cs`. None of these tests has been executed.
