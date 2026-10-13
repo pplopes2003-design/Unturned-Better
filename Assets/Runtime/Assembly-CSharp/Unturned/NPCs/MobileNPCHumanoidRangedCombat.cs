@@ -224,7 +224,7 @@ namespace SDG.Unturned
 			ShotFired?.Invoke();
 			// NPC shots must be audible stimuli to other mobile NPCs, not only
 			// vanilla zombies. This uses the same server registry path as player gunfire.
-			MobileNPCRegistry.NotifyGunfire(transform.position, Mathf.Max(20f, weaponRange), null);
+			MobileNPCRegistry.NotifyGunfire(transform.position, Mathf.Max(20f, weaponRange), null, transform);
 
 			shotsRemainingInBurst = Mathf.Max(0, shotsRemainingInBurst - 1);
 			if (shotsRemainingInBurst == 0)
