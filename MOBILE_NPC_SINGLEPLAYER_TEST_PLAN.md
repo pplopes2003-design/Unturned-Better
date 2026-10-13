@@ -201,3 +201,16 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 - [ ] Várias delegacias/hospitais diferentes: NPC **ainda não generaliza automaticamente a categoria**; esta distinção está pendente `LEARN-07`. Medir procura por hospital específico real observado, não todos.
 - [ ] Inventário cheio, roupa realmente vestida (não na mochila), receitas indisponíveis, mundo customizado, POI fora da nav mesh e itens trazidos de armazenamento devem ser registrados como limitações se não funcionarem; não marcar genericamente resolvido.
 - [ ] Compilar e executar todos os testes somente na fase final como combinado; guardar mapa/build, coordenadas aproximadas, itens nativos, screenshots e Player.log para feedback.
+
+
+## 17. P0 — Perseguição dos zumbis após sair das POIs (rodada 2026-10-13, NÃO EXECUTADO)
+
+- [ ] Em mapa com duas POIs separadas, atrair um zumbi pela visão ou tiro e sair da POI de origem. Depois que a região original contar zero jogadores, o zumbi perseguindo deve continuar a atualizar `Zombie.OnUpdate()` e produzir posição/stuck válidos, sem duplicar eventos da mesma região no loop normal.
+- [ ] Andar para área aberta sem `LevelNavigation.checkNavigation` (incluindo caso `player.movement.nav == 255`): perseguidor já adquirido a menos de 24m deve andar fisicamente em terreno válido, usando colisões do CharacterController. Testar alvo jogador e NPC móvel.
+- [ ] Abrir distância superior a 24m: o fallback físico não deve fingir alcance ilimitado; verificar o que o pathfinder nativo realmente consegue fazer e registrar gaps para CORE-04/ZMB-01.
+- [ ] Atrair perseguidores para parede/casa/porta: o fallback **não** atravessa objetos, não sobe parede, não teleporta; caminho complexo fica para A*/navmesh, detectar quando fica travado. Repetir inclinações acima de 38°, borda de penhasco, água, pedras, escadas e pisos multiníveis.
+- [ ] Comparar perseguidores já em região ocupada com aqueles de região sem jogadores: não devem ter atualização duplicada, movimentação acelerada ou spam de eventos. Simular 1, 20, 50 e 200 zumbis perseguindo, coletando Player.log, FPS, travamentos e custos de physics raycasts.
+- [ ] Em multiplayer (pendência distinta), client fora do bound de origem do zumbi pode não receber o spawn/snapshot mesmo que o zumbi se mova no servidor; testar `GatherRemoteClientConnections(zombie.bound)` e registrar risco de NET-01, **não** marcar ZMB-01 fechado sem consistência.
+- [ ] Inspecionar o projeto Unity: dependência comercial A* Pathfinding Project no U3 SDK pode estar ausente. Registrar componentes de navegação realmente presentes, bake da navmesh de cada mapa, link entre POIs e resultado de path requests antes de declarar perseguição completa.
+- [ ] Confirmar que nadar em condição inalcançável ainda permite a reação nativa, que alvos mortos/ausentes liberam perseguição e que zumbis atacam sem passar por paredes mesmo após moverem fora da POI.
+- [ ] Compilar e executar no final do desenvolvimento, conforme instrução do usuário. Marcar `ZMB-01` como CONCLUÍDA apenas com feedback do jogo e todas as situações essenciais verificadas.
