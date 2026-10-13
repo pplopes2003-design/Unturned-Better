@@ -185,6 +185,15 @@ namespace SDG.Unturned
 		private int avoidanceSide = 1;
 		private float avoidanceSideUntil;
 		private int consecutiveStuckRecoveries;
+		// Per-survivor, short-lived local navigation evidence. These are NOT
+		// global map portals or inferred paths. They discourage repeated
+		// searches into a wall and expire when conditions may have changed.
+		private const int MaxRecentNavDeadEnds = 6;
+		private readonly Vector3[] recentNavDeadEndPositions = new Vector3[MaxRecentNavDeadEnds];
+		private readonly Vector3[] recentNavDeadEndGoals = new Vector3[MaxRecentNavDeadEnds];
+		private readonly float[] recentNavDeadEndExpiry = new float[MaxRecentNavDeadEnds];
+		private int nextNavDeadEndSlot;
+		private static float nextSharedUnknownRouteSlot;
 
 		public bool IsInitialized => hasInitialized;
 		public bool IsMoving { get; private set; }
@@ -269,6 +278,8 @@ namespace SDG.Unturned
 			blockedMovementDuration = 0f;
 			useRecoverySteering = false;
 			consecutiveStuckRecoveries = 0;
+			System.Array.Clear(recentNavDeadEndExpiry, 0, recentNavDeadEndExpiry.Length);
+			nextNavDeadEndSlot = 0;
 			avoidanceSide = Random.value < 0.5f ? -1 : 1;
 			hasInitialized = true;
 		}
@@ -1028,6 +1039,32 @@ namespace SDG.Unturned
 			}
 			return found;
 		}
+		private void RememberLocalNavigationDeadEnd(Vector3 blockedPosition, Vector3 goal)
+		{
+			if (!Provider.isServer || !Level.checkSafeIncludingClipVolumes(blockedPosition))
+				return;
+			recentNavDeadEndPositions[nextNavDeadEndSlot] = blockedPosition;
+			recentNavDeadEndGoals[nextNavDeadEndSlot] = goal;
+			recentNavDeadEndExpiry[nextNavDeadEndSlot] = Time.time + 18f;
+			nextNavDeadEndSlot = (nextNavDeadEndSlot + 1) % MaxRecentNavDeadEnds;
+		}
+
+		private float LocalDeadEndPenalty(Vector3 candidate, Vector3 goal)
+		{
+			float penalty = 0f;
+			for (int i = 0; i < MaxRecentNavDeadEnds; ++i)
+			{
+				if (Time.time > recentNavDeadEndExpiry[i]
+					|| PlanarDistanceSquared(goal, recentNavDeadEndGoals[i]) > 9f)
+					continue;
+				float squareDistance = PlanarDistanceSquared(candidate,
+					recentNavDeadEndPositions[i]);
+				if (squareDistance < 9f)
+					penalty += 12f * (1f - squareDistance / 9f);
+			}
+			return penalty;
+		}
+
 		private void UpdateStuckRecovery(bool wantedToMove, float deltaTime)
 		{
 			if (Time.time < nextStuckCheckTime)
@@ -1127,6 +1164,9 @@ namespace SDG.Unturned
 
 			if (brainDriver.HasDestination)
 			{
+				// Actual lack of movement is evidence that this local approach
+				// failed, not that the global tactical goal has been completed.
+				RememberLocalNavigationDeadEnd(samplePosition, brainDriver.Destination);
 				// A failed detour must not keep pulling the NPC toward the same unusable point.
 				// Clear it so the next bounded attempt can choose a different side.
 				ReportLearnedRouteInvalidatedServer();
