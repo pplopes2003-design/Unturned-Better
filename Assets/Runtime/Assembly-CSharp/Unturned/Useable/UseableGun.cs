@@ -1694,13 +1694,16 @@ namespace SDG.Unturned
 						MobileNPCHumanoidVitals mobileNPCVitals = clientNPCHit != null
 							? clientNPCHit.GetComponentInParent<MobileNPCHumanoidVitals>()
 							: null;
-						if (mobileNPCVitals != null && equippedGunAsset.zombieOrPlayerDamageMultiplier.multiply(info.limb) > 1)
+						if (mobileNPCVitals != null && !mobileNPCVitals.IsDead && equippedGunAsset.zombieOrPlayerDamageMultiplier.multiply(
+						mobileNPCVitals.ResolveBodyPartAtWorldPoint(info.point) == MobileNPCInjurySystem.BodyPart.Head
+							? ELimb.SKULL : info.limb) > 1)
 						{
-							PlayerUI.hitmark(info.point, pellets > 1, EPlayerHit.ENTITIY);
+							bool headHit = mobileNPCVitals.ResolveBodyPartAtWorldPoint(info.point)
+								== MobileNPCInjurySystem.BodyPart.Head;
+							PlayerUI.hitmark(info.point, pellets > 1,
+								headHit ? EPlayerHit.CRITICAL : EPlayerHit.ENTITIY);
 							if (hit != EPlayerHit.CRITICAL)
-							{
-								hit = EPlayerHit.ENTITIY;
-							}
+								hit = headHit ? EPlayerHit.CRITICAL : EPlayerHit.ENTITIY;
 						}
 						else if (info.player != null && equippedGunAsset.playerDamageMultiplier.damage > 1 && (DamageTool.isPlayerAllowedToDamagePlayer(player, info.player) || equippedGunAsset.bypassAllowedToDamagePlayer))
 						{
@@ -2031,14 +2034,17 @@ namespace SDG.Unturned
 					{
 						if (Provider.isServer && !mobileNPCVitals.IsDead)
 						{
-							float mobileNPCDamage = equippedGunAsset.zombieOrPlayerDamageMultiplier.multiply(info.limb) * times;
+							MobileNPCInjurySystem.BodyPart hitPart = mobileNPCVitals.ResolveBodyPartAtWorldPoint(info.point);
+							ELimb effectiveLimb = hitPart == MobileNPCInjurySystem.BodyPart.Head
+								? ELimb.SKULL : info.limb;
+							float mobileNPCDamage = equippedGunAsset.zombieOrPlayerDamageMultiplier.multiply(effectiveLimb) * times;
 							// Do not turn a zero/negative damage multiplier into a magical
 							// 1 HP hit. Vitals remains the sole authoritative damage owner.
 							if (!float.IsNaN(mobileNPCDamage) && !float.IsInfinity(mobileNPCDamage)
 								&& mobileNPCDamage > 0f)
 							{
-								mobileNPCVitals.ApplyDamage(mobileNPCDamage,
-									info.direction * mobileNPCDamage, player.transform);
+								mobileNPCVitals.ApplyValidatedWeaponImpactServer(mobileNPCDamage,
+									info.point, info.direction, player.transform, true);
 							}
 						}
 					}
