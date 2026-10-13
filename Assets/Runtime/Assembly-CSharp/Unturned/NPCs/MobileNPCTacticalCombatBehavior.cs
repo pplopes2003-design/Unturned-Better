@@ -97,6 +97,26 @@ namespace SDG.Unturned
 				ResetOcclusion();
 			}
 
+			// Never plan a flank from the live transform of an occluded target.
+			// The intelligence/memory layer owns investigation after contact is lost.
+			Player observedPlayer = target.GetComponent<Player>();
+			if (observedPlayer == null)
+				observedPlayer = target.GetComponentInParent<Player>();
+			MobileNPCHumanoidDisposition observedNPC = target.GetComponent<MobileNPCHumanoidDisposition>();
+			if (observedNPC == null)
+				observedNPC = target.GetComponentInParent<MobileNPCHumanoidDisposition>();
+			Zombie observedZombie = target.GetComponent<Zombie>();
+			if (observedZombie == null)
+				observedZombie = target.GetComponentInParent<Zombie>();
+			bool perceptionConfirmed = observedPlayer != null && perception.VisiblePlayer == observedPlayer
+				|| observedNPC != null && perception.VisibleNPC == observedNPC
+				|| observedZombie != null && perception.VisibleZombie == observedZombie;
+			if (!perceptionConfirmed)
+			{
+				ResetOcclusion();
+				return;
+			}
+
 			// Reloading takes priority over flank and spacing. ReportIncomingFire uses the
 			// existing server-side cover validation and does not apply any extra damage.
 			if (rangedCombat.IsReloading)
