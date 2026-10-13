@@ -217,3 +217,17 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 
 
 - [ ] Atravessar borda de mapa, saída da área jogável e volumes de clip com alvo vivo visível: a perseguição física de zumbi não deve atravessar a fronteira nem se mover em posições rejeitadas por `Level.checkSafeIncludingClipVolumes` (commit `143a47fe`).
+
+
+## 18. Zumbis fora de POI: contorno local de paredes e tiros exteriores (2026-10-13; não executado)
+
+- [ ] Comparar partida limpa com 1 zumbi e múltiplos zumbis: atrair do interior de uma POI para fora da nav mesh e, em seguida, voltar à POI enquanto o zumbi está fora. O perseguidor não deve desistir automaticamente quando nav=255 nem quando o alvo retorna ao interior; conferir `CharacterController` e colisão.
+- [ ] Criar esquina em "L" no terreno aberto (fora nav) com obstáculos reais do mapa, sem buraco no solo. Com alvo a 4–20m, o zumbi deve avaliar alternativas laterais de até 2,5m em quatro direções limitadas, sem atravessar parede, tentar salto impossível ou teleporte. Se não houver caminho seguro, deve devolver controle ao navegador nativo e **pode falhar**; registrar a geometria exata.
+- [ ] Testar parede longa sem passagem, corredor estreito, porta trancada, colisões dinâmicas de veículo, inclinações >38°, ribanceira >0,65m, água e limites de clip: desvio físico não ultrapassa. Detector de travamento respeita cooldown após três tentativas fracassadas, depois reconsidera. Medir ausência de oscilação infinita.
+- [ ] Com alvo movendo-se >6m durante um desvio, a alternativa antiga é invalidada; com alvo visível e caminho direto livre, abandonar imediatamente o desvio e aproximar diretamente. Nova aquisição e reset/reaparecimento do zumbi não podem reutilizar waypoint anterior.
+- [ ] Dar um tiro real **fora de todas as regiões nav**, mas dentro dos limites jogáveis. Zumbis a 10–20m devem receber o alerta auditivo e investigar a posição do disparo; um tiro em área inválida ou ruído com coordenadas inválidas não deve gerar eventos. Não exigir que zumbi identifique o atirador se não o viu.
+- [ ] Emissão de som atrás de uma esquina fora nav: validar que `EHuntType.POINT` usa o mesmo desvio físico curto e a busca pelo ponto, sem alternar imediatamente para perseguição do player através de parede. Alvo vivo visible claramente a 20m mantém prioridade conforme regras originais.
+- [ ] Sons fora nav a mais de 24m: fallback manual não deve fingir caminho; observar pathfinder nativo e registrar os locais em que faltam malhas A* (ZMB-01 ainda aberto). Testar chuva, explosão, arma automática/tiro rápido e cooldown espacial.
+- [ ] Testar 1, 20, 50 e 200 zumbis ativos perto de obstáculos: avaliar chamadas de raycast/probe no Profiler; cada escolha de desvio tem no máximo 4 candidatos e intervalo mínimo de 0,65s, com verificações locais por tick.
+- [ ] Multiplayer: cliente em região fora do bound do zumbi **pode não ter recebido o spawn ID**; o pacote `ReceiveZombieStates` exige região networked e índices conhecidos. Não marcar replicação correta até existir registro/streaming seguro; no teste singleplayer, isso não deve impedir a simulação do servidor.
+- [ ] Anexar Player.log/Console, mapa, posições aproximadas, número de zumbis, nav de origem/destino, tipo de obstáculo, caminho esperado/real e captura do Profiler. **Dev Build é a etapa final do usuário; ainda não foi compilado.**
