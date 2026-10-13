@@ -217,6 +217,7 @@ namespace SDG.Unturned
         public void ResetServer()
         {
             phase = Phase.None;
+            cooldownUntil = Mathf.Max(cooldownUntil, Time.time + 1.0f);
         }
     }
 }
