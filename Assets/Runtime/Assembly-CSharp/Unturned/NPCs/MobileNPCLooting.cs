@@ -25,6 +25,7 @@ namespace SDG.Unturned
 		private readonly List<InteractableItem> candidates = new List<InteractableItem>(32);
 		private MobileNPCBrainDriver driver;
 		private MobileNPCInventory inventory;
+		private MobileNPCAdaptiveMemory adaptiveMemory;
 		private uint targetInstanceID;
 		private Vector3 targetPosition;
 		private bool hasTarget;
@@ -34,6 +35,7 @@ namespace SDG.Unturned
 		{
 			driver = GetComponent<MobileNPCBrainDriver>();
 			inventory = GetComponent<MobileNPCInventory>();
+			adaptiveMemory = GetComponent<MobileNPCAdaptiveMemory>();
 		}
 
 		private void Update()
@@ -64,6 +66,10 @@ namespace SDG.Unturned
 				// The tactical goal can expire before the item disappears (for example,
 				// when a table or curb blocks the final approach). Do not keep returning
 				// forever with a stale target and no active movement destination.
+				// The route/goal timed out while this item remained selected.
+				// This is observable failure evidence, not proof of an impassable path.
+				if (adaptiveMemory != null)
+					adaptiveMemory.RecordOwnOutcomeServer(MobileNPCAdaptiveMemory.ExperienceKind.LootAccess, targetPosition, false);
 				ClearTarget();
 				nextScanTime = Time.time + scanInterval;
 				return;
@@ -75,6 +81,8 @@ namespace SDG.Unturned
 				{
 					uint attemptedInstanceID = targetInstanceID;
 					bool pickedUp = inventory.TryPickupWorldItemServer(attemptedInstanceID, transform.position, pickupDistance + 0.5f);
+					if (adaptiveMemory != null)
+						adaptiveMemory.RecordOwnOutcomeServer(MobileNPCAdaptiveMemory.ExperienceKind.LootAccess, targetPosition, pickedUp);
 					ClearTarget();
 					// Both success and failure must finish the loot goal. Failed transfers
 					// are retried only after the bounded scan cooldown, not every frame.
@@ -218,6 +226,10 @@ namespace SDG.Unturned
 			}
 
 			if (itemID != 0 && inventory.ContainsItemID(itemID)) score -= 28f;
+			// A personal, bounded preference from *resolved* past loot attempts. Never
+			// replaces the item-type priority or the native pickup/path validation.
+			if (adaptiveMemory != null && item.transform != null)
+				score += adaptiveMemory.GetLootScoreAdjustment(item.transform.position);
 			// The nearest item gets a small advantage, but cannot outrank a critical need.
 			score -= Mathf.Sqrt(distanceSqr) * 1.8f;
 			// Avoid filling the final slot with low-value clutter.
