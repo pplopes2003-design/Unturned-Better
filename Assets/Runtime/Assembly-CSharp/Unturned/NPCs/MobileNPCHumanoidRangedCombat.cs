@@ -322,7 +322,7 @@ namespace SDG.Unturned
 					{
 						float hitDamage = GetWeaponDamage();
 						contactedSelectedTarget = hitVitals.ApplyValidatedWeaponImpactServer(
-							hitDamage, hit.point, shotDirection, transform, true);
+							hitDamage, hit.point, shotDirection, transform, true, hit.transform);
 					}
 				}
 				else if (targetZombie != null)
