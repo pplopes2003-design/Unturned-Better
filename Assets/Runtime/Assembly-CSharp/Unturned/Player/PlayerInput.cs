@@ -130,6 +130,13 @@ namespace SDG.Unturned
 							info.material = PhysicsTool.GetLegacyMaterialByName(info.materialName);
 #pragma warning restore
 							break;
+						case ERaycastInfoType.MOBILE_NPC:
+							// Runtime NPCs have no native Player/Zombie region ID. Resolve
+							// the collider again with a server-side physical raycast.
+							reader.ReadEnum(out info.usage);
+							reader.ReadClampedVector3(out info.point);
+							reader.ReadNormalVector3(out info.direction);
+							break;
 						case ERaycastInfoType.SKIP:
 							info = null;
 							break;
@@ -499,6 +506,15 @@ namespace SDG.Unturned
 						writer.WriteUInt32(info.vehicle.instanceID);
 						writer.WriteTransform(info.collider?.transform);
 					}
+					else if (info.collider != null &&
+						info.collider.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
+					{
+						// No unsynchronized runtime Transform in network packets.
+						writer.WriteEnum(ERaycastInfoType.MOBILE_NPC);
+						writer.WriteEnum(usage);
+						writer.WriteClampedVector3(info.point);
+						writer.WriteNormalVector3(info.direction);
+					}
 					else if (info.transform != null)
 					{
 						if (info.transform.CompareTag("Barricade"))
@@ -795,7 +811,8 @@ namespace SDG.Unturned
 		VEHICLE,
 		BARRICADE,
 		STRUCTURE,
-		RESOURCE
+		RESOURCE,
+		MOBILE_NPC
 	}
 
 	/// <summary>
@@ -985,6 +1002,37 @@ namespace SDG.Unturned
 					continue;
 				}
 
+				if (inputInfo.type == ERaycastInfoType.MOBILE_NPC)
+				{
+					// The client identifies an approximate point, NEVER the authoritative
+					// target. Validate the FIRST actual hit against server world physics.
+					if (usage != ERaycastInfoUsage.Gun && usage != ERaycastInfoUsage.Melee)
+						return null;
+					Vector3 origin = rayOriginOverride.HasValue
+						? rayOriginOverride.Value : player.look.aim.position;
+					Vector3 delta = inputInfo.point - origin;
+					float sqrDistance = delta.sqrMagnitude;
+					if (float.IsNaN(sqrDistance) || float.IsInfinity(sqrDistance)
+						|| sqrDistance < 0.0025f || sqrDistance > 65536f)
+						return null;
+					float distance = Mathf.Sqrt(sqrDistance);
+					Vector3 direction = delta / distance;
+					RaycastInfo confirmation = DamageTool.raycast(
+						new Ray(origin, direction), distance + 0.75f,
+						RayMasks.DAMAGE_SERVER, ignorePlayer: player);
+					Collider confirmedCollider = confirmation != null ? confirmation.collider : null;
+					MobileNPCHumanoidVitals confirmedVitals = confirmedCollider != null
+						? confirmedCollider.GetComponentInParent<MobileNPCHumanoidVitals>() : null;
+					if (confirmedVitals == null || confirmedVitals.IsDead
+						|| (confirmation.point - inputInfo.point).sqrMagnitude > 2.25f)
+						return null;
+					inputInfo.point = confirmation.point;
+					inputInfo.direction = direction;
+					inputInfo.transform = confirmedCollider.transform;
+					inputInfo.colliderTransform = confirmedCollider.transform;
+					return inputInfo;
+				}
+
 				if (doOcclusionCheck)
 				{
 					// Called when obstruction.transform is not null, so compare against inputInfo.transform 
@@ -1074,7 +1122,8 @@ namespace SDG.Unturned
 
 		public bool isRaycastInvalid(RaycastInfo info)
 		{
-			return info.player == null && info.zombie == null && info.animal == null && info.vehicle == null && info.transform == null;
+			return info.player == null && info.zombie == null && info.animal == null
+				&& info.vehicle == null && info.transform == null && info.collider == null;
 		}
 
 		public void sendRaycast(RaycastInfo info, ERaycastInfoUsage usage)
@@ -1119,6 +1168,11 @@ namespace SDG.Unturned
 				else if (input.vehicle != null)
 				{
 					input.type = ERaycastInfoType.VEHICLE;
+				}
+				else if (input.colliderTransform != null
+					&& input.colliderTransform.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
+				{
+					input.type = ERaycastInfoType.MOBILE_NPC;
 				}
 				else if (input.transform != null)
 				{
