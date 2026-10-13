@@ -69,3 +69,10 @@ These shapes are **coarse anatomical regions**, not animation-bone-bound collide
 - Observe Unity Console/Player.log and record map/camera/build. Source is uncompiled; do not declare CORE-02/CORE-03/NET-01 complete without gameplay feedback.
 
 **Backlog discipline:** update this design plus `MOBILE_NPC_PENDING_TASKS.md` and `MOBILE_NPC_PROJECT_HANDOFF.md` whenever these systems change.
+
+
+## 2026-10-13 — Implementation safety refinement
+
+`RAG-01` is the tracked requirement for **actual skeletal bone rigidbodies / configured joints**, not the already-existing rigid capsule fall. Source prefab has no joints, so no articulated ragdoll is claimed.
+
+Additional commit `92ef3dd8e6331b90a1ba692e4636221995d32e6b`: death loot spawn anchor is placed 0.9m beside the rigid corpse root, not at the corpse capsule center. This reduces the chance that the native downward ground probe lands drops on top of the corpse's own dynamic collider instead of actual terrain. Verify near walls and buildings in the Dev Build.
