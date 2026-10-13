@@ -123,6 +123,7 @@ namespace SDG.Unturned
 		// Per-instance arrays prevent cross-NPC exposure knowledge leaks.
 		private readonly byte[] routeSearchExposure = new byte[RouteGridNodeLimit];
 		private readonly List<Vector3> reversedRouteScratch = new List<Vector3>(RouteGridSide);
+		private readonly List<Vector3> coverRouteScratch = new List<Vector3>(RouteGridSide);
 		private int routeWaypointIndex;
 		private float nextRoutePlanTime;
 		private float nextLocalRoutePlanTime;
@@ -1292,11 +1293,31 @@ namespace SDG.Unturned
 			return true;
 		}
 
-		private bool TryBuildLocalRoute(Vector3 destination)
+		/// <summary>
+		/// Bounded, side-effect-free route feasibility probe for actual urban
+		/// cover around ONE nearby corner. Never overwrites the currently
+		/// followed path or its replanning timer. The brain itself limits how
+		/// many candidates can request this expensive 81-node check.
+		/// </summary>
+		public bool CanReachNearbyCoverServer(Vector3 coverPoint)
 		{
-			if (Time.time < nextLocalRoutePlanTime)
+			if (!Provider.isServer || !hasInitialized || characterController == null
+				|| !characterController.enabled
+				|| PlanarDistanceSquared(transform.position, coverPoint) > 42f
+				|| Mathf.Abs(coverPoint.y - transform.position.y) > 1.0f)
 				return false;
-			nextLocalRoutePlanTime = Time.time + 0.75f;
+			return TryBuildLocalRoute(coverPoint, coverRouteScratch, true);
+		}
+
+		private bool TryBuildLocalRoute(Vector3 destination,
+			List<Vector3> alternateOutput = null, bool requireExactLocalGoal = false)
+		{
+			if (!requireExactLocalGoal)
+			{
+				if (Time.time < nextLocalRoutePlanTime)
+					return false;
+				nextLocalRoutePlanTime = Time.time + 0.75f;
+			}
 
 			Vector3 goalOffset = destination - transform.position;
 			goalOffset.y = 0f;
@@ -1492,6 +1513,23 @@ namespace SDG.Unturned
 			}
 			if (goal < 0 || previous[goal] < 0)
 				return false;
+			if (requireExactLocalGoal)
+			{
+				// For cover feasibility an arbitrary "closest reachable" node is
+				// NOT proof that the requested cover is reachable.
+				if (goal != preferredGoal
+					|| PlanarDistanceSquared(positions[goal], destination) > 0.85f
+					|| Mathf.Abs(positions[goal].y - destination.y) > 0.4f
+					|| IsRouteNodeOccupied(destination, routeRadius))
+					return false;
+				Vector3 last = destination - positions[goal];
+				last.y = 0f;
+				float lastDistance = last.magnitude;
+				if (lastDistance > 0.12f && IsObstacleBlockingAlong(
+					positions[goal] + Vector3.up * 0.95f,
+					routeRadius, last / lastDistance, lastDistance))
+					return false;
+			}
 
 			List<Vector3> reversed = reversedRouteScratch;
 			reversed.Clear();
@@ -1504,17 +1542,16 @@ namespace SDG.Unturned
 			if (cursor != start || reversed.Count == 0)
 				return false;
 
-			routeWaypoints.Clear();
+			List<Vector3> destinationRoute = alternateOutput ?? routeWaypoints;
+			destinationRoute.Clear();
 			for (int i = reversed.Count - 1; i >= 0; --i)
+				destinationRoute.Add(reversed[i]);
+			if (alternateOutput == null)
 			{
-				Vector3 point = reversed[i];
-				// This point is grounded and physically validated. Never
-				// substitute untested localGoal (potentially in a wall or void).
-				routeWaypoints.Add(point);
+				routeWaypointIndex = 0;
+				nextPlannedRouteValidationTime = 0f;
 			}
-			routeWaypointIndex = 0;
-			nextPlannedRouteValidationTime = 0f;
-			return routeWaypoints.Count > 0;
+			return destinationRoute.Count > 0;
 		}
 
 		/// <summary>
