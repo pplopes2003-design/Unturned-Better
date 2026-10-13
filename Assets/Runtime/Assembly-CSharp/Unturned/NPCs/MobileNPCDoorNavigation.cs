@@ -39,10 +39,19 @@ namespace SDG.Unturned
             float probeRadius, float probeDistance, int collisionMask)
         {
             if (!Provider.isServer || !Level.isLoaded || vitals == null || vitals.IsDead
-                || Time.time < nextProbeTime || !IsFinite(origin)
-                || !IsFinite(direction) || direction.sqrMagnitude < 0.2f
-                || probeDistance <= 0.1f || probeDistance > 4f)
+                || !IsFinite(origin) || !IsFinite(direction)
+                || direction.sqrMagnitude < 0.2f || probeDistance <= 0.1f
+                || probeDistance > 4f)
                 return false;
+            if (Time.time < nextProbeTime)
+            {
+                // Retain the active doorway's brief collision-animation wait
+                // between scans; returning false here could erase the planned
+                // corridor before the native hinge animation has cleared.
+                return lastOpenedDoor != null && lastOpenedDoor.isOpen
+                    && Time.time < waitingForDoorAnimationUntil
+                    && (lastOpenedDoor.transform.position - transform.position).sqrMagnitude <= 9f;
+            }
 
             nextProbeTime = Time.time + 0.30f;
             direction.Normalize();
