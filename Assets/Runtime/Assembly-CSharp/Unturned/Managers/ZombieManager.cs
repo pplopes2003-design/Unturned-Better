@@ -1933,6 +1933,24 @@ namespace SDG.Unturned
 				}
 
 				zombie.tick();
+
+				// A zombie can keep hunting across navigation / POI boundaries
+				// even after the player leaves the region where it originally spawned.
+				// The historical optimization below updates only regions containing
+				// players, so a cross-region pursuer would otherwise stop publishing
+				// movement / stuck detection while still receiving hunt ticks.
+				//
+				// Process this *already budgeted* active hunter here rather than
+				// iterating every zombie in empty regions. Zombies whose origin
+				// region has players are updated by the normal regional pass below,
+				// so none gets duplicate OnUpdate calls.
+				if (zombie.isHunting && !zombie.isDead && regions != null
+					&& zombie.bound < regions.Length)
+				{
+					ZombieRegion homeRegion = regions[zombie.bound];
+					if (homeRegion != null && homeRegion.PlayerCountInRegion < 1)
+						zombie.OnUpdate();
+				}
 			}
 			UnityEngine.Profiling.Profiler.EndSample();
 
