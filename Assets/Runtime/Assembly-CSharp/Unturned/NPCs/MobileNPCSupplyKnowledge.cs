@@ -320,12 +320,24 @@ namespace SDG.Unturned
             switch (asset.type)
             {
                 case EItemType.MEDICAL:
-                    if (inventory.CountItemType(EItemType.MEDICAL) > 0)
-                        return 0f;
+                {
                     bool bleeding = injuries != null
                         && injuries.CurrentBleeding != MobileNPCInjurySystem.BleedingSeverity.None;
+                    bool fractured = injuries != null && injuries.HasFracturedLeg;
                     bool hurt = health != null && health.HealthFraction < 0.68f;
-                    return bleeding ? 145f : hurt ? 115f : 0f;
+                    bool hasWoundDressing = inventory.ContainsItemID(393)
+                        || inventory.ContainsItemID(95) || inventory.ContainsItemID(394);
+                    // An arbitrary medicine is not a dressing. If bleeding, first
+                    // seek rag, bandage or dressing; if fractured, seek a splint.
+                    if (bleeding && !hasWoundDressing
+                        && (asset.id == 393 || asset.id == 95 || asset.id == 394))
+                        return 165f;
+                    if (fractured && !inventory.ContainsItemID(96) && asset.id == 96)
+                        return 145f;
+                    if (hurt && inventory.CountItemType(EItemType.MEDICAL) == 0)
+                        return 112f;
+                    return 0f;
+                }
                 case EItemType.FOOD:
                     return survival != null && survival.NeedsFood
                         && inventory.CountItemType(EItemType.FOOD) == 0 ? 92f : 0f;
