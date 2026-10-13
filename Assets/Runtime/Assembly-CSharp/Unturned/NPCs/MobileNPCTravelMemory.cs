@@ -368,7 +368,7 @@ namespace SDG.Unturned
                     continue;
                 Vector3 entry = first.footsteps[firstStep];
                 float approach = Vector3.Distance(currentPosition, entry);
-                if (approach < 0.8f || approach > 25f
+                if (approach > 25f
                     || Mathf.Abs(entry.y - currentPosition.y) > 0.85f
                     || Mathf.Abs(first.start.y - currentPosition.y) > 0.85f)
                     continue;
