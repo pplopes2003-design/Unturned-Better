@@ -93,6 +93,36 @@ namespace SDG.Unturned
 			PublishDecisionIfChanged();
 		}
 
+		private float nextFootstepInvestigationAt;
+
+		/// <summary>
+		/// Respond to an audible *approximate* clue. This never assigns a visible
+		/// target or supplies the player's live Transform to the combat brain.
+		/// Repeated footfalls cannot perpetually reset an active search timer.
+		/// </summary>
+		public void ReportPlayerFootstepClue(Vector3 approximatePosition, float confidence)
+		{
+			if (!CanAcceptServerInput || Time.time < nextFootstepInvestigationAt
+				|| float.IsNaN(confidence) || float.IsInfinity(confidence)
+				|| confidence < 0.12f)
+				return;
+			MobileNPCHumanoidVitals vitals = GetComponent<MobileNPCHumanoidVitals>();
+			if (vitals != null && vitals.IsDead)
+				return;
+			if (brain.CurrentState == MobileNPCBrain.State.Pursuing && brain.Target != null)
+				return;
+			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Retreat
+				|| tactics.CurrentGoal == MobileNPCTactics.Goal.SeekCover)
+				return;
+
+			// Preserve the first uncertain lead long enough to investigate it.
+			nextFootstepInvestigationAt = Time.time + Mathf.Lerp(6f, 3f, Mathf.Clamp01(confidence));
+			playerKnowledge.ObserveSound(approximatePosition, confidence, Time.time);
+			brain.ReportNoise(approximatePosition, Time.time, 10f);
+			investigatingPlayerClue = true;
+			PublishDecisionIfChanged();
+		}
+
 		/// <summary>Update server-authoritative health without implying a new damage event.</summary>
 		public void ReportHealth(float currentHealth, float maximumHealth)
 		{
