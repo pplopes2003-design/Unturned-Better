@@ -3210,8 +3210,11 @@ namespace SDG.Unturned
 			else
 				return false;
 
-			// Let the native engine handle ordinary navmesh/chase steering.
-			if (LevelNavigation.checkNavigation(destination))
+			// Return to native pathfinding only when BOTH pursuer and target
+			// are within a navigable area. A player reentering a POI should
+			// not strand a zombie that is still standing outside its nav mesh.
+			if (LevelNavigation.checkNavigation(destination)
+				&& LevelNavigation.checkNavigation(transform.position))
 			{
 				offNavDetourUntil = 0f;
 				offNavStallCount = 0;
@@ -3240,7 +3243,8 @@ namespace SDG.Unturned
 			else
 			{
 				// Never chase a freshly moved/teleported target along a stale detour.
-				if ((destination - offNavDetourTargetAtSelection).sqrMagnitude > 36f)
+				if (offNavDetourUntil > Time.time
+					&& (destination - offNavDetourTargetAtSelection).sqrMagnitude > 36f)
 				{
 					offNavDetourUntil = 0f;
 					offNavStallCount = 0;
