@@ -35,3 +35,7 @@ Date: 2026-10-13. Repository `pplopes2003-design/Unturned-Better`. Branch `featu
 Source commits: `b92feff1` (state), `a1892748` (preflight trajectory), `04ccd8b0` (motor execution), `03d4724a` (cost bounds), `b3c9080c` (visual), `ba9c4b36` (walking memory/airborne feet), `6571aaa5` (collision/water abort).
 
 **Classification**: short physically planned static-obstacle hop subitem **QUASE PRONTA — AGUARDANDO BUILD** subject to Unity C# compilation and physics validation. Parent `NAV-JUMP-01` remains **EM IMPLEMENTAÇÃO** until verified vault, planned graph links and ladders exist; `CORE-04` cannot be closed by this bounded hop.
+
+## Additional safety audit — 2026-10-13
+
+Commit `489ed7641dad85a9edda9255f05f13e334952900` explicitly rejects `InteractableVehicle` colliders as jump candidates, suppresses discretionary hops while taking visible-fire SeekCover/Retreat decisions, and removes obsolete `jumpImpulse` tuning left over from the reactive hop. Test close parked vehicles and defensive-combat scenarios in the final Dev Build. This is code-only, not real playtest proof.
