@@ -1494,9 +1494,16 @@ namespace SDG.Unturned
 						continue;
 					edge.y = 0f;
 					float edgeLength = edge.magnitude;
-					if (edgeLength < 0.1f || IsObstacleBlockingAlong(
-						positions[current] + Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f),
-						routeRadius, edge.normalized, edgeLength))
+					if (edgeLength < 0.1f)
+						continue;
+					Vector3 edgeProbeStart = positions[current] + Vector3.up
+						* Mathf.Max(0.45f, characterController.height * 0.55f);
+					if (IsObstacleBlockingAlong(edgeProbeStart, routeRadius,
+						edge.normalized, edgeLength)
+						&& (doorNavigation == null
+							|| !doorNavigation.IsTraversableUnlockedDoorEdgeServer(
+								edgeProbeStart, edge.normalized, routeRadius,
+								edgeLength, obstacleMask)))
 						continue;
 					float exposureCost = 0f;
 					if (tacticalRoute)
