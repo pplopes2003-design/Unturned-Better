@@ -81,6 +81,52 @@ namespace SDG.Unturned
 		}
 
 		/// <summary>
+		/// Deliver only plausibly audible footstep evidence. Listeners receive a
+		/// noisy location, not a player Transform or continuously tracked position.
+		/// Wall obstruction reduces hearing range, and distant listeners hear nothing.
+		/// </summary>
+		public static void NotifyPlayerFootstep(Vector3 footstepPosition, float radius, float confidence)
+		{
+			if (!Provider.isServer || radius <= 0f || float.IsNaN(radius)
+				|| float.IsInfinity(radius))
+				return;
+
+			activeDrivers.RemoveWhere(driver => driver == null || !driver.isActiveAndEnabled);
+			foreach (MobileNPCBrainDriver driver in activeDrivers)
+			{
+				if (driver == null || !driver.gameObject.activeInHierarchy)
+					continue;
+				MobileNPCHumanoidVitals vitals = driver.GetComponent<MobileNPCHumanoidVitals>();
+				if (vitals != null && vitals.IsDead)
+					continue;
+
+				Vector3 ear = driver.transform.position + Vector3.up * 1.5f;
+				Vector3 sound = footstepPosition + Vector3.up * 0.8f;
+				Vector3 offset = sound - ear;
+				float distance = offset.magnitude;
+				if (distance > radius || distance < 0.1f)
+					continue;
+
+				// Structures attenuate rather than magically deleting every sound.
+				bool occluded = Physics.Linecast(ear, sound, RayMasks.BLOCK_COLLISION,
+					QueryTriggerInteraction.Ignore);
+				float audibleRadius = radius * (occluded ? 0.4f : 1f);
+				if (distance > audibleRadius)
+					continue;
+
+				float clarity = Mathf.Clamp01(confidence * (1f - distance / (audibleRadius + 0.01f)));
+				if (clarity < 0.12f)
+					continue;
+
+				// Lower-confidence, distant sounds have proportionally worse bearing.
+				float errorRadius = Mathf.Lerp(4.5f, 0.6f, clarity);
+				Vector2 offset2D = Random.insideUnitCircle * errorRadius;
+				Vector3 clue = footstepPosition + new Vector3(offset2D.x, 0f, offset2D.y);
+				driver.ReportPlayerFootstepClue(clue, clarity);
+			}
+		}
+
+		/// <summary>
 		/// Copies currently active server drivers into a caller-owned list. Stale Unity
 		/// objects are pruned, and the registry's internal collection is never exposed.
 		/// </summary>
