@@ -394,3 +394,6 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 - [ ] With 1, 4, 20, 40 NPCs attempting indoor pursuits, profile number/CPU of personal route lookups, async requests, revalidation stair probes, movement stalls, FPS and allocations. Capture runtime Player.log, map, XYZ and video.
 - [ ] An unlocked native registered barricade door on approach/stair may be opened physically; a locked or phantom door never permits path/plan. Other group NPCs temporarily in doorway don't become solid lifelong block.
 - [ ] Only after actual Unity compile and gameplay evidence may a narrow NAV-ACCESS-01 subfeature be closed. The broad room portal graph and multi-stage upper-storey planning remain **EM IMPLEMENTAÇÃO**; no claim of finished global urban navigation.
+
+
+- [ ] Verificar `24ba6037`: NPC aprende trajeto que começa dentro de uma sala, passa 8–10m pelo corredor e então sobe escada. Ao procurar o acesso conhecido de outra sala, deve buscar **último ponto observado antes da subida**, não a posição inicial arbitrária daquela viagem. Nunca inventar um conector quando não existe variação de altura comprovada nos passos.
