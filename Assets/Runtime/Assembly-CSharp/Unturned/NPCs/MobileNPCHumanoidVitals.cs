@@ -15,6 +15,7 @@ namespace SDG.Unturned
 	/// </summary>
 	[DisallowMultipleComponent]
 	[RequireComponent(typeof(MobileNPCBrainDriver))]
+	[RequireComponent(typeof(MobileNPCInjurySystem))]
 	public sealed class MobileNPCHumanoidVitals : MonoBehaviour
 	{
 		[SerializeField, Min(1.0f)] private float maximumHealth = 100.0f;
