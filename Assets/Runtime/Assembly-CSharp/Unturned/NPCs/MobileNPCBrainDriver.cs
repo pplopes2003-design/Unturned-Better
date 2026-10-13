@@ -54,6 +54,7 @@ namespace SDG.Unturned
 			brain.Reset();
 			playerKnowledge.Clear();
 			investigatingPlayerClue = false;
+			listenUntil = 0f;
 			tactics.ClearGoal();
 			hasInitialized = true;
 			MobileNPCRegistry.Register(this);
@@ -77,6 +78,7 @@ namespace SDG.Unturned
 				playerKnowledge.ObserveSight(visiblePlayer.transform.position, Time.time);
 
 			investigatingPlayerClue = false;
+			listenUntil = 0f;
 			brain.ReportVisibleTarget(target, Time.time);
 			PublishDecisionIfChanged();
 		}
@@ -94,6 +96,13 @@ namespace SDG.Unturned
 		}
 
 		private float nextFootstepInvestigationAt;
+		private float listenUntil;
+
+		/// <summary>Briefly stop and crouch to discriminate an uncertain sound before searching.</summary>
+		public bool IsListening => Provider.isServer && hasInitialized && Time.time < listenUntil
+			&& brain != null && brain.CurrentState != MobileNPCBrain.State.Pursuing
+			&& tactics != null && tactics.CurrentGoal != MobileNPCTactics.Goal.Retreat
+			&& tactics.CurrentGoal != MobileNPCTactics.Goal.SeekCover;
 
 		/// <summary>
 		/// Respond to an audible *approximate* clue. This never assigns a visible
@@ -115,11 +124,17 @@ namespace SDG.Unturned
 				|| tactics.CurrentGoal == MobileNPCTactics.Goal.SeekCover)
 				return;
 
-			// Preserve the first uncertain lead long enough to investigate it.
-			nextFootstepInvestigationAt = Time.time + Mathf.Lerp(6f, 3f, Mathf.Clamp01(confidence));
-			playerKnowledge.ObserveSound(approximatePosition, confidence, Time.time);
-			brain.ReportNoise(approximatePosition, Time.time, 10f);
-			investigatingPlayerClue = true;
+			// Quiet, ambiguous sound: listen and wait for further evidence rather
+			// than always walking to a potentially false position.
+			float clarity = Mathf.Clamp01(confidence);
+			nextFootstepInvestigationAt = Time.time + Mathf.Lerp(4f, 2.5f, clarity);
+			listenUntil = Time.time + Mathf.Lerp(1.4f, 0.55f, clarity);
+			playerKnowledge.ObserveSound(approximatePosition, clarity, Time.time);
+			if (clarity >= 0.25f)
+			{
+				brain.ReportNoise(approximatePosition, Time.time, 10f);
+				investigatingPlayerClue = true;
+			}
 			PublishDecisionIfChanged();
 		}
 
@@ -170,6 +185,7 @@ namespace SDG.Unturned
 			if (shooter != null)
 				playerKnowledge.ObserveSound(threatPosition, 0.8f, Time.time);
 
+			listenUntil = 0f;
 			tactics.ReportIncomingFire(Time.time);
 			// Keep a valid cover/retreat destination long enough to travel toward it.
 			// Repeated nearby gunshots previously reset the target every frame/shot.
@@ -463,6 +479,7 @@ namespace SDG.Unturned
 			tactics.ClearGoal();
 			playerKnowledge.Clear();
 			investigatingPlayerClue = false;
+			listenUntil = 0f;
 			PublishDecisionIfChanged();
 		}
 
