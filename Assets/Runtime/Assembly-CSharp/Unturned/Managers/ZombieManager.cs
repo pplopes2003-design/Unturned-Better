@@ -1712,14 +1712,21 @@ namespace SDG.Unturned
 
 		public static void alertZombiesToNoise(Vector3 position, float radius)
 		{
-			byte nav;
-			if (!Provider.isServer || regions == null || radius <= 0.0f || AllZombies == null || !LevelNavigation.tryGetNavigation(position, out nav) || nav >= regions.Length)
-			{
+			// A sound is a physical event, not a navigation-region event.
+			// Players and mobile NPCs can fire on playable terrain outside all
+			// POI meshes. Requiring tryGetNavigation here made real shots silent
+			// to every zombie as soon as the shooter crossed that boundary.
+			if (!Provider.isServer || !Level.isLoaded || regions == null
+				|| AllZombies == null || float.IsNaN(radius)
+				|| float.IsInfinity(radius) || radius <= 0f
+				|| float.IsNaN(position.x) || float.IsInfinity(position.x)
+				|| float.IsNaN(position.y) || float.IsInfinity(position.y)
+				|| float.IsNaN(position.z) || float.IsInfinity(position.z)
+				|| !Level.checkSafeIncludingClipVolumes(position))
 				return;
-			}
 
-			// Validate the source before consuming the cooldown, so an invalid or
-			// temporarily unavailable navigation region cannot suppress a real shot.
+			// Validate the event before consuming the shared spatial cooldown.
+			// A valid source needs no fabricated nav region or zombie teleport.
 			if (Time.time - lastNoiseAlertTime < NOISE_ALERT_COOLDOWN && (position - lastNoiseAlertPosition).sqrMagnitude < 1.0f)
 			{
 				return;
