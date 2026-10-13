@@ -247,7 +247,7 @@ namespace SDG.Unturned
 			{
 				// Keep a planned route while its goal remains stable. The previous condition
 				// cleared routeWaypoints whenever hasDetourWaypoint was false, which is also
-				// the normal state for a multi-corner NavMesh/A* route.
+				// the normal state for a multi-corner native A* route.
 				if ((destination - detourGoalSnapshot).sqrMagnitude > 9f)
 				{
 					hasDetourWaypoint = false;
