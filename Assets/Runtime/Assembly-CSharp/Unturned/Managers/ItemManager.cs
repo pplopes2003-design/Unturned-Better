@@ -206,6 +206,54 @@ namespace SDG.Unturned
 			}
 		}
 
+		/// <summary>
+		/// Spawn a real world drop from a deceased mobile NPC inventory, returning
+		/// success ONLY after authoritative ItemRegion storage succeeds.
+		/// Unlike the legacy void dropItem method this has a commit result, so
+		/// the NPC may keep its item if a spawn hook rejects the transfer.
+		/// Never invent a drop or call this from a client.
+		/// </summary>
+		public static bool TryDropMobileNPCItemServer(Item item, Vector3 position)
+		{
+			if (!Provider.isServer || regions == null || manager == null
+				|| item == null || item.id == 0
+				|| float.IsNaN(position.x) || float.IsInfinity(position.x)
+				|| float.IsNaN(position.y) || float.IsInfinity(position.y)
+				|| float.IsNaN(position.z) || float.IsInfinity(position.z)
+				|| !Regions.checkSafe(position))
+				return false;
+
+			ItemAsset asset = item.GetAsset();
+			if (asset == null || asset.isPro)
+				return false;
+
+			// Small, bounded scatter next to the corpse, never huge world searches.
+			position.x += Random.Range(-0.32f, 0.32f);
+			position.z += Random.Range(-0.32f, 0.32f);
+			if (position.y > 0f && Physics.SphereCast(
+				new Ray(position + Vector3.up, Vector3.down), 0.1f,
+				out RaycastHit floor, 16f, RayMasks.BLOCK_ITEM,
+				QueryTriggerInteraction.Ignore))
+				position.y = floor.point.y;
+
+			bool shouldAllow = true;
+			onServerSpawningItemDrop?.Invoke(item, ref position, ref shouldAllow);
+			if (!shouldAllow || !Regions.checkSafe(position)
+				|| !Regions.tryGetCoordinate(position, out byte x, out byte y)
+				|| regions[x, y] == null)
+				return false;
+
+			// This is the single server commit point. Caller may remove the
+			// corresponding inventory slot only if this returns true.
+			ItemData itemData = new ItemData(item, ++instanceCount, position, true);
+			regions[x, y].items.Add(itemData);
+			SendItem.Invoke(ENetReliability.Reliable,
+				Regions.GatherClientConnections(x, y, ITEM_REGIONS),
+				x, y, item.id, item.amount, item.quality, item.state,
+				position, itemData.instanceID, true);
+			return true;
+		}
+
 		public static void dropItem(Item item, Vector3 point, bool playEffect, bool isDropped, bool wideSpread)
 		{
 			if (regions == null || manager == null)
