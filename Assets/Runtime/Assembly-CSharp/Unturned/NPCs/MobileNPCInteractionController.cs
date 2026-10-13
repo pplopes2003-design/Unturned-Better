@@ -139,6 +139,8 @@ namespace SDG.Unturned
 			}
 			if (state == MenuState.Main)
 			{
+				if (activeNPC == null || activeNPC.CurrentRole == MobileNPCHumanoidDisposition.Role.Hostile)
+					return;
 				switch (number)
 				{
 					case 1: ShowTradePaymentMenu(); break;
@@ -199,8 +201,8 @@ namespace SDG.Unturned
 
 			if (activeNPC.CurrentRole == MobileNPCHumanoidDisposition.Role.Hostile)
 			{
-				ShowPrompt(activeNPC.DisplayName + ": não aceito conversa. Abaixe-se ou afaste-se.");
-				Clear();
+				// Keep the refusal visible rather than immediately destroying the UI.
+				ShowPrompt(activeNPC.DisplayName + ": não aceito conversa. Afaste-se. ESC para fechar.");
 				return;
 			}
 
