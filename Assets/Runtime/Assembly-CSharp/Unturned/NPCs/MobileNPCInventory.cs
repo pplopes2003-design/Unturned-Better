@@ -422,7 +422,7 @@ namespace SDG.Unturned
 
 			List<int> inputs = new List<int>();
 			if (!TryReserveBlueprintInputs(recipe, inputs) || inputs.Count == 0
-				|| slots.Count - inputs.Count >= Capacity)
+				|| slots.Count - inputs.Count + reservedSlots >= Capacity)
 				return false;
 
 			inputs.Sort();
