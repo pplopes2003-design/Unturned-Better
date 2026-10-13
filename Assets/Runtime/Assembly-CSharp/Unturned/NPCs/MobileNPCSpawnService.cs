@@ -350,6 +350,11 @@ namespace SDG.Unturned
                 + ", validRendererBounds=" + hasValidBounds
                 + ", combinedBounds=" + (hasValidBounds ? combinedBounds.ToString() : "none") + ".", spawned);
 
+            // Register before returning: a lethal hit in the same frame must not
+            // disappear from lifecycle tracking when its brain unregisters.
+            MobileNPCPopulationDirector director = Object.FindObjectOfType<MobileNPCPopulationDirector>();
+            if (director != null)
+                director.RegisterSpawnedNPC(spawned);
             instance = spawned;
             return true;
 		}
