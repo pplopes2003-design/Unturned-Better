@@ -39,3 +39,5 @@
 Read with `MOBILE_NPC_PENDING_TASKS.md`, `MOBILE_NPC_PROJECT_HANDOFF.md`, `MOBILE_NPC_SINGLEPLAYER_TEST_PLAN.md` section 34.
 
 **Entry guard update:** commit `0aefbef92c30044f64c9085ddffed3cca08a5ca8` blocks starting a native ladder traversal while the NPC is physically crouched or has severely impaired movement. This prevents shorter-capsule clearance abuse. Test with low roof and fractured legs in final Dev Build.
+
+**Gravity phase split:** commit `420b27ace8ae02b040b7bccb877b6fe8344ae8c9` corrects motor handling so the physically grounded entry approach retains normal gravity; only true Climb/Exit suspends falling acceleration, with full-body collision still enabled. Test on sloped terrain and ladders whose bottom is above/below the nearby ground.
