@@ -281,10 +281,21 @@ namespace SDG.Unturned
 
 		private void HandleReloadStarted()
 		{
-			if (!Provider.isServer || brain == null || brain.Target == null)
+			if (!Provider.isServer || brain == null || perception == null || brain.Target == null)
 				return;
 
-			brain.ReportIncomingFire(brain.Target.position, brain.Target);
+			// Reload protection may use a source position only when the target is
+			// *currently* visible to this NPC. The old implementation queried the
+			// live hidden Transform and effectively granted X-ray cover planning.
+			Transform target = brain.Target;
+			Player player = target.GetComponentInParent<Player>();
+			MobileNPCHumanoidDisposition npc = target.GetComponentInParent<MobileNPCHumanoidDisposition>();
+			Zombie zombie = target.GetComponentInParent<Zombie>();
+			bool confirmed = player != null && perception.VisiblePlayer == player
+				|| npc != null && perception.VisibleNPC == npc
+				|| zombie != null && perception.VisibleZombie == zombie;
+			if (confirmed)
+				brain.ReportIncomingFire(target.position, target);
 		}
 
 		private void HandleReloadFinished()
