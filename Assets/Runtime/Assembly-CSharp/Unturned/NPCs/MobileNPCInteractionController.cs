@@ -70,9 +70,7 @@ namespace SDG.Unturned
 			if (state == MenuState.Closed)
 				return;
 
-			if (!Provider.isServer || activePlayer == null || activeNPC == null
-				|| !activePlayer.life.IsAlive || activeNPC.GetComponent<MobileNPCHumanoidVitals>() is MobileNPCHumanoidVitals vitals && vitals.IsDead
-				|| (activePlayer.transform.position - activeNPC.transform.position).sqrMagnitude > 16f)
+			if (!IsSessionValid())
 			{
 				Clear();
 				return;
@@ -94,9 +92,20 @@ namespace SDG.Unturned
 			}
 		}
 
+		private bool IsSessionValid()
+		{
+			if (!Provider.isServer || activePlayer == null || activeNPC == null
+				|| activePlayer.life == null || !activePlayer.life.IsAlive
+				|| !activeNPC.gameObject.activeInHierarchy
+				|| (activePlayer.transform.position - activeNPC.transform.position).sqrMagnitude > 16f)
+				return false;
+			MobileNPCHumanoidVitals vitals = activeNPC.GetComponent<MobileNPCHumanoidVitals>();
+			return vitals == null || !vitals.IsDead;
+		}
+
 		private void ChooseOption(int number)
 		{
-			if (state == MenuState.Closed)
+			if (state == MenuState.Closed || !IsSessionValid())
 				return;
 			if (state == MenuState.ChooseTradePayment)
 			{
@@ -155,7 +164,7 @@ namespace SDG.Unturned
 		// No native HUD visibility, focus or cursor state is modified by this flow.
 		private void OnGUI()
 		{
-			if (state == MenuState.Closed || activePlayer == null || activeNPC == null)
+			if (state == MenuState.Closed || !IsSessionValid())
 				return;
 
 			float width = Mathf.Min(540f, Screen.width - 24f);
