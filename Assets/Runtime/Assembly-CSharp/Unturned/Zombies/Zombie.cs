@@ -3168,9 +3168,87 @@ namespace SDG.Unturned
 			if (seeker != null)
 			{
 				UnityEngine.Profiling.Profiler.BeginSample("AIPath");
-				seeker.Move(delta);
+				if (!TryStepPursuitBeyondNavigationOnOpenGround(delta))
+					seeker.Move(delta);
 				UnityEngine.Profiling.Profiler.EndSample();
 			}
+		}
+
+		/// <summary>
+		/// Close-range physical pursuit only on unobstructed open ground beyond a
+		/// baked navigation area. This is not an A* replacement: if a wall, steep
+		/// terrain, missing ground or water blocks the segment, defer to the native
+		/// pathfinder. Never teleport, turn off collision, or skip combat rules.
+		/// </summary>
+		private bool TryStepPursuitBeyondNavigationOnOpenGround(float delta)
+		{
+			if (!Provider.isServer || isDead || isStunned || isLeaving || seeker == null
+				|| !seeker.CanMove || !isHunting || huntType != EHuntType.PLAYER
+				|| (player == null && mobileNPCTarget == null)
+				|| delta <= 0f)
+				return false;
+
+			Vector3 destination;
+			if (player != null && player.life != null && !player.life.isDead)
+				destination = player.transform.position;
+			else if (mobileNPCTarget != null && !mobileNPCTarget.IsDead)
+				destination = mobileNPCTarget.transform.position;
+			else
+				return false;
+
+			// When the target is on a normal nav area, let the engine pathfinder
+			// handle walls, buildings, elevation and normal chase steering.
+			if (LevelNavigation.checkNavigation(destination))
+				return false;
+
+			Vector3 deltaToTarget = destination - transform.position;
+			Vector3 horizontal = new Vector3(deltaToTarget.x, 0f, deltaToTarget.z);
+			float distance = horizontal.magnitude;
+			if (distance < 1.9f || distance > 24f || Mathf.Abs(deltaToTarget.y) > 2.5f)
+				return false;
+
+			CharacterController controller = GetComponent<CharacterController>();
+			if (controller == null || !controller.enabled || !controller.isGrounded)
+				return false;
+
+			Vector3 heading = horizontal / distance;
+			Vector3 eye = transform.position + Vector3.up * 0.95f;
+			// End before the target's own collider. A genuine obstacle still
+			// invalidates manual steering. No x-ray pursuit through structures.
+			if (Physics.Raycast(eye, heading, Mathf.Max(0.1f, distance - 1.15f),
+				RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore))
+				return false;
+
+			float step = Mathf.Min(distance - 1.9f,
+				Mathf.Clamp(delta, 0f, 0.1f)
+				* (speciality == EZombieSpeciality.SPRINTER ? 5.2f
+					: isMega ? 4.6f : speciality == EZombieSpeciality.CRAWLER ? 2.0f : 2.7f));
+			if (step <= 0f)
+				return false;
+
+			// Probe the actual next ground, not only the target position: avoid
+			// stepping off cliffs, up walls, into water or across steep slopes.
+			Vector3 probe = transform.position + heading * Mathf.Max(step, 0.8f)
+				+ Vector3.up * 1.2f;
+			if (!Physics.Raycast(probe, Vector3.down, out RaycastHit ground, 2.8f,
+				RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore)
+				|| ground.collider == null
+				|| ground.collider.GetComponentInParent<Player>() != null
+				|| ground.collider.GetComponentInParent<Zombie>() != null
+				|| ground.collider.GetComponentInParent<MobileNPCHumanoidVitals>() != null
+				|| Vector3.Angle(ground.normal, Vector3.up) > 38f
+				|| Mathf.Abs(ground.point.y - transform.position.y) > 0.65f
+				|| SDG.Framework.Water.WaterUtility.isPointUnderwater(ground.point))
+				return false;
+
+			// CharacterController.Move supplies native collision response. The
+			// modest downward offset preserves grounding; no velocity warp or
+			// special path through colliders is granted.
+			controller.Move(heading * step + Vector3.down * 0.12f);
+			Vector3 facing = new Vector3(heading.x, 0f, heading.z);
+			transform.rotation = Quaternion.RotateTowards(transform.rotation,
+				Quaternion.LookRotation(facing), 450f * Mathf.Clamp(delta, 0f, 0.1f));
+			return true;
 		}
 
 		/// <summary>
