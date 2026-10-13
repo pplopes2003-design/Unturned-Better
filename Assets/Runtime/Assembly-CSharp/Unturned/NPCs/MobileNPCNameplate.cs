@@ -64,7 +64,7 @@ namespace SDG.Unturned
             if (!label.gameObject.activeSelf)
                 return;
 
-            Vector3 direction = labelTransform.position - camera.transform.position;
+            Vector3 direction = camera.transform.position - labelTransform.position;
             if (direction.sqrMagnitude > 0.001f)
                 labelTransform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
         }
