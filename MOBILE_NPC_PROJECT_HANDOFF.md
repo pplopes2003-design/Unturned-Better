@@ -740,3 +740,8 @@ Official Unturned U3 SDK FAQ `https://docs.smartlydressedgames.com/en/latest/u3-
 3. Resume P0 `CORE-02/03/04` mobile NPC hitboxes/physical death/navigation; then P1 radio receiver transmission/intercept, AI goals and remembered source-category generalization. Every round update BOTH canonical guides, plus test/design docs.
 
 **Verification:** GitHub source committed, static references inspected, NOT compiled or observed working in Dev Build. The user will do that at final stage.
+
+
+### Final safety refinement — 2026-10-13
+
+Commit `143a47fe970f132feb4d18ffbded823823f242f1` augments `Zombie.TryStepPursuitBeyondNavigationOnOpenGround`: even when visible open ground passes slope/collision checks, the next step is rejected unless `Level.checkSafeIncludingClipVolumes(ground.point)` confirms playable ground. This intentionally prevents chasing into forbidden map bounds/clip regions. Source re-fetched and syntax structurally checked; **not** compiled/Dev Build-tested. Add explicit map-edge/clip test; ZMB-01 remains open.
