@@ -214,3 +214,6 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 - [ ] Inspecionar o projeto Unity: dependência comercial A* Pathfinding Project no U3 SDK pode estar ausente. Registrar componentes de navegação realmente presentes, bake da navmesh de cada mapa, link entre POIs e resultado de path requests antes de declarar perseguição completa.
 - [ ] Confirmar que nadar em condição inalcançável ainda permite a reação nativa, que alvos mortos/ausentes liberam perseguição e que zumbis atacam sem passar por paredes mesmo após moverem fora da POI.
 - [ ] Compilar e executar no final do desenvolvimento, conforme instrução do usuário. Marcar `ZMB-01` como CONCLUÍDA apenas com feedback do jogo e todas as situações essenciais verificadas.
+
+
+- [ ] Atravessar borda de mapa, saída da área jogável e volumes de clip com alvo vivo visível: a perseguição física de zumbi não deve atravessar a fronteira nem se mover em posições rejeitadas por `Level.checkSafeIncludingClipVolumes` (commit `143a47fe`).
