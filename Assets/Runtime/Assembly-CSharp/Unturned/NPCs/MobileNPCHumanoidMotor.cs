@@ -495,7 +495,11 @@ namespace SDG.Unturned
 				// then traverse the individually verified remembered connector.
 				// Pending async A* to the entrance must not be cancelled by an
 				// unrelated request to the final upstairs destination.
-				if (!isUnderwater && routeWaypoints.Count == 0 && !hasDetourWaypoint)
+				// One async native A* provider per survivor: an already pending
+				// route to a genuine Ladder must not be overwritten by an
+				// independent route request to a remembered staircase.
+				if (!isUnderwater && !hasPlannedLadderApproach
+					&& routeWaypoints.Count == 0 && !hasDetourWaypoint)
 					TryBuildKnownFloorAccessRoute(destination, out waitingForLearnedAccess);
 				// A real Ladder is a directed off-mesh movement action. Before
 				// global pathfinding to another floor, consider an approach
