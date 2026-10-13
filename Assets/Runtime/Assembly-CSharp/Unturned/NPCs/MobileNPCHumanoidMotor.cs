@@ -346,8 +346,12 @@ namespace SDG.Unturned
 				// Routes are snapshots of the scene. If a door closes or an entity blocks
 				// the next segment after planning, discard the stale route and try again
 				// through the existing cooldown-limited detour path.
-				if (routeWaypointIndex < routeWaypoints.Count)
+				if (routeWaypointIndex < routeWaypoints.Count
+					&& Time.time >= nextPlannedRouteValidationTime)
 				{
+					// Retest a route only periodically; moving actors and doors
+					// should not erase multi-corner A* paths every rendered frame.
+					nextPlannedRouteValidationTime = Time.time + 0.3f;
 					Vector3 routeOffset = movementDestination - transform.position;
 					routeOffset.y = 0f;
 					if (routeOffset.sqrMagnitude > 0.1f)
@@ -1378,11 +1382,12 @@ namespace SDG.Unturned
 			for (int i = reversed.Count - 1; i >= 0; --i)
 			{
 				Vector3 point = reversed[i];
-				if (i == 0 && Vector3.Distance(point, localGoal) < 1.0f)
-					point = localGoal;
+				// This point is grounded and physically validated. Never
+				// substitute untested localGoal (potentially in a wall or void).
 				routeWaypoints.Add(point);
 			}
 			routeWaypointIndex = 0;
+			nextPlannedRouteValidationTime = 0f;
 			return routeWaypoints.Count > 0;
 		}
 
