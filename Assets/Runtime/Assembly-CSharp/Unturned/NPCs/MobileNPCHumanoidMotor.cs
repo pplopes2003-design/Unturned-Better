@@ -116,15 +116,23 @@ namespace SDG.Unturned
 		private Vector3 detourWaypoint;
 		private Vector3 detourGoalSnapshot;
 		private float nextDetourAttemptTime;
-		private readonly List<Vector3> routeWaypoints = new List<Vector3>(16);
+		private readonly List<Vector3> routeWaypoints = new List<Vector3>(180);
 		private readonly List<Vector3> actualTravelFootsteps
 			= new List<Vector3>(MobileNPCTravelMemory.MaxFootsteps);
 		private readonly List<Vector3> rememberedRouteScratch
 			= new List<Vector3>(MobileNPCTravelMemory.MaxFootsteps);
-		private readonly List<Vector3> learnedAccessSteps
-			= new List<Vector3>(MobileNPCTravelMemory.MaxFootsteps);
-		private readonly List<Vector3> learnedAccessContinuation
-			= new List<Vector3>(MobileNPCTravelMemory.MaxFootsteps);
+		private readonly List<Vector3> learnedAccessChain
+			= new List<Vector3>(MobileNPCTravelMemory.MaxAccessChainFootsteps);
+		private readonly List<int> learnedAccessRouteIds
+			= new List<int>(MobileNPCTravelMemory.MaxAccessChainRoutes);
+		private readonly List<int> learnedAccessStageStarts
+			= new List<int>(MobileNPCTravelMemory.MaxAccessChainRoutes);
+		private readonly List<int> activeAccessRouteIds
+			= new List<int>(MobileNPCTravelMemory.MaxAccessChainRoutes);
+		private readonly List<int> activeAccessWaypointStarts
+			= new List<int>(MobileNPCTravelMemory.MaxAccessChainRoutes);
+		private readonly float[] knownAccessEntryRetryUntil = new float[8];
+		private int pendingKnownAccessEntryRouteId = -1;
 		private readonly List<Vector3> learnedAccessApproach = new List<Vector3>(32);
 		private float nextKnownAccessPlanTime;
 		private Vector3 lastKnownAccessGoal;
@@ -137,6 +145,8 @@ namespace SDG.Unturned
 		private int activeContinuationRouteIndex = -1;
 		private int learnedStairStartWaypointIndex = -1;
 		private int learnedContinuationStartWaypointIndex = -1;
+			activeAccessRouteIds.Clear();
+			activeAccessWaypointStarts.Clear();
 		private float nextRememberedRouteAttemptTime;
 		private readonly List<RegionCoordinate> explorationRegions = new List<RegionCoordinate>(16);
 		private readonly List<LevelObject> explorationObjects = new List<LevelObject>(64);
@@ -238,6 +248,8 @@ namespace SDG.Unturned
 			activeContinuationRouteIndex = -1;
 			learnedStairStartWaypointIndex = -1;
 			learnedContinuationStartWaypointIndex = -1;
+			activeAccessRouteIds.Clear();
+			activeAccessWaypointStarts.Clear();
 			nextRememberedRouteAttemptTime = 0f;
 			nextKnownAccessPlanTime = 0f;
 			hasPendingKnownAccessPath = false;
@@ -343,6 +355,8 @@ namespace SDG.Unturned
 				activeContinuationRouteIndex = -1;
 				learnedStairStartWaypointIndex = -1;
 				learnedContinuationStartWaypointIndex = -1;
+			activeAccessRouteIds.Clear();
+			activeAccessWaypointStarts.Clear();
 				hasPendingKnownAccessPath = false;
 				// Completed/expired goals must not leave the previous route waiting to
 				// steer the next unrelated investigation or roaming destination.
@@ -367,6 +381,8 @@ namespace SDG.Unturned
 					activeContinuationRouteIndex = -1;
 					learnedStairStartWaypointIndex = -1;
 					learnedContinuationStartWaypointIndex = -1;
+			activeAccessRouteIds.Clear();
+			activeAccessWaypointStarts.Clear();
 					hasPendingKnownAccessPath = false;
 				}
 				else if (routeWaypoints.Count == 0 && !hasDetourWaypoint)
@@ -474,6 +490,8 @@ namespace SDG.Unturned
 						activeContinuationRouteIndex = -1;
 						learnedStairStartWaypointIndex = -1;
 						learnedContinuationStartWaypointIndex = -1;
+			activeAccessRouteIds.Clear();
+			activeAccessWaypointStarts.Clear();
 						hasDetourWaypoint = false;
 						nextDetourAttemptTime = Time.time + 0.35f;
 					}
@@ -928,6 +946,8 @@ namespace SDG.Unturned
 			activeContinuationRouteIndex = -1;
 			learnedStairStartWaypointIndex = -1;
 			learnedContinuationStartWaypointIndex = -1;
+			activeAccessRouteIds.Clear();
+			activeAccessWaypointStarts.Clear();
 			hasRoamingDestination = false;
 			hasDetourWaypoint = false;
 			routeWaypoints.Clear();
@@ -1501,6 +1521,8 @@ namespace SDG.Unturned
 					activeContinuationRouteIndex = -1;
 					learnedStairStartWaypointIndex = -1;
 					learnedContinuationStartWaypointIndex = -1;
+			activeAccessRouteIds.Clear();
+			activeAccessWaypointStarts.Clear();
 				}
 				trackingActualJourney = false;
 				actualTravelFootsteps.Clear();
@@ -1566,6 +1588,8 @@ namespace SDG.Unturned
 			activeContinuationRouteIndex = -1;
 			learnedStairStartWaypointIndex = -1;
 			learnedContinuationStartWaypointIndex = -1;
+			activeAccessRouteIds.Clear();
+			activeAccessWaypointStarts.Clear();
 			nextPlannedRouteValidationTime = 0f;
 			return routeWaypoints.Count > 0;
 		}
@@ -1593,6 +1617,8 @@ namespace SDG.Unturned
 			activeContinuationRouteIndex = -1;
 			learnedStairStartWaypointIndex = -1;
 			learnedContinuationStartWaypointIndex = -1;
+			activeAccessRouteIds.Clear();
+			activeAccessWaypointStarts.Clear();
 		}
 
 		/// <summary>
