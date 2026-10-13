@@ -72,3 +72,6 @@ This is an explicit **episodic experience cache** and an incremental success/fai
 6. Repeated roaming and combat target changes must not create completed-route entries for uncompleted journeys. Spurious physics teleport, falling through terrain or large positional gap must not be learned.
 7. A tactical cover/retreat near visible enemy skips stale route reuse even if the old shortest path was previously successful: active threat exposure remains important.
 8. Check 1 / 4 / 20 / 40 mobile NPCs in Unity Profiler: compare native/local A* invocation counts, CPU, physics probes, allocations, save size and FPS before/after repeated trips. Reduction is a hypothesis until measured.
+
+
+**Additional fix:** `e89e6580f0f5bb4c3257bf973e1d7389e2a67737` clears cached-route-use tracking after waypoint completion and clears observed journey traces when safety recovery repositions an NPC after a physics fall. An emergency `transform.position` correction is not first-hand route traversal and must never appear in the learned data. Final Dev Build test required.
