@@ -25,6 +25,7 @@ namespace SDG.Unturned
             public bool NearTarget;
             public bool InCover;
             public bool Investigating;
+            public bool Stalking;
             public bool Retreating;
             public bool Pursuing;
             public float DestinationDistance;
@@ -45,6 +46,8 @@ namespace SDG.Unturned
                 desired = Gait.Sprint;
             else if (situation.Pursuing && situation.TargetVisible && !situation.NearTarget)
                 desired = Gait.Sprint;
+            else if (situation.Stalking)
+                desired = Gait.Sneak;
             else if (situation.Investigating && !situation.TargetVisible)
                 desired = Gait.Sneak;
             else if (situation.Pursuing && !situation.TargetVisible && situation.NearTarget)
