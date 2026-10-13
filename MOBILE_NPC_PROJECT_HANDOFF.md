@@ -1104,3 +1104,25 @@ GitHub access diagnostic: read and repository write permissions remain functiona
 ## 2026-10-13 — Next development round: close-range known stair access
 
 Source commit `8457dc4dc588ba053f9d3b479caf941fa3b430f7` in `MobileNPCTravelMemory.cs` reduces learned stair entry minimum selection distance from 2.5m to 0.8m. Before it, a survivor could lose eligibility for a confirmed remembered access merely because it was already close to the correct staircase. Still only proposes personally physically walked links; exact local approach and all segment collision/ground checks remain in `MobileNPCHumanoidMotor`; no teleport, no inferred reverse edge. Below 0.8m selector continues to yield to local vertical logic; untested. NAV-ACCESS-01 still EM IMPLEMENTAÇÃO. Scoped fix QUASE PRONTA — AGUARDANDO BUILD; no Unity compilation/runtime performed. Continue testing later with near-threshold 0.7/0.9/2.4/2.6m and alternate blocked stairs. Keep user status protocol intact.
+
+## 2026-10-13 — LATEST, MULTI-ROOM MULTI-ACCESS SOURCE MILESTONE
+
+**READ THIS and canonical backlog first next conversation.** Work on `feature/npc-ai-foundation`, do not edit `main`. Follow user-approved task lifecycle: fully connected/reviewed code awaiting ONLY final Unity Dev Build is **QUASE PRONTA — AGUARDANDO BUILD**; user approval closes scoped item with real evidence, failure reopens it without losing history. No Unity compile, playtest or profiler data was produced this round.
+
+### New functional code, no longer limited to one learned stair + corridor
+
+- `787f4216`: `MobileNPCTravelMemory.TryFindKnownAccessChainServer` searches a **directed personal graph** of up to 8 genuinely completed journey records; up to 4 chained edges with last-to-next observation endpoints within 2m and height-compatible; max 144 historical footstep positions. Access via stair prefix derived from actual elevation footprints for different-floor goals. No inferred reversed traversal or world geometry.
+- `f59735e0`, `c7d5bb0`: `MobileNPCHumanoidMotor` now consumes complete chains: local/native physically computed path to observed entrance + each learned stage + final target; verified ground, body clearance, doors, clip volumes and segment limits. Route path uses CharacterController, never warp. Initial approach max25m, <=5m local exact A*, >5m actual native async A*, max32 approach points.
+- `1948935a`, `d3bfb9fb`: staged blocked-route attribution, no punishment for separately computed approach, final unobserved link or first unobserved inter-record boundary; 5s per-entry retry pause on invalid path so another observed stair may be chosen. Direct firsthand reuse remains separate.
+- `9fab1376`, `cefedf3f`: reused per-NPC graph search arrays, bounded DFS 48 nodes per entry, shared expensive plan admission slot 0.12s and per-instance randomized plan interval ~0.65–0.90s; these are budget limits, NOT profiled performance.
+- `2a2c61f6`, `5da6f78e`: same-floor distant-room routes can be composed using previous completed corridor/door segments; cheap local fallback retained <=5m.
+- `9b580cb6`: scored hops remain positive even with many repeated successes, avoiding accidental preference for needless multi-hop detours.
+- `ad8b859c`, `ff664dea`: an NPC already standing at observed entry no longer drops it due to <0.8m threshold; validates a short actual connection instead of relying on empty same-cell A*.
+
+### Status, tests, next focus
+
+`NAV-ACCESS-01` **QUASE PRONTA — AGUARDANDO BUILD** for the explicitly bounded learned multi-access and same-floor rooms network. This is a SOURCE milestone, not a runtime-success claim. `CORE-04` broad universal movement, `NAV-STAIR-01` complex geometry, `NAV-JUMP-01` ladders/offmesh jumps and `PERF-01` measured 40-NPC performance remain open. Backend of native A* may be missing from public SDK; far-room entrance navigation >5m is never guaranteed without a real provider. No unseen portals, reverse links or global architectural map magically learned.
+
+Docs updated: `MOBILE_NPC_KNOWN_ACCESS_NAVIGATION_DESIGN.md`, canonical backlog `MOBILE_NPC_PENDING_TASKS.md`, `MOBILE_NPC_SINGLEPLAYER_TEST_PLAN.md` section 31. In final Dev Build verify chained same-floor corridors, two staircases, alt entries after blocking first, corner avoidance, no geometry bypass, death/restore, native provider and 20/40 NPC GC/CPU. On user approval close NAV-ACCESS-01 scoped implementation; on errors reopen with reproduction and logs.
+
+**Next recommended development focus:** NAV-STAIR-01 broader stair geometries or P0 CORE-02/03 damage/death and UI-01 user-visible dialogue; do not overclaim entire CORE-04 solved because one bounded memory graph is built. Preserve full AI decision diagram delivery when other modules complete.
