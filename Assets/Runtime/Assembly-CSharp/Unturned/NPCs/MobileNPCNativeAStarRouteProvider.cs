@@ -134,7 +134,16 @@ namespace SDG.Unturned
 		{
 			if (initialized)
 				return;
+
+			// Do not attach a generic Seeker to an unrelated or empty A* instance.
+			// Unturned selects this backend only in builds that include the licensed
+			// ASPFP integration; the public SDK otherwise selects UnturnedPathfinding_Empty.
+			IUnturnedPathfindingInterface activeBackend = UnturnedPathfinding.Get();
+			if (activeBackend == null)
+				return;
 			initialized = true;
+			if (activeBackend.GetType().Name != "UnturnedPathfinding_ASPFP")
+				return;
 
 			Type seekerType = FindType("Pathfinding.Seeker");
 			if (seekerType == null || !typeof(Component).IsAssignableFrom(seekerType))
