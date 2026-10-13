@@ -291,3 +291,23 @@ User requested intelligent optional NPC stealth **after consolidation**, includi
 - UI: IMGUI panel actual focus/mouse click behavior under locked cursor, keyboard input and ESC/HUD behavior; nameplate visibility.
 - Animation: available strike/recoil/reload/flinch clips on NPC_Client, visual sync with shots/hits, animation quality.
 - Longer-term: native kill XP/credit and network replication of custom mobile entities.
+
+
+## Advisory cognition foundation / future stealth — 2026-10-13
+
+User approved starting the *architecture* of dual AI, with legacy fixes still awaiting combined Unity validation. First cognitive layer controls the NPC (MobileNPCBrain/Driver + Tactics); the second is a strictly evidence-only sensory memory, NOT an oracle reading the live player Transform after losing LOS.
+
+Committed:
+- `b4a694650f990f236539e3f61cfb820850107a43`: new plain C# `MobileNPCPlayerKnowledge` advisor; records server-confirmed sight and identified sounds, limited observed velocity, confidence/time decay, expanding location uncertainty, up to 4 randomized bounded hints and nonpersistent per-NPC memory.
+- `4ac862212d43b298d905d30f1145fd1caaf7431b`: `MobileNPCBrain.TrySetInvestigationHint` accepts validated suggestions only in Investigating, never extending investigation expiry.
+- `8e0ea49990b1efcc1c69c255545e28a5fae32c52`: `MobileNPCBrainDriver` feeds only confirmed visible Player transforms to visual knowledge; identified player gunfire can yield lower-confidence sound evidence; memory suggestions are checked for server-side safe ground, without movement teleport; current goal still owned by normal brain.
+- `6f86731bb7df20eedd986db493c5095cbf65b800`: prevent stale player memory contaminating NPC/zombie/ordinary sound investigations; hints are restricted to a search following lost confirmed Player pursuit and cleared on other goals/reset.
+
+Reread new/modified C# files, checked expected integration points and balanced braces. NOT compiled nor tested in Unity. The assistant did NOT implement crouch, silent footsteps, player footstep detection, ambush, zoom perception, knowledge sharing or learning yet.
+
+### Future stealth/stalking implementation plan
+- **Sensory model:** vision with line-of-sight, field of view, illumination/exposure and distance; optics only extend *the observing NPC's* view when they actively use binoculars or a scope, never because the player is zooming. For player zoom, only observable cues (e.g. visible movement) matter. Audio cues from actual player footsteps, sprint, crouch, gunshots, collisions and relevant actions; attenuation by range, obstacles/surfaces and ambient masking. Must hook native Unturned sources, not poll true player position as a shortcut.
+- **Stealth tactical states:** listen/freeze, crouch & low-speed silent walking, shadow or bypass zombie, cautious pursuit, ambush when close and unnoticed, abandon stealth when spotted, suppressed or critically injured. Reuse verified native animations/stances, actual collision capsule and audio; no arbitrary clip name guesses.
+- **Investigation:** uncertain hypotheses and search priors from sensed events only, plausible last-known velocity and nearby obstacles, limited retries, forget/decay; avoid deterministic spiral as only behavior and avoid psychic navigation.
+- **Future learning/social memory (not yet in scope):** constrained per-NPC adaptive statistics / tabular reinforcement or utility-weight tuning before heavy ML training; share knowledge only when two living NPCs actually communicate in-world within hearing/radio range; receiver gets partial aged confidence, not a globally synced omniscient memory. Unshared memory dies with the NPC. Limit memory size, CPU and runaway difficulty; allow player counterplay and faction-filtered communication.
+- **Prerequisite runtime validation remains outstanding:** Unity compilation; hit-to-death/ragdoll/despawn/respawn; house corner and curb navigation; 30–50m firefight and aiming realism; cover reachability; clip availability (punch/fire/reload/flinch); dialogue focus/ESC/HUD/nameplates. Native kill XP and networking not implemented. Report these pending items at end of every future round.
