@@ -359,3 +359,6 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 - [ ] Several floors (>2) stacked at one X/Z and maze-like stairwells whose entry is >5m away: are KNOWN LIMITATIONS; avoid pretending the current planner works there. Future authored level connectors / global A* path graph necessary.
 - [ ] Test at least two stock maps plus custom house; record 3D coordinates, floor geometry, map name, A* backend status, any invalid ray collider, `Player.log` and short clip for user's final Dev Build review.
 - [ ] Until compilation and genuine in-game behavior are verified, keep `NAV-STAIR-01` and `CORE-04` EM IMPLEMENTAÇÃO. Do not delete or close either task.
+
+
+- [ ] Escada vertical inacessível com cobertura superior: A* horizontal não pode escolher célula do térreo próxima em X/Z como se fosse caminho válido; após três falhas para a mesma cobertura tática opcional, memória registra `CoverAccess=false` e reavalia objetivo. Em perseguição de jogador no andar superior, o inimigo mantém consciência apenas de pistas válidas e NÃO cancela a perseguição por falta de caminho local. `077bb7a3`.
