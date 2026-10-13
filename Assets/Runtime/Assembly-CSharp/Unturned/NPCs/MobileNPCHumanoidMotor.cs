@@ -97,6 +97,7 @@ namespace SDG.Unturned
 		private float nextJumpTime;
 		private bool isPlannedJumping;
 		private Vector3 plannedJumpLanding;
+		private readonly RaycastHit[] plannedJumpArcHitBuffer = new RaycastHit[20];
 		private Vector3 plannedJumpDirection;
 		private Vector3 plannedJumpDestinationSnapshot;
 		private float plannedJumpStartedAt;
@@ -846,6 +847,138 @@ namespace SDG.Unturned
 		/// height. The native controller still resolves collision during the jump;
 		/// high walls and steep terrain never trigger a leap.
 		/// </summary>
+		/// <summary>
+		/// A physically planned off-mesh hop over one short world obstruction,
+		/// NOT an arbitrary jump-to-rooftop or ladder connection. The simulator
+		/// uses the same vertical acceleration as Update/CharacterController.Move,
+		/// verifies a real landing surface and sweeps the standing capsule
+		/// along the predicted parabola. No Transform displacement is applied.
+		/// </summary>
+		private bool TryBeginPlannedLowJump(Vector3 desired, Vector3 currentGoal)
+		{
+			if (!Provider.isServer || isPlannedJumping || characterController == null
+				|| !characterController.enabled || Time.time < nextJumpTime
+				|| physicallyCrouched)
+				return false;
+			desired.y = 0f;
+			if (desired.sqrMagnitude < 0.6f)
+				return false;
+			Vector3 direction = desired.normalized;
+			float lowProbeDistance = Mathf.Min(0.90f,
+				Mathf.Max(0.65f, characterController.radius + 0.48f));
+			Vector3 lowProbe = transform.position + Vector3.up * 0.26f;
+			int lowHits = Physics.SphereCastNonAlloc(lowProbe, 0.11f,
+				direction, ObstacleHitBuffer, lowProbeDistance, obstacleMask,
+				QueryTriggerInteraction.Ignore);
+			if (lowHits == 0 || lowHits >= ObstacleHitBuffer.Length)
+				return false;
+			bool foundStaticLowObstacle = false;
+			for (int i = 0; i < lowHits; ++i)
+			{
+				Collider collider = ObstacleHitBuffer[i].collider;
+				if (collider == null || IsOwnCollider(collider))
+					continue;
+				// An actor, vehicle or registered door is never a jump link:
+				// it moves, can be locked, or has different gameplay rules.
+				if (collider.GetComponentInParent<Player>() != null
+					|| collider.GetComponentInParent<Zombie>() != null
+					|| collider.GetComponentInParent<MobileNPCHumanoidVitals>() != null
+					|| collider.GetComponentInParent<InteractableDoor>() != null)
+					return false;
+				foundStaticLowObstacle = true;
+			}
+			if (!foundStaticLowObstacle
+				|| IsObstacleBlockingAlong(transform.position
+					+ Vector3.up * (plannedJumpMaximumObstacleHeight + 0.45f),
+					0.15f, direction, lowProbeDistance))
+				return false;
+
+			float travel = plannedJumpTravelDistance;
+			Vector3 candidate = transform.position + direction * travel;
+			if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate,
+				1.0f, 1.0f, roamingGroundMask,
+				Mathf.Min(characterController.slopeLimit, roamingMaximumSlope),
+				out Vector3 landing, out _)
+				|| Vector3.Distance(new Vector3(candidate.x, 0f, candidate.z),
+					new Vector3(landing.x, 0f, landing.z)) > 0.25f
+				|| Mathf.Abs(landing.y - transform.position.y) > 0.25f
+				|| !Level.checkSafeIncludingClipVolumes(landing))
+				return false;
+			float radius = Mathf.Clamp(characterController.radius * 0.78f, 0.16f, 0.30f);
+			if (IsRouteNodeOccupied(landing, radius))
+				return false;
+			// We only jump toward a goal that lies beyond the obstacle. Do not
+			// jump past a nearby target or across an unrelated room boundary.
+			Vector3 desiredFlat = currentGoal - transform.position;
+			desiredFlat.y = 0f;
+			if (Vector3.Dot(desiredFlat, direction) < travel + 0.10f)
+				return false;
+
+			float acceleration = Mathf.Abs(Physics.gravity.y)
+				* (gravity / 9.81f) * 3f;
+			if (acceleration < 0.01f)
+				return false;
+			float duration = travel / plannedJumpHorizontalSpeed;
+			float impulse = (landing.y - transform.position.y
+				+ 0.5f * acceleration * duration * duration) / duration;
+			if (impulse < 7.0f || impulse > plannedJumpVerticalImpulse + 1.2f)
+				return false;
+			float apex = impulse * impulse / (2f * acceleration);
+			if (apex < plannedJumpMaximumObstacleHeight + 0.10f || apex > 1.15f)
+				return false;
+			// Perform limited swept, full-body samples along the ballistic
+			// trajectory. Reject thin rails and overhead obstructions between
+			// samples, not only collisions at the endpoints.
+			Vector3 previous = transform.position;
+			for (int step = 1; step < 12; ++step)
+			{
+				float t = duration * step / 12f;
+				Vector3 next = transform.position + direction
+					* (plannedJumpHorizontalSpeed * t)
+					+ Vector3.up * (impulse * t - 0.5f * acceleration * t * t);
+				if (!Level.checkSafeIncludingClipVolumes(next)
+					|| !IsPlannedJumpArcClear(previous, next, radius))
+					return false;
+				previous = next;
+			}
+			// The predicted final step terminates at the already checked,
+			// grounded landing; never insert airborne waypoints into A*.
+			plannedJumpLanding = landing;
+			plannedJumpDirection = direction;
+			plannedJumpDestinationSnapshot = currentGoal;
+			plannedJumpStartedAt = Time.time;
+			isPlannedJumping = true;
+			velocity.y = impulse;
+			nextJumpTime = Time.time + Mathf.Max(0.5f, jumpCooldown);
+			// A successful airborne traversal is not a proven walkable floor
+			// edge for the individual's separate learned walking routes.
+			trackingActualJourney = false;
+			actualTravelFootsteps.Clear();
+			suppressJourneyUntil = Time.time + duration + 0.3f;
+			return true;
+		}
+
+		private bool IsPlannedJumpArcClear(Vector3 from, Vector3 to, float radius)
+		{
+			float height = Mathf.Max(characterController.height, radius * 2.2f);
+			Vector3 basePoint = from + Vector3.up * (radius + 0.08f);
+			Vector3 topPoint = from + Vector3.up * (height - radius + 0.04f);
+			Vector3 movement = to - from;
+			float distance = movement.magnitude;
+			if (distance < 0.001f)
+				return true;
+			int hitCount = Physics.CapsuleCastNonAlloc(basePoint, topPoint,
+				radius, movement / distance, plannedJumpArcHitBuffer,
+				distance, obstacleMask, QueryTriggerInteraction.Ignore);
+			if (hitCount >= plannedJumpArcHitBuffer.Length)
+				return false;
+			for (int i = 0; i < hitCount; ++i)
+				if (plannedJumpArcHitBuffer[i].collider != null
+					&& !IsOwnCollider(plannedJumpArcHitBuffer[i].collider))
+					return false;
+			return true;
+		}
+
 		private bool ShouldJumpOverLowObstacle(Vector3 direction)
 		{
 			direction.y = 0f;
