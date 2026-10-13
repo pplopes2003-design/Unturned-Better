@@ -285,10 +285,20 @@ namespace SDG.Unturned
                     tracked.CleanupAt = Time.time + Mathf.Max(1f, deadBodyLifetime);
                 }
 
-                if (Time.time >= tracked.CleanupAt && Provider.isServer)
+                if (Time.time >= tracked.CleanupAt)
                 {
-                    MobileNPCSpawnService.TryDespawnServer(tracked.Instance, out _);
-                    trackedNPCs.RemoveAt(i);
+                    // Do not silently forget a corpse if despawning failed.
+                    // Retaining it allows a future update to retry cleanup.
+                    if (MobileNPCSpawnService.TryDespawnServer(tracked.Instance, out string despawnError))
+                    {
+                        trackedNPCs.RemoveAt(i);
+                    }
+                    else
+                    {
+                        Debug.LogError("[MobileNPCPopulationDirector] Corpse cleanup failed for "
+                            + tracked.Instance.name + ": " + despawnError, this);
+                        tracked.CleanupAt = Time.time + 5f;
+                    }
                 }
             }
         }
