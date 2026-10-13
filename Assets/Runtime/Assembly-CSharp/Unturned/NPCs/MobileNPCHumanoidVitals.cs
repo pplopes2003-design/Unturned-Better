@@ -306,6 +306,9 @@ namespace SDG.Unturned
 			MobileNPCAdaptiveMemory adaptiveMemory = GetComponent<MobileNPCAdaptiveMemory>();
 			if (adaptiveMemory != null)
 				adaptiveMemory.ForgetOnDeathServer();
+			MobileNPCTravelMemory travelMemory = GetComponent<MobileNPCTravelMemory>();
+			if (travelMemory != null)
+				travelMemory.ForgetOnDeathServer();
 			MobileNPCSupplyKnowledge supplyKnowledge = GetComponent<MobileNPCSupplyKnowledge>();
 			if (supplyKnowledge != null)
 				supplyKnowledge.ForgetOnDeathServer();
