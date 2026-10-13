@@ -844,3 +844,6 @@ Checked `Assets/Resources/Characters/NPC_Client.prefab` YAML in the current feat
 - Punch and zombie melee paths are still outside this Gun/Melee work. PlayerInput MOBILE_NPC handler currently restricts usages to Gun and Melee, so punching needs explicit native implementation and validation. CORE-02 not fully finished.
 - Corpse deletion follows population director (30s default), individual replacement queue (60s default); newly spawned individual has no dead-person private knowledge.
 - Update BOTH guides every round; do not do builds until the final user playtest. Next engineering suggested: resolve native punch and zombie→NPC hit adapters, then author rig-safe ragdoll strategy and continue CORE-04 nav.
+
+
+**Final corpse loot refinement:** `92ef3dd8e6331b90a1ba692e4636221995d32e6b` moves corpse world-drop source slightly sideways (0.9m) to keep native ground-probe from striking its own rigidbody capsule. The same real ItemManager hook/region-validation/rollback semantics remain. Game test required near walls, uneven ground, buildings, stacked corpses. `RAG-01` remains OPEN; neither skeletal joints nor actual Unity testing has been completed.
