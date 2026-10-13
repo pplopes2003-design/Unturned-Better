@@ -14,7 +14,7 @@ namespace SDG.Unturned
 	/// Attach to a server-spawned humanoid prefab with a CharacterController and
 	/// MobileNPCBrainDriver. This motor intentionally moves only on the server;
 	/// network replication and client interpolation are a separate integration step.
-	/// It provides collision-aware local movement, not pathfinding around obstacles.
+	/// It follows a complete Unity NavMesh route when one is available, with bounded local routing as fallback.
 	/// </summary>
 	[DisallowMultipleComponent]
 	[RequireComponent(typeof(CharacterController))]
@@ -247,12 +247,37 @@ namespace SDG.Unturned
 			Vector3 destination = hasBrainDestination ? brainDriver.Destination : roamingDestination;
 			if (hasDestination)
 			{
-				if (!hasDetourWaypoint || (destination - detourGoalSnapshot).sqrMagnitude > 9f)
+				// Keep a planned route while its goal remains stable. The previous condition
+				// cleared routeWaypoints whenever hasDetourWaypoint was false, which is also
+				// the normal state for a multi-corner NavMesh/A* route.
+				if ((destination - detourGoalSnapshot).sqrMagnitude > 9f)
 				{
 					hasDetourWaypoint = false;
 					routeWaypoints.Clear();
 					routeWaypointIndex = 0;
 				}
+				else if (routeWaypoints.Count == 0 && !hasDetourWaypoint)
+				{
+					routeWaypointIndex = 0;
+				}
+
+				// Ask for a map-wide path before the NPC gets close enough to collide with
+				// something. This is essential for open-world goals separated by buildings,
+				// fences or terrain; local obstacle probing alone cannot discover such routes.
+				Vector3 globalGoalOffset = destination - transform.position;
+				globalGoalOffset.y = 0f;
+				if (!isUnderwater && useUnityNavMeshWhenAvailable
+					&& routeWaypoints.Count == 0 && !hasDetourWaypoint
+					&& globalGoalOffset.sqrMagnitude > stoppingDistance * stoppingDistance
+					&& Time.time >= nextGlobalRoutePlanTime)
+				{
+					if (TryBuildUnityNavMeshRoute(destination))
+					{
+						detourGoalSnapshot = destination;
+						hasDetourWaypoint = false;
+					}
+				}
+
 				if (routeWaypointIndex < routeWaypoints.Count
 					&& (transform.position - routeWaypoints[routeWaypointIndex]).sqrMagnitude <= 1.0f)
 				{
