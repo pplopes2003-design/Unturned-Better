@@ -686,3 +686,8 @@ No external ML runtime/library is required. Start with auditable, tiny online co
 `LEARN-06` scoped v1 is **QUASE PRONTA — AGUARDANDO BUILD**. This means source-wired, pending final build feedback, NOT tested or closed. `LEARN-07` is NOT INVESTIGATED. `ZMB-01` is IN IMPLEMENTATION; removing the nav=255 cutoff is not proof of full cross-POI pursuit. More CORE-02/03/04 and UI/radio also remain open.
 
 Next recommended P0 work: inspect `Zombie.tick`/native A* route failure and how global zombie ticking handles targets outside loaded navigation mesh; investigate safe bounded fallback with no teleport, no bogus target positions; then re-check mobile NPC hitboxes, death and pathing. Update `MOBILE_NPC_PENDING_TASKS.md` and this handoff after each round, preserving IDs and all tests.
+
+
+### Final static audit addendum — 2026-10-13
+
+Fetched again the modified NPC looting/brain/tactics/supply knowledge/persistence/group and native zombie source. Braces balanced and key integration symbols found; this is **source inspection only**, NOT C# compile or Unity Dev Build testing. Final source cleanup commit `a6e73c82c0300f017fa1226cf4c7b637f8925dc6` normalizes reset of captured loot ID/rounds. Both the permanent backlog and this handoff have been updated. Resume next session with ZMB-01/CORE-04 proper A* chase feasibility beyond navigation regions, and afterwards LEARN-07 semantic POI-type generalization using ACTUAL place/loot metadata. Preserve LEARN-06's source-near-ready status and defer closing until the user's final build feedback.
