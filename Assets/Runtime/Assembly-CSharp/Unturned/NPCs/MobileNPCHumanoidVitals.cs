@@ -242,6 +242,9 @@ namespace SDG.Unturned
 			MobileNPCAdaptiveMemory adaptiveMemory = GetComponent<MobileNPCAdaptiveMemory>();
 			if (adaptiveMemory != null)
 				adaptiveMemory.ForgetOnDeathServer();
+			MobileNPCSupplyKnowledge supplyKnowledge = GetComponent<MobileNPCSupplyKnowledge>();
+			if (supplyKnowledge != null)
+				supplyKnowledge.ForgetOnDeathServer();
 			if (logDamageDiagnostics)
 			{
 				Debug.Log("[MobileNPCHumanoidVitals] Death transition: npc=" + name
