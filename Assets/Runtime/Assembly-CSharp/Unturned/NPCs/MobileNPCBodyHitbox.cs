@@ -20,6 +20,19 @@ namespace SDG.Unturned
 
         public MobileNPCInjurySystem.BodyPart BodyPart => bodyPart;
 
+        private void OnEnable()
+        {
+            // Physics.IgnoreCollision is not persistent across deactivation.
+            // The prefab is assembled while INACTIVE, so its earlier bootstrap
+            // ignore requests may be discarded by Unity. Reapply on each
+            // actually enabled NPC instance; never let anatomical damage
+            // colliders push the movement CharacterController around.
+            Collider ownCollider = GetComponent<Collider>();
+            CharacterController mover = GetComponentInParent<CharacterController>();
+            if (ownCollider != null && mover != null && ownCollider.enabled && mover.enabled)
+                Physics.IgnoreCollision(ownCollider, mover, true);
+        }
+
         /// <summary>
         /// Called when constructing the inactive runtime template. Avoids relying
         /// on prefab-edited components or inaccurate inferred limb from ELimb.
