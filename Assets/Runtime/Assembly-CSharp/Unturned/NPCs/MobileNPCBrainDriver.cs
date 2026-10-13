@@ -450,7 +450,15 @@ namespace SDG.Unturned
 			float[] angles = { -70f, -40f, -20f, 0f, 20f, 40f, 70f };
 			float[] distances = { 4f, 7f, 10f };
 			MobileNPCAdaptiveMemory memory = GetComponent<MobileNPCAdaptiveMemory>();
-			Vector3? lowerConfidenceFallback = null;
+			// Contextual epsilon-greedy cover selection over physically validated
+			// candidates. Individual first-hand/overheard successes influence score;
+			// a small chance to explore prevents permanently avoiding an old failure.
+			const int maxCheckedCoverCandidates = 10;
+			const float explorationProbability = 0.12f;
+			int checkedCoverCandidates = 0;
+			float bestCoverScore = float.NegativeInfinity;
+			Vector3? bestCover = null;
+			Vector3? explorationCover = null;
 			for (int d = 0; d < distances.Length; ++d)
 			{
 				for (int a = 0; a < angles.Length; ++a)
@@ -522,22 +530,32 @@ namespace SDG.Unturned
 					}
 					if (!blockedApproach)
 					{
-						// The corridor is physically checked every time. Previous failed
-						// approaches only reorder which viable cover we attempt, not
-						// manufacture safe positions or override line-of-sight.
+						// No learned preference can turn an obstructed point into cover.
+						// Score only candidates that pass the ground, shielding and
+						// reachability checks above. The distance term limits wandering.
 						float learnedScore = memory != null
 							? memory.GetCoverAccessAdjustment(candidate) : 0f;
-						if (learnedScore < -6f)
+						float distanceCost = (candidate - transform.position).magnitude * 0.5f;
+						float score = learnedScore - distanceCost;
+						if (score > bestCoverScore)
 						{
-							if (!lowerConfidenceFallback.HasValue)
-								lowerConfidenceFallback = candidate;
-							continue;
+							bestCoverScore = score;
+							bestCover = candidate;
 						}
-						return candidate;
+						// Reservoir-sampled exploratory option: no List allocations,
+						// unbiased among the bounded set of verified candidates.
+						++checkedCoverCandidates;
+						if (Random.Range(0, checkedCoverCandidates) == 0)
+							explorationCover = candidate;
+						if (checkedCoverCandidates >= maxCheckedCoverCandidates)
+							break;
 					}
 				}
+				if (checkedCoverCandidates >= maxCheckedCoverCandidates)
+					break;
 			}
-			return lowerConfidenceFallback;
+			return explorationCover.HasValue && Random.value < explorationProbability
+				? explorationCover : bestCover;
 		}
 
 		/// <summary>
