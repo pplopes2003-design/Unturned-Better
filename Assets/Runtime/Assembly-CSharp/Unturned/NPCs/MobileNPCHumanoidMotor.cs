@@ -657,7 +657,8 @@ namespace SDG.Unturned
 
 				Vector3 goalOffset = destination - transform.position;
 				goalOffset.y = 0f;
-				if (!waitingForLearnedAccess && !hasDetourWaypoint
+				if (!waitingForLearnedAccess && !waitingForLadderApproach
+					&& !hasDetourWaypoint
 					&& routeWaypoints.Count == 0
 					&& goalOffset.sqrMagnitude > stoppingDistance * stoppingDistance
 					&& Time.time >= nextDetourAttemptTime
@@ -728,7 +729,8 @@ namespace SDG.Unturned
 			// A suspicious footstep can suspend walking briefly while the survivor
 			// listens. A confirmed threat or retreat pre-empts this immediately.
 			if (brainDriver.IsListening || brainDriver.IsAmbushPreparing
-				|| waitingForDoorToOpen || waitingForLearnedAccess)
+				|| waitingForDoorToOpen || waitingForLearnedAccess
+				|| waitingForLadderApproach)
 				planarDirection = Vector3.zero;
 
 			bool wantedToMove = planarDirection.sqrMagnitude > 0.0001f;
@@ -853,6 +855,7 @@ namespace SDG.Unturned
 				if (!isPlannedJumping && !IsTraversingLadder
 					&& hasDestination && groundedBeforeMove
 					&& !waitingForDoorToOpen && !waitingForLearnedAccess
+					&& !waitingForLadderApproach
 					&& Time.time >= nextJumpTime
 					// Injured legs alter gait speed and invalidate the
 					// precomputed horizontal ballistic distance.
