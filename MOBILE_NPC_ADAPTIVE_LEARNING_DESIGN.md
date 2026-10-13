@@ -55,3 +55,11 @@ A mobile NPC has its own experience component and learns only after server-obser
 - Most strategy memory (learned cover, path selection, zombie tactics, cooperative role changes) is still future work; the first connected slices are loot and gun pacing.
 - A physical hit on a player/zombie does not guarantee armor-adjusted damage. Native kill attribution and XP integration remain separate items in the permanent backlog.
 - The latest unsent lesson can be replaced by a newer event; multiple unspoken lessons queued/persisted remains pending.
+
+
+## 2026-10-13 — Additional learned cover-access behavior
+
+- Commits `1f09857381d10bb1c65ee6eaf756d97f3a6c2d50` and `caf314160cef9e46a32e2e7bc5b3303ad1964b47` add `CoverAccess` contextual records and integrate them into `MobileNPCBrainDriver.TryFindNearbyCoverPoint`.
+- A `SeekCover` destination **actually reported as reached** records success. If the same goal expires before reaching its destination, record failure. The earlier geometry+short corridor validation still runs, and a previously failed sector is deferred behind other valid candidates. If all valid candidates were penalized, the first is retained as fallback rather than freezing the NPC in the open.
+- This is learned **accessibility of a validated cover waypoint**, NOT demonstrated bullet protection, cover selection via complete A*, or enemy-specific tactical success. It does not infer that cover prevents damage merely because a destination was selected. Source-only; no Unity compile or gameplay validation.
+- Future work: distinguish inability to reach a waypoint from other tactical interruptions, and use actual damage avoidance/survival before claiming effective defensive strategy learning.
