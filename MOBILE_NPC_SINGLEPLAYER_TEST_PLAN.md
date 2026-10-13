@@ -276,3 +276,19 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 
 
 - [ ] Verificar drop lateral (~0,9m da origem do cadáver) em terreno plano e ao lado de casa, parede, plataforma, encosta e outros cadáveres: itens pousam em solo apropriado, sem afundar, flutuar, ficar dentro da cápsula ou duplicar (commit `92ef3dd8`).
+
+
+## 21. P0 — Socos desarmados e zumbis golpeando NPCs (a executar somente na última Dev Build)
+
+- [ ] Jogador sem arma dá soco com EPlayerPunch.LEFT/RIGHT em NPC hostil. O raycast cliente acerta o collider Entity 23, a rede envia `MOBILE_NPC` com usage `Punch`, servidor reconfirma primeiro collider dentro de 1,95m/dot >=0,95 e registra apenas UM `ApplyValidatedWeaponImpactServer`. HP deve cair, hitmarker normal ou crítico se `Hit_Head`.
+- [ ] Socar NPC neutral/friendly registra o dano real sem XP de hostil; matar hostil por socos concede XP UMA vez, sem duplicação em hits pós-morte; ragdoll/corpse limpeza dentro do contrato.
+- [ ] Soco ao ar, soco mirando pelas costas, através de parede, a mais de 1,95m, NPC que acabou de morrer, lag desmedido e dois NPCs empilhados: nenhum acerto fabricado. Atingir outro NPC mais próximo pode acontecer somente se realmente for o primeiro collider reconfirmado. Comando com usage falsa deve ser descartado.
+- [ ] Testar host/listen server e pipeline remoto `PlayerInputPacket`: tipo MOBILE_NPC preservado quando existe apenas `RaycastInfo.transform`, e com collider presente. Não regredir soco vanilla contra Player/Zombie/Animal, estruturas ou árvores.
+- [ ] Zumbi comum, sprinter e crawler golpeiam NPC vivo em alcance físico. O dano deve vir do perfil nativo de zombie, só uma vez no frame de impacto, gerar possível sangramento/lesão e memorizar `LastAttacker=Zombie`.
+- [ ] Atrair zumbi para um lado de parede e NPC para outro a curta distância horizontal: LOS `BLOCK_SENTRY` deve bloquear dano, inclusive quina e porta fechada. Colocar player entre NPC e zumbi; conferir prioridade e que o primeiro obstáculo impede dano indevido.
+- [ ] Zumbi perde NPC alvo por morte ou fuga: golpe enfileirado não acerta cadáver nem alvo distante; animações de mordida/ataque existentes ainda são executadas; zumbi não ganha percepção onisciente através de parede.
+- [ ] NPC sem arma ataca NPC inimigo: a verificação de alvo físico `nearestTransform` fornece região correta para `ApplyValidatedWeaponImpactServer`, gasto de cooldown, animação `AttackStarted`, sem ataques a aliados ou HP duplicado.
+- [ ] Testar NPC armados e desarmados contra player/zumbis; as rotas nativas player/zombie de `DamageTool.damagePlayer`/`Zombie.askDamage` devem continuar sem regressão.
+- [ ] Medir logs do servidor de dano e morte, tempo de recarga de golpe, animação, FPS com 20 zumbis + 20 NPCs; verificar que não existe economia infinita de XP por atacar o mesmo cadáver.
+- [ ] Infecção específica por ataque zombie é **pendência**, não foi simulada como consequência fictícia de todo soco. Guardar observação para sistema médico futuro.
+- [ ] Todos estes são testes PLANEJADOS, não executados. Final Unity Dev Build e Player.log serão fornecidos pelo usuário ao fim, e a pendência só será encerrada após feedback positivo.
