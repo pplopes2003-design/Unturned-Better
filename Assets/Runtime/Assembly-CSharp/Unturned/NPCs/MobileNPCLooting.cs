@@ -307,7 +307,7 @@ namespace SDG.Unturned
 			}
 			hasTarget = false;
 			targetInstanceID = 0;
-						targetItemID = 0;
+			targetItemID = 0;
 			targetItemRounds = 0;
 		}
 
