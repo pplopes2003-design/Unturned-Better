@@ -380,6 +380,7 @@ namespace SDG.Unturned
 
 			bool waitingForDoorToOpen = false;
 			bool waitingForLearnedAccess = false;
+			Vector3 jumpRequestedDirection = Vector3.zero;
 			bool hasDestination = hasBrainDestination || hasRoamingDestination;
 			Vector3 destination = hasBrainDestination ? brainDriver.Destination : roamingDestination;
 			if (!hasDestination)
@@ -631,6 +632,7 @@ namespace SDG.Unturned
 				}
 				Vector3 offset = movementDestination - transform.position;
 				offset.y = 0.0f;
+				jumpRequestedDirection = offset;
 				if (offset.sqrMagnitude > stoppingDistance * stoppingDistance)
 				{
 					planarDirection = offset.normalized;
@@ -727,8 +729,10 @@ namespace SDG.Unturned
 				DestinationDistance = hasDestination ? Vector3.Distance(destination, transform.position) : 0f
 			};
 			MobileNPCLocomotionPolicy.Gait gait = locomotionPolicy.Decide(context, Time.time);
-			UpdateCrouchStance((gait == MobileNPCLocomotionPolicy.Gait.Sneak
-				|| brainDriver.IsListening || brainDriver.IsAmbushPreparing) && !isUnderwater);
+			UpdateCrouchStance(!isPlannedJumping
+				&& (gait == MobileNPCLocomotionPolicy.Gait.Sneak
+					|| brainDriver.IsListening || brainDriver.IsAmbushPreparing)
+				&& !isUnderwater);
 			float speed = gait == MobileNPCLocomotionPolicy.Gait.Sprint && runWhenPursuing
 				? runSpeed : gait == MobileNPCLocomotionPolicy.Gait.Sneak ? sneakSpeed : walkSpeed;
 			speed *= injuryMovementMultiplier;
@@ -763,17 +767,46 @@ namespace SDG.Unturned
 				velocity.y = Mathf.Max(-100.0f, velocity.y);
 				motion.y = velocity.y;
 
-				// Jump only when a genuinely low obstacle blocks the walking capsule,
-				// ground is confirmed, and the direction/landing area remain valid.
-				// No bunny hopping while sneaking, badly injured or under cover.
-				if (wantedToMove && groundedBeforeMove && Time.time >= nextJumpTime
-					&& gait != MobileNPCLocomotionPolicy.Gait.Sneak
-					&& injuryMovementMultiplier > 0.5f
-					&& ShouldJumpOverLowObstacle(planarDirection))
+				// Off-mesh low obstacle jump is a deliberately verified ACTION,
+				// not a random vertical impulse every time steering sees a wall.
+				// The route goal remains active and the CharacterController
+				// executes the actual gravity-driven trajectory.
+				if (isPlannedJumping && (!hasDestination
+					|| (destination - plannedJumpDestinationSnapshot).sqrMagnitude > 4f
+					|| Time.time - plannedJumpStartedAt > 1.1f))
 				{
-					velocity.y = Mathf.Max(velocity.y, jumpImpulse);
+					isPlannedJumping = false;
+					suppressJourneyUntil = Time.time + 0.3f;
+				}
+				if (isPlannedJumping && groundedBeforeMove
+					&& Time.time - plannedJumpStartedAt >= 0.16f)
+				{
+					bool actuallyLanded = Vector3.Distance(transform.position,
+						plannedJumpLanding) < 0.65f;
+					isPlannedJumping = false;
+					suppressJourneyUntil = Time.time + 0.3f;
+					if (!actuallyLanded)
+						RememberLocalNavigationDeadEnd(transform.position, destination);
+				}
+				if (!isPlannedJumping && hasDestination && groundedBeforeMove
+					&& !waitingForDoorToOpen && !waitingForLearnedAccess
+					&& Time.time >= nextJumpTime
+					&& injuryMovementMultiplier > 0.5f
+					&& gait != MobileNPCLocomotionPolicy.Gait.Sneak
+					&& !brainDriver.IsListening && !brainDriver.IsAmbushPreparing
+					&& TryBeginPlannedLowJump(jumpRequestedDirection, destination))
+				{
+					wantedToMove = true;
+				}
+				if (isPlannedJumping)
+				{
+					// Deliberately bypass wall-follow and local replanning
+					// during the short already-verified airborne connection.
+					planarDirection = plannedJumpDirection;
+					motion.x = plannedJumpDirection.x * plannedJumpHorizontalSpeed;
+					motion.z = plannedJumpDirection.z * plannedJumpHorizontalSpeed;
 					motion.y = velocity.y;
-					nextJumpTime = Time.time + Mathf.Max(0.5f, jumpCooldown);
+					wantedToMove = true;
 				}
 			}
 
