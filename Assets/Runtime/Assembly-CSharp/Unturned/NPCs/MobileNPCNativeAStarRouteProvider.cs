@@ -79,6 +79,7 @@ namespace SDG.Unturned
 				{
 					CancelPendingRequest();
 					lastPathFailed = true;
+					diagnosticStatus = "request-timeout";
 					nextRequestTime = Time.time + 2.5f;
 				}
 				else if ((goal - requestedGoal).sqrMagnitude <= 9f)
@@ -119,6 +120,7 @@ namespace SDG.Unturned
 				}
 
 				startPathMethod.Invoke(seeker, args);
+				diagnosticStatus = "request-pending";
 				return false;
 			}
 			catch (Exception)
@@ -159,43 +161,50 @@ namespace SDG.Unturned
 				for (int i = 0; i < methods.Length; ++i)
 				{
 					MethodInfo method = methods[i];
-					if (method.Name == "StartPath" && method.GetParameters().Length >= 3)
-					{
-						ParameterInfo[] parameters = method.GetParameters();
-						if (parameters[0].ParameterType == typeof(Vector3)
-							&& parameters[1].ParameterType == typeof(Vector3)
-							&& typeof(Delegate).IsAssignableFrom(parameters[2].ParameterType))
-						{
-							startPathMethod = method;
-							break;
-						}
-					}
-					else if (method.Name == "CancelCurrentPathRequest" && method.GetParameters().Length == 0)
+					ParameterInfo[] parameters = method.GetParameters();
+					if (method.Name == "CancelCurrentPathRequest" && parameters.Length == 0)
 					{
 						cancelPathMethod = method;
+						continue;
 					}
+
+					if (method.Name != "StartPath" || parameters.Length < 3
+						|| parameters[0].ParameterType != typeof(Vector3)
+						|| parameters[1].ParameterType != typeof(Vector3)
+						|| !typeof(Delegate).IsAssignableFrom(parameters[2].ParameterType))
+						continue;
+
+					MethodInfo invoke = parameters[2].ParameterType.GetMethod("Invoke");
+					if (invoke == null || invoke.ReturnType != typeof(void)
+						|| invoke.GetParameters().Length != 1)
+						continue;
+
+					startPathMethod = method;
+					break;
 				}
 
 				if (startPathMethod == null)
+				{
+					diagnosticStatus = "aspfp-seeker-startpath-signature-not-found";
 					return;
+				}
 
 				Type callbackType = startPathMethod.GetParameters()[2].ParameterType;
 				MethodInfo callbackTarget = GetType().GetMethod(
 					nameof(OnNativePathComplete), BindingFlags.Instance | BindingFlags.NonPublic);
-				ParameterInfo[] callbackParameters = callbackType.GetMethod("Invoke").GetParameters();
-				if (callbackParameters.Length != 1)
-					return;
-
 				ParameterExpression callbackArgument = Expression.Parameter(callbackParameters[0].ParameterType, "path");
 				MethodCallExpression callbackBody = Expression.Call(
 					Expression.Constant(this), callbackTarget, Expression.Convert(callbackArgument, typeof(object)));
 				pathCallback = Expression.Lambda(callbackType, callbackBody, callbackArgument).Compile();
+				initialized = true;
+				diagnosticStatus = "ready";
 			}
 			catch (Exception)
 			{
 				seeker = null;
 				startPathMethod = null;
 				pathCallback = null;
+				diagnosticStatus = "aspfp-reflection-initialization-failed";
 			}
 		}
 
