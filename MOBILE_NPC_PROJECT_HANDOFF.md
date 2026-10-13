@@ -561,3 +561,11 @@ User explicitly requests verifying zombie pursuit beyond native regions and limi
 10. Final requested full architecture/behavior decision-tree **diagram ONLY after major systems are structured**, reflecting verified vs untested vs planned behavior.
 
 **Next recommended work:** verify actual native Unturned equipment/channel APIs and runtime zombie region logic from Unity assemblies/sources, not fabricated reflection guesses. Then implement working radio frequency-gated player interception and accurate regional zombie pursuit. Follow up with on-screen subtitles only when physical receiver + channel validated.
+
+
+## 2026-10-13 — New conversation continuation: pickup failure diagnostics
+
+- Recovered this handoff from `feature/npc-ai-foundation` and reviewed the latest radio/zombie-pursuit backlog. Do not confuse the repository default branch `main` with this work branch.
+- Commit `7caa02acd51eab9fe5d12c17f05956bd3516d711`: `MobileNPCLooting.cs` now snapshots the attempted `targetInstanceID` before `ClearTarget()` resets it, so a failed pickup logs the actual attempted item instance rather than zero.
+- Status: committed via GitHub; NOT compiled, NOT Dev-Build tested, NOT runtime-verified. This change improves diagnosis only; it does not itself establish a fix for navigation, pickup transfer, or stalls.
+- Next: validate Unity compile and identify real native radio/equipment/voice channel hooks before claiming radio interception. Retain zombie cross-region/POI pursuit as unimplemented critical backlog. Preserve the full earlier backlog and only advance status after gameplay evidence.
