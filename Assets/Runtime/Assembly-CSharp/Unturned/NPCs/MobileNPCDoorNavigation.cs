@@ -103,6 +103,53 @@ namespace SDG.Unturned
             return true;
         }
 
+        /// <summary>
+        /// Side-effect-free edge classifier for local A*: a CLOSED but unlocked
+        /// native door is potentially traversable after a future physical
+        /// interaction. This method does not open anything or modify the NPC's
+        /// active plan. Fail closed if the edge also intersects a wall, vehicle,
+        /// another door, or if hit buffering is saturated.
+        /// </summary>
+        public bool IsTraversableUnlockedDoorEdgeServer(Vector3 origin, Vector3 direction,
+            float probeRadius, float distance, int collisionMask)
+        {
+            if (!Provider.isServer || !Level.isLoaded || vitals == null || vitals.IsDead
+                || !IsFinite(origin) || !IsFinite(direction)
+                || direction.sqrMagnitude < 0.2f || distance < 0.10f || distance > 2.6f)
+                return false;
+
+            int count = Physics.SphereCastNonAlloc(origin,
+                Mathf.Clamp(probeRadius, 0.05f, 0.35f),
+                direction.normalized, blockingHits, distance, collisionMask,
+                QueryTriggerInteraction.Ignore);
+            if (count <= 0 || count >= blockingHits.Length)
+                return false;
+
+            InteractableDoor onlyDoor = null;
+            bool foundDoor = false;
+            for (int i = 0; i < count; ++i)
+            {
+                Collider hit = blockingHits[i].collider;
+                if (hit == null || hit.transform == transform
+                    || hit.transform.IsChildOf(transform))
+                    continue;
+
+                InteractableDoor door = hit.GetComponentInParent<InteractableDoor>();
+                if (door == null || !door.isActiveAndEnabled
+                    || door.IsChildOfVehicle
+                    || door.IsLockedForMobileNPCNavigation
+                    || !Level.checkSafeIncludingClipVolumes(door.transform.position))
+                    return false;
+
+                // Every real hit must belong to the SAME single door.
+                if (onlyDoor != null && onlyDoor != door)
+                    return false;
+                onlyDoor = door;
+                foundDoor = true;
+            }
+            return foundDoor;
+        }
+
         private static bool IsFinite(Vector3 v)
         {
             return !float.IsNaN(v.x) && !float.IsInfinity(v.x)
