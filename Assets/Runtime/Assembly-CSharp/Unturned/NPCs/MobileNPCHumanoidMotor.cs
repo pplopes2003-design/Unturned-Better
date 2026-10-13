@@ -131,6 +131,7 @@ namespace SDG.Unturned
 			= new List<int>(MobileNPCTravelMemory.MaxAccessChainRoutes);
 		private readonly List<int> activeAccessWaypointStarts
 			= new List<int>(MobileNPCTravelMemory.MaxAccessChainRoutes);
+		private int activeAccessFinalWaypointIndex = -1;
 		private readonly float[] knownAccessEntryRetryUntil = new float[8];
 		private int pendingKnownAccessEntryRouteId = -1;
 		private readonly List<Vector3> learnedAccessApproach = new List<Vector3>(32);
@@ -147,6 +148,7 @@ namespace SDG.Unturned
 		private int learnedContinuationStartWaypointIndex = -1;
 			activeAccessRouteIds.Clear();
 			activeAccessWaypointStarts.Clear();
+			activeAccessFinalWaypointIndex = -1;
 		private float nextRememberedRouteAttemptTime;
 		private readonly List<RegionCoordinate> explorationRegions = new List<RegionCoordinate>(16);
 		private readonly List<LevelObject> explorationObjects = new List<LevelObject>(64);
@@ -250,6 +252,7 @@ namespace SDG.Unturned
 			learnedContinuationStartWaypointIndex = -1;
 			activeAccessRouteIds.Clear();
 			activeAccessWaypointStarts.Clear();
+			activeAccessFinalWaypointIndex = -1;
 			nextRememberedRouteAttemptTime = 0f;
 			nextKnownAccessPlanTime = 0f;
 			hasPendingKnownAccessPath = false;
@@ -357,6 +360,7 @@ namespace SDG.Unturned
 				learnedContinuationStartWaypointIndex = -1;
 			activeAccessRouteIds.Clear();
 			activeAccessWaypointStarts.Clear();
+			activeAccessFinalWaypointIndex = -1;
 				hasPendingKnownAccessPath = false;
 				// Completed/expired goals must not leave the previous route waiting to
 				// steer the next unrelated investigation or roaming destination.
@@ -383,6 +387,7 @@ namespace SDG.Unturned
 					learnedContinuationStartWaypointIndex = -1;
 			activeAccessRouteIds.Clear();
 			activeAccessWaypointStarts.Clear();
+			activeAccessFinalWaypointIndex = -1;
 					hasPendingKnownAccessPath = false;
 				}
 				else if (routeWaypoints.Count == 0 && !hasDetourWaypoint)
@@ -465,6 +470,8 @@ namespace SDG.Unturned
 				// checked segment to the following waypoint is traversable.
 				// This never skips the final brain goal or a door/steep stair.
 				if (!isUnderwater && routeWaypointIndex + 1 < routeWaypoints.Count
+					&& activeAccessRouteIds.Count == 0
+					&& activeRememberedRouteIndex < 0
 					&& Time.time >= nextRouteCornerShortcutTime)
 				{
 					nextRouteCornerShortcutTime = Time.time + 0.35f;
@@ -492,6 +499,7 @@ namespace SDG.Unturned
 						learnedContinuationStartWaypointIndex = -1;
 			activeAccessRouteIds.Clear();
 			activeAccessWaypointStarts.Clear();
+			activeAccessFinalWaypointIndex = -1;
 						hasDetourWaypoint = false;
 						nextDetourAttemptTime = Time.time + 0.35f;
 					}
@@ -948,6 +956,7 @@ namespace SDG.Unturned
 			learnedContinuationStartWaypointIndex = -1;
 			activeAccessRouteIds.Clear();
 			activeAccessWaypointStarts.Clear();
+			activeAccessFinalWaypointIndex = -1;
 			hasRoamingDestination = false;
 			hasDetourWaypoint = false;
 			routeWaypoints.Clear();
@@ -1523,6 +1532,7 @@ namespace SDG.Unturned
 					learnedContinuationStartWaypointIndex = -1;
 			activeAccessRouteIds.Clear();
 			activeAccessWaypointStarts.Clear();
+			activeAccessFinalWaypointIndex = -1;
 				}
 				trackingActualJourney = false;
 				actualTravelFootsteps.Clear();
@@ -1590,13 +1600,32 @@ namespace SDG.Unturned
 			learnedContinuationStartWaypointIndex = -1;
 			activeAccessRouteIds.Clear();
 			activeAccessWaypointStarts.Clear();
+			activeAccessFinalWaypointIndex = -1;
 			nextPlannedRouteValidationTime = 0f;
 			return routeWaypoints.Count > 0;
 		}
 
 		private void ReportLearnedRouteInvalidatedServer()
 		{
-			if (travelMemory != null)
+			if (travelMemory != null && activeAccessRouteIds.Count > 0)
+			{
+				int entry = activeAccessRouteIds[0];
+				if (entry >= 0 && entry < knownAccessEntryRetryUntil.Length)
+					knownAccessEntryRetryUntil[entry] = Time.time + 5f;
+				// A newly computed approach or the last unobserved link to a
+				// changed brain goal must not penalize a completed old journey.
+				if (routeWaypointIndex >= activeAccessWaypointStarts[0]
+					&& (activeAccessFinalWaypointIndex < 0
+						|| routeWaypointIndex < activeAccessFinalWaypointIndex))
+				{
+					int stage = 0;
+					for (int i = 1; i < activeAccessWaypointStarts.Count; ++i)
+						if (routeWaypointIndex >= activeAccessWaypointStarts[i])
+							stage = i;
+					travelMemory.ReportReuseFailureServer(activeAccessRouteIds[stage]);
+				}
+			}
+			else if (travelMemory != null)
 			{
 				bool directRoute = learnedStairStartWaypointIndex < 0;
 				bool onStair = !directRoute
@@ -1610,8 +1639,6 @@ namespace SDG.Unturned
 				if (activeContinuationRouteIndex >= 0 && onContinuation
 					&& activeContinuationRouteIndex != activeRememberedRouteIndex)
 					travelMemory.ReportReuseFailureServer(activeContinuationRouteIndex);
-				// Blocking a newly computed approach is not proof that the learned
-				// stair or later corridor has stopped working.
 			}
 			activeRememberedRouteIndex = -1;
 			activeContinuationRouteIndex = -1;
@@ -1619,6 +1646,7 @@ namespace SDG.Unturned
 			learnedContinuationStartWaypointIndex = -1;
 			activeAccessRouteIds.Clear();
 			activeAccessWaypointStarts.Clear();
+			activeAccessFinalWaypointIndex = -1;
 		}
 
 		/// <summary>
@@ -1790,6 +1818,7 @@ namespace SDG.Unturned
 					routeWaypoints.Add(learnedAccessApproach[i]);
 			activeAccessRouteIds.Clear();
 			activeAccessWaypointStarts.Clear();
+			activeAccessFinalWaypointIndex = -1;
 			for (int s = 0; s < learnedAccessRouteIds.Count; ++s)
 			{
 				int first = learnedAccessStageStarts[s];
@@ -1807,12 +1836,14 @@ namespace SDG.Unturned
 					activeAccessWaypointStarts.Add(stageWaypointStart);
 				}
 			}
+			activeAccessFinalWaypointIndex = routeWaypoints.Count;
 			if (finalDistance > 0.55f)
 				routeWaypoints.Add(destination);
 			if (routeWaypoints.Count < 1)
 			{
 				activeAccessRouteIds.Clear();
 				activeAccessWaypointStarts.Clear();
+			activeAccessFinalWaypointIndex = -1;
 				return false;
 			}
 			routeWaypointIndex = 0;
