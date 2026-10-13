@@ -161,13 +161,27 @@ namespace SDG.Unturned
 			if (offset.sqrMagnitude < 0.01f)
 				return true;
 
-			if (!Physics.Raycast(origin, offset.normalized, out RaycastHit hit, offset.magnitude,
-				lineOfFireMask, QueryTriggerInteraction.Ignore))
+			// Ignore our own hitbox and resolve the first external obstacle.
+			// A single Physics.Raycast can otherwise misclassify our own collider
+			// as blocked line of fire and force endless flanking.
+			RaycastHit[] hits = Physics.RaycastAll(origin, offset.normalized, offset.magnitude,
+				lineOfFireMask, QueryTriggerInteraction.Ignore);
+			float nearestDistance = float.PositiveInfinity;
+			Transform nearest = null;
+			for (int i = 0; i < hits.Length; ++i)
+			{
+				Transform hitTransform = hits[i].transform;
+				if (hitTransform == null || hitTransform == transform || hitTransform.IsChildOf(transform))
+					continue;
+				if (hits[i].distance < nearestDistance)
+				{
+					nearestDistance = hits[i].distance;
+					nearest = hitTransform;
+				}
+			}
+			if (nearest == null)
 				return true;
-
-			Transform hitTransform = hit.transform;
-			return hitTransform == target || target.IsChildOf(hitTransform)
-				|| hitTransform.IsChildOf(target);
+			return nearest == target || target.IsChildOf(nearest) || nearest.IsChildOf(target);
 		}
 
 		private void TryChooseFlank(Transform target, bool targetVisible)
