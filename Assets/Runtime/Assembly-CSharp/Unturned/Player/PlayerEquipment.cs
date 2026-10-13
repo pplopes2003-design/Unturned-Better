@@ -2152,7 +2152,17 @@ namespace SDG.Unturned
 				Ray ray = new Ray(player.look.aim.position, player.look.aim.forward);
 				RaycastInfo info = DamageTool.raycast(ray, 1.75f, RayMasks.DAMAGE_CLIENT, ignorePlayer: player);
 
-				if (info.player != null && DAMAGE_PLAYER_MULTIPLIER.damage > 1 && DamageTool.isPlayerAllowedToDamagePlayer(player, info.player))
+				Transform punchedTransform = info.collider != null ? info.collider.transform : info.transform;
+				MobileNPCHumanoidVitals punchedNPC = punchedTransform != null
+					? punchedTransform.GetComponentInParent<MobileNPCHumanoidVitals>() : null;
+				if (punchedNPC != null && !punchedNPC.IsDead && DAMAGE_PLAYER_MULTIPLIER.damage > 1f)
+				{
+					bool struckHead = punchedNPC.ResolveBodyPartAtWorldPoint(info.point, punchedTransform)
+						== MobileNPCInjurySystem.BodyPart.Head;
+					PlayerUI.hitmark(info.point, false,
+						struckHead ? EPlayerHit.CRITICAL : EPlayerHit.ENTITIY);
+				}
+				else if (info.player != null && DAMAGE_PLAYER_MULTIPLIER.damage > 1 && DamageTool.isPlayerAllowedToDamagePlayer(player, info.player))
 				{
 					PlayerUI.hitmark(info.point, false, info.limb == ELimb.SKULL ? EPlayerHit.CRITICAL : EPlayerHit.ENTITIY);
 				}
@@ -2281,7 +2291,34 @@ namespace SDG.Unturned
 				float times = 1;
 				times *= 1f + (channel.owner.player.skills.mastery((int) EPlayerSpeciality.OFFENSE, (int) EPlayerOffense.OVERKILL) * 0.5f);
 
-				if (info.type == ERaycastInfoType.PLAYER)
+				if (info.type == ERaycastInfoType.MOBILE_NPC)
+				{
+					// This input has already been validated against the FIRST
+					// physical hit by PlayerInput.getInput, including range,
+					// facing and real server collider. No extra fake entity.
+					lastPunching = Time.realtimeSinceStartup;
+					Transform hitTransform = info.colliderTransform != null
+						? info.colliderTransform : info.transform;
+					MobileNPCHumanoidVitals targetVitals = hitTransform != null
+						? hitTransform.GetComponentInParent<MobileNPCHumanoidVitals>() : null;
+					if (targetVitals != null && !targetVitals.IsDead)
+					{
+						bool headHit = targetVitals.ResolveBodyPartAtWorldPoint(info.point, hitTransform)
+							== MobileNPCInjurySystem.BodyPart.Head;
+						float punchDamage = DAMAGE_PLAYER_MULTIPLIER.damage
+							* (headHit ? 1.1f : 0.65f) * times;
+						if (player.input.IsUnderFakeLagPenalty)
+							punchDamage *= Provider.configData.Server.Fake_Lag_Damage_Penalty_Multiplier;
+						if (!float.IsNaN(punchDamage) && !float.IsInfinity(punchDamage)
+							&& punchDamage > 0f)
+						{
+							targetVitals.ApplyValidatedWeaponImpactServer(
+								punchDamage, info.point, info.direction,
+								player.transform, false, hitTransform);
+						}
+					}
+				}
+				else if (info.type == ERaycastInfoType.PLAYER)
 				{
 					lastPunching = Time.realtimeSinceStartup;
 
