@@ -64,6 +64,10 @@ namespace SDG.Unturned
 		private const int RouteGridCenter = RouteGridSide / 2;
 		private const float RouteGridCellSize = 1.25f;
 		private const int RouteGridNodeLimit = RouteGridSide * RouteGridSide;
+		// Vertical search is invoked only for nearby destinations on different
+		// elevations. Two independently sampled walkable surfaces per XZ cell;
+		// ordinary ground and the floor above cannot become one fake node.
+		private const int VerticalNodeLimit = RouteGridNodeLimit * 2;
 		private static readonly Vector2Int[] RouteGridDirections =
 		{
 			new Vector2Int(1, 0), new Vector2Int(-1, 0),
@@ -125,9 +129,17 @@ namespace SDG.Unturned
 		private readonly byte[] routeSearchExposure = new byte[RouteGridNodeLimit];
 		private readonly List<Vector3> reversedRouteScratch = new List<Vector3>(RouteGridSide);
 		private readonly List<Vector3> coverRouteScratch = new List<Vector3>(RouteGridSide);
+		private readonly Vector3[] verticalPositions = new Vector3[VerticalNodeLimit];
+		private readonly bool[] verticalWalkable = new bool[VerticalNodeLimit];
+		private readonly float[] verticalCost = new float[VerticalNodeLimit];
+		private readonly int[] verticalPrevious = new int[VerticalNodeLimit];
+		private readonly bool[] verticalClosed = new bool[VerticalNodeLimit];
+		private readonly RaycastHit[] verticalFloorHitBuffer = new RaycastHit[24];
+		private readonly List<Vector3> verticalReverseScratch = new List<Vector3>(VerticalNodeLimit);
 		private int routeWaypointIndex;
 		private float nextRoutePlanTime;
 		private float nextLocalRoutePlanTime;
+		private float nextVerticalRoutePlanTime;
 		private float nextPlannedRouteValidationTime;
 		private float nextRouteCornerShortcutTime;
 		private Vector3 lastRoamingDirection;
@@ -192,6 +204,7 @@ namespace SDG.Unturned
 			locomotionPolicy.Reset();
 			nextJumpTime = 0f;
 			nextLocalRoutePlanTime = 0f;
+			nextVerticalRoutePlanTime = 0f;
 			nextPlannedRouteValidationTime = 0f;
 			nextRouteCornerShortcutTime = 0f;
 			brainDriver.InitializeServer(spawnPosition);
@@ -299,7 +312,8 @@ namespace SDG.Unturned
 				// Keep a planned route while its goal remains stable. The previous condition
 				// cleared routeWaypoints whenever hasDetourWaypoint was false, which is also
 				// the normal state for a multi-corner native A* route.
-				if (PlanarDistanceSquared(destination, detourGoalSnapshot) > 2.25f)
+				if (PlanarDistanceSquared(destination, detourGoalSnapshot) > 2.25f
+					|| Mathf.Abs(destination.y - detourGoalSnapshot.y) > 0.8f)
 				{
 					hasDetourWaypoint = false;
 					routeWaypoints.Clear();
@@ -322,6 +336,21 @@ namespace SDG.Unturned
 					nextRoutePlanTime = Time.time + 0.75f;
 					if (nativeAStarRouteProvider != null && nativeAStarRouteProvider.IsAvailable
 						&& TryBuildNativeAStarRoute(destination))
+					{
+						detourGoalSnapshot = destination;
+						hasDetourWaypoint = false;
+					}
+				}
+				// A separate, bounded two-surface-per-cell local search can
+				// discover REAL stairs between nearby floors. Never infer a
+				// vertical shortcut merely from identical X/Z coordinates.
+				if (!isUnderwater && routeWaypoints.Count == 0 && !hasDetourWaypoint
+					&& Mathf.Abs(destination.y - transform.position.y) > 1.0f
+					&& PlanarDistanceSquared(destination, transform.position) <= 30f
+					&& Time.time >= nextVerticalRoutePlanTime)
+				{
+					nextVerticalRoutePlanTime = Time.time + 2.5f;
+					if (TryBuildNearbyVerticalRoute(destination))
 					{
 						detourGoalSnapshot = destination;
 						hasDetourWaypoint = false;
