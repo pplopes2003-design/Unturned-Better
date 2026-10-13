@@ -225,25 +225,24 @@ namespace SDG.Unturned
 			if (disableCombatOnDeath)
 			{
 				if (combat != null)
-				{
 					combat.enabled = false;
-				}
 				if (rangedCombat != null)
-				{
 					rangedCombat.enabled = false;
-				}
 				if (perception != null)
-				{
 					perception.enabled = false;
-				}
 				if (aim != null)
-				{
 					aim.enabled = false;
-				}
 				if (characterController != null)
-				{
 					characterController.enabled = false;
-				}
+
+				// These server-side behaviors can still run after the brain is stopped.
+				// Explicitly end item acquisition, healing, survival ticking and construction
+				// so the corpse cannot resume work or mutate inventory/world state.
+				DisableOnDeath<MobileNPCLooting>();
+				DisableOnDeath<MobileNPCMedicalUse>();
+				DisableOnDeath<MobileNPCSurvivalNeeds>();
+				DisableOnDeath<MobileNPCSettlementPlanner>();
+				DisableOnDeath<MobileNPCSettlementBuilder>();
 			}
 			// NPCs are local single-player entities, not native Player/Zombie instances.
 			// Activate the physical ragdoll already authored in NPC_Client instead of
@@ -258,6 +257,13 @@ namespace SDG.Unturned
 			}
 			Died?.Invoke();
 		}
+		private void DisableOnDeath<T>() where T : Behaviour
+		{
+			T component = GetComponent<T>();
+			if (component != null)
+				component.enabled = false;
+		}
+
 		private void ActivateAuthoredRagdoll(Vector3 hitImpulse)
 		{
 			Transform visualRoot = transform.Find("HumanoidVisual");
