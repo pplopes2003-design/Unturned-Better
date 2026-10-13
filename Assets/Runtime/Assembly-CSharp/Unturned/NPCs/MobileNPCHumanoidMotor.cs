@@ -868,7 +868,17 @@ namespace SDG.Unturned
 				// Ladder is a verified native interaction surface. The motor
 				// alone performs movement; never teleport or disable collision.
 				motion = ladderTraversal.GetMotionServer(destination, deltaTime);
-				velocity.y = 0f;
+				if (ladderTraversal.IsClimbing)
+				{
+					// Actual rung movement, not a ground walk: suppress gravity.
+					velocity.y = 0f;
+				}
+				else
+				{
+					// The short physical APPROACH still obeys gravity and the
+					// ordinary ground collision of CharacterController.Move.
+					motion.y = velocity.y;
+				}
 				wantedToMove = motion.sqrMagnitude > 0.0001f;
 			}
 			Vector3 positionBeforeMovement = transform.position;
