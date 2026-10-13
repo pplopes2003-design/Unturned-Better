@@ -2032,8 +2032,14 @@ namespace SDG.Unturned
 						if (Provider.isServer && !mobileNPCVitals.IsDead)
 						{
 							float mobileNPCDamage = equippedGunAsset.zombieOrPlayerDamageMultiplier.multiply(info.limb) * times;
-							mobileNPCVitals.ApplyDamage(Mathf.Max(1f, mobileNPCDamage),
-								info.direction * Mathf.Max(1f, mobileNPCDamage), player.transform);
+							// Do not turn a zero/negative damage multiplier into a magical
+							// 1 HP hit. Vitals remains the sole authoritative damage owner.
+							if (!float.IsNaN(mobileNPCDamage) && !float.IsInfinity(mobileNPCDamage)
+								&& mobileNPCDamage > 0f)
+							{
+								mobileNPCVitals.ApplyDamage(mobileNPCDamage,
+									info.direction * mobileNPCDamage, player.transform);
+							}
 						}
 					}
 					else if (info.type == ERaycastInfoType.PLAYER)
