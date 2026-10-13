@@ -267,6 +267,15 @@ namespace SDG.Unturned
 			}
 
 			CharacterController controller = spawned.GetComponent<CharacterController>();
+			// Unity can reset IgnoreCollision pairs when an inactive template is
+			// activated. Apply the hitbox/controller exclusion to the live clone.
+			Transform hitboxRoot = spawned.transform.Find("MobileNPCHitbox");
+			if (controller != null && hitboxRoot != null)
+			{
+				Collider hitboxCollider = hitboxRoot.GetComponent<Collider>();
+				if (hitboxCollider != null)
+					Physics.IgnoreCollision(controller, hitboxCollider, true);
+			}
 			// Zombie.tick() performs a one-time downward CharacterController.Move after
 			// spawning so the capsule resolves against Unturned's Agent/world collision.
 			// Do this before capturing the motor's home/spawn position.
