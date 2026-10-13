@@ -158,6 +158,22 @@ namespace SDG.Unturned
 			}
 		}
 
+		/// <summary>
+		/// Accept a search hypothesis from the sensory memory advisor, never a live
+		/// player Transform. Preserve the original investigation expiration time.
+		/// </summary>
+		public bool TrySetInvestigationHint(Vector3 point, float now)
+		{
+			if (state != State.Investigating || now >= investigationDeadline
+				|| float.IsNaN(point.x) || float.IsNaN(point.y) || float.IsNaN(point.z)
+				|| float.IsInfinity(point.x) || float.IsInfinity(point.y) || float.IsInfinity(point.z))
+				return false;
+
+			destination = point;
+			hasDestination = true;
+			return true;
+		}
+
 		/// <summary>Called by the locomotion layer after it confirms arrival.</summary>
 		public void ReportDestinationReached()
 		{
