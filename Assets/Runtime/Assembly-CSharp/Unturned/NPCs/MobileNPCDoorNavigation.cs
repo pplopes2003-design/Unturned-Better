@@ -165,7 +165,7 @@ namespace SDG.Unturned
                 onlyDoor = door;
                 foundDoor = true;
             }
-            return foundDoor;
+            return foundDoor && IsRegisteredNativeDoor(onlyDoor);
         }
 
         /// <summary>
@@ -204,7 +204,18 @@ namespace SDG.Unturned
                 onlyDoor = door;
                 sawDoor = true;
             }
-            return sawDoor;
+            return sawDoor && IsRegisteredNativeDoor(onlyDoor);
+        }
+
+        private static bool IsRegisteredNativeDoor(InteractableDoor door)
+        {
+            // Local A* must not plan through a loose/stale scene object which
+            // cannot actually be opened through native server state.
+            return door != null
+                && BarricadeManager.tryGetRegion(door.transform,
+                    out byte x, out byte y, out ushort plant, out BarricadeRegion region)
+                && region != null
+                && region.FindBarricadeByRootFast(door.transform) != null;
         }
 
         private static bool IsFinite(Vector3 v)
