@@ -245,9 +245,11 @@ namespace SDG.Unturned
 					characterController.enabled = false;
 				}
 			}
-			// Do not fake a native death/ragdoll by rotating the Transform locally.
-			// The host presentation/replication adapter must consume this event and
-			// play a supported animation or native-compatible death presentation.
+			// NPCs are local single-player entities, not native Player/Zombie instances.
+			// Activate the physical ragdoll already authored in NPC_Client instead of
+			// calling PlayerLife/RagdollTool with an incompatible entity or leaving the
+			// humanoid animation standing over a zero-health state.
+			ActivateAuthoredRagdoll(hitImpulse);
 			DeathPresentationRequested?.Invoke(transform.position, transform.rotation, hitImpulse);
 			// Remove dead agents from active AI enumeration after publishing the final reset.
 			if (brainDriver != null)
@@ -256,5 +258,83 @@ namespace SDG.Unturned
 			}
 			Died?.Invoke();
 		}
+		private void ActivateAuthoredRagdoll(Vector3 hitImpulse)
+		{
+			Transform visualRoot = transform.Find("HumanoidVisual");
+			if (visualRoot == null)
+			{
+				Debug.LogError("[MobileNPCHumanoidVitals] Death presentation failed: HumanoidVisual root is missing.", this);
+				return;
+			}
+
+			// Stop all animation writers before releasing the authored bone rigidbodies.
+			Animation[] animations = visualRoot.GetComponentsInChildren<Animation>(true);
+			for (int i = 0; i < animations.Length; ++i)
+			{
+				if (animations[i] != null)
+					animations[i].enabled = false;
+			}
+			Animator[] animators = visualRoot.GetComponentsInChildren<Animator>(true);
+			for (int i = 0; i < animators.Length; ++i)
+			{
+				if (animators[i] != null)
+					animators[i].enabled = false;
+			}
+
+			Collider[] colliders = visualRoot.GetComponentsInChildren<Collider>(true);
+			int enabledColliders = 0;
+			for (int i = 0; i < colliders.Length; ++i)
+			{
+				Collider bodyCollider = colliders[i];
+				if (bodyCollider == null || bodyCollider.isTrigger)
+					continue;
+				bodyCollider.enabled = true;
+				++enabledColliders;
+			}
+
+			Rigidbody[] bodies = visualRoot.GetComponentsInChildren<Rigidbody>(true);
+			int releasedBodies = 0;
+			Rigidbody impulseBody = null;
+			float nearestSqrDistance = float.PositiveInfinity;
+			Vector3 hitPoint = transform.position;
+			if (hitImpulse.sqrMagnitude > 0.0001f)
+			{
+				// The hit impulse carries direction/magnitude, not a hit point. Use the
+				// nearest authored body to the NPC root as a stable fallback application point.
+				hitPoint = visualRoot.position;
+			}
+			for (int i = 0; i < bodies.Length; ++i)
+			{
+				Rigidbody body = bodies[i];
+				if (body == null)
+					continue;
+				body.detectCollisions = true;
+				body.isKinematic = false;
+				body.WakeUp();
+				++releasedBodies;
+				float sqrDistance = (body.worldCenterOfMass - hitPoint).sqrMagnitude;
+				if (sqrDistance < nearestSqrDistance)
+				{
+					nearestSqrDistance = sqrDistance;
+					impulseBody = body;
+				}
+			}
+
+			if (impulseBody != null && hitImpulse.sqrMagnitude > 0.0001f)
+				impulseBody.AddForce(hitImpulse, ForceMode.Impulse);
+
+			if (releasedBodies == 0 || enabledColliders == 0)
+			{
+				Debug.LogError("[MobileNPCHumanoidVitals] NPC_Client death ragdoll is incomplete: released rigidbodies="
+					+ releasedBodies + ", enabled colliders=" + enabledColliders
+					+ ". Check the NPC_Client prefab's authored ragdoll hierarchy.", this);
+			}
+			else
+			{
+				Debug.Log("[MobileNPCHumanoidVitals] Death ragdoll activated: rigidbodies="
+					+ releasedBodies + ", colliders=" + enabledColliders + ".", this);
+			}
+		}
+
 	}
 }
