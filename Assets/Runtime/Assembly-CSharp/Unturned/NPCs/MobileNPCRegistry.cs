@@ -108,8 +108,20 @@ namespace SDG.Unturned
 					continue;
 
 				// Structures attenuate rather than magically deleting every sound.
-				bool occluded = Physics.Linecast(ear, sound, RayMasks.BLOCK_COLLISION,
-					QueryTriggerInteraction.Ignore);
+				bool occluded = false;
+				RaycastHit[] obstructions = Physics.RaycastAll(ear, offset / distance,
+					distance, RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+				for (int h = 0; h < obstructions.Length; ++h)
+				{
+					Collider collider = obstructions[h].collider;
+					if (collider == null || collider.transform == driver.transform
+						|| collider.transform.IsChildOf(driver.transform)
+						|| collider.GetComponentInParent<Player>() != null
+						|| collider.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
+						continue;
+					occluded = true;
+					break;
+				}
 				float audibleRadius = radius * (occluded ? 0.4f : 1f);
 				if (distance > audibleRadius)
 					continue;
