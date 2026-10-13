@@ -309,3 +309,19 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 - [ ] Outro tipo de tarefa (looting, medicina, retirada crítica, seguir colega, investigar som): mudanças na conclusão de waypoint **não** podem marcar destino prematuramente; falha em cobertura não deve cancelá-las.
 - [ ] Estresse com 20–40 NPCs móveis + zumbis em duas POIs, incluindo cadeiras, mesas, escadas, pontes, portas, veículo, água e quina externa: medir FPS/GC/logs de stuck e observar buffer de raycasts.
 - [ ] Anotar mapa, build, obstáculo e posições iniciais, status A* nativo, quantidade de NPCs, log do console e `Player.log` quando usuário compilar no final; até lá manter `CORE-04` aberta.
+
+
+## 23. Shooter-inspired urban combat routing — CORE-04 / AI-03 (FINAL BUILD ONLY; NOT EXECUTED)
+
+- [ ] Enemy firing from exposed courtyard; NPC seeks cover with two physically valid paths: short fully exposed vs slightly longer route sheltered by concrete wall. Under **real visual contact**, local A* may pick safer slightly longer route (+1.45 exposed link cost), obeying collision, exact target point and stop distance. Confirm it still reaches the chosen cover rather than standing in the open.
+- [ ] Repeat when player leaves sight: route cost should **not** use current live `Player.transform` to infer a hidden moving player's location. No sixth sense; only cached/learned clues when explicitly shared.
+- [ ] No combat/normal roaming/looting: tactical route exposure penalty **does not apply**. Path shortest viable with physical collision. Verify threats >40m away don't cause expensive tactical ray queries.
+- [ ] Exposed node versus world-shielded node: characters (Player, NPC, Zombie) are not considered solid durable cover. Static building walls protect according to actual RayMasks.BLOCK_COLLISION; no fake protection just because friendly walks past ray.
+- [ ] 81-node grid local route triggers at most 24 supplemental threat-visibility raycasts, plus existing occupancy and physical edge probes. Test 1, 4, 20, 40 NPCs under simultaneous fire with Unity Profiler, ray counts, frame time, GC and log volume.
+- [ ] Native/local planned path with a redundant near corner: NPC can look past the next waypoint only if 4m or less direct corridor is clear AND each intermediate ground sample valid; no cutting through house wall, locked door, multiple floors, cliffs, broken bridges or roof.
+- [ ] Candidate hard cover behind a wall reached through a genuine side doorway/corridor within ~6m: direct line from NPC to cover is blocked, but `CanReachNearbyCoverServer` 9x9 A* finds exact physically accessible cell; after choice NPC walks through passage to cover (never teleports).
+- [ ] Similar hard cover completely walled off: local A* may have nearby partial cells but **must reject** candidate when actual destination is not reachable. After 4 repeated failed movements, existing tactical failure feedback / short cover avoidance applies, no infinite side-to-side ping-pong.
+- [ ] Brain checks at most 3 expensive indirect-cover route queries per defensive evaluation. Rejected cover does not mutate current route or cancel old movement state. Check `coverRouteScratch` and `routeWaypoints` are independent.
+- [ ] Moving zombies or 4 NPC allies momentarily block a doorway: do not trash a valid global route or walk through living people, no precision perfect navigation; use bounded local collision.
+- [ ] Compare outdoors/indoors on at least two maps (stock + custom) with ASPFP optional backend present/absent. Stairs, opening a door, breaching obstacles, multiple rooms, congestion and full global integration remain open under CORE-04.
+- [ ] Retain CORE-04 EM IMPLEMENTAÇÃO, AI-03/LEARN-05/PERF-01 open until user's final Dev Build/Player.log plus measured physical behavior; record any collision masks, compile errors or frame-rate regressions.
