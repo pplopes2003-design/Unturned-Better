@@ -362,6 +362,29 @@ namespace SDG.Unturned
 			}
 		}
 
+		/// <summary>
+		/// Resolve the CURRENT role/faction of a group only while at least one
+		/// live individual remains. A replacement never revives a dissolved group
+		/// or inherits any deceased individual's inventory, identity or memories.
+		/// </summary>
+		public static bool TryGetSurvivingGroupIdentityServer(int groupId,
+			out MobileNPCHumanoidDisposition.Role role, out MobileNPCFaction.Id faction)
+		{
+			role = MobileNPCHumanoidDisposition.Role.Neutral;
+			faction = MobileNPCFaction.Id.Unaffiliated;
+			if (!Provider.isServer || groupId <= 0
+				|| !groups.TryGetValue(groupId, out GroupRecord group))
+				return false;
+
+			PruneDeadMembers(group);
+			if (group.Members.Count == 0 || group.Members.Count >= MaximumGroupSize)
+				return false;
+
+			role = group.Role;
+			faction = group.Faction;
+			return true;
+		}
+
 		private static GroupRecord FindNearestGroup(Vector3 position, MobileNPCHumanoidDisposition.Role role, MobileNPCFaction.Id faction)
 		{
 			GroupRecord nearest = null;
