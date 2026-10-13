@@ -59,13 +59,31 @@ namespace SDG.Unturned
 				return;
 			}
 
+			if (hasTarget && driver.CurrentGoal != MobileNPCTactics.Goal.Loot)
+			{
+				// The tactical goal can expire before the item disappears (for example,
+				// when a table or curb blocks the final approach). Do not keep returning
+				// forever with a stale target and no active movement destination.
+				ClearTarget();
+				nextScanTime = Time.time + scanInterval;
+				return;
+			}
+
 			if (hasTarget)
 			{
 				if ((targetPosition - transform.position).sqrMagnitude <= pickupDistance * pickupDistance)
 				{
 					bool pickedUp = inventory.TryPickupWorldItemServer(targetInstanceID, transform.position, pickupDistance + 0.5f);
 					ClearTarget();
+					// Both success and failure must finish the loot goal. Failed transfers
+					// are retried only after the bounded scan cooldown, not every frame.
 					driver.ReportDestinationReached();
+					nextScanTime = Time.time + scanInterval;
+					if (!pickedUp)
+					{
+						Debug.Log("[MobileNPCLooting] Pickup transfer failed for item instance "
+							+ targetInstanceID + " on " + name + "; will rescan after cooldown.", this);
+					}
 				}
 				else if (Time.time >= nextScanTime)
 				{
@@ -74,8 +92,13 @@ namespace SDG.Unturned
 					{
 						ClearTarget();
 						driver.ReportDestinationReached();
+						nextScanTime = Time.time + scanInterval;
 					}
-					nextScanTime = Time.time + scanInterval;
+					else if (driver.CurrentGoal != MobileNPCTactics.Goal.Loot)
+					{
+						ClearTarget();
+						nextScanTime = Time.time + scanInterval;
+					}
 				}
 				return;
 			}
