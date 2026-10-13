@@ -338,10 +338,11 @@ namespace SDG.Unturned
             entrance = Vector3.zero;
             if (!CanUseMemory() || output == null || outputRouteIndices == null
                 || outputStageStarts == null || !Valid(currentPosition)
-                || !Valid(finalDestination)
-                || Mathf.Abs(finalDestination.y - currentPosition.y) < 1.2f)
+                || !Valid(finalDestination))
                 return false;
 
+            bool changingFloors =
+                Mathf.Abs(finalDestination.y - currentPosition.y) >= 1.2f;
             int[] candidate = accessSearchCandidate;
             int[] best = accessSearchBest;
             int bestDepth = 0;
@@ -358,7 +359,11 @@ namespace SDG.Unturned
                 LearnedRoute first = routes[i];
                 if (!IsUsableGraphRecord(first))
                     continue;
-                int firstStep = FindObservedFloorAccessEntranceIndex(first);
+                // Different-floor goals begin at personally OBSERVED stair
+                // access. Same-floor multi-room goals may start at the actual
+                // beginning of any successful corridor/door journey.
+                int firstStep = changingFloors
+                    ? FindObservedFloorAccessEntranceIndex(first) : 0;
                 if (firstStep < 0)
                     continue;
                 Vector3 entry = first.footsteps[firstStep];
