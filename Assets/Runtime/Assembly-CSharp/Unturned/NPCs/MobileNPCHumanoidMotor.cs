@@ -492,7 +492,6 @@ namespace SDG.Unturned
 				// through actual walkable ground to its observed entry side.
 				bool waitingForLadderApproach = false;
 				if (!isUnderwater && !waitingForLearnedAccess
-					&& !waitingForLadderApproach
 					&& routeWaypoints.Count == 0 && !hasDetourWaypoint)
 					TryBuildPhysicalLadderApproach(destination, out waitingForLadderApproach);
 				// Ask for a map-wide path before the NPC gets close enough to collide with
@@ -501,6 +500,7 @@ namespace SDG.Unturned
 				Vector3 globalGoalOffset = destination - transform.position;
 				globalGoalOffset.y = 0f;
 				if (!isUnderwater && !waitingForLearnedAccess
+					&& !waitingForLadderApproach
 					&& routeWaypoints.Count == 0 && !hasDetourWaypoint
 					&& globalGoalOffset.sqrMagnitude > stoppingDistance * stoppingDistance
 					&& Time.time >= nextRoutePlanTime)
