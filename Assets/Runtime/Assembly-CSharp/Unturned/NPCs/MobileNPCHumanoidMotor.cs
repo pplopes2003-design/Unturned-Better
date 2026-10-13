@@ -248,12 +248,21 @@ namespace SDG.Unturned
 
 			bool hasDestination = hasBrainDestination || hasRoamingDestination;
 			Vector3 destination = hasBrainDestination ? brainDriver.Destination : roamingDestination;
+			if (!hasDestination)
+			{
+				// Completed/expired goals must not leave the previous route waiting to
+				// steer the next unrelated investigation or roaming destination.
+				routeWaypoints.Clear();
+				routeWaypointIndex = 0;
+				hasDetourWaypoint = false;
+				useRecoverySteering = false;
+			}
 			if (hasDestination)
 			{
 				// Keep a planned route while its goal remains stable. The previous condition
 				// cleared routeWaypoints whenever hasDetourWaypoint was false, which is also
 				// the normal state for a multi-corner native A* route.
-				if ((destination - detourGoalSnapshot).sqrMagnitude > 9f)
+				if (PlanarDistanceSquared(destination, detourGoalSnapshot) > 2.25f)
 				{
 					hasDetourWaypoint = false;
 					routeWaypoints.Clear();
@@ -686,6 +695,10 @@ namespace SDG.Unturned
 				useRecoverySteering = true;
 				recoverySteeringUntil = Time.time + 1.5f;
 				nextRoutePlanTime = Time.time;
+				Debug.LogWarning("[MobileNPCHumanoidMotor] Blocked at " + transform.position
+					+ "; attempting alternate steering side=" + avoidanceSide
+					+ ", stuckRecoveries=" + consecutiveStuckRecoveries
+					+ ", brainGoal=" + brainDriver.CurrentGoal + ".", this);
 				blockedMovementDuration = 0.25f;
 			}
 		}
