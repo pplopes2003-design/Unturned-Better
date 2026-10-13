@@ -33,6 +33,10 @@ namespace SDG.Unturned
         private const float StartMatchRadius = 3.0f;
         private const float GoalMatchRadius = 2.0f;
         private readonly List<LearnedRoute> routes = new List<LearnedRoute>(MaxRoutes);
+        // Per-survivor reusable DFS workspaces: no per-tick array garbage for
+        // 20-40 simultaneous actors evaluating previously visited entrances.
+        private readonly int[] accessSearchCandidate = new int[4];
+        private readonly int[] accessSearchBest = new int[4];
         private MobileNPCHumanoidVitals vitals;
         public int RouteCount => routes.Count;
 
@@ -338,8 +342,8 @@ namespace SDG.Unturned
                 || Mathf.Abs(finalDestination.y - currentPosition.y) < 1.2f)
                 return false;
 
-            int[] candidate = new int[MaxAccessChainRoutes];
-            int[] best = new int[MaxAccessChainRoutes];
+            int[] candidate = accessSearchCandidate;
+            int[] best = accessSearchBest;
             int bestDepth = 0;
             int bestFirstStep = -1;
             float bestScore = float.PositiveInfinity;
