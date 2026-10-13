@@ -165,13 +165,13 @@ namespace SDG.Unturned
 			if (targetPlayer != null)
 				TryAttack(targetPlayer, offset.normalized);
 			else if (targetNPC != null)
-				TryAttack(targetNPC, offset.normalized);
+				TryAttack(targetNPC, offset.normalized, nearestTransform);
 			else
 				TryAttack(targetZombie, offset.normalized);
 		}
 
 		/// <summary>Damages an opposing mobile NPC using its server-authoritative vitals.</summary>
-		public bool TryAttack(MobileNPCHumanoidDisposition targetNPC, Vector3 attackDirection)
+		public bool TryAttack(MobileNPCHumanoidDisposition targetNPC, Vector3 attackDirection, Transform hitTransform = null)
 		{
 			MobileNPCHumanoidDisposition ownDisposition = GetComponent<MobileNPCHumanoidDisposition>();
 			MobileNPCHumanoidVitals targetVitals = targetNPC != null ? targetNPC.GetComponent<MobileNPCHumanoidVitals>() : null;
@@ -189,7 +189,15 @@ namespace SDG.Unturned
 
 			nextAttackTime = Time.time + attackCooldown;
 			AttackStarted?.Invoke();
-			return targetVitals.ApplyDamage(attackDamage, attackDirection.normalized * attackDamage, transform);
+			// Apply one health debit and one physical region injury, just like
+			// verified player punches. The real first-hit collider from the
+			// preceding ray is preserved when called from this behavior.
+			Vector3 direction = attackDirection.sqrMagnitude > 0.0001f
+				? attackDirection.normalized : transform.forward;
+			Vector3 strikePoint = hitTransform != null ? hitTransform.position
+				: targetNPC.transform.position + Vector3.up * 1.05f;
+			return targetVitals.ApplyValidatedWeaponImpactServer(
+				attackDamage, strikePoint, direction, transform, false, hitTransform);
 		}
 
 		/// <summary>Damages a vanilla zombie using the game's own server-side zombie damage pipeline.</summary>
