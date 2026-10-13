@@ -311,6 +311,134 @@ namespace SDG.Unturned
 			return false;
 		}
 
+		/// <summary>
+		/// Craft a wound dressing ONLY using real, currently available Unturned
+		/// item blueprints and exact owned materials. Does not consume arbitrary
+		/// clothing, award phantom rags, or bypass crafting requirements.
+		/// A bounded two-step clothing -> intermediate -> dressing chain is allowed
+		/// only when both exact native recipes are safe and directly connected.
+		/// </summary>
+		public bool TryCraftNativeWoundDressingServer()
+		{
+			if (!Provider.isServer || !Level.isLoaded)
+				return false;
+
+			List<ItemAsset> assets = new List<ItemAsset>();
+			Assets.find(assets);
+			// Direct recipes first (e.g. a supply item into a rag).
+			for (int i = 0; i < assets.Count; ++i)
+			{
+				ItemAsset source = assets[i];
+				if (source == null || source.blueprints == null)
+					continue;
+				for (int b = 0; b < source.blueprints.Count; ++b)
+				{
+					Blueprint recipe = source.blueprints[b];
+					if (!IsSimpleSettlementBlueprint(recipe) || recipe.outputs[0] == null)
+						continue;
+					ItemAsset output = recipe.outputs[0].FindItemAsset();
+					if (output == null || !IsNativeWoundDressing(output.id))
+						continue;
+					if (TryCraftOneSimpleOutputServer(recipe, output))
+						return true;
+				}
+			}
+
+			// Two native recipes: worn clothing -> intermediate input used by
+			// a real medical blueprint. This never invents a "tear shirt" recipe.
+			for (int i = 0; i < assets.Count; ++i)
+			{
+				ItemAsset medicineSource = assets[i];
+				if (medicineSource == null || medicineSource.blueprints == null)
+					continue;
+				for (int m = 0; m < medicineSource.blueprints.Count; ++m)
+				{
+					Blueprint medicine = medicineSource.blueprints[m];
+					if (!IsSimpleSettlementBlueprint(medicine) || medicine.outputs[0] == null
+						|| medicine.supplies.Length != 1 || medicine.supplies[0].amount != 1
+						|| !medicine.supplies[0].ShouldConsume)
+						continue;
+					ItemAsset dressing = medicine.outputs[0].FindItemAsset();
+					ItemAsset intermediate = medicine.supplies[0].FindItemAsset();
+					if (dressing == null || !IsNativeWoundDressing(dressing.id) || intermediate == null)
+						continue;
+					for (int j = 0; j < assets.Count; ++j)
+					{
+						ItemAsset garmentSource = assets[j];
+						if (garmentSource == null || garmentSource.blueprints == null)
+							continue;
+						for (int g = 0; g < garmentSource.blueprints.Count; ++g)
+						{
+							Blueprint first = garmentSource.blueprints[g];
+							if (!IsSimpleSettlementBlueprint(first) || first.outputs[0] == null
+								|| first.outputs[0].FindItemAsset() != intermediate
+								|| !ConsumesGarment(first))
+								continue;
+							if (TryCraftOneSimpleOutputServer(first, intermediate))
+							{
+								// The intermediate is a real owned item after step one. A
+								// failure here keeps it instead of fabricating a dressing.
+								return TryCraftOneSimpleOutputServer(medicine, dressing);
+							}
+						}
+					}
+				}
+			}
+			return false;
+		}
+
+		private static bool IsNativeWoundDressing(ushort id)
+		{
+			return id == 393 || id == 95 || id == 394;
+		}
+
+		private static bool ConsumesGarment(Blueprint recipe)
+		{
+			for (int i = 0; i < recipe.supplies.Length; ++i)
+			{
+				BlueprintSupply required = recipe.supplies[i];
+				ItemAsset item = required.FindItemAsset();
+				if (!required.ShouldConsume || item == null)
+					continue;
+				if (item.type == EItemType.SHIRT || item.type == EItemType.PANTS
+					|| item.type == EItemType.VEST || item.type == EItemType.HAT
+					|| item.type == EItemType.MASK)
+					return true;
+			}
+			return false;
+		}
+
+		private bool TryCraftOneSimpleOutputServer(Blueprint recipe, ItemAsset outputAsset)
+		{
+			if (!Provider.isServer || outputAsset == null
+				|| !IsSimpleSettlementBlueprint(recipe) || recipe.outputs[0] == null
+				|| recipe.outputs[0].FindItemAsset() != outputAsset
+				|| recipe.outputs[0].amount < 1 || recipe.outputs[0].amount > byte.MaxValue)
+				return false;
+
+			List<int> inputs = new List<int>();
+			if (!TryReserveBlueprintInputs(recipe, inputs) || inputs.Count == 0
+				|| slots.Count - inputs.Count >= Capacity)
+				return false;
+
+			inputs.Sort();
+			for (int i = inputs.Count - 1; i >= 0; --i)
+			{
+				slots.RemoveAt(inputs[i]);
+				slotInstanceIDs.RemoveAt(inputs[i]);
+			}
+			Item output = new Item(outputAsset.id,
+				(byte)recipe.outputs[0].amount, 100, new byte[0]);
+			if (!TryStoreTransferredItem(output))
+			{
+				UnturnedLog.warn("[MobileNPCInventory] Medical crafting output could not be stored; inspect inventory transaction.");
+				return false;
+			}
+			Debug.Log("[MobileNPCInventory] Crafted real native wound dressing/item "
+				+ outputAsset.id + " from validated recipe for " + name + ".", this);
+			return true;
+		}
+
 		private static bool IsSimpleSettlementBlueprint(Blueprint blueprint)
 		{
 			if (blueprint == null || blueprint.outputs == null || blueprint.outputs.Length != 1
