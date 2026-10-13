@@ -569,3 +569,12 @@ User explicitly requests verifying zombie pursuit beyond native regions and limi
 - Commit `7caa02acd51eab9fe5d12c17f05956bd3516d711`: `MobileNPCLooting.cs` now snapshots the attempted `targetInstanceID` before `ClearTarget()` resets it, so a failed pickup logs the actual attempted item instance rather than zero.
 - Status: committed via GitHub; NOT compiled, NOT Dev-Build tested, NOT runtime-verified. This change improves diagnosis only; it does not itself establish a fix for navigation, pickup transfer, or stalls.
 - Next: validate Unity compile and identify real native radio/equipment/voice channel hooks before claiming radio interception. Retain zombie cross-region/POI pursuit as unimplemented critical backlog. Preserve the full earlier backlog and only advance status after gameplay evidence.
+
+
+## 2026-10-13 — Authoritative injury-hit result consistency
+
+- Source inspection: `MobileNPCInjurySystem.ApplyHit` applied injury effects and called `vitals.ApplyDamage(damage)` but previously returned `true` even if the authoritative health component rejected the damage. This could falsely acknowledge an accepted hit to a caller, especially if health/death status changes through synchronous callbacks.
+- Commit `2f94246bd06a2226eef5fa9e2f5100a2995b59b8`: propagate the actual result returned by `MobileNPCHumanoidVitals.ApplyDamage` rather than returning unconditional success. This is a narrow consistency fix, NOT a repair for missing gun-collider hit resolution or full native death/XP lifecycle.
+- Caveat: `ApplyHit` still performs injury effects before the final health call; a broader atomicity review is warranted if callback-driven reentrancy is observed. Avoid duplicating damage by invoking both this method and the vitals adapter for one hit.
+- Status: GitHub commit exists. No Unity compile, no player build, no runtime test. Recheck firearm and melee adapters, hit-region mapping, death transition and hit animation with logs.
+- Retain prior backlog unchanged, notably zombie pursuit across POI/region boundaries, native frequency-checked radio interception, navigation, group/faction persistence, and the final diagram only after major modules are structured.
