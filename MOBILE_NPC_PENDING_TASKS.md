@@ -122,3 +122,8 @@ Commits de implementação: `1a41e003`, `564ebfc1`, `a94ca7ad`, `f6b4583f`, `a65
 - **ZMB-01** `66caf131d595011b582571252376b0a78bc49a4e`: em `Assets/Runtime/Assembly-CSharp/Unturned/Zombies/Zombie.cs`, removido `player.movement.nav == 255` como desistência automática do alvo **já adquirido**; regra da natação inacessível foi mantida. Foram encontrados e inspecionados também `Managers/ZombieManager.cs` e `Managers/ZombieRegion.cs`. `Zombie.tick` / `setTicking` já usam lista de zumbis ativos independente da região de origem. **Não quer dizer que o A* continue tendo malha navegável fora da POI**; não atribuir garantia de perseguição cross-map, desempenho ou rede. A pendência principal permanece aberta.
 
 **QA:** commits verificados por leitura GitHub; Unity, Player.log, testes multi-map, navegação, voz, física e UI NÃO executados. Os demais IDs da tabela permanecem ativos.
+
+
+### Fechamento da rodada — 2026-10-13
+
+Revisão estática adicional: conferidos `MobileNPCLooting`, `MobileNPCSupplyKnowledge`, `MobileNPCBrainDriver`, `MobileNPCTactics`, `MobileNPCPersistence`, `MobileNPCGroupMember` e `Zombies/Zombie.cs` via commits GitHub. Chaves sintáticas balanceadas e referências aos novos componentes presentes; **isso não substitui compilação C#**. Última correção editorial de fonte: `a6e73c82c0300f017fa1226cf4c7b637f8925dc6` (limpeza de metadados do item-alvo após a transferência). LEARN-06 fica em `QUASE PRONTA — AGUARDANDO BUILD` apenas para o recorte de memória de local de carregadores, enquanto LEARN-07 e ZMB-01 **continuam ativos**. Não fechar ou descartar nenhum item antes do feedback da Dev Build.
