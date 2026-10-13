@@ -865,6 +865,36 @@ namespace SDG.Unturned
 					if (!actuallyLanded)
 						RememberLocalNavigationDeadEnd(transform.position, destination);
 				}
+				// Higher parapets require a distinct three-phase clamber;
+				// never disguise this as the low-obstacle ballistic jump.
+				if (!isPlannedJumping && !IsTraversingLadder
+					&& !IsVaultTraversing && vaultTraversal != null
+					&& hasDestination && groundedBeforeMove
+					&& !physicallyCrouched && !waitingForDoorToOpen
+					&& !waitingForLearnedAccess && !waitingForLadderApproach
+					&& injuryMovementMultiplier >= 0.95f
+					&& gait != MobileNPCLocomotionPolicy.Gait.Sneak
+					&& !brainDriver.IsListening && !brainDriver.IsAmbushPreparing
+					&& !(targetIsVisible && (brainDriver.CurrentGoal
+							== MobileNPCTactics.Goal.SeekCover
+						|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat))
+					&& vaultTraversal.TryStartServer(destination,
+						jumpRequestedDirection, roamingGroundMask,
+						roamingMaximumSlope, obstacleMask))
+				{
+					routeWaypoints.Clear();
+					routeWaypointIndex = 0;
+					hasDetourWaypoint = false;
+					hasPendingKnownAccessPath = false;
+					hasPlannedLadderApproach = false;
+					activeRememberedRouteIndex = -1;
+					activeContinuationRouteIndex = -1;
+					activeAccessRouteIds.Clear();
+					activeAccessWaypointStarts.Clear();
+					trackingActualJourney = false;
+					actualTravelFootsteps.Clear();
+					wantedToMove = true;
+				}
 				if (!isPlannedJumping && !IsTraversingLadder
 					&& !IsVaultTraversing && hasDestination && groundedBeforeMove
 					&& !waitingForDoorToOpen && !waitingForLearnedAccess
@@ -916,8 +946,30 @@ namespace SDG.Unturned
 				}
 				wantedToMove = motion.sqrMagnitude > 0.0001f;
 			}
+			bool vaultMovingThisFrame = hasDestination && !isUnderwater
+				&& IsVaultTraversing;
+			if (vaultMovingThisFrame)
+			{
+				bool applyGravity;
+				motion = vaultTraversal.GetMotionServer(destination, out applyGravity);
+				if (!applyGravity)
+				{
+					velocity.y = 0f;
+				}
+				else
+				{
+					motion.y = velocity.y;
+				}
+				wantedToMove = motion.sqrMagnitude > 0.0001f;
+			}
 			Vector3 positionBeforeMovement = transform.position;
 			CollisionFlags collision = characterController.Move(motion * deltaTime);
+			if (vaultMovingThisFrame)
+			{
+				vaultTraversal.AfterMoveServer(positionBeforeMovement);
+				if (!IsVaultTraversing)
+					suppressJourneyUntil = Time.time + 0.35f;
+			}
 			if (ladderMovingThisFrame)
 				ladderTraversal.AfterMoveServer(positionBeforeMovement, collision);
 			if ((collision & CollisionFlags.Below) != 0 && velocity.y < 0.0f)
@@ -946,7 +998,7 @@ namespace SDG.Unturned
 			// Crouching suppresses the zombie-alert call; running is louder than walking.
 			// Native zombie perception remains responsible for deciding investigation.
 			if (IsMoving && !isUnderwater && !isPlannedJumping
-				&& !ladderMovingThisFrame
+				&& !ladderMovingThisFrame && !vaultMovingThisFrame
 				&& (collision & CollisionFlags.Below) != 0
 				&& Time.time >= nextFootstepNoiseAt)
 			{
@@ -956,7 +1008,8 @@ namespace SDG.Unturned
 					ZombieManager.alertZombiesToNoise(transform.position, audibleRadius);
 			}
 			RecordActualMovementAndJourneyOutcome(hasDestination, destination, isUnderwater);
-			UpdateStuckRecovery(!ladderMovingThisFrame && wantedToMove, deltaTime);
+			UpdateStuckRecovery(!ladderMovingThisFrame
+				&& !vaultMovingThisFrame && wantedToMove, deltaTime);
 		}
 
 		/// <summary>
