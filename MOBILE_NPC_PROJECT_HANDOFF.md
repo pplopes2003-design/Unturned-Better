@@ -415,3 +415,45 @@ Source changes:
 - Group tactics future: frag/smoke with actual friendly safety/obscuration; coordinated suppression/advance; medical triage/healing under cover, all still NOT implemented.
 
 Other outstanding: build/compilation; damage/death/corpse/respawn; navigation (corners, stairs, jumping, A* reachability), player/zombie hearing, firefight/reload, dialogue/HUD/nameplate and available animation clips; zombie-specific stalking/ambush, optics, machine learning/social memory; native XP/kill credit, replication. User requests complete AI diagram only when ALL core modules structured, not at this interim stage.
+
+
+## 2026-10-13 — Group contact communication foundation (resume here)
+
+**User request:** Continue improving group/combat integration and ALWAYS keep this handoff current so a new agent/conversation can pick up without losing context. Do not generate the full AI architecture diagram until the major systems have been structured. Always report unresolved items at the end of each development round.
+
+**Repository:** `pplopes2003-design/Unturned-Better`
+**Working branch:** `feature/npc-ai-foundation`
+**Source root:** `Assets/Runtime/Assembly-CSharp/Unturned/NPCs/`
+**Implementation status:** Commits pushed. Only source readback and basic brace balance performed. There has been **NO Unity C# compilation, development player build, automated in-engine test or gameplay validation** for this set of changes.
+
+### Commits this round
+
+- `778e3305eb9a2809a8e2ab50ca0ff6a13a8bf0f3` — `MobileNPCGroupMember.cs`: `BroadcastPlayerContactServer` relays a reported player sighting only among **living, initialized members of the same runtime group**, within 35 m and with a 4 s source cooldown. Each ally receives its own perturbed position (1.5–4.5 m directional error), not a Player Transform. Does not communicate across factions, across the map, or after group dissolution.
+- `467b6bdd9d000e7bbe9c1930ddad0cc8e4093910` — `MobileNPCBrainDriver.cs`: `ReportGroupPlayerContactClue` treats verbal contacts as uncertain sensory clues, with 6 s per-listener cooldown and 12 s investigation timer; aborts when pursuing, following, or executing another tactical goal. It does not call `ReportVisibleTarget` or authorize weapon fire. Memory ownership and normal brain decision rules remain intact.
+- `bb46f39d214c64e2e28ba111c9f89a430647141f` — `MobileNPCBrainDriver.cs`: report is initiated only following a **server-confirmed visual Player observation** by an NPC whose disposition can engage players. Source never broadcasts inferred hidden-player position.
+- `af0a6af85d958bebeeabedc0421fbd186a4af282` — `MobileNPCTacticalCombatBehavior.cs`: reload cover response now checks current perception before using a target position; previously it queried a hidden target's live Transform, violating the memory/no-omniscience design.
+
+### How this connects with existing NPC AI
+
+`MobileNPCHumanoidPerception` validates target sight -> `MobileNPCBrainDriver.ReportVisibleTarget` -> per-NPC `MobileNPCPlayerKnowledge.ObserveSight` and `MobileNPCGroupMember.BroadcastPlayerContactServer` -> same-group eligible listeners `MobileNPCBrainDriver.ReportGroupPlayerContactClue` -> local uncertain sound-like memory and `MobileNPCBrain.ReportNoise` -> normal `MobileNPCHumanoidMotor` and locomotion policy choose navigation/stance. Listeners must independently acquire visual confirmation before attacking. This is **a basic verbal contact protocol**, not suppressive fire, real audible VO, synchronized flanking, shared perfect target knowledge or ML.
+
+**IMPORTANT:** Unity behavior is untested. In particular test 2–4 NPC squad members, independent groups at overlapping distances, same/different factions, member death/replacement, player occlusion, target switch, ally investigating sound and not firing through walls, and unloaded map cleanup. Group persistence in `MobileNPCGroupMember` is runtime-only, while persistence adapters restore selected group metadata via snapshots; don't assume persistent runtime IDs across map loads.
+
+### Current backlog — do not silently mark any item done
+
+1. **Critical Unity validation**: first compile and test in latest dev build; collect `Player.log`; resolve CS errors, missing game APIs, runtime exceptions, physics/animation bugs.
+2. **Death pipeline**: firearm/melee hits, health death, corpse/ragdoll, disable components, despawn, delayed replacement and faction/group cleanup.
+3. **Navigation and defensive cover**: corners, doors, curbs, stairs, water, crouch standing up, short obstacle jump, A* reachability vs direct-segment checks; cover selection under repeated fire.
+4. **Ranged combat**: hit validation, accuracy vs distance, reload, ammo, factions, friendly-fire behavior, avoiding X-ray pursuit and target priority.
+5. **UI/presentation**: dialogue IMGUI keyboard/mouse focus, ESC/HUD, nameplates, actual NPC_Client native animation clips for strike/recoil/reload/flinch, ragdoll.
+6. **Hearing/stealth**: player footsteps currently based on sampled planar displacement, not native footstep events; native zombie-alert radii from NPC movement are provisional; investigate environment sound, water, vehicles, actual stance and optics.
+7. **Stalking and ambush**: concealed position selection from decayed sensory evidence and attack preparation exist as source prototypes; improve zombie-specific stalking, abort conditions, ambush timing, realistic player counterplay and actual reachability.
+8. **Faction and group VALIDATION (explicit user request)**: verify faction relation matrix, hostile/friendly target selection and side effects of changing roles/alliances; correct group ID/faction/recruitment (max 4), leader replacement, dissolution only after all die, respawn joining surviving group, settlement anchors, save/load restoration, map transitions and lack of allied damage. New short-range sight reports need group test.
+9. **Future squad combat**: FRAG when targets behind cover ONLY after blast radius, throw trajectory/inventory, ally safety and minimum self-risk evaluation; SMOKE as actual visual occlusion for advance/retreat/heal; coordinated suppression and flanking with finite ammo and safe fire sectors; tactical heal of living wounded allies using medical inventory and protected routes.
+10. **Future adaptive/social knowledge**: per-NPC bounded memory, lifetime learning and optional propagation through actual contact/radio; unshared memory dies with NPC. No ML implemented.
+11. **Longer-term platform features**: scoped/binocular observation, native kill/XP attribution, network replication, robust save/version migration.
+12. **Final deliverable**: full AI decision architecture diagram ONLY once all major modules are structured; distinguish operational vs proposed vs untested functionality.
+
+### Suggested next implementation step
+
+After verifying no compilation blockers, implement genuine **squad role coordination** (a lookout reports a sector, a suppressor with a valid firearm/ammo maintains limited fire ONLY with appropriate line-of-fire safety, and a flanker advances to a verified safe waypoint). Avoid relying on hidden player's current transform. Separately evaluate group-aware ally-safe explosive eligibility, without spawning real grenades until inventory/projectile/throw APIs are verified.
