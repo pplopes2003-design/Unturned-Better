@@ -264,6 +264,12 @@ namespace SDG.Unturned
 				return;
 			}
 
+			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Flank)
+			{
+				// Keep the NPC at its alternate firing position for the bounded flank
+				// window instead of immediately resuming direct pursuit and crowding the player.
+				return;
+			}
 			if (tactics.CurrentGoal != MobileNPCTactics.Goal.None)
 			{
 				tactics.ReportGoalReached();
