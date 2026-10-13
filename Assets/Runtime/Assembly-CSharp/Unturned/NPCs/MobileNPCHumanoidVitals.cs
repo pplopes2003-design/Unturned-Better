@@ -68,7 +68,9 @@ namespace SDG.Unturned
 
 		public void InitializeServer()
 		{
-			if (!Provider.isServer)
+			// Initialization may be requested by both spawn adapters and Unity Start.
+			// Re-entering must never heal or resurrect an already damaged/dead NPC.
+			if (!Provider.isServer || initialized || isDead)
 			{
 				return;
 			}
