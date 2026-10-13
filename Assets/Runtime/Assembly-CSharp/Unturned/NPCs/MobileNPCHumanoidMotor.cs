@@ -121,6 +121,12 @@ namespace SDG.Unturned
 			= new List<Vector3>(MobileNPCTravelMemory.MaxFootsteps);
 		private readonly List<Vector3> rememberedRouteScratch
 			= new List<Vector3>(MobileNPCTravelMemory.MaxFootsteps);
+		private readonly List<Vector3> learnedAccessSteps
+			= new List<Vector3>(MobileNPCTravelMemory.MaxFootsteps);
+		private readonly List<Vector3> learnedAccessApproach = new List<Vector3>(32);
+		private float nextKnownAccessPlanTime;
+		private Vector3 lastKnownAccessGoal;
+		private bool hasPendingKnownAccessPath;
 		private Vector3 actualTravelStart;
 		private Vector3 actualTravelGoal;
 		private bool trackingActualJourney;
@@ -225,6 +231,8 @@ namespace SDG.Unturned
 			actualTravelFootsteps.Clear();
 			activeRememberedRouteIndex = -1;
 			nextRememberedRouteAttemptTime = 0f;
+			nextKnownAccessPlanTime = 0f;
+			hasPendingKnownAccessPath = false;
 			nextPlannedRouteValidationTime = 0f;
 			nextRouteCornerShortcutTime = 0f;
 			brainDriver.InitializeServer(spawnPosition);
@@ -324,6 +332,7 @@ namespace SDG.Unturned
 				trackingActualJourney = false;
 				actualTravelFootsteps.Clear();
 				activeRememberedRouteIndex = -1;
+				hasPendingKnownAccessPath = false;
 				// Completed/expired goals must not leave the previous route waiting to
 				// steer the next unrelated investigation or roaming destination.
 				routeWaypoints.Clear();
@@ -344,6 +353,7 @@ namespace SDG.Unturned
 					routeWaypoints.Clear();
 					routeWaypointIndex = 0;
 					activeRememberedRouteIndex = -1;
+					hasPendingKnownAccessPath = false;
 				}
 				else if (routeWaypoints.Count == 0 && !hasDetourWaypoint)
 				{
@@ -359,12 +369,21 @@ namespace SDG.Unturned
 					nextRememberedRouteAttemptTime = Time.time + 4f;
 					TryReuseActualLearnedRoute(destination);
 				}
+				// A learned *floor-access* journey can serve a different room:
+				// approach its observed stair entrance using actual navigation,
+				// then traverse the individually verified remembered connector.
+				// Pending async A* to the entrance must not be cancelled by an
+				// unrelated request to the final upstairs destination.
+				bool waitingForLearnedAccess = false;
+				if (!isUnderwater && routeWaypoints.Count == 0 && !hasDetourWaypoint)
+					TryBuildKnownFloorAccessRoute(destination, out waitingForLearnedAccess);
 				// Ask for a map-wide path before the NPC gets close enough to collide with
 				// something. This is essential for open-world goals separated by buildings,
 				// fences or terrain; local obstacle probing alone cannot discover such routes.
 				Vector3 globalGoalOffset = destination - transform.position;
 				globalGoalOffset.y = 0f;
-				if (!isUnderwater && routeWaypoints.Count == 0 && !hasDetourWaypoint
+				if (!isUnderwater && !waitingForLearnedAccess
+					&& routeWaypoints.Count == 0 && !hasDetourWaypoint
 					&& globalGoalOffset.sqrMagnitude > stoppingDistance * stoppingDistance
 					&& Time.time >= nextRoutePlanTime)
 				{
@@ -379,7 +398,8 @@ namespace SDG.Unturned
 				// A separate, bounded two-surface-per-cell local search can
 				// discover REAL stairs between nearby floors. Never infer a
 				// vertical shortcut merely from identical X/Z coordinates.
-				if (!isUnderwater && routeWaypoints.Count == 0 && !hasDetourWaypoint
+				if (!isUnderwater && !waitingForLearnedAccess
+					&& routeWaypoints.Count == 0 && !hasDetourWaypoint
 					&& Mathf.Abs(destination.y - transform.position.y) > 1.0f
 					&& PlanarDistanceSquared(destination, transform.position) <= 30f
 					&& Time.time >= nextVerticalRoutePlanTime
