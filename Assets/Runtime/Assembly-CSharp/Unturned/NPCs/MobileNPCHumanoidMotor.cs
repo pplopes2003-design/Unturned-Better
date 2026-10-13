@@ -24,6 +24,9 @@ namespace SDG.Unturned
 		[SerializeField, Min(0.1f)] private float walkSpeed = 2.2f;
 		[SerializeField, Min(0.1f)] private float runSpeed = 4.0f;
 		[SerializeField, Min(0.1f)] private float turnSpeed = 540.0f;
+		[SerializeField, Min(0.1f)] private float sneakSpeed = 1.15f;
+		[SerializeField, Min(0.1f)] private float jumpImpulse = 4.6f;
+		[SerializeField, Min(0.5f)] private float jumpCooldown = 2.5f;
 		[SerializeField, Min(0.05f)] private float stoppingDistance = 0.65f;
 		[SerializeField, Min(0.1f)] private float gravity = 20.0f;
 		[SerializeField] private bool runWhenPursuing = true;
@@ -76,6 +79,11 @@ namespace SDG.Unturned
 		private Vector3 velocity;
 		private bool hasInitialized;
 		private bool targetIsVisible;
+		private readonly MobileNPCLocomotionPolicy locomotionPolicy = new MobileNPCLocomotionPolicy();
+		private float nextJumpTime;
+		public MobileNPCLocomotionPolicy.Gait CurrentGait => locomotionPolicy.CurrentGait;
+		public bool IsSneaking => CurrentGait == MobileNPCLocomotionPolicy.Gait.Sneak;
+		public bool IsSprinting => CurrentGait == MobileNPCLocomotionPolicy.Gait.Sprint;
 		private bool hasRoamingDestination;
 		private Vector3 roamingDestination;
 		private float nextRoamingDecisionTime;
@@ -161,6 +169,8 @@ namespace SDG.Unturned
 
 			spawnPosition = transform.position;
 			velocity = Vector3.zero;
+			locomotionPolicy.Reset();
+			nextJumpTime = 0f;
 			brainDriver.InitializeServer(spawnPosition);
 			hasRoamingDestination = false;
 			nextRoamingDecisionTime = Time.time + Random.Range(2f, 5f);
@@ -405,13 +415,26 @@ namespace SDG.Unturned
 				transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, turnSpeed * deltaTime);
 			}
 
-			bool shouldRun = runWhenPursuing && brainDriver.CurrentState == MobileNPCBrain.State.Pursuing
-				|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat;
 			float injuryMovementMultiplier = injurySystem != null ? injurySystem.MovementMultiplier : 1f;
-			// A fractured leg is a walking/limping state, not a full-speed sprint animation.
-			if (injuryMovementMultiplier <= 0.5f)
-				shouldRun = false;
-			float speed = shouldRun ? runSpeed : walkSpeed;
+			MobileNPCLocomotionPolicy.Situation context = new MobileNPCLocomotionPolicy.Situation
+			{
+				HasDestination = wantedToMove,
+				TargetVisible = targetIsVisible,
+				Swimming = isUnderwater,
+				Injured = injuryMovementMultiplier <= 0.5f,
+				Retreating = brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat,
+				UnderFire = brainDriver.CurrentGoal == MobileNPCTactics.Goal.SeekCover,
+				InCover = brainDriver.CurrentGoal == MobileNPCTactics.Goal.SeekCover
+					&& !hasBrainDestination,
+				Investigating = brainDriver.CurrentState == MobileNPCBrain.State.Investigating,
+				Pursuing = brainDriver.CurrentState == MobileNPCBrain.State.Pursuing,
+				NearTarget = brainDriver.Target != null
+					&& (brainDriver.Target.position - transform.position).sqrMagnitude < 100f,
+				DestinationDistance = hasDestination ? Vector3.Distance(destination, transform.position) : 0f
+			};
+			MobileNPCLocomotionPolicy.Gait gait = locomotionPolicy.Decide(context, Time.time);
+			float speed = gait == MobileNPCLocomotionPolicy.Gait.Sprint && runWhenPursuing
+				? runSpeed : gait == MobileNPCLocomotionPolicy.Gait.Sneak ? sneakSpeed : walkSpeed;
 			speed *= injuryMovementMultiplier;
 			Vector3 motion = planarDirection * speed;
 
@@ -443,6 +466,19 @@ namespace SDG.Unturned
 				velocity.y += Physics.gravity.y * (gravity / 9.81f) * deltaTime * 3.0f;
 				velocity.y = Mathf.Max(-100.0f, velocity.y);
 				motion.y = velocity.y;
+
+				// Jump only when a genuinely low obstacle blocks the walking capsule,
+				// ground is confirmed, and the direction/landing area remain valid.
+				// No bunny hopping while sneaking, badly injured or under cover.
+				if (wantedToMove && groundedBeforeMove && Time.time >= nextJumpTime
+					&& gait != MobileNPCLocomotionPolicy.Gait.Sneak
+					&& injuryMovementMultiplier > 0.5f
+					&& ShouldJumpOverLowObstacle(planarDirection))
+				{
+					velocity.y = Mathf.Max(velocity.y, jumpImpulse);
+					motion.y = velocity.y;
+					nextJumpTime = Time.time + Mathf.Max(0.5f, jumpCooldown);
+				}
 			}
 
 			CollisionFlags collision = characterController.Move(motion * deltaTime);
@@ -452,6 +488,26 @@ namespace SDG.Unturned
 			}
 			IsMoving = planarDirection.sqrMagnitude > 0.0001f && (collision & CollisionFlags.Sides) == 0;
 			UpdateStuckRecovery(wantedToMove, deltaTime);
+		}
+
+		/// <summary>
+		/// Checks whether the route is blocked at shin height but free at torso
+		/// height. The native controller still resolves collision during the jump;
+		/// high walls and steep terrain never trigger a leap.
+		/// </summary>
+		private bool ShouldJumpOverLowObstacle(Vector3 direction)
+		{
+			direction.y = 0f;
+			if (direction.sqrMagnitude < 0.01f || !IsObstacleBlocking(direction))
+				return false;
+			direction.Normalize();
+			Vector3 lower = transform.position + Vector3.up * 0.28f;
+			Vector3 upper = transform.position + Vector3.up * 1.25f;
+			float distance = Mathf.Max(0.7f, characterController.radius + 0.45f);
+			// Check only world obstacles, excluding our own hitbox.
+			bool lowHit = IsObstacleBlockingAlong(lower, 0.12f, direction, distance);
+			bool highHit = IsObstacleBlockingAlong(upper, 0.12f, direction, distance);
+			return lowHit && !highHit && HasWalkableGroundAhead(direction);
 		}
 
 		/// <summary>
