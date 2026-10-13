@@ -93,9 +93,17 @@ namespace SDG.Unturned
                 return true;
             nextActualOpenAttemptTime = Time.time + 1.5f;
 
-            // This is the game's own server-side mutation and replication path.
-            // It checks a real BarricadeRegion and updates actual stored state.
-            // NEVER call updateToggle directly or send a spoofed player request.
+            // Check the exact registered barricade before calling the native
+            // door mutation. Its internal implementation expects the root
+            // BarricadeDrop to exist, so a stale prefab must never enter it.
+            if (!BarricadeManager.tryGetRegion(door.transform,
+                out byte regionX, out byte regionY, out ushort plant,
+                out BarricadeRegion region) || region == null
+                || region.FindBarricadeByRootFast(door.transform) == null)
+                return false;
+
+            // Game-owned reliable replication and persisted door state;
+            // never spoof a Player, force local animation or ignore locks.
             if (!BarricadeManager.ServerSetDoorOpen(door, true))
                 return false;
 
