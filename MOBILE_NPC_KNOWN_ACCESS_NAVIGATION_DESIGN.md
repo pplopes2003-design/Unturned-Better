@@ -53,3 +53,31 @@
 Source commit `24ba6037f00907978a4c468ddec626ee7532a02d` refines `TryFindKnownFloorAccessServer`: earlier it assumed that the original trip start was the physical staircase entrance, even if the NPC walked through a room/corridor before reaching stairs. Now `FindObservedFloorAccessEntranceIndex` searches **real recorded positions** for the first cumulative elevation transition >=0.65m in the direction of the actually completed upper/lower floor trip; it selects the verified preceding same-floor step as the *known access point*. Only the observed suffix from that point through the personally visited exit is proposed. If the trace lacks an interpretable transition, no staircase portal is inferred. It neither creates a new door nor assumes a reverse link.
 
 **Additional final build test:** first learn a trip starting inside a room 10m before a staircase, walking a corridor then climbing. Move the NPC into a different room closer to the actual stair base. With available native/local navigation it should approach the observed pre-ascent point rather than insist on revisiting the old arbitrary starting room. Confirm it does not pick the wrong floor, skip the first stair tread, or infer a vertical edge from a mere player position upstairs.
+
+
+## 2026-10-13 — Interrupted round resumed: chaining an observed upstairs corridor
+
+**Existing pre-interruption source was already committed:** the motor could approach a personally discovered stair entrance from another room and follow an actual remembered ascent/descent; `TryFindKnownFloorAccessServer` already extracted the observed pre-rise stair entrance, rather than the unrelated start of the original journey. It could only accept a final goal <=1.9m from the learned exit. These earlier commits were retained, not redone.
+
+**New source changes, same feature branch:**
+
+- `d40634ff04ba3494be68647d1f050ba3a4c979fa`: `MobileNPCTravelMemory.TryFindKnownFloorAccessServer` can now select an additional **separately completed, first-hand, same-floor route** whose real start is within 2m of the observed staircase exit and whose real end is within 1.9m of the new upstairs target. Only personally successful routes qualify, never other survivors' knowledge or an imagined corridor. At most one continuation is selected, with explicit index and output list; the backward-compatible per-survivor snapshot version stays v6 and is unchanged.
+- `3ce89c4b6f0694e9b6396b0aa6a32508c601e72a`: motor composes **actual approach → observed stair suffix → separate personally traversed upper-floor corridor → final goal**. It tests every boundary and segment with real ground, headroom, collision and native unlocked door behavior before adopting the route; waypoint cap 104 (approach <=32, stair <=36, continuation <=36). It never completes the original AI goal when merely reaching the stair or its landing. Without this second observed trip, a final goal far from the stair exit remains rejected.
+- `af7681ee710ec2e28ee85a5def864404a3799c52`: when a saved-route plan is cancelled, the goal changes, the agent is safety-repositioned or it reaches all waypoints, clear **both** current learned-record references, preventing a later failure from penalizing an old unrelated record.
+- `8ae284d1439b18150f9c0c4a2ada2c01c74474d8`: track which currently followed waypoint belongs to the newly computed approach, the remembered stair, or the remembered upstairs corridor. If an obstruction makes the route fail, reduce confidence only in the personally remembered **stage currently traversed**. Failing to reach the stair from a different room is NOT evidence the old stair itself was blocked. The same measured-stale policy handles an upper-floor corridor separately.
+
+### What this does and does not generalize
+
+This is a **bounded two-record connector composition** after a physical approach, not an arbitrary portal graph. To connect two remembered routes, the survivor must have *actually walked and completed both routes* with compatible floor, entrance/exit and goal. It does not generate new waypoints into unexplored rooms, connect two staircases, infer reverse travel or share paths by telepathy. Longer routes and entrances >25m away still depend on the game's real native graph (if available). A route that was valid yesterday may be blocked by a new structure, requiring current physical validation. CPU savings by reuse remain an **untested hypothesis**.
+
+### Final Dev Build regressions, not yet executed
+
+1. Same living NPC physically learns (A) one staircase ascent from ground floor to upstairs landing, (B) a separate upper-floor corridor trip from that landing into another room. Start the survivor in a different ground-floor room with upstairs target at the end of B. Confirm all three stages occur in order by walking, with no skipped walls, stairs or landings.
+2. Without observed B, the NPC must not simply assume an open hallway beyond the known stair exit or mark upstairs objective achieved.
+3. A barricade introduced along upper-floor corridor B must invalidate/penalize only B, not erase route A confidence. A barricade on the *newly planned ground-floor approach* should not penalize A or B.
+4. Test the same stair/corridor from reverse direction with no reverse firsthand trips: no reverse connector is inferred.
+5. Move upstairs target to a third room far from corridor B destination: the bounded two-record composition refuses to claim a connection; future multi-hop graph is pending.
+6. Save/reload v6 preserves each original learned trip on the same survivor, but no new NPC inherits either trip on death. Stress 20–40 NPCs and verify capped physical checks, no route/door spam.
+7. Confirm the C# project compiles when the user runs the **last Dev Build** and check the Unity Physics mask and current native A* backend. These source commits are not runtime verification.
+
+`NAV-ACCESS-01`, `CORE-04`, `LEARN-05`, and `PERF-01` remain OPEN; only a limited new case is source implemented.
