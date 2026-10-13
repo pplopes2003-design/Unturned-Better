@@ -321,7 +321,8 @@ namespace SDG.Unturned
 						&& MobileNPCHumanoidDisposition.AreHostile(ownDisposition, hitNPC))
 					{
 						float hitDamage = GetWeaponDamage();
-						contactedSelectedTarget = hitVitals.ApplyDamage(hitDamage, shotDirection * hitDamage, transform);
+						contactedSelectedTarget = hitVitals.ApplyValidatedWeaponImpactServer(
+							hitDamage, hit.point, shotDirection, transform, true);
 					}
 				}
 				else if (targetZombie != null)
