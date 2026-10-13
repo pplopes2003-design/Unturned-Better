@@ -88,6 +88,7 @@ namespace SDG.Unturned
             template.AddComponent<MobileNPCFaction>();
             template.AddComponent<MobileNPCHumanoidVitals>();
             template.AddComponent<MobileNPCAdaptiveMemory>();
+            template.AddComponent<MobileNPCSupplyKnowledge>();
             template.AddComponent<MobileNPCHumanoidAim>();
             template.AddComponent<MobileNPCHumanoidCombat>();
             template.AddComponent<MobileNPCHumanoidRangedCombat>();
