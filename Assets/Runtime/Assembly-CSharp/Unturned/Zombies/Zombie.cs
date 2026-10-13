@@ -3144,10 +3144,37 @@ namespace SDG.Unturned
 
 									player.life.askInfect((byte) (damage / 3 * (1f - (player.skills.mastery((int) EPlayerSpeciality.DEFENSE, (int) EPlayerDefense.IMMUNITY) * 0.5f))));
 								}
-								else if (mobileNPCTarget != null)
+								else if (mobileNPCTarget != null && !mobileNPCTarget.IsDead)
 								{
-									Vector3 hitImpulse = (target.position - transform.position).normalized * damage;
-									mobileNPCTarget.ApplyDamage(damage, hitImpulse);
+									// The same animation timing/damage calculation as a
+									// native Player swipe applies, but never debit health
+									// based solely on an old position across a wall.
+									Vector3 npcPosition = mobileNPCTarget.transform.position;
+									Vector3 hitPoint = npcPosition + Vector3.up * 1.05f;
+									Vector3 strikeOrigin = transform.position + Vector3.up * 1.1f;
+									Vector3 offset = hitPoint - strikeOrigin;
+									Vector3 horizontal = npcPosition - transform.position;
+									horizontal.y = 0f;
+									float strikeDistance = offset.magnitude;
+									bool inRealReach = horizontal.sqrMagnitude <= GetHorizontalAttackRangeSquared()
+										&& Mathf.Abs(npcPosition.y - transform.position.y) < GetVerticalAttackRange();
+									if (damage > 0 && inRealReach && strikeDistance > 0.01f)
+									{
+										Vector3 heading = offset / strikeDistance;
+										// If the first obstruction is the NPC's own
+										// physical hitbox, allow the swipe; terrain and
+										// solid objects remain effective protection.
+										bool blocked = Physics.Raycast(strikeOrigin, heading,
+											out RaycastHit obstruction, strikeDistance,
+											RayMasks.BLOCK_SENTRY, QueryTriggerInteraction.Ignore)
+											&& obstruction.transform != mobileNPCTarget.transform
+											&& !obstruction.transform.IsChildOf(mobileNPCTarget.transform);
+										if (!blocked)
+										{
+											mobileNPCTarget.ApplyValidatedWeaponImpactServer(
+												damage, hitPoint, heading, transform, false);
+										}
+									}
 								}
 							}
 						}
