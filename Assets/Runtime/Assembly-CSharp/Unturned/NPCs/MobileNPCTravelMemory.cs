@@ -378,7 +378,7 @@ namespace SDG.Unturned
                 float score = approach * 0.18f
                     + (first.footsteps.Count - firstStep) * 0.035f
                     + 2.0f + first.failedReuses * 6f
-                    - first.successes * 0.2f;
+                    - first.successes * 0.08f;
                 SearchObservedAccessChain(1, 1 << i, first.footsteps[first.footsteps.Count - 1],
                     finalDestination, candidate, best, firstStep,
                     ref nodeBudget, score, ref bestScore, ref bestDepth,
@@ -448,7 +448,7 @@ namespace SDG.Unturned
                 candidate[depth] = i;
                 float nextScore = score + 2.0f + gap
                     + next.footsteps.Count * 0.035f
-                    + next.failedReuses * 6f - next.successes * 0.2f;
+                    + next.failedReuses * 6f - next.successes * 0.08f;
                 SearchObservedAccessChain(depth + 1, usedMask | (1 << i),
                     next.footsteps[next.footsteps.Count - 1], goal, candidate,
                     best, firstStep, ref remaining, nextScore, ref bestScore,
