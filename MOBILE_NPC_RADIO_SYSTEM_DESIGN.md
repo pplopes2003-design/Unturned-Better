@@ -66,3 +66,18 @@ Communication requires a *sender endpoint* and a *receiver endpoint*: functional
 6. Only after NPC vehicles work, add vehicle radio endpoints.
 
 **Explicit user request:** a complete architecture diagram of NPC AI is due only after all major AI subsystems are structured. This radio design is a future module in that diagram, not a completed feature.
+
+## Confirmed native Unturned mechanics (research, not validated in this Unity branch)
+
+- Vanilla **Walkie Talkie ID 1445**, configured as a `Tool` using `Useable: Walkie_Talkie`. Unturned supports selectable walkie channels/frequencies from the inventory and cross-map voice with compatible equipped radios; don't add an artificial 100m/500m attenuation range to a vanilla walkie without evidence. Official tool asset docs: https://docs.smartlydressedgames.com/en/stable/items/tool-asset.html ; item catalog: https://restoremonarchy.com/browser/vanilla/item/tool/1445 .
+- Vanilla **Earpiece ID 1446** is receive-only radio listening equipment; can be used for player interception if tuned to the NPC channel. Source: https://unturned.gameinfo.io/items/1446-earpiece and https://unturned.fandom.com/wiki/Communication . Verify exact local `PlayerVoice`/`PlayerEquipment` hooks and channel representation in this game's runtime; neither has been successfully fetched from the checked-in branch.
+- **Important correction:** do not invent battery drain for vanilla portable walkies merely for realism. Respect actual game's portable-radio mechanics unless adding a clearly separately configured survival-extension feature. Conversely, placeable base radios and vehicle radios should only operate if confirmed native objects/components exist; otherwise treat them as future modded devices with explicit construction/power rules, not assumed vanilla features.
+- Player intercept concept: a player with **actual suitable earpiece or walkie**, set to the same native channel/frequency, can receive intercepted NPC voice/text; wrong frequency, missing receiver or dead transmission source yields nothing. NPC subtitles should identify the radio speaker, not leak exact coordinates; they can be accompanied by short beeps/noise when actual sound assets are available. **Do not inject arbitrary plain-area UI outside the native channel check.**
+- Potential transcripts: `[R1] Contato suspeito no setor 4/7, confirma?`; `[R2] Negativo, indo verificar.`; `[R1] Airdrop avistado, solicito reforços.` Use `MobileNPCRadioMessage.FormatInterceptedSubtitle` templates, grounded in actual reports. Text is a player-readable representation of synthetic NPC speech, not actual microphone VO data.
+- Native vanilla voice broadcasts may cover the map regardless of distance. Keep any device-based range restrictions tied to **verified** model or mod extension; don't contradict the chosen equipment's game mechanics.
+
+## Current code work (2026-10-13)
+
+- `MobileNPCRadioMessage.cs` stores bounded data-only reports with confidence, expiry, faction, group, call sign and five kinds: EnemyContact, NeedReinforcements, UsefulLoot, Airdrop, UnknownBase. `FormatInterceptedSubtitle` creates simulated conversational text with coarse 100m map sectors, never precise player location.
+- **No code yet** bridges these reports into the native Unturned radio channel, inventory/equipment detection or player HUD. This file must not be considered proof of working interception.
+- Voice-only group contact messages are separately implemented in `MobileNPCGroupMember`; do not confuse local voice with broadcast radio.
