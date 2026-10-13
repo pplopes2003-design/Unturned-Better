@@ -16,7 +16,7 @@ namespace SDG.Unturned
 	/// </summary>
 	internal static class MobileNPCPersistence
 	{
-		private const int CurrentVersion = 3;
+		private const int CurrentVersion = 4;
 		private const float SaveInterval = 30f;
 		private const float DeferredRestoreInterval = 3f;
 		private static float nextSaveTime;
@@ -48,6 +48,7 @@ namespace SDG.Unturned
 			public List<ItemRecord> items = new List<ItemRecord>();
 			// Individual experience only; not a global group/faction policy.
 			public List<MobileNPCAdaptiveMemory.ExperienceRecord> experience = new List<MobileNPCAdaptiveMemory.ExperienceRecord>();
+			public List<MobileNPCSupplyKnowledge.SiteRecord> supplySites = new List<MobileNPCSupplyKnowledge.SiteRecord>();
 		}
 
 		[Serializable]
@@ -351,6 +352,9 @@ namespace SDG.Unturned
 				MobileNPCAdaptiveMemory adaptiveMemory = instance.GetComponent<MobileNPCAdaptiveMemory>();
 				if (adaptiveMemory != null)
 					adaptiveMemory.RestoreSnapshotServer(record.experience);
+				MobileNPCSupplyKnowledge supplyKnowledge = instance.GetComponent<MobileNPCSupplyKnowledge>();
+				if (supplyKnowledge != null)
+					supplyKnowledge.RestoreSnapshotServer(record.supplySites);
 			}
 			catch (Exception exception)
 			{
@@ -444,6 +448,9 @@ namespace SDG.Unturned
 				MobileNPCAdaptiveMemory adaptiveMemory = driver.GetComponent<MobileNPCAdaptiveMemory>();
 				if (adaptiveMemory != null)
 					record.experience = adaptiveMemory.ExportSnapshotServer();
+				MobileNPCSupplyKnowledge supplyKnowledge = driver.GetComponent<MobileNPCSupplyKnowledge>();
+				if (supplyKnowledge != null)
+					record.supplySites = supplyKnowledge.ExportSnapshotServer();
 
 				save.npcs.Add(record);
 			}
