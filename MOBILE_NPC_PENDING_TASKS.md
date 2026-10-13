@@ -190,3 +190,6 @@ Revisão estática adicional: conferidos `MobileNPCLooting`, `MobileNPCSupplyKno
 **Estado correto:** há pipeline de SOURCE conectado, **mas nenhum arquivo foi compilado nem validado em Unity**. `CORE-02` fica ativo porque o collider é ainda um único cilindro e as posições anatômicas são aproximações; validar pacote de rede/host, animações, headshots, ragdoll, dano real e XP. `CORE-03` segue ativo porque morte/corpo/ragdoll não foram testados; `CORE-04` segue ativo porque casas, pontes, escadas, água e a malha local precisam de testes. Compilação final apenas após o usuário encerrar as rodadas de desenvolvimento. Nenhuma pendência removida.
 
 **Próximos itens P0:** testar finalmente na Dev Build a rota nova sem `SKIP`, investigar modelagem anatômica de hitboxes e cadáver/ragdoll, validar a aquisição de obstáculos de rota ao redor de casas e a navegação cross-map de NPC. A integração de rádio verdadeiro e ML social continuam pendentes.
+
+
+**Complemento do transporte (mesma rodada):** `59714ab8d05dcb606834294069c78b03c06554ec` — serialização `PlayerInputPacket.write` também identifica `MobileNPCHumanoidVitals` quando o raycast fornece `info.transform` porém não `info.collider`; evita voltar ao `SKIP` em configurações alternativas de `DamageTool.raycast`. A verificação autoritativa física no servidor permanece obrigatória. Nenhum ID encerrado, sem compilação.
