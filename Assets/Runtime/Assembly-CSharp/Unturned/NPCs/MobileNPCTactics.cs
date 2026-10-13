@@ -179,6 +179,19 @@ namespace SDG.Unturned
 			return true;
 		}
 
+		/// <summary>Remembered supply trip, with an ordinary bounded movement goal.
+		/// The motor must still validate navigation and real loot after arrival.</summary>
+		public bool TryStartSupplySearch(Vector3 place, float now)
+		{
+			if (currentGoal != Goal.None || !IsFinite(place))
+				return false;
+			currentGoal = Goal.Investigate;
+			tacticalDestination = place;
+			hasTacticalDestination = true;
+			goalDeadline = now + 65f;
+			return true;
+		}
+
 		public bool IsGoalExpired(float now)
 		{
 			return currentGoal != Goal.None && now >= goalDeadline;
