@@ -133,30 +133,37 @@ namespace SDG.Unturned
                 visualTransforms[i].gameObject.layer = visualRenderLayer;
             }
 
-            // Native zombie/animal damage hitboxes use Entity (23), independently of
-            // their Agent movement capsules and the visual render layer (Medium/16).
-            // A trigger hitbox can be ignored by damage raycasts depending on physics
-            // query settings, so author a non-trigger Entity hitbox instead.
-            GameObject hitboxObject = new GameObject("MobileNPCHitbox");
-            const int mobileNpcHitboxLayer = 23; // Unturned Entity layer
-            hitboxObject.layer = mobileNpcHitboxLayer;
-            hitboxObject.transform.SetParent(template.transform, false);
-            hitboxObject.transform.localPosition = Vector3.zero;
-            hitboxObject.transform.localRotation = Quaternion.identity;
-            CapsuleCollider hitbox = hitboxObject.AddComponent<CapsuleCollider>();
-            hitbox.direction = 1;
-            hitbox.center = new Vector3(0f, 0.9f, 0f);
-            hitbox.height = 1.8f;
-            hitbox.radius = 0.34f;
-            hitbox.isTrigger = false;
-            // The root CharacterController already handles movement collisions.
-            // Avoid collision feedback between its capsule and the separate hit volume.
-            Physics.IgnoreCollision(hitbox, controller, true);
-            Debug.Log("[MobileNPCPopulationBootstrap] Damage hitbox: layer=Entity (23), trigger="
-                + hitbox.isTrigger + ", DAMAGE_CLIENT includes layer="
-                + ((RayMasks.DAMAGE_CLIENT & (1 << mobileNpcHitboxLayer)) != 0)
-                + ", DAMAGE_SERVER includes layer="
-                + ((RayMasks.DAMAGE_SERVER & (1 << mobileNpcHitboxLayer)) != 0) + ".");
+            // Hit colliders are on native Entity (23), separate from the Agent
+            // (24) movement CharacterController and NPC_Client visual (16).
+            // Author bounded, world-upright anatomical regions instead of one
+            // full-body capsule; each is a non-trigger damage raycast volume.
+            const int mobileNpcHitboxLayer = 23;
+            GameObject hitboxRoot = new GameObject("MobileNPCHitbox");
+            hitboxRoot.layer = mobileNpcHitboxLayer;
+            hitboxRoot.transform.SetParent(template.transform, false);
+            CreateNPCDamageCapsule(hitboxRoot.transform, controller,
+                "Torso", MobileNPCInjurySystem.BodyPart.Torso,
+                new Vector3(0f, 1.02f, 0f), 0.81f, 0.26f);
+            CreateNPCDamageSphere(hitboxRoot.transform, controller,
+                "Head", MobileNPCInjurySystem.BodyPart.Head,
+                new Vector3(0f, 1.65f, 0f), 0.20f);
+            CreateNPCDamageCapsule(hitboxRoot.transform, controller,
+                "LeftArm", MobileNPCInjurySystem.BodyPart.LeftArm,
+                new Vector3(-0.43f, 1.10f, 0f), 0.72f, 0.14f);
+            CreateNPCDamageCapsule(hitboxRoot.transform, controller,
+                "RightArm", MobileNPCInjurySystem.BodyPart.RightArm,
+                new Vector3(0.43f, 1.10f, 0f), 0.72f, 0.14f);
+            CreateNPCDamageCapsule(hitboxRoot.transform, controller,
+                "LeftLeg", MobileNPCInjurySystem.BodyPart.LeftLeg,
+                new Vector3(-0.17f, 0.39f, 0f), 0.72f, 0.16f);
+            CreateNPCDamageCapsule(hitboxRoot.transform, controller,
+                "RightLeg", MobileNPCInjurySystem.BodyPart.RightLeg,
+                new Vector3(0.17f, 0.39f, 0f), 0.72f, 0.16f);
+            Debug.Log("[MobileNPCPopulationBootstrap] Anatomical damage hitboxes=6"
+                + ", Entity layer=" + mobileNpcHitboxLayer
+                + ", DAMAGE_CLIENT includes=" + ((RayMasks.DAMAGE_CLIENT & (1 << mobileNpcHitboxLayer)) != 0)
+                + ", DAMAGE_SERVER includes=" + ((RayMasks.DAMAGE_SERVER & (1 << mobileNpcHitboxLayer)) != 0)
+                + ". Movement capsule remains on Agent.");
 
             Camera mainCamera = Camera.main;
             if (mainCamera != null)
@@ -399,6 +406,42 @@ namespace SDG.Unturned
             Debug.Log("[MobileNPCPopulationBootstrap] Single-player mobile NPC population initialized for loaded map "
                 + level + " with root layer Agent (" + template.layer + ") and CharacterController overlap recovery disabled."
                 + " Experimental local entities only; local NPC snapshots are persisted, but network replication is not implemented.");
+        }
+
+        private static void CreateNPCDamageCapsule(Transform parent,
+            CharacterController controller, string regionName,
+            MobileNPCInjurySystem.BodyPart part, Vector3 center, float height, float radius)
+        {
+            GameObject region = new GameObject("Hit_" + regionName);
+            region.layer = parent.gameObject.layer;
+            region.transform.SetParent(parent, false);
+            region.transform.localPosition = center;
+            CapsuleCollider collider = region.AddComponent<CapsuleCollider>();
+            collider.direction = 1;
+            collider.center = Vector3.zero;
+            collider.height = height;
+            collider.radius = radius;
+            collider.isTrigger = false;
+            region.AddComponent<MobileNPCBodyHitbox>().Configure(part);
+            // The CharacterController already owns walking physics. Hit volumes
+            // must never collide back into the NPC's own movement capsule.
+            Physics.IgnoreCollision(collider, controller, true);
+        }
+
+        private static void CreateNPCDamageSphere(Transform parent,
+            CharacterController controller, string regionName,
+            MobileNPCInjurySystem.BodyPart part, Vector3 center, float radius)
+        {
+            GameObject region = new GameObject("Hit_" + regionName);
+            region.layer = parent.gameObject.layer;
+            region.transform.SetParent(parent, false);
+            region.transform.localPosition = center;
+            SphereCollider collider = region.AddComponent<SphereCollider>();
+            collider.center = Vector3.zero;
+            collider.radius = radius;
+            collider.isTrigger = false;
+            region.AddComponent<MobileNPCBodyHitbox>().Configure(part);
+            Physics.IgnoreCollision(collider, controller, true);
         }
 
         private static string GetHierarchyPath(Transform node, Transform root)
