@@ -135,18 +135,11 @@ namespace SDG.Unturned
             // spawning; a random role would make TryJoinExistingGroupServer fail.
             PendingRespawn dueReplacement = pendingRespawns.Count > 0
                 && Time.time >= pendingRespawns[0].RespawnAt ? pendingRespawns[0] : null;
-            MobileNPCHumanoidDisposition.Role groupRole;
-            MobileNPCFaction.Id groupFaction;
+            MobileNPCHumanoidDisposition.Role groupRole = MobileNPCHumanoidDisposition.Role.Neutral;
+            MobileNPCFaction.Id groupFaction = MobileNPCFaction.Id.Unaffiliated;
             bool eligibleGroup = dueReplacement != null
                 && MobileNPCGroupMember.TryGetSurvivingGroupIdentityServer(
                     dueReplacement.FormerGroupId, out groupRole, out groupFaction);
-            // Explicit defaults keep the values defined even when short-circuit
-            // evaluation skips the out-parameter call.
-            if (!eligibleGroup)
-            {
-                groupRole = MobileNPCHumanoidDisposition.Role.Neutral;
-                groupFaction = MobileNPCFaction.Id.Unaffiliated;
-            }
             MobileNPCHumanoidDisposition.Role selectedRole = eligibleGroup
                 ? groupRole : MobileNPCSettings.SelectPopulationRole();
 
