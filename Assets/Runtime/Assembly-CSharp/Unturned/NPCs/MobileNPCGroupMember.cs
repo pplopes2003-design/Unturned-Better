@@ -266,12 +266,17 @@ namespace SDG.Unturned
 				return;
 			nextKnowledgeConversationAt = Time.time + Random.Range(15f, 22f);
 			MobileNPCAdaptiveMemory ownMemory = GetComponent<MobileNPCAdaptiveMemory>();
-			if (ownMemory == null || !ownMemory.TryGetUnspokenLessonServer(
-				out MobileNPCAdaptiveMemory.SpokenLesson report))
+			MobileNPCAdaptiveMemory.SpokenLesson report = default(MobileNPCAdaptiveMemory.SpokenLesson);
+			bool hasCombatLesson = ownMemory != null && ownMemory.TryGetUnspokenLessonServer(out report);
+			MobileNPCSupplyKnowledge ownSupply = GetComponent<MobileNPCSupplyKnowledge>();
+			MobileNPCSupplyKnowledge.SpokenSiteLesson siteReport = default(MobileNPCSupplyKnowledge.SpokenSiteLesson);
+			bool hasSupplyLesson = ownSupply != null && ownSupply.TryGetUnspokenSiteLessonServer(out siteReport);
+			if (!hasCombatLesson && !hasSupplyLesson)
 				return;
 
 			float normalVoiceRange = motor != null && motor.IsCrouched ? 4f : 7f;
-			int recipients = 0;
+			int combatRecipients = 0;
+			int supplyRecipients = 0;
 			foreach (MobileNPCGroupMember ally in group.Members)
 			{
 				if (ally == null || ally == this || !ally.initialized || ally.leftGroup
@@ -307,16 +312,29 @@ namespace SDG.Unturned
 				if (blocked && distance > normalVoiceRange * 0.42f)
 					continue;
 
-				MobileNPCAdaptiveMemory listener = ally.GetComponent<MobileNPCAdaptiveMemory>();
-				if (listener != null && listener.ReceiveSpokenLessonServer(report))
-					recipients++;
+				if (hasCombatLesson)
+				{
+					MobileNPCAdaptiveMemory listener = ally.GetComponent<MobileNPCAdaptiveMemory>();
+					if (listener != null && listener.ReceiveSpokenLessonServer(report))
+						combatRecipients++;
+				}
+				if (hasSupplyLesson)
+				{
+					MobileNPCSupplyKnowledge listener = ally.GetComponent<MobileNPCSupplyKnowledge>();
+					if (listener != null && listener.ReceiveSpokenSiteLessonServer(siteReport))
+						supplyRecipients++;
+				}
 			}
-			if (recipients > 0)
-			{
+			if (combatRecipients > 0)
 				ownMemory.ConfirmLessonSpokenServer(report.Sequence);
+			if (supplyRecipients > 0)
+				ownSupply.ConfirmSpokenSiteLessonServer(siteReport.Sequence);
+			if (combatRecipients > 0 || supplyRecipients > 0)
+			{
 				Debug.Log("[MobileNPCGroupMember] Local experience conversation: speaker="
-					+ name + ", group=" + GroupId + ", heardBy=" + recipients
-					+ ", lesson=" + report.Kind + ". No remote relay.", this);
+					+ name + ", group=" + GroupId + ", combatListeners=" + combatRecipients
+					+ ", supplyListeners=" + supplyRecipients
+					+ ". Real audible range; no radio/remote relay.", this);
 			}
 		}
 
