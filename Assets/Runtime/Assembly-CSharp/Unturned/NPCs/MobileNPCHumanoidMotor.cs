@@ -75,6 +75,7 @@ namespace SDG.Unturned
 		private CharacterController characterController;
 		private MobileNPCBrainDriver brainDriver;
 		private MobileNPCInjurySystem injurySystem;
+		private MobileNPCDoorNavigation doorNavigation;
 		private MobileNPCNativeAStarRouteProvider nativeAStarRouteProvider;
 		private Vector3 spawnPosition;
 		private Vector3 velocity;
@@ -212,6 +213,7 @@ namespace SDG.Unturned
 			characterController = GetComponent<CharacterController>();
 			brainDriver = GetComponent<MobileNPCBrainDriver>();
 			injurySystem = GetComponent<MobileNPCInjurySystem>();
+			doorNavigation = GetComponent<MobileNPCDoorNavigation>();
 			nativeAStarRouteProvider = GetComponent<MobileNPCNativeAStarRouteProvider>();
 			if (nativeAStarRouteProvider == null)
 				nativeAStarRouteProvider = gameObject.AddComponent<MobileNPCNativeAStarRouteProvider>();
@@ -280,6 +282,7 @@ namespace SDG.Unturned
 				TryChooseRoamingDestination();
 			}
 
+			bool waitingForDoorToOpen = false;
 			bool hasDestination = hasBrainDestination || hasRoamingDestination;
 			Vector3 destination = hasBrainDestination ? brainDriver.Destination : roamingDestination;
 			if (!hasDestination)
@@ -389,14 +392,25 @@ namespace SDG.Unturned
 							&& !IsOnlyTemporaryActorBlockingAlong(routeOrigin, routeRadius,
 								routeOffset.normalized, segmentDistance))
 						{
-							// A real wall/closed door invalidates the route. A passing
-							// person or zombie does not invalidate a route through a
-							// doorway: local collision avoidance may yield to them.
-							routeWaypoints.Clear();
-							routeWaypointIndex = 0;
-							hasDetourWaypoint = false;
-							nextDetourAttemptTime = Time.time;
-							movementDestination = destination;
+							// The closest collision may be a genuine unlocked barricade
+							// door. Ask its native server system to open it before throwing
+							// away an otherwise valid path. Never unlock, warp or bypass.
+							if (doorNavigation != null
+								&& doorNavigation.TryHandleBlockingDoorServer(
+									routeOrigin, routeOffset.normalized,
+									routeRadius, segmentDistance, obstacleMask))
+							{
+								waitingForDoorToOpen = true;
+							}
+							else
+							{
+								// A real wall or locked door invalidates this segment.
+								routeWaypoints.Clear();
+								routeWaypointIndex = 0;
+								hasDetourWaypoint = false;
+								nextDetourAttemptTime = Time.time;
+								movementDestination = destination;
+							}
 						}
 					}
 				}
@@ -408,11 +422,25 @@ namespace SDG.Unturned
 					&& Time.time >= nextDetourAttemptTime
 					&& IsObstacleBlocking(goalOffset.normalized))
 				{
-					TryCreateDetourWaypoint(destination);
-					if (routeWaypointIndex < routeWaypoints.Count)
-						movementDestination = routeWaypoints[routeWaypointIndex];
-					else if (hasDetourWaypoint)
-						movementDestination = detourWaypoint;
+					Vector3 doorProbeOrigin = transform.position
+						+ Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f);
+					float doorProbeRadius = Mathf.Clamp(obstacleProbeRadius, 0.05f,
+						Mathf.Max(0.05f, characterController.radius * 0.9f));
+					if (doorNavigation != null
+						&& doorNavigation.TryHandleBlockingDoorServer(doorProbeOrigin,
+							goalOffset.normalized, doorProbeRadius,
+							Mathf.Min(2.5f, goalOffset.magnitude), obstacleMask))
+					{
+						waitingForDoorToOpen = true;
+					}
+					else
+					{
+						TryCreateDetourWaypoint(destination);
+						if (routeWaypointIndex < routeWaypoints.Count)
+							movementDestination = routeWaypoints[routeWaypointIndex];
+						else if (hasDetourWaypoint)
+							movementDestination = detourWaypoint;
+					}
 				}
 				Vector3 offset = movementDestination - transform.position;
 				offset.y = 0.0f;
@@ -457,7 +485,8 @@ namespace SDG.Unturned
 
 			// A suspicious footstep can suspend walking briefly while the survivor
 			// listens. A confirmed threat or retreat pre-empts this immediately.
-			if (brainDriver.IsListening || brainDriver.IsAmbushPreparing)
+			if (brainDriver.IsListening || brainDriver.IsAmbushPreparing
+				|| waitingForDoorToOpen)
 				planarDirection = Vector3.zero;
 
 			bool wantedToMove = planarDirection.sqrMagnitude > 0.0001f;
