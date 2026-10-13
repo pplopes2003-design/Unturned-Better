@@ -487,7 +487,9 @@ namespace SDG.Unturned
 							}
 							else
 							{
-								// A real wall or locked door invalidates this segment.
+								// Real geometry invalidated this path; a stale remembered
+								// route must lose confidence before any new planning.
+								ReportLearnedRouteInvalidatedServer();
 								routeWaypoints.Clear();
 								routeWaypointIndex = 0;
 								hasDetourWaypoint = false;
@@ -1044,6 +1046,7 @@ namespace SDG.Unturned
 			{
 				// A failed detour must not keep pulling the NPC toward the same unusable point.
 				// Clear it so the next bounded attempt can choose a different side.
+				ReportLearnedRouteInvalidatedServer();
 				hasDetourWaypoint = false;
 				routeWaypoints.Clear();
 				routeWaypointIndex = 0;
@@ -1385,6 +1388,141 @@ namespace SDG.Unturned
 		/// game runtime exposes it. The provider is asynchronous; false means either
 		/// no route is ready yet or the native backend is unavailable.
 		/// </summary>
+		/// <summary>
+		/// Tracks the physical journey requested by this NPC, separately from
+		/// speculative route plans. A changing combat goal discards the old
+		/// partial trace rather than "learning" a path never completed.
+		/// </summary>
+		private void BeginOrContinueActualJourney(Vector3 requestedGoal)
+		{
+			if (travelMemory == null)
+				return;
+			if (!trackingActualJourney ||
+				Vector3.Distance(actualTravelGoal, requestedGoal) > 1.2f)
+			{
+				trackingActualJourney = true;
+				actualJourneyExceededLimit = false;
+				actualTravelStart = transform.position;
+				actualTravelGoal = requestedGoal;
+				actualTravelFootsteps.Clear();
+				actualTravelFootsteps.Add(transform.position);
+			}
+		}
+
+		/// <summary>
+		/// Called AFTER CharacterController.Move, never on planned waypoints.
+		/// Outliers/teleports, swimming and unfinished journeys are not taught.
+		/// </summary>
+		private void RecordActualMovementAndJourneyOutcome(bool hasDestination,
+			Vector3 requestedGoal, bool isUnderwater)
+		{
+			if (!hasDestination || !trackingActualJourney || isUnderwater
+				|| travelMemory == null || actualJourneyExceededLimit)
+				return;
+			Vector3 actual = transform.position;
+			Vector3 previous = actualTravelFootsteps[actualTravelFootsteps.Count - 1];
+			float displacement = Vector3.Distance(previous, actual);
+			if (displacement > 2.6f)
+			{
+				// A teleport, physics glitch or very large unsampled displacement
+				// is not a verified continuous walkable connector.
+				actualJourneyExceededLimit = true;
+				return;
+			}
+			bool reachedActualGoal =
+				PlanarDistanceSquared(actual, requestedGoal)
+					<= stoppingDistance * stoppingDistance
+				&& Mathf.Abs(actual.y - requestedGoal.y)
+					<= Mathf.Max(0.4f, characterController.stepOffset + 0.15f);
+			if (displacement >= 1.05f || (reachedActualGoal && displacement >= 0.1f))
+			{
+				if (actualTravelFootsteps.Count >= MobileNPCTravelMemory.MaxFootsteps)
+				{
+					actualJourneyExceededLimit = true;
+					return;
+				}
+				actualTravelFootsteps.Add(actual);
+			}
+			if (reachedActualGoal)
+			{
+				if (actualTravelFootsteps.Count >= 3
+					&& travelMemory.RememberCompletedJourneyServer(
+						actualTravelStart, requestedGoal, actualTravelFootsteps))
+				{
+					activeRememberedRouteIndex = -1;
+				}
+				trackingActualJourney = false;
+				actualTravelFootsteps.Clear();
+			}
+		}
+
+		/// <summary>
+		/// Try an individual's first-hand remembered journey BEFORE rebuilding
+		/// the same route. All remembered segments are physical candidates,
+		/// never authoritative free movement. Revalidate current ground and
+		/// collision, rejecting changed doors/walls and wrong-storey endpoints.
+		/// </summary>
+		private bool TryReuseActualLearnedRoute(Vector3 destination)
+		{
+			if (!Provider.isServer || travelMemory == null || characterController == null
+				|| routeWaypoints.Count > 0
+				|| (targetIsVisible && brainDriver != null
+					&& (brainDriver.CurrentGoal == MobileNPCTactics.Goal.SeekCover
+						|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat))
+				|| !travelMemory.TryFindCandidateServer(transform.position,
+					destination, rememberedRouteScratch, out int learnedIndex))
+				return false;
+
+			float radius = Mathf.Clamp(obstacleProbeRadius, 0.05f,
+				Mathf.Max(0.05f, characterController.radius * 0.9f));
+			Vector3 previous = transform.position;
+			bool valid = true;
+			for (int i = 0; i < rememberedRouteScratch.Count; ++i)
+			{
+				Vector3 next = rememberedRouteScratch[i];
+				float distance = Vector3.Distance(previous, next);
+				if (distance > 2.6f || !Level.checkSafeIncludingClipVolumes(next)
+					|| (distance > 0.25f
+						&& !IsActuallyWalkableStairConnection(previous, next, radius)))
+				{
+					valid = false;
+					break;
+				}
+				previous = next;
+			}
+			// Past arrival may be one stopping radius from the new destination.
+			// Never append an unvalidated final point behind another wall.
+			float finalGap = Vector3.Distance(previous, destination);
+			if (finalGap > 1.25f || (finalGap > 0.4f
+				&& !IsActuallyWalkableStairConnection(previous, destination, radius)))
+				valid = false;
+
+			if (!valid)
+			{
+				travelMemory.ReportReuseFailureServer(learnedIndex);
+				return false;
+			}
+
+			routeWaypoints.Clear();
+			for (int i = 1; i < rememberedRouteScratch.Count; ++i)
+				routeWaypoints.Add(rememberedRouteScratch[i]);
+			if (finalGap > 0.6f)
+				routeWaypoints.Add(destination);
+			routeWaypointIndex = 0;
+			detourGoalSnapshot = destination;
+			hasDetourWaypoint = false;
+			activeRememberedRouteIndex = learnedIndex;
+			nextPlannedRouteValidationTime = 0f;
+			return routeWaypoints.Count > 0;
+		}
+
+		private void ReportLearnedRouteInvalidatedServer()
+		{
+			if (activeRememberedRouteIndex >= 0 && travelMemory != null)
+				travelMemory.ReportReuseFailureServer(activeRememberedRouteIndex);
+			activeRememberedRouteIndex = -1;
+		}
+
 		private bool TryBuildNativeAStarRoute(Vector3 destination)
 		{
 			if (nativeAStarRouteProvider == null
