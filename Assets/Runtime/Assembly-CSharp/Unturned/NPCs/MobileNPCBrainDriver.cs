@@ -449,6 +449,8 @@ namespace SDG.Unturned
 			// accepted only when safe ground exists and world geometry blocks the threat ray.
 			float[] angles = { -70f, -40f, -20f, 0f, 20f, 40f, 70f };
 			float[] distances = { 4f, 7f, 10f };
+			MobileNPCAdaptiveMemory memory = GetComponent<MobileNPCAdaptiveMemory>();
+			Vector3? lowerConfidenceFallback = null;
 			for (int d = 0; d < distances.Length; ++d)
 			{
 				for (int a = 0; a < angles.Length; ++a)
@@ -519,10 +521,23 @@ namespace SDG.Unturned
 						}
 					}
 					if (!blockedApproach)
+					{
+						// The corridor is physically checked every time. Previous failed
+						// approaches only reorder which viable cover we attempt, not
+						// manufacture safe positions or override line-of-sight.
+						float learnedScore = memory != null
+							? memory.GetCoverAccessAdjustment(candidate) : 0f;
+						if (learnedScore < -6f)
+						{
+							if (!lowerConfidenceFallback.HasValue)
+								lowerConfidenceFallback = candidate;
+							continue;
+						}
 						return candidate;
+					}
 				}
 			}
-			return null;
+			return lowerConfidenceFallback;
 		}
 
 		/// <summary>
@@ -592,6 +607,13 @@ namespace SDG.Unturned
 				return;
 			}
 
+			if (tactics.CurrentGoal == MobileNPCTactics.Goal.SeekCover)
+			{
+				MobileNPCAdaptiveMemory memory = GetComponent<MobileNPCAdaptiveMemory>();
+				if (memory != null && tactics.HasTacticalDestination)
+					memory.RecordOwnOutcomeServer(MobileNPCAdaptiveMemory.ExperienceKind.CoverAccess,
+						tactics.TacticalDestination, true);
+			}
 			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Flank)
 			{
 				// Keep the NPC at its alternate firing position for the bounded flank
@@ -657,6 +679,15 @@ namespace SDG.Unturned
 
 			if (tactics.IsGoalExpired(Time.time))
 			{
+				// Failure here means the validated cover destination was not reached
+				// before its deadline, NOT that cover would have stopped incoming fire.
+				if (tactics.CurrentGoal == MobileNPCTactics.Goal.SeekCover && tactics.HasTacticalDestination)
+				{
+					MobileNPCAdaptiveMemory memory = GetComponent<MobileNPCAdaptiveMemory>();
+					if (memory != null)
+						memory.RecordOwnOutcomeServer(MobileNPCAdaptiveMemory.ExperienceKind.CoverAccess,
+							tactics.TacticalDestination, false);
+				}
 				tactics.ClearGoal();
 			}
 			// An active clue is evaluated at a bounded rate and only when no more
