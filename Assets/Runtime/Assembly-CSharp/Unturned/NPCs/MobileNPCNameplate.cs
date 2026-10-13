@@ -26,7 +26,10 @@ namespace SDG.Unturned
         {
             disposition = GetComponent<MobileNPCHumanoidDisposition>();
             GameObject labelObject = new GameObject("MobileNPCNameplateText");
-            labelObject.layer = 0;
+            // Use the visible NPC model layer, rather than Default which may be
+            // absent from the gameplay camera culling mask.
+            Transform visualRoot = transform.Find("HumanoidVisual");
+            labelObject.layer = visualRoot != null ? visualRoot.gameObject.layer : gameObject.layer;
             labelTransform = labelObject.transform;
             labelTransform.SetParent(transform, false);
             labelTransform.localPosition = Vector3.up * height;
@@ -36,6 +39,7 @@ namespace SDG.Unturned
             label.fontSize = 48;
             label.characterSize = characterSize;
             label.color = Color.white;
+            label.gameObject.SetActive(false);
             label.richText = false;
             label.text = disposition != null ? disposition.DisplayName : "Sobrevivente";
             MeshRenderer renderer = labelObject.GetComponent<MeshRenderer>();
