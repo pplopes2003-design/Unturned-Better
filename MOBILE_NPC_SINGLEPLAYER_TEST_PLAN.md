@@ -468,3 +468,15 @@ NAV-ACCESS-01 additional async regression (commit `1f6ae7f`): while native A* ha
 Related commits: `7facf620`, `4968e145`, `d5cedb68`, `a6ce9d3b`, `8856f815`, `fde0be8e`, `36d647ef`.
 
 NAV-NATIVE-01 regression `6e59544a`: on licensed ASPFP runtime inspect selected `Seeker.StartPath` reflection signature (exact three parameters), confirm graph mask is not accidentally set to zero by the adapter; verify callback receives a valid route. Absent backend must still fail safely with diagnostics.
+
+## 33. Planned low-obstacle jump — ONLY final Dev Build (no runtime evidence yet)
+
+- [ ] Stand near low static obstacle (~0.35–0.65m), target more than 1.45m ahead, ground within 0.25m elevation difference at landing. Verify full ballistic motion with `CharacterController.Move`, grounded completion and no source-level transform teleport.
+- [ ] Thin railing/fence/wall too tall, solid low roof/ceiling, locked/unlocked native door, moving Player/NPC/Zombie, vehicle, and missing or sloped landing: verify static-only trigger and predicted swept capsule rejection, no fake jump/door bypass.
+- [ ] Inured leg or crouched/listening NPC, water entry, change destination during leap, unexpected side collision and missed landing: verify abort, physics gravity, alternate route and no forced destination completion.
+- [ ] Two/20/40 NPCs: inspect 0.10s shared probe rate, 0.75s per actor, low GC, cool-down and Unity Profiler physics cast counts; repeat on multiple maps.
+- [ ] Save/reload after jumping: a completed ballistic arc must NOT be stored as ordinary walkable route in personal memory, nor reused as a floor-to-floor hallway.
+- [ ] Verify whether runtime NPC_Client includes a true Jump/Leap animation (checked-in importer does not prove one), and that no airborne footstep sounds are triggered. Do not claim real vault/ladder animation in this subcase.
+- [ ] Compile `MobileNPCHumanoidMotor.cs` + `MobileNPCVisualAnimation.cs` with game/Unity actual refs, inspect physics/contact logs and record user feedback. Mark only physical low-hop subitem concluded if approved; NAV-JUMP-01 parent remains open for off-mesh graph jumping, proper vault pose, ladders.
+
+Technical design: `MOBILE_NPC_PLANNED_JUMP_DESIGN.md`. Commits `b92feff1`, `a1892748`, `04ccd8b0`, `03d4724a`, `b3c9080c`, `ba9c4b36`, `6571aaa5`.
