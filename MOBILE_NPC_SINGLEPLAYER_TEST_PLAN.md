@@ -446,3 +446,5 @@ Teach the same living NPC an authentic stair route, then position it roughly 0.7
 - [ ] **Compilation:** validate all new C# signatures/Unity API usage and preprocessor variants with actual project Dev Build. On approval mark NAV-ACCESS-01 CONCLUÍDA (runtime verificado) for stated scope, or reopen and attach exact log/map/repro scenario.
 
 Related: `MOBILE_NPC_KNOWN_ACCESS_NAVIGATION_DESIGN.md` and permanent `MOBILE_NPC_PENDING_TASKS.md`. All tests unexecuted until the user consolidates final Dev Build.
+
+NAV-ACCESS-01 additional async regression (commit `1f6ae7f`): while native A* has a pending entrance request, verify the NPC stops walking toward a blocking building wall, retains combat activity, does not falsely mark arrival, does not accumulate unwanted stuck recoveries and resumes once a physically valid route is accepted.
