@@ -83,6 +83,7 @@ namespace SDG.Unturned
 
             template.AddComponent<MobileNPCBrainDriver>();
             template.AddComponent<MobileNPCHumanoidMotor>();
+            template.AddComponent<MobileNPCDoorNavigation>();
             template.AddComponent<MobileNPCHumanoidPerception>();
             template.AddComponent<MobileNPCHumanoidDisposition>();
             template.AddComponent<MobileNPCFaction>();
