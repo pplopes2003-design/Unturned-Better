@@ -340,3 +340,6 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 - [ ] Upstairs target behind closed unlocked doorway: opening door is not equivalent to linking floors; require actual staircase graph. If target remains inaccessible, document under CORE-04.
 - [ ] 1, 4, 20 and 40 NPCs, in stock/custom maps: Unity Profiler physics casts/CPU, no excessive open requests; check original vanilla Player door interactions and reliable state replication unchanged.
 - [ ] `Player.log`, map, native asset door type, owner/group/locked flag and obstacle geometry supplied by user ONLY at final build; then mark `NAV-DOOR-01` resolved or return to implementation. CORE-04 stays open until all navigation scenarios pass.
+
+
+- [ ] Em teste de navegação A* local, inserir collider de prefab InteractableDoor ainda **não registrado** em BarricadeManager/BarricadeRegion: o NPC não pode presumir que a célula/aresta é atravessável apenas por haver componente de porta (`775fb0aa`).
