@@ -258,3 +258,18 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 
 
 - [ ] No diagnóstico de `PlayerInputPacket.write`, testar tanto `RaycastInfo.collider` presente quanto impacto que só preserve `RaycastInfo.transform`; o pacote `MOBILE_NPC` deve ser preservado somente quando o transform pertence efetivamente a um NPC móvel, sem alterar impactos do chão ou de outros objetos (commit `59714ab8`).
+
+
+## 20. P0: anatomia física, morte/cadáver, loot nativo e XP — 2026-10-13 (testes para a build final)
+
+- [ ] NPC vivo: seis colliders `Hit_Head`, `Hit_Torso`, `Hit_LeftArm`, `Hit_RightArm`, `Hit_LeftLeg`, `Hit_RightLeg` sob `MobileNPCHitbox`, Entity 23, são realmente detectados por `RayMasks.DAMAGE_CLIENT` e `DAMAGE_SERVER`. Os colliders NÃO são triggers, e a cápsula de movimento Agent 24 é independente.
+- [ ] Testar arma e melee de frente, lado e costas: tiro na cabeça ativa ELimb.SKULL/hitmarker crítico e dano maior quando multiplicador correto; tronco e membros usam base SPINE, com lesões por regiões coerentes. Não pressupor articulações visuais exatas: os colliders novos são root-local, não bone-bound.
+- [ ] O NPC não deve se empurrar, tremer, deslizar ou travar por colisão entre hitbox e seu próprio CharacterController, inclusive após carregamento/spawn/ativação, agachamento, escada e outras instâncias NPC próximas. `MobileNPCBodyHitbox.OnEnable` reaplica IgnoreCollision depois que template inativo é ativado.
+- [ ] Tiro de NPC hostil em NPC inimigo: raycast real encontra marker do membro, nunca atravessa muro, gasta bala, aplica UMA lesão e 1 débito HP; aliados não se acertam intencionalmente.
+- [ ] Morte com tiro na cabeça e com sangramento tardio: `DieServer` disparado uma vez, todos os seis colliders deixam de existir para raycasts de combate, AI/motor/deslocamento/tratamento/looting param; corpo físico começa a cair e não muda de cor ou nome por componentes de vida.
+- [ ] Confirmar o prefab original `NPC_Client.prefab` sem ragdoll: um Rigidbody e zero Joints. `ActivateRigidCorpseFallback` deve usar uma cápsula física que cai, **não** ser declarada ragdoll esquelético. Futuro `RAG-01` exige ossos articulados/juntas reais.
+- [ ] NPC vivo com Rifle/Cobra e carregador carregado, comida, água e bandagens no inventário: matar e conferir que cada **item real** aparece no mapa uma única vez, com mesmos ID, quantidade, qualidade e `state` original; remover os itens dos slots apenas após drop bem-sucedido. Zero drops inventados ou duplicados.
+- [ ] Simular veto no `ItemManager.onServerSpawningItemDrop`, região inválida ou item Pro-only: nenhum item fantasma; rejeitado retorna ao inventário do cadáver ou permanece não-droppable, tenta de novo sem spam crítico até limpeza. Registrar o caso em que a entidade é destruída antes de resolver o item recusado.
+- [ ] Confirme que um jogador que mata diretamente NPC **hostil** recebe 10 pontos de XP reais (uma vez), no sistema de experiências do Unturned. NPC amigável/neutro morto dá 0 XP; morto por zumbi, NPC ou sangramento posterior não credita falsamente o jogador. Stats/quest kills ainda não estão implementados.
+- [ ] Corpse remains physical and lootable within lifetime (30s default); replacement spawns with new identity and no former memories after delay (60s default), group survivors retain only already shared knowledge. Stress: 40 NPCs and simultaneous kills.
+- [ ] Regredir zumbi/animal/player vanilla gun and melee: `MOBILE_NPC` enum extension/marker detection doesn't change native hit processing. Não solicitar compilação antes do encerramento da implementação; aguardar a Dev Build final + `Player.log` do usuário.
