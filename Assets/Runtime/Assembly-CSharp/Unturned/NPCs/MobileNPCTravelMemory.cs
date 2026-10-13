@@ -191,7 +191,11 @@ namespace SDG.Unturned
                     record.footsteps[record.footsteps.Count - 1]);
                 // This stage targets entry paths from another room, not
                 // arbitrary navigation across an entire unfamiliar map.
-                if (distanceToEntrance < 2.5f || distanceToEntrance > 25f
+                // Do not discard an authentic known stair just because the
+                // survivor has already approached within 2.5m of its entry.
+                // The motor still requires an exact physical approach path,
+                // even for a close entrance; avoid a zero-length route here.
+                if (distanceToEntrance < 0.8f || distanceToEntrance > 25f
                     || Mathf.Abs(observedEntrance.y - currentPosition.y) > 0.85f)
                     continue;
 
