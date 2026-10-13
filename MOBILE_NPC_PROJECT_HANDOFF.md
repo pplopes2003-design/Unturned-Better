@@ -609,3 +609,11 @@ This is the **first connected real feedback slice**, not completed long-term AI 
 3. Return to urgent native zombie chase across POI/region borders, gun/melee/ragdoll integration, navigation around structures, group/faction validation, and native radio receiver/channel bridge.
 4. Add all relevant tests to `MOBILE_NPC_SINGLEPLAYER_TEST_PLAN.md` and continue tracking EVERY outstanding requirement in `MOBILE_NPC_PENDING_TASKS.md`.
 
+
+
+### Addendum — 2026-10-13: learning cover access
+
+- `1f09857381d10bb1c65ee6eaf756d97f3a6c2d50`: `MobileNPCAdaptiveMemory` now has `CoverAccess` context (saved in per-individual v3 snapshot).
+- `caf314160cef9e46a32e2e7bc5b3303ad1964b47`: `MobileNPCBrainDriver` records cover waypoint arrival vs. expired cover goal as outcome. Cover candidate testing still checks map geometry and short approach corridor; repeated learned failures can postpone a candidate, but first geometry-safe fallback remains when no others work.
+- Source/commit only; NOT compiled, NOT run in-game. This measures waypoint access, **not** cover's effectiveness against bullets or full A* route correctness.
+- Canonical backlog `MOBILE_NPC_PENDING_TASKS.md` LEARN-05 remains active. User will perform compiled Dev Build and tests at end. Continue adding outcome-aware tactical learning, then physical radios, zombie cross-region pursuit, nav, interactions, etc., and update this handoff and backlog every round.
