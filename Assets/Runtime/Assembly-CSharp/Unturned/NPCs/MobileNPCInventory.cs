@@ -21,6 +21,7 @@ namespace SDG.Unturned
 		private readonly List<uint> slotInstanceIDs = new List<uint>();
 		private uint nextSlotInstanceID = 1;
 		private int reservedSlots;
+		private float nextMedicalCraftAttemptTime;
 
 		public int Capacity => Mathf.Max(1, capacity);
 		public int UsedSlots => slots.Count;
@@ -320,8 +321,11 @@ namespace SDG.Unturned
 		/// </summary>
 		public bool TryCraftNativeWoundDressingServer()
 		{
-			if (!Provider.isServer || !Level.isLoaded)
+			if (!Provider.isServer || !Level.isLoaded || Time.time < nextMedicalCraftAttemptTime)
 				return false;
+			// Scan recipe catalog infrequently; do not repeat per wounded NPC
+			// per-frame, particularly in a 20+ NPC combat.
+			nextMedicalCraftAttemptTime = Time.time + 18f;
 
 			List<ItemAsset> assets = new List<ItemAsset>();
 			Assets.find(assets);
