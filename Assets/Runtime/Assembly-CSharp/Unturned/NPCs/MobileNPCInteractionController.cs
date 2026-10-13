@@ -87,24 +87,24 @@ namespace SDG.Unturned
 			if (state != MenuState.Closed && !string.IsNullOrEmpty(lastPrompt) && Time.time >= nextPromptRefreshTime)
 			{
 				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, lastPrompt);
-				nextPromptRefreshTime = Time.time + 3.5f;
+				nextPromptRefreshTime = Time.time + 1.25f;
 			}
 
 			if (state == MenuState.ChooseTradePayment)
 			{
-				if (Input.GetKeyDown(KeyCode.Keypad1))
+				if (IsNumberKeyDown(1))
 				{
 					tradeUsesCash = true;
 					tradeUsesExperience = false;
 					OpenTradeMenu("Pagamento selecionado: notas e moedas canadenses.");
 				}
-				else if (Input.GetKeyDown(KeyCode.Keypad2))
+				else if (IsNumberKeyDown(2))
 				{
 					tradeUsesCash = false;
 					tradeUsesExperience = false;
 					OpenTradeMenu("Pagamento selecionado: troca de item.");
 				}
-				else if (Input.GetKeyDown(KeyCode.Keypad3))
+				else if (IsNumberKeyDown(3))
 				{
 					tradeUsesCash = false;
 					tradeUsesExperience = true;
@@ -115,9 +115,9 @@ namespace SDG.Unturned
 
 			if (state == MenuState.ConfirmPurchase)
 			{
-				if (Input.GetKeyDown(KeyCode.Keypad1))
+				if (IsNumberKeyDown(1))
 					ConfirmPurchase();
-				else if (Input.GetKeyDown(KeyCode.Keypad2))
+				else if (IsNumberKeyDown(2))
 				{
 					pendingStockSlot = -1;
 					pendingCurrencyItemId = 0;
@@ -130,55 +130,55 @@ namespace SDG.Unturned
 
 			if (state == MenuState.ConfirmAlliance)
 			{
-				if (Input.GetKeyDown(KeyCode.Keypad1))
+				if (IsNumberKeyDown(1))
 					ConfirmAllianceOffer();
-				else if (Input.GetKeyDown(KeyCode.Keypad2))
+				else if (IsNumberKeyDown(2))
 					ShowMainMenu();
 				return;
 			}
 
-			if (Input.GetKeyDown(KeyCode.Keypad1))
+			if (IsNumberKeyDown(1))
 			{
 				if (state == MenuState.Main)
 					ShowTradePaymentMenu();
 				else if (state == MenuState.TradeStock)
 					SelectStockSlot(0);
 			}
-			else if (Input.GetKeyDown(KeyCode.Keypad2))
+			else if (IsNumberKeyDown(2))
 			{
 				if (state == MenuState.Main)
 					TryOfferAlliance();
 				else if (state == MenuState.TradeStock)
 					SelectStockSlot(1);
 			}
-			else if (Input.GetKeyDown(KeyCode.Keypad3))
+			else if (IsNumberKeyDown(3))
 			{
 				if (state == MenuState.Main)
 					ShowConversation();
 				else if (state == MenuState.TradeStock)
 					SelectStockSlot(2);
 			}
-			else if (Input.GetKeyDown(KeyCode.Keypad4))
+			else if (IsNumberKeyDown(4))
 			{
 				if (state == MenuState.TradeStock) SelectStockSlot(3);
 			}
-			else if (Input.GetKeyDown(KeyCode.Keypad5))
+			else if (IsNumberKeyDown(5))
 			{
 				if (state == MenuState.TradeStock) SelectStockSlot(4);
 			}
-			else if (Input.GetKeyDown(KeyCode.Keypad6))
+			else if (IsNumberKeyDown(6))
 			{
 				if (state == MenuState.TradeStock) SelectStockSlot(5);
 			}
-			else if (Input.GetKeyDown(KeyCode.Keypad7))
+			else if (IsNumberKeyDown(7))
 			{
 				if (state == MenuState.TradeStock) SelectStockSlot(6);
 			}
-			else if (Input.GetKeyDown(KeyCode.Keypad8))
+			else if (IsNumberKeyDown(8))
 			{
 				if (state == MenuState.TradeStock) SelectStockSlot(7);
 			}
-			else if (Input.GetKeyDown(KeyCode.Keypad9))
+			else if (IsNumberKeyDown(9))
 			{
 				if (state == MenuState.TradeStock) SelectStockSlot(8);
 			}
@@ -481,10 +481,29 @@ namespace SDG.Unturned
 			state = MenuState.Main;
 		}
 
+		private static bool IsNumberKeyDown(int number)
+		{
+			// Support both the numeric keypad and the number row. This also avoids
+			// leaving the player without a usable input path on compact keyboards.
+			switch (number)
+			{
+				case 1: return Input.GetKeyDown(KeyCode.Keypad1) || Input.GetKeyDown(KeyCode.Alpha1);
+				case 2: return Input.GetKeyDown(KeyCode.Keypad2) || Input.GetKeyDown(KeyCode.Alpha2);
+				case 3: return Input.GetKeyDown(KeyCode.Keypad3) || Input.GetKeyDown(KeyCode.Alpha3);
+				case 4: return Input.GetKeyDown(KeyCode.Keypad4) || Input.GetKeyDown(KeyCode.Alpha4);
+				case 5: return Input.GetKeyDown(KeyCode.Keypad5) || Input.GetKeyDown(KeyCode.Alpha5);
+				case 6: return Input.GetKeyDown(KeyCode.Keypad6) || Input.GetKeyDown(KeyCode.Alpha6);
+				case 7: return Input.GetKeyDown(KeyCode.Keypad7) || Input.GetKeyDown(KeyCode.Alpha7);
+				case 8: return Input.GetKeyDown(KeyCode.Keypad8) || Input.GetKeyDown(KeyCode.Alpha8);
+				case 9: return Input.GetKeyDown(KeyCode.Keypad9) || Input.GetKeyDown(KeyCode.Alpha9);
+				default: return false;
+			}
+		}
+
 		private void ShowPrompt(string message)
 		{
 			lastPrompt = message;
-			nextPromptRefreshTime = Time.time + 3.5f;
+			nextPromptRefreshTime = Time.time + 1.25f;
 			PlayerUI.message(EPlayerMessage.NPC_CUSTOM, message);
 		}
 
