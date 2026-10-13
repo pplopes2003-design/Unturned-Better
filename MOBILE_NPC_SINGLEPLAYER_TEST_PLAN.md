@@ -156,3 +156,17 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 - [ ] Em ambiente com duas ou mais coberturas verificadas, acumular no mesmo indivíduo acertos de `CoverAccess` e timeouts. Repetir eventos de ameaça em posições comparáveis e verificar que a opção mais confiável tende a ser escolhida, **mas uma alternativa segura pode ser explorada**. Nunca aceitar um ponto sem solo, obstrução e corredor liberado.
 - [ ] Confirmar que o conjunto de candidatas de cobertura é limitado a 10 verificadas por planejamento; avaliar FPS/GC com 20 NPCs e ameaças simultâneas.
 - [ ] Guardar `Player.log`, Console, mapa, arma, ângulo, objeto, coordenadas aproximadas e passos de reprodução; não marcar funcionalidade concluída antes de compile + Dev Build.
+
+
+## 14. Regressão: transição de morte e reposição em grupos (2026-10-13, não executada)
+
+- [ ] Ativar diagnósticos de dano e verificar tiro letal: apenas **uma** linha `Death transition`, uma apresentação física da morte e uma reserva de reposição, mesmo com tiros repetidos no mesmo frame.
+- [ ] Submeter callback artificial de `DamageReceived`/`HealthChanged` que tenta curar o NPC ou aplicar dano adicional durante golpe fatal. Não deve cancelar morte, substituir `LastAttacker`, atualizar HP, disparar duas mortes nem duplicar loot.
+- [ ] Sobreviventes A/B da mesma facção num grupo (máximo 4); matar apenas A. Após o delay, o indivíduo substituto nasce com identidade/memória nova, e pode se unir ao grupo de B com função/facção compatível se ainda houver vaga.
+- [ ] Mudar a facção de um grupo sobrevivente para um valor diferente do padrão do papel; garantir que substituto compatível seja elegível sem trazer a identidade do morto.
+- [ ] Matar todos os membros antes do prazo de reposição. O grupo antigo deve dissolver; nenhum substituto pode reconstruí-lo automaticamente ou herdar memória individual.
+- [ ] Preencher grupo sobrevivente até 4 antes do novo spawn. Substituto não pode ultrapassar limite; deve permanecer independente, sem compartilhar conhecimento mágico.
+- [ ] Provocar falha de spawn (sem chão seguro) após cooldown: reserva deve continuar pendente para próxima tentativa, sem NPC parcial; mapa válido depois deve permitir reposição.
+- [ ] Múltiplas mortes com diferentes `RespawnAt`: nenhuma vaga deve ser usada antes do seu prazo, com limpeza de corpo independente.
+- [ ] Salvar/trocar mapa/reabrir: verificar grupo, facção, inventário e conhecimento do novo indivíduo; separar claramente o que o snapshot salva do que ainda precisa de migração.
+- [ ] Registrar `Player.log` e Console + cenário completo; nenhum destes testes foi realizado na rodada de código.
