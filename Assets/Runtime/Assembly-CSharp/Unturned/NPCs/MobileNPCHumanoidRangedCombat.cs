@@ -140,7 +140,7 @@ namespace SDG.Unturned
 			}
 
 			MobileNPCHumanoidMotor motor = GetComponent<MobileNPCHumanoidMotor>();
-			if (motor != null && (motor.IsClimbingLadder || motor.IsClambering))
+			if (motor != null && (motor.IsClimbingLadder || motor.IsVaultTraversing))
 				return; // hands occupied by ladder or parapet; no shooting mid-action
 
 			if (brain.CurrentState != MobileNPCBrain.State.Pursuing
