@@ -487,6 +487,12 @@ namespace SDG.Unturned
 			// candidates. Individual first-hand/overheard successes influence score;
 			// a small chance to explore prevents permanently avoiding an old failure.
 			const int maxCheckedCoverCandidates = 10;
+			// Complex corner routes cost a bounded 9x9 A* per candidate.
+			// Only test up to three per defensive decision; otherwise this
+			// would cause a CPU spike during a 40-NPC urban firefight.
+			const int maxComplexCornerCoverChecks = 3;
+			int complexCornerCoverChecks = 0;
+			MobileNPCHumanoidMotor motor = GetComponent<MobileNPCHumanoidMotor>();
 			const float explorationProbability = 0.12f;
 			int checkedCoverCandidates = 0;
 			float bestCoverScore = float.NegativeInfinity;
@@ -564,11 +570,23 @@ namespace SDG.Unturned
 							break;
 						}
 					}
-					if (!blockedApproach)
+					// In urban spaces the best covered place is often *around*
+					// a corner, with a wall blocking the direct corridor. A raw
+					// straight-line SphereCast would reject all such valid cover.
+					// Request a side-effect-free bounded local A* probe only for a
+					// few blocked candidates; never accept an unreachable endpoint.
+					bool verifiedCornerRoute = false;
+					if (blockedApproach && motor != null
+						&& complexCornerCoverChecks < maxComplexCornerCoverChecks)
 					{
-						// No learned preference can turn an obstructed point into cover.
-						// Score only candidates that pass the ground, shielding and
-						// reachability checks above. The distance term limits wandering.
+						++complexCornerCoverChecks;
+						verifiedCornerRoute = motor.CanReachNearbyCoverServer(candidate);
+					}
+					if (!blockedApproach || verifiedCornerRoute)
+					{
+						// Every cover still needs world shielding, genuine ground
+						// and a direct physical corridor OR verified local route.
+						// Individual success/failure history then biases its score.
 						float learnedScore = memory != null
 							? memory.GetCoverAccessAdjustment(candidate) : 0f;
 						float distanceCost = (candidate - transform.position).magnitude * 0.5f;
