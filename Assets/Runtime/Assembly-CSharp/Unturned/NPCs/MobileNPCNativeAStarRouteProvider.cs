@@ -37,6 +37,7 @@ namespace SDG.Unturned
 		private float requestStartedAt;
 		private Vector3 requestedGoal;
 		private readonly List<Vector3> completedRoute = new List<Vector3>(32);
+		private static readonly HashSet<string> LoggedDiagnostics = new HashSet<string>();
 
 		public bool IsAvailable
 		{
@@ -142,7 +143,7 @@ namespace SDG.Unturned
 			{
 				requestPending = false;
 				lastPathFailed = true;
-				diagnosticStatus = "startpath-invocation-failed";
+				SetDiagnosticStatus("startpath-invocation-failed", true);
 				nextRequestTime = Time.time + 2.5f;
 				return false;
 			}
@@ -162,7 +163,7 @@ namespace SDG.Unturned
 				return;
 			if (activeBackend.GetType().Name != "UnturnedPathfinding_ASPFP")
 			{
-				diagnosticStatus = "native-aspfp-backend-unavailable";
+				SetDiagnosticStatus("native-aspfp-backend-unavailable", true);
 				initialized = true;
 				return;
 			}
@@ -170,7 +171,7 @@ namespace SDG.Unturned
 			Type seekerType = FindType("Pathfinding.Seeker");
 			if (seekerType == null || !typeof(Component).IsAssignableFrom(seekerType))
 			{
-				diagnosticStatus = "aspfp-active-seeker-type-not-found";
+				SetDiagnosticStatus("aspfp-active-seeker-type-not-found", true);
 				return;
 			}
 
@@ -208,7 +209,7 @@ namespace SDG.Unturned
 
 				if (startPathMethod == null)
 				{
-					diagnosticStatus = "aspfp-seeker-startpath-signature-not-found";
+					SetDiagnosticStatus("aspfp-seeker-startpath-signature-not-found", true);
 					return;
 				}
 
@@ -220,8 +221,15 @@ namespace SDG.Unturned
 				seeker = null;
 				startPathMethod = null;
 				pathCallback = null;
-				diagnosticStatus = "aspfp-reflection-initialization-failed";
+				SetDiagnosticStatus("aspfp-reflection-initialization-failed", true);
 			}
+		}
+
+		private void SetDiagnosticStatus(string status, bool warnOnce = false)
+		{
+			diagnosticStatus = status;
+			if (warnOnce && LoggedDiagnostics.Add(status))
+				Debug.LogWarning("[MobileNPC] Native A* route provider: " + status + ". The motor will use its fallback navigation when possible.", this);
 		}
 
 		private Delegate CreatePathCallback(int version)
