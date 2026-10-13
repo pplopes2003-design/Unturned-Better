@@ -140,6 +140,7 @@ namespace SDG.Unturned
 			}
 
 			if (brain.CurrentState != MobileNPCBrain.State.Pursuing
+				|| brain.IsAmbushPreparing
 				|| brain.CurrentGoal == MobileNPCTactics.Goal.Retreat
 				|| Time.time < nextShotTime)
 			{
