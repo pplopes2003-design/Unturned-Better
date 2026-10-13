@@ -22,6 +22,7 @@ namespace SDG.Unturned
 		[SerializeField] private bool disableCombatOnDeath = true;
 
 		private MobileNPCBrainDriver brainDriver;
+		private MobileNPCInjurySystem injurySystem;
 		private MobileNPCHumanoidMotor motor;
 		private MobileNPCHumanoidCombat combat;
 		private MobileNPCHumanoidRangedCombat rangedCombat;
@@ -44,6 +45,7 @@ namespace SDG.Unturned
 		private void Awake()
 		{
 			brainDriver = GetComponent<MobileNPCBrainDriver>();
+			injurySystem = GetComponent<MobileNPCInjurySystem>();
 			motor = GetComponent<MobileNPCHumanoidMotor>();
 			combat = GetComponent<MobileNPCHumanoidCombat>();
 			rangedCombat = GetComponent<MobileNPCHumanoidRangedCombat>();
@@ -92,6 +94,24 @@ namespace SDG.Unturned
 		public bool ApplyDamage(float damage)
 		{
 			return ApplyDamage(damage, Vector3.zero);
+		}
+
+		/// <summary>
+		/// Applies one validated hit to a known body region. Damage is deducted exactly
+		/// once; the injury component records limb condition, bleeding, and fractures.
+		/// The weapon/hit adapter must supply the actual region and injury flags.
+		/// </summary>
+		public bool ApplyDamageToPart(float damage, MobileNPCInjurySystem.BodyPart bodyPart,
+			bool causeBleeding, bool causeFracture,
+			MobileNPCInjurySystem.BleedingSeverity severity = MobileNPCInjurySystem.BleedingSeverity.Light,
+			Vector3 hitImpulse = default(Vector3))
+		{
+			if (!Provider.isServer || isDead || float.IsNaN(damage) || float.IsInfinity(damage) || damage <= 0f
+				|| injurySystem == null)
+				return false;
+			if (!injurySystem.ApplyInjuryEffectsServer(bodyPart, damage, causeBleeding, causeFracture, severity))
+				return false;
+			return ApplyDamage(damage, hitImpulse);
 		}
 
 		/// <summary>
