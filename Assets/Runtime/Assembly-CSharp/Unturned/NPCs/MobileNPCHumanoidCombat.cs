@@ -188,7 +188,7 @@ namespace SDG.Unturned
 
 			nextAttackTime = Time.time + attackCooldown;
 			AttackStarted?.Invoke();
-			return targetVitals.ApplyDamage(attackDamage, attackDirection.normalized * attackDamage);
+			return targetVitals.ApplyDamage(attackDamage, attackDirection.normalized * attackDamage, transform);
 		}
 
 		/// <summary>Damages a vanilla zombie using the game's own server-side zombie damage pipeline.</summary>
