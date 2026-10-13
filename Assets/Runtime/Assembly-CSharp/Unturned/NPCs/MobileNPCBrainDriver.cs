@@ -160,6 +160,7 @@ namespace SDG.Unturned
 		}
 
 		private float nextFootstepInvestigationAt;
+		private float nextGroupContactAt;
 		private float listenUntil;
 		private Vector3 listeningClue;
 
@@ -203,6 +204,36 @@ namespace SDG.Unturned
 				brain.ReportNoise(approximatePosition, Time.time, 10f);
 				investigatingPlayerClue = true;
 			}
+			PublishDecisionIfChanged();
+		}
+
+		/// <summary>
+		/// Consumes an ally's approximate verbal report, not a visual acquisition.
+		/// May orient/investigate only while free to do so; cannot interrupt an
+		/// active fight, protective cover, retreat or companion following.
+		/// </summary>
+		public void ReportGroupPlayerContactClue(Vector3 approximatePosition, float confidence)
+		{
+			if (!CanAcceptServerInput || Time.time < nextGroupContactAt
+				|| float.IsNaN(confidence) || float.IsInfinity(confidence)
+				|| confidence < 0.2f
+				|| float.IsNaN(approximatePosition.x) || float.IsInfinity(approximatePosition.x)
+				|| float.IsNaN(approximatePosition.y) || float.IsInfinity(approximatePosition.y)
+				|| float.IsNaN(approximatePosition.z) || float.IsInfinity(approximatePosition.z)
+				|| brain.CurrentState == MobileNPCBrain.State.Pursuing
+				|| brain.CurrentState == MobileNPCBrain.State.Following
+				|| tactics.CurrentGoal != MobileNPCTactics.Goal.None)
+				return;
+
+			MobileNPCHumanoidVitals vitals = GetComponent<MobileNPCHumanoidVitals>();
+			if (vitals != null && vitals.IsDead)
+				return;
+			nextGroupContactAt = Time.time + 6f;
+			playerKnowledge.ObserveSound(approximatePosition, confidence, Time.time);
+			brain.ReportNoise(approximatePosition, Time.time, 12f);
+			investigatingPlayerClue = true;
+			listeningClue = approximatePosition;
+			listenUntil = Time.time + 0.65f;
 			PublishDecisionIfChanged();
 		}
 
