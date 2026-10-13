@@ -33,6 +33,7 @@ namespace SDG.Unturned
         private float nextFootstepTime;
         private float attackAnimationUntil;
         private bool jumpPresentationAttempted;
+        private bool missingClimbClipLogged;
 
         private void Awake()
         {
@@ -98,6 +99,33 @@ namespace SDG.Unturned
             // but no verified authored Jump/Vault clip. Only attempt a real
             // clip if that runtime prefab actually supplies one. Never repeat
             // or restart it every frame and never emit ground footsteps midair.
+            if (motor.IsClimbingLadder)
+            {
+                nextFootstepTime = 0f;
+                // These names are present in Human/Basic/Move and Idle
+                // importers. Play only if the specific NPC_Client runtime
+                // Animation component really references the clip.
+                if (legacyAnimation != null)
+                {
+                    string clip = legacyAnimation["Move_Climb"] != null
+                        ? "Move_Climb"
+                        : legacyAnimation["Idle_Climb"] != null
+                            ? "Idle_Climb" : null;
+                    if (clip != null)
+                    {
+                        legacyAnimation[clip].wrapMode = WrapMode.Loop;
+                        PlayIfAvailable(clip);
+                    }
+                    else if (!missingClimbClipLogged)
+                    {
+                        missingClimbClipLogged = true;
+                        Debug.LogWarning("[MobileNPCVisualAnimation] Ladder locomotion is active "
+                            + "but NPC_Client has no Move_Climb/Idle_Climb animation state.", this);
+                    }
+                }
+                return;
+            }
+
             if (motor.IsJumping)
             {
                 nextFootstepTime = 0f;
