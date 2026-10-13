@@ -1,0 +1,130 @@
+////////////////////////////////////////////////////////////////////////////////////////
+// This file is part of the U3 SDK: https://github.com/smartlydressedgames/u3-sdk/    //
+// Please refer to the included LICENSE.txt for copyright notice and license details. //
+////////////////////////////////////////////////////////////////////////////////////////
+using UnityEngine;
+
+namespace SDG.Unturned
+{
+    /// <summary>
+    /// A second, *advisory* cognition layer. It has no player Transform reference and
+    /// never queries the world's live player position. Only server-confirmed sensory
+    /// evidence may update its hypotheses. The regular brain still owns all decisions.
+    /// Memory belongs to one NPC and vanishes when the NPC is destroyed.
+    /// </summary>
+    public sealed class MobileNPCPlayerKnowledge
+    {
+        public enum Sense { None, Sight, Sound }
+
+        private Vector3 lastEvidencePosition;
+        private Vector3 observedVelocity;
+        private float lastEvidenceTime;
+        private float initialConfidence;
+        private float uncertaintyRadius;
+        private int hintsIssued;
+        private Sense lastSense;
+        private bool hasEvidence;
+
+        public Sense LastSense => lastSense;
+        public bool HasEvidence => hasEvidence;
+
+        public void ObserveSight(Vector3 position, float now)
+        {
+            if (!IsFinite(position) || !IsFinite(now))
+                return;
+
+            if (hasEvidence && lastSense == Sense.Sight)
+            {
+                float delta = now - lastEvidenceTime;
+                if (delta > 0.08f && delta < 2f)
+                {
+                    Vector3 deltaPosition = position - lastEvidencePosition;
+                    deltaPosition.y = 0f;
+                    // A capped estimate, never a live target tracker after occlusion.
+                    observedVelocity = Vector3.ClampMagnitude(deltaPosition / delta, 6f);
+                }
+            }
+            else
+            {
+                observedVelocity = Vector3.zero;
+            }
+            lastEvidencePosition = position;
+            lastEvidenceTime = now;
+            initialConfidence = 1f;
+            uncertaintyRadius = 0.8f;
+            hintsIssued = 0;
+            lastSense = Sense.Sight;
+            hasEvidence = true;
+        }
+
+        /// <summary>
+        /// Audible source position is a clue, not proof of identity. More distant or
+        /// ambiguous sound stimuli should supply lower confidence at the call site.
+        /// </summary>
+        public void ObserveSound(Vector3 position, float confidence, float now)
+        {
+            if (!IsFinite(position) || !IsFinite(confidence) || !IsFinite(now))
+                return;
+            // A weak sound must not override a very recent direct sighting.
+            if (hasEvidence && lastSense == Sense.Sight
+                && now - lastEvidenceTime < 1.5f && confidence < 0.95f)
+                return;
+
+            lastEvidencePosition = position;
+            lastEvidenceTime = now;
+            observedVelocity = Vector3.zero;
+            initialConfidence = Mathf.Clamp01(confidence);
+            uncertaintyRadius = Mathf.Lerp(9f, 2.5f, initialConfidence);
+            hintsIssued = 0;
+            lastSense = Sense.Sound;
+            hasEvidence = true;
+        }
+
+        /// <summary>
+        /// Suggests one bounded, uncertain search location. No exact live coordinates
+        /// are ever consulted; hypotheses decay and stop after a few attempts.
+        /// </summary>
+        public bool TrySuggestSearchPoint(float now, out Vector3 searchPoint)
+        {
+            searchPoint = Vector3.zero;
+            if (!hasEvidence || !IsFinite(now) || hintsIssued >= 4)
+                return false;
+
+            float age = Mathf.Max(0f, now - lastEvidenceTime);
+            float lifetime = lastSense == Sense.Sight ? 22f : 14f;
+            float confidence = initialConfidence * Mathf.Clamp01(1f - age / lifetime);
+            if (confidence < 0.14f)
+                return false;
+
+            // The target might have continued moving briefly after leaving view,
+            // but uncertainty quickly dominates that extrapolation.
+            float anticipation = lastSense == Sense.Sight ? Mathf.Min(age, 2f) : 0f;
+            Vector3 predicted = lastEvidencePosition + observedVelocity * anticipation;
+            float radius = uncertaintyRadius + age * (lastSense == Sense.Sight ? 0.65f : 0.95f);
+            float ring = Mathf.Min(14f, radius) * Mathf.Sqrt(Random.value);
+            float angle = Random.Range(0f, Mathf.PI * 2f);
+            searchPoint = predicted + new Vector3(Mathf.Cos(angle) * ring, 0f, Mathf.Sin(angle) * ring);
+            hintsIssued++;
+            return true;
+        }
+
+        public void Clear()
+        {
+            hasEvidence = false;
+            lastSense = Sense.None;
+            hintsIssued = 0;
+            observedVelocity = Vector3.zero;
+            initialConfidence = 0f;
+        }
+
+        private static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
+        }
+
+        private static bool IsFinite(Vector3 value)
+        {
+            return IsFinite(value.x) && IsFinite(value.y) && IsFinite(value.z);
+        }
+    }
+}
