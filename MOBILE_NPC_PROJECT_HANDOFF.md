@@ -715,3 +715,28 @@ Fetched again the modified NPC looting/brain/tactics/supply knowledge/persistenc
 - Final QA: this round consisted of source edits/commits plus static source inspection only. NO C# compilation, Unity test, Player.log or in-game functional validation. Do not mark fully resolved.
 
 **Next session priority:** finish generalized supply physical search, inventory/medical craft semantics and native POI evidence; preserve all backlog IDs. Then work P0 native A* zombie pursuit across navigation bounds and combat/death/navigation regressions; radio native channel/equipment interception remains blocked. Update handoff and pending tasks after every further code round.
+
+
+## 2026-10-13 — LATEST P0 ZMB-01 ENGINEERING: chasing across empty zombie regions
+
+Always read `MOBILE_NPC_PENDING_TASKS.md` and this handoff before each change and update BOTH every round. User will compile/test in Unity at END. "Quase pronta — aguardando build" may apply only to source-complete scoped slices; never close a task without user's Dev Build feedback. Diagram of total NPC AI deferred until major modules implemented.
+
+### Verified source / commits
+
+- `067bc2f99da31175b80d27ef76e623def031ec8c` in `Assets/Runtime/Assembly-CSharp/Unturned/Managers/ZombieManager.cs`: native `tickingZombies` is the global per-frame (dedicated max 50) active hunting list, independent of region. The separate `Zombie.OnUpdate` historically ran only for zombies whose **spawn/home region** has any players, so active chasers crossing to an unoccupied origin region could cease movement snapshots and stuck detection. Invoke `OnUpdate` immediately after an active `tick` only when its origin `PlayerCountInRegion == 0`; do not double-run on regions updated by the normal occupied-region loop. No scan of every zombie in empty regions. Compatible with the earlier `66caf131d595011b582571252376b0a78bc49a4e` removal of `player.movement.nav == 255` chase bailout.
+- `c23e6addf9f5a144e6ec84f65a24d1686781114c` in `Assets/Runtime/Assembly-CSharp/Unturned/Zombies/Zombie.cs`: `TryStepPursuitBeyondNavigationOnOpenGround(delta)` is invoked before native `seeker.Move(delta)`. Only attempts **short, physically possible open-ground motion** when pursued player/mobile NPC target is outside `LevelNavigation.checkNavigation`, within 1.9–24m of zombie, alive, collision-free chest ray, CharacterController grounded, a stable raycasted next footstep (<=38° slope, <=0.65m height change, not underwater) and currently allowed to move. Uses capped per-tick delta and `CharacterController.Move`, native collisions and direct visible orientation. All other paths still defer to `seeker.Move`; never teleports, changes ownership, warps over obstacles or suppresses combat. The fallback is a safety-constrained short-range pursuit, NOT an all-maps navmesh replacement.
+- Canonical `MOBILE_NPC_PENDING_TASKS.md` update: commit `e1adf539e624dc3490089a82bde0d92ccf525b63`, `ZMB-01` remains `EM IMPLEMENTAÇÃO`. No tasks removed.
+
+### External dependency finding / boundaries
+
+Official Unturned U3 SDK FAQ `https://docs.smartlydressedgames.com/en/latest/u3-sdk/faq.html` states that licensed **A* Pathfinding Project** integration code has been withheld from the SDK. The built-in interface `IUnturnedPathfindingMovementComponentInterface` and `UnturnedPathfinding.Get().CreateMovementComponentForZombie` exist as game abstraction, but their runtime pathfinder capability must not be assumed to provide long-distance cross-region connectivity in a published map or dev build. A legal and performant solution for routes through doors, bridges, complex buildings, navmesh gaps or long distances remains future work; preserve P0 `ZMB-01/CORE-04`.
+
+**Not tested/compiled:** no Unity/Player.log access in this round. Examine Unity collision ground layers, `RayMasks.BLOCK_COLLISION`, ragdoll/path component movement coexistence and duplicate snapshots. Dedicated networking still uses `GatherRemoteClientConnections(zombie.bound)` rather than the zombie's dynamic position: players in regions other than its origin may not receive full spawn/state; `NET-01` and `ZMB-01` remain OPEN. Audio/noise and sighting behavior remain pending gameplay verification.
+
+### Next continuation
+
+1. Inspect the native pathfinder abstraction and determine what is actually installed in this project's Unity packages; design legal A*/NavMesh fallback for non-POI pathing without overclaiming. No automatic teleport or obstacle bypass.
+2. Fix and document **dynamic network interest** for zombies leaving original region as a separate network-safe task, or explicitly keep as blocked if registry IDs and client spawn contract prevent it.
+3. Resume P0 `CORE-02/03/04` mobile NPC hitboxes/physical death/navigation; then P1 radio receiver transmission/intercept, AI goals and remembered source-category generalization. Every round update BOTH canonical guides, plus test/design docs.
+
+**Verification:** GitHub source committed, static references inspected, NOT compiled or observed working in Dev Build. The user will do that at final stage.
