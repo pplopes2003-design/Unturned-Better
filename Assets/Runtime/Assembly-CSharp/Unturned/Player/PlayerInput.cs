@@ -1007,7 +1007,8 @@ namespace SDG.Unturned
 				{
 					// The client identifies an approximate point, NEVER the authoritative
 					// target. Validate the FIRST actual hit against server world physics.
-					if (usage != ERaycastInfoUsage.Gun && usage != ERaycastInfoUsage.Melee)
+					if (usage != ERaycastInfoUsage.Gun && usage != ERaycastInfoUsage.Melee
+						&& usage != ERaycastInfoUsage.Punch)
 						return null;
 					Vector3 origin = rayOriginOverride.HasValue
 						? rayOriginOverride.Value : player.look.aim.position;
@@ -1015,10 +1016,19 @@ namespace SDG.Unturned
 					float sqrDistance = delta.sqrMagnitude;
 					if (float.IsNaN(sqrDistance) || float.IsInfinity(sqrDistance)
 						|| sqrDistance < 0.0025f || sqrDistance > 562500f
-						|| (usage == ERaycastInfoUsage.Melee && sqrDistance > 225f))
+						|| (usage == ERaycastInfoUsage.Melee && sqrDistance > 225f)
+						|| (usage == ERaycastInfoUsage.Punch && sqrDistance > 5.0625f))
 						return null;
 					float distance = Mathf.Sqrt(sqrDistance);
 					Vector3 direction = delta / distance;
+					if (usage == ERaycastInfoUsage.Punch)
+					{
+						// The client cannot redirect an unarmed strike sideways
+						// independently of the server player's real aiming direction.
+						Vector3 serverFacing = player.look.aim.forward;
+						if (Vector3.Dot(serverFacing, direction) < 0.95f)
+							return null;
+					}
 					RaycastInfo confirmation = DamageTool.raycast(
 						new Ray(origin, direction), distance + 0.75f,
 						RayMasks.DAMAGE_SERVER, ignorePlayer: player);
