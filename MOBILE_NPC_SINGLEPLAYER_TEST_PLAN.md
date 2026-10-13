@@ -411,3 +411,11 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 - [ ] Validate memory v6 save/reload of the SAME living NPC and full memory loss on death; newly generated substitute or ally does not inherit route segments. No magical sharing through group/radio.
 - [ ] Native A* missing/pending: near entrance local route may still work, far entrance remains unresolved; no ping-pong between pending entrance request and final-goal request.
 - [ ] Profile 1, 4, 20 and 40 active NPCs, recording extra raycasts / 104 max composed waypoints, time to find entrances, incorrect early ReportDestinationReached events, CPU, GC and logs. Source only until final user Dev Build/Player.log.
+
+## 28. Snapshot integrity for learned stair/corridor paths (not yet tested)
+
+- Save and reload a **living** NPC with valid firsthand stair + corridor memories; check paths persist and are still physics-validated before use.
+- Load prior snapshot versions without route data; expect empty route memory, no invented accesses.
+- With an intentionally corrupt test save (separate backup), verify first/last footprint mismatch, zero-length repeated steps, >2.6m skipped samples, invalid/NaN coordinate and observed route lengths outside 3.5–80m are ignored without crashes or bogus upstairs routing.
+- Change door lock/geometry after an authentic save: learned paths are only candidates and must be rejected by real-world collision checks.
+- Kill an NPC and spawn replacement: no inheritance of personal stair/room knowledge. Code commit `80f9104` was **not** compiled or runtime-tested; verify in final Unity Dev Build only.
