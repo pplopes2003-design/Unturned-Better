@@ -1442,7 +1442,8 @@ namespace SDG.Unturned
 					int first = cell * 2;
 					Vector3 lower = new Vector3(world.x, lowest, world.z);
 					if (!IsRouteNodeOccupied(lower, radius)
-						|| IsOnlyUnlockedDoorOccupyingRouteNodeServer(lower, radius))
+						|| IsOnlyUnlockedDoorOccupyingRouteNodeServer(lower, radius)
+						|| IsOnlyTemporaryActorOccupyingRouteNode(lower, radius))
 					{
 						verticalPositions[first] = lower;
 						verticalWalkable[first] = true;
@@ -1451,7 +1452,8 @@ namespace SDG.Unturned
 					{
 						Vector3 upper = new Vector3(world.x, highest, world.z);
 						if (!IsRouteNodeOccupied(upper, radius)
-							|| IsOnlyUnlockedDoorOccupyingRouteNodeServer(upper, radius))
+							|| IsOnlyUnlockedDoorOccupyingRouteNodeServer(upper, radius)
+							|| IsOnlyTemporaryActorOccupyingRouteNode(upper, radius))
 						{
 							verticalPositions[first + 1] = upper;
 							verticalWalkable[first + 1] = true;
@@ -1623,6 +1625,8 @@ namespace SDG.Unturned
 			Vector3 chestOrigin = from + Vector3.up * Mathf.Max(0.45f,
 				characterController.height * 0.55f);
 			if (IsObstacleBlockingAlong(chestOrigin, radius, edge / length, length)
+				&& !IsOnlyTemporaryActorBlockingAlong(chestOrigin, radius,
+					edge / length, length)
 				&& (doorNavigation == null
 					|| !doorNavigation.IsTraversableUnlockedDoorEdgeServer(
 						chestOrigin, edge / length, radius, length, obstacleMask)))
@@ -1649,7 +1653,8 @@ namespace SDG.Unturned
 				// railing could intersect the full NPC capsule between grid
 				// nodes. Intermediate clearance is part of the connector.
 				if (i < samples && IsRouteNodeOccupied(actualFloor, radius)
-					&& !IsOnlyUnlockedDoorOccupyingRouteNodeServer(actualFloor, radius))
+					&& !IsOnlyUnlockedDoorOccupyingRouteNodeServer(actualFloor, radius)
+					&& !IsOnlyTemporaryActorOccupyingRouteNode(actualFloor, radius))
 					return false;
 				lastY = actualFloor.y;
 			}
@@ -1976,6 +1981,40 @@ namespace SDG.Unturned
 				return true;
 			}
 			return false;
+		}
+
+		/// <summary>
+		/// Crowd occupancy is temporary, not a permanent missing stair.
+		/// A route may be considered through a person if EVERY collider
+		/// blocking that full-sized humanoid node is another living actor;
+		/// actual CharacterController collision still prevents body overlap.
+		/// </summary>
+		private bool IsOnlyTemporaryActorOccupyingRouteNode(
+			Vector3 groundPosition, float radius)
+		{
+			float height = Mathf.Max(radius * 2f, characterController.height);
+			Vector3 center = groundPosition + Vector3.up * (height * 0.5f + 0.10f);
+			float segment = Mathf.Max(0f, height * 0.5f - radius);
+			int count = Physics.OverlapCapsuleNonAlloc(
+				center - Vector3.up * segment,
+				center + Vector3.up * segment,
+				radius, RouteOccupancyBuffer, obstacleMask,
+				QueryTriggerInteraction.Ignore);
+			if (count <= 0 || count >= RouteOccupancyBuffer.Length)
+				return false;
+			bool foundActor = false;
+			for (int i = 0; i < count; ++i)
+			{
+				Collider hit = RouteOccupancyBuffer[i];
+				if (hit == null || IsOwnCollider(hit))
+					continue;
+				if (hit.GetComponentInParent<Player>() == null
+					&& hit.GetComponentInParent<Zombie>() == null
+					&& hit.GetComponentInParent<MobileNPCHumanoidVitals>() == null)
+					return false;
+				foundActor = true;
+			}
+			return foundActor;
 		}
 
 		private bool IsOnlyUnlockedDoorOccupyingRouteNodeServer(
