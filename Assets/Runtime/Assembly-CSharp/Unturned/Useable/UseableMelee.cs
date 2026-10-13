@@ -258,7 +258,7 @@ namespace SDG.Unturned
 				// Server melee input carries the authoritative collider transform separately
 				// from the client-side RaycastInfo transform. Prefer it so custom NPC hitboxes
 				// receive the same server damage handling as vanilla character colliders.
-				Transform meleeHitTransform = info.colliderTransform != null ? info.colliderTransform : info.transform;
+				Transform meleeHitTransform = info.collider != null ? info.collider.transform : info.transform;
 				MobileNPCHumanoidVitals mobileNPCVitals = meleeHitTransform != null
 					? meleeHitTransform.GetComponentInParent<MobileNPCHumanoidVitals>()
 					: null;
