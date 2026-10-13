@@ -498,7 +498,7 @@ namespace SDG.Unturned
 		private bool ShouldJumpOverLowObstacle(Vector3 direction)
 		{
 			direction.y = 0f;
-			if (direction.sqrMagnitude < 0.01f || !IsObstacleBlocking(direction))
+			if (direction.sqrMagnitude < 0.01f)
 				return false;
 			direction.Normalize();
 			Vector3 lower = transform.position + Vector3.up * 0.28f;
