@@ -205,6 +205,17 @@ namespace SDG.Unturned
 		private bool isWandering;
 		private bool isTicking;
 
+		// Local off-nav corner detour. This is deliberately not a global route,
+		// doesn't reveal map topology, and never changes the native chase target.
+		private Vector3 offNavDetourWaypoint;
+		private Vector3 offNavDetourTargetAtSelection;
+		private Vector3 offNavLastProgressPosition;
+		private float offNavDetourUntil;
+		private float offNavNextDetourScanAt;
+		private float offNavNextProgressCheckAt;
+		private int offNavStallCount;
+
+
 		#region IExplosionDamageable
 		public bool Equals(IExplosionDamageable obj)
 		{
@@ -3175,17 +3186,16 @@ namespace SDG.Unturned
 		}
 
 		/// <summary>
-		/// Close-range physical pursuit only on unobstructed open ground beyond a
-		/// baked navigation area. This is not an A* replacement: if a wall, steep
-		/// terrain, missing ground or water blocks the segment, defer to the native
-		/// pathfinder. Never teleport, turn off collision, or skip combat rules.
+		/// Collision-checked short pursuit outside the navigation graph. Uses a
+		/// short-lived local corner waypoint when direct approach is blocked.
+		/// Never teleports, bypasses solid objects or treats a route as navigable
+		/// merely because a steering direction could be calculated.
 		/// </summary>
 		private bool TryStepPursuitBeyondNavigationOnOpenGround(float delta)
 		{
 			if (!Provider.isServer || isDead || isStunned || isLeaving || seeker == null
 				|| !seeker.CanMove || !isHunting || huntType != EHuntType.PLAYER
-				|| (player == null && mobileNPCTarget == null)
-				|| delta <= 0f)
+				|| (player == null && mobileNPCTarget == null) || delta <= 0f)
 				return false;
 
 			Vector3 destination;
@@ -3196,39 +3206,150 @@ namespace SDG.Unturned
 			else
 				return false;
 
-			// When the target is on a normal nav area, let the engine pathfinder
-			// handle walls, buildings, elevation and normal chase steering.
+			// Let the native engine handle ordinary navmesh/chase steering.
 			if (LevelNavigation.checkNavigation(destination))
+			{
+				offNavDetourUntil = 0f;
+				offNavStallCount = 0;
 				return false;
+			}
 
-			Vector3 deltaToTarget = destination - transform.position;
-			Vector3 horizontal = new Vector3(deltaToTarget.x, 0f, deltaToTarget.z);
-			float distance = horizontal.magnitude;
-			if (distance < 1.9f || distance > 24f || Mathf.Abs(deltaToTarget.y) > 2.5f)
+			Vector3 offset = destination - transform.position;
+			Vector3 horizontal = new Vector3(offset.x, 0f, offset.z);
+			float range = horizontal.magnitude;
+			if (range < 1.9f || range > 24f || Mathf.Abs(offset.y) > 2.5f)
 				return false;
 
 			CharacterController controller = GetComponent<CharacterController>();
 			if (controller == null || !controller.enabled || !controller.isGrounded)
 				return false;
 
-			Vector3 heading = horizontal / distance;
-			Vector3 eye = transform.position + Vector3.up * 0.95f;
-			// End before the target's own collider. A genuine obstacle still
-			// invalidates manual steering. No x-ray pursuit through structures.
-			if (Physics.Raycast(eye, heading, Mathf.Max(0.1f, distance - 1.15f),
-				RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore))
+			Vector3 heading = horizontal / range;
+			// Direct motion always wins when a segment clears: no forced "flank"
+			// delay that makes zombies stupid after the obstruction disappears.
+			bool directClear = HasOpenOffNavApproach(heading, range - 1.15f);
+			if (directClear)
+			{
+				offNavDetourUntil = 0f;
+				offNavStallCount = 0;
+			}
+			else
+			{
+				// Never chase a freshly moved/teleported target along a stale detour.
+				if ((destination - offNavDetourTargetAtSelection).sqrMagnitude > 36f)
+					offNavDetourUntil = 0f;
+
+				Vector3 towardsWaypoint = offNavDetourWaypoint - transform.position;
+				towardsWaypoint.y = 0f;
+				if (Time.time >= offNavDetourUntil || towardsWaypoint.sqrMagnitude < 0.81f)
+				{
+					offNavDetourUntil = 0f;
+					if (Time.time < offNavNextDetourScanAt || offNavStallCount >= 3
+						|| !TryChooseNearbyOffNavDetour(destination, heading))
+						return false;
+					towardsWaypoint = offNavDetourWaypoint - transform.position;
+					towardsWaypoint.y = 0f;
+				}
+				if (towardsWaypoint.sqrMagnitude < 0.04f)
+					return false;
+				heading = towardsWaypoint.normalized;
+				// Revalidate every step of the cached route; a new structure or
+				// moving vehicle can obstruct the segment after selection.
+				if (!HasOpenOffNavApproach(heading, Mathf.Min(1.2f,
+					towardsWaypoint.magnitude)))
+				{
+					offNavDetourUntil = 0f;
+					return false;
+				}
+			}
+
+			float seconds = Mathf.Clamp(delta, 0f, 0.1f);
+			float speed = speciality == EZombieSpeciality.SPRINTER ? 5.2f
+				: isMega ? 4.6f : speciality == EZombieSpeciality.CRAWLER ? 2.0f : 2.7f;
+			float step = Mathf.Min(Mathf.Max(0f, range - 1.9f), seconds * speed);
+			if (step <= 0f || !CanStepOnOffNavGround(heading, step))
 				return false;
 
-			float step = Mathf.Min(distance - 1.9f,
-				Mathf.Clamp(delta, 0f, 0.1f)
-				* (speciality == EZombieSpeciality.SPRINTER ? 5.2f
-					: isMega ? 4.6f : speciality == EZombieSpeciality.CRAWLER ? 2.0f : 2.7f));
-			if (step <= 0f)
-				return false;
+			Vector3 positionBefore = transform.position;
+			CollisionFlags flags = controller.Move(heading * step + Vector3.down * 0.12f);
+			Vector3 actual = transform.position - positionBefore;
+			actual.y = 0f;
+			if (actual.sqrMagnitude >= 0.0001f)
+			{
+				transform.rotation = Quaternion.RotateTowards(transform.rotation,
+					Quaternion.LookRotation(heading), 450f * seconds);
+			}
+			if (Time.time >= offNavNextProgressCheckAt)
+			{
+				// Don't keep selecting the same blocked side corridor forever.
+				// Native A* gets a chance after three genuinely stalled detours.
+				if (!directClear && (transform.position - offNavLastProgressPosition).sqrMagnitude < 0.16f)
+				{
+					offNavDetourUntil = 0f;
+					offNavStallCount = Mathf.Min(3, offNavStallCount + 1);
+				}
+				else if ((flags & CollisionFlags.Sides) == 0)
+				{
+					offNavStallCount = 0;
+				}
+				offNavLastProgressPosition = transform.position;
+				offNavNextProgressCheckAt = Time.time + 0.8f;
+			}
+			return true;
+		}
 
-			// Probe the actual next ground, not only the target position: avoid
-			// stepping off cliffs, up walls, into water or across steep slopes.
-			Vector3 probe = transform.position + heading * Mathf.Max(step, 0.8f)
+		/// <summary>
+		/// Four bounded alternatives (±55°, ±80°), checked at most once per
+		/// 0.65 seconds. The candidate is a physical intermediate waypoint,
+		/// NOT a fabricated path around walls, through doors or over cliffs.
+		/// </summary>
+		private bool TryChooseNearbyOffNavDetour(Vector3 targetPosition, Vector3 direct)
+		{
+			offNavNextDetourScanAt = Time.time + 0.65f;
+			float bestScore = float.PositiveInfinity;
+			bool found = false;
+			Vector3 bestWaypoint = Vector3.zero;
+			for (int index = 0; index < 4; ++index)
+			{
+				float angle = (index < 2 ? 55f : 80f) * (index % 2 == 0 ? -1f : 1f);
+				Vector3 direction = Quaternion.Euler(0f, angle, 0f) * direct;
+				const float probeDistance = 2.5f;
+				if (!HasOpenOffNavApproach(direction, probeDistance)
+					|| !CanStepOnOffNavGround(direction, probeDistance))
+					continue;
+
+				Vector3 waypoint = transform.position + direction * probeDistance;
+				float score = (targetPosition - waypoint).sqrMagnitude;
+				if (score < bestScore)
+				{
+					bestScore = score;
+					bestWaypoint = waypoint;
+					found = true;
+				}
+			}
+			if (!found)
+				return false;
+			offNavDetourWaypoint = bestWaypoint;
+			offNavDetourTargetAtSelection = targetPosition;
+			offNavDetourUntil = Time.time + 2f;
+			offNavLastProgressPosition = transform.position;
+			offNavNextProgressCheckAt = Time.time + 0.8f;
+			return true;
+		}
+
+		private bool HasOpenOffNavApproach(Vector3 heading, float distance)
+		{
+			if (distance <= 0f)
+				return false;
+			Vector3 rayOrigin = transform.position + Vector3.up * 0.95f;
+			return !Physics.Raycast(rayOrigin, heading,
+				Mathf.Max(0.1f, distance), RayMasks.BLOCK_COLLISION,
+				QueryTriggerInteraction.Ignore);
+		}
+
+		private bool CanStepOnOffNavGround(Vector3 heading, float distance)
+		{
+			Vector3 probe = transform.position + heading * Mathf.Max(0.8f, distance)
 				+ Vector3.up * 1.2f;
 			if (!Physics.Raycast(probe, Vector3.down, out RaycastHit ground, 2.8f,
 				RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore)
@@ -3241,14 +3362,6 @@ namespace SDG.Unturned
 				|| !Level.checkSafeIncludingClipVolumes(ground.point)
 				|| SDG.Framework.Water.WaterUtility.isPointUnderwater(ground.point))
 				return false;
-
-			// CharacterController.Move supplies native collision response. The
-			// modest downward offset preserves grounding; no velocity warp or
-			// special path through colliders is granted.
-			controller.Move(heading * step + Vector3.down * 0.12f);
-			Vector3 facing = new Vector3(heading.x, 0f, heading.z);
-			transform.rotation = Quaternion.RotateTowards(transform.rotation,
-				Quaternion.LookRotation(facing), 450f * Mathf.Clamp(delta, 0f, 0.1f));
 			return true;
 		}
 
