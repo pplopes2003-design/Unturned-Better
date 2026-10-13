@@ -123,6 +123,8 @@ namespace SDG.Unturned
 			= new List<Vector3>(MobileNPCTravelMemory.MaxFootsteps);
 		private readonly List<Vector3> learnedAccessSteps
 			= new List<Vector3>(MobileNPCTravelMemory.MaxFootsteps);
+		private readonly List<Vector3> learnedAccessContinuation
+			= new List<Vector3>(MobileNPCTravelMemory.MaxFootsteps);
 		private readonly List<Vector3> learnedAccessApproach = new List<Vector3>(32);
 		private float nextKnownAccessPlanTime;
 		private Vector3 lastKnownAccessGoal;
@@ -132,6 +134,7 @@ namespace SDG.Unturned
 		private bool trackingActualJourney;
 		private bool actualJourneyExceededLimit;
 		private int activeRememberedRouteIndex = -1;
+		private int activeContinuationRouteIndex = -1;
 		private float nextRememberedRouteAttemptTime;
 		private readonly List<RegionCoordinate> explorationRegions = new List<RegionCoordinate>(16);
 		private readonly List<LevelObject> explorationObjects = new List<LevelObject>(64);
@@ -230,6 +233,7 @@ namespace SDG.Unturned
 			trackingActualJourney = false;
 			actualTravelFootsteps.Clear();
 			activeRememberedRouteIndex = -1;
+			activeContinuationRouteIndex = -1;
 			nextRememberedRouteAttemptTime = 0f;
 			nextKnownAccessPlanTime = 0f;
 			hasPendingKnownAccessPath = false;
@@ -1546,9 +1550,16 @@ namespace SDG.Unturned
 
 		private void ReportLearnedRouteInvalidatedServer()
 		{
-			if (activeRememberedRouteIndex >= 0 && travelMemory != null)
-				travelMemory.ReportReuseFailureServer(activeRememberedRouteIndex);
+			if (travelMemory != null)
+			{
+				if (activeRememberedRouteIndex >= 0)
+					travelMemory.ReportReuseFailureServer(activeRememberedRouteIndex);
+				if (activeContinuationRouteIndex >= 0
+					&& activeContinuationRouteIndex != activeRememberedRouteIndex)
+					travelMemory.ReportReuseFailureServer(activeContinuationRouteIndex);
+			}
 			activeRememberedRouteIndex = -1;
+			activeContinuationRouteIndex = -1;
 		}
 
 		/// <summary>
@@ -1587,8 +1598,9 @@ namespace SDG.Unturned
 			}
 			nextKnownAccessPlanTime = Time.time + 0.75f;
 			if (!travelMemory.TryFindKnownFloorAccessServer(transform.position,
-				destination, learnedAccessSteps, out Vector3 entrance,
-				out int learnedRouteIndex))
+				destination, learnedAccessSteps, learnedAccessContinuation,
+				out Vector3 entrance, out int learnedRouteIndex,
+				out int continuationRouteIndex))
 			{
 				hasPendingKnownAccessPath = false;
 				return false;
@@ -1628,7 +1640,11 @@ namespace SDG.Unturned
 			if (learnedAccessApproach.Count < 1
 				|| learnedAccessApproach.Count > 32
 				|| learnedAccessSteps.Count < 3
-				|| learnedAccessSteps.Count > MobileNPCTravelMemory.MaxFootsteps)
+				|| learnedAccessSteps.Count > MobileNPCTravelMemory.MaxFootsteps
+				|| learnedAccessContinuation.Count > MobileNPCTravelMemory.MaxFootsteps
+				|| (continuationRouteIndex >= 0 && learnedAccessContinuation.Count < 3)
+				|| learnedAccessApproach.Count + learnedAccessSteps.Count
+					+ learnedAccessContinuation.Count > 104)
 				return false;
 
 			Vector3 approachEnd =
@@ -1669,11 +1685,34 @@ namespace SDG.Unturned
 				}
 				previous = next;
 			}
+			// Optionally chain one more individually WALKED corridor on the
+			// destination floor. Both boundaries and every step are rechecked
+			// against today's walls, native doors, walkable floor and headroom.
+			if (continuationRouteIndex >= 0)
+			{
+				for (int i = 0; i < learnedAccessContinuation.Count; ++i)
+				{
+					Vector3 next = learnedAccessContinuation[i];
+					float segment = Vector3.Distance(previous, next);
+					if (segment > 2.6f || !Level.checkSafeIncludingClipVolumes(next)
+						|| (segment > 0.2f
+							&& !IsActuallyWalkableStairConnection(previous, next, radius)))
+					{
+						travelMemory.ReportReuseFailureServer(continuationRouteIndex);
+						return false;
+					}
+					previous = next;
+				}
+			}
 			float finalDistance = Vector3.Distance(previous, destination);
 			if (finalDistance > 1.9f
 				|| (finalDistance > 0.35f
 					&& !IsActuallyWalkableStairConnection(previous, destination, radius)))
+			{
+				if (continuationRouteIndex >= 0)
+					travelMemory.ReportReuseFailureServer(continuationRouteIndex);
 				return false;
+			}
 
 			routeWaypoints.Clear();
 			for (int i = 0; i < learnedAccessApproach.Count; ++i)
@@ -1684,6 +1723,15 @@ namespace SDG.Unturned
 			}
 			for (int i = 1; i < learnedAccessSteps.Count; ++i)
 				routeWaypoints.Add(learnedAccessSteps[i]);
+			// The first second-stage waypoint may coincide with the stair
+			// exit. Keep actual order; no teleport between these segments.
+			for (int i = 0; i < learnedAccessContinuation.Count; ++i)
+			{
+				if (routeWaypoints.Count == 0
+					|| Vector3.Distance(routeWaypoints[routeWaypoints.Count - 1],
+						learnedAccessContinuation[i]) > 0.25f)
+					routeWaypoints.Add(learnedAccessContinuation[i]);
+			}
 			if (finalDistance > 0.55f)
 				routeWaypoints.Add(destination);
 			if (routeWaypoints.Count < 1)
@@ -1693,6 +1741,7 @@ namespace SDG.Unturned
 			detourGoalSnapshot = destination;
 			hasDetourWaypoint = false;
 			activeRememberedRouteIndex = learnedRouteIndex;
+			activeContinuationRouteIndex = continuationRouteIndex;
 			nextPlannedRouteValidationTime = 0f;
 			return true;
 		}
