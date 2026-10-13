@@ -939,3 +939,35 @@ Full authored map-wide graph not guaranteed: optional Unturned ASPFP backend is 
 Next highest priority should be explicit door/open/closed/breach traversal semantics, native scene door API, and navigation links between floors/POIs; also revisit UI-01 dialog HUD/ESC bug. Do not promise completed 'shooter-level urban combat' until real Unity Dev Build tests.
 
 No Unity compilation, Player.log or real playtesting happened in this round. Source files GitHub re-fetched and structure sanity-checked only. User will compile at END.
+
+
+## 2026-10-13 — LATEST P0 NAVIGATION: native barricade doors without lock bypass
+
+**Read before all future source edits** `MOBILE_NPC_PENDING_TASKS.md`, this HANDOFF, `MOBILE_NPC_URBAN_COMBAT_NAVIGATION_DESIGN.md`, and NEW `MOBILE_NPC_DOOR_NAVIGATION_DESIGN.md`. Branch `feature/npc-ai-foundation`, NOT main. User does the final Unity/Dev Build only after implementation rounds; no feature is runtime-confirmed. Full AI architecture diagram is still required at end. Keep every task until user feedback and update both canonical docs and tests each round.
+
+### Direct source findings
+
+Unturned's actual `Interactable/InteractableDoor.cs` supports `isOpen`, `isOpenable`, a private asset-derived `isLocked`, native animated `ExpandedBarrier` and shared `OnDoorChanged_Global`. `Managers/BarricadeManager.ServerSetDoorOpen(door,true)` is a real server method that finds registered `BarricadeRegion`, invokes reliable synced `InteractableDoor.SendOpen`, and writes persisted barricade state. Its internal implementation assumes a live BarricadeDrop. **Crucially `checkToggle` can ignore lock on singleplayer host**; AI must not use that as authorization.
+
+### Source commits
+
+- `a982f327fa23c9d797c7653ff880b644a18bd8d2` — read-only `InteractableDoor.IsLockedForMobileNPCNavigation` exposes true native isLocked without modifying permissions.
+- `18d793e05058f00b43544369f5322c1bf7d8287a` — new `MobileNPCDoorNavigation` component with bounded physical first-obstruction check, only one *genuinely unlocked* `InteractableDoor`, within 3m/2.4m, excludes vehicle doors, respects animation/toggle cooldown and physical blockers. Invokes only `BarricadeManager.ServerSetDoorOpen`, never fakes a Player/updates animation directly/disables collider/teleports.
+- `3e605e9ed0fc1af7b47517271bb9a0698722c898` — attach door component to inactive runtime template.
+- `2378921a1498080fd031c1c18ae2443f93f11b02` — motor handles native door before invalidating an existing route or starting new local sidestep; pauses movement while door animates and retains real final destination.
+- `79fcc883358fa80cc216592bb2a4b5235d1abd3c` / `ffb23d9ba5d58710a2b16391b9c06476c904c710` — local A* **edge** can plan through one unlocked barricade door (side-effect-free physics classification), if no extra wall/vehicle/entity blocks same edge.
+- `54f24edc64ae6b33174bd66e0591b7f5772a32d4` / `423d0b2e4539076130d1039c4901de061b59ebd9` — local A* **node** that overlaps only this valid door can remain walkable, but never one overlapped by both door AND another solid obstacle.
+- `f867b1c798a786a0ff784ace65867a4079813fa8` — verify native barricade root has an actual `BarricadeRegion.FindBarricadeByRootFast` registration before invoking `ServerSetDoorOpenInternal` path which assumes nonnull BarricadeDrop.
+- `d270eb35387c6c2e3126e53705c0480284e18f08` — keep brief animated door wait across throttled spatial probes; avoids path invalidation while hinge is still moving.
+- `145ff0761bc884b4ffa2e9cb82f04df4bcebe6cd` — new full design and test matrix `MOBILE_NPC_DOOR_NAVIGATION_DESIGN.md`.
+- `de06ffa7462ed41fc8791e596754e3edab08749d` — backlog updated; NEW `NAV-DOOR-01` near-ready scoped subitem, overarching CORE-04 still EM IMPLEMENTAÇÃO.
+
+### Explicitly NOT solved / test concerns
+
+A native barricade door may have `ExpandedBarrier` collider and animated hinge; the NPC still waits for real physics clearance. Doors native to some specific level objects, custom map interactive doors, vehicle doors, locked barricades, breachable locked doors, elevators, indoor stairs, full global A* connected multi-storey buildings are **not** solved. These require actual APIs/assets and additional planner actions. Route recognition of an unopened unlocked door does NOT permit wall collision bypass or movement through it while closed. A path through a door with extra wall or vehicle collider is rejected. NPC owner/group affiliation policy is not impersonated: only unlocked doors work.
+
+No Unity compile, no game test, no Player.log this turn. GitHub code, native definitions and only structural checks available. `NAV-DOOR-01` is `QUASE PRONTA — AGUARDANDO BUILD` for ordinary registered unlocked InteractableDoors only. `CORE-04`, `AI-03`, `LEARN-05`, `UI-01` remain pending. User's final feedback decides close or reopen.
+
+### NEXT P0 action
+
+Inspect actual *stairs / multilevel navigation link* representations in U3SDK level objects/nav boundaries and graph API without inventing A* source. Avoid authoring universal stairs from floor height alone; require actual safe traversable connectors and geolocated entrance/exits. Alternatively prioritize `UI-01` severe dialogue HUD/ESC bug or `UI-02` native attack animation gap. Source changes and documentation required for each continuation.
