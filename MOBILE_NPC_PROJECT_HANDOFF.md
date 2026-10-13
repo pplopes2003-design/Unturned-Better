@@ -578,3 +578,34 @@ User explicitly requests verifying zombie pursuit beyond native regions and limi
 - Caveat: `ApplyHit` still performs injury effects before the final health call; a broader atomicity review is warranted if callback-driven reentrancy is observed. Avoid duplicating damage by invoking both this method and the vitals adapter for one hit.
 - Status: GitHub commit exists. No Unity compile, no player build, no runtime test. Recheck firearm and melee adapters, hit-region mapping, death transition and hit animation with logs.
 - Retain prior backlog unchanged, notably zombie pursuit across POI/region boundaries, native frequency-checked radio interception, navigation, group/faction persistence, and the final diagram only after major modules are structured.
+
+
+## 2026-10-13 — PERMANENT BACKLOG + first actually connected per-NPC online learning (latest handoff)
+
+**Mandatory continuation order:** FIRST read `MOBILE_NPC_PENDING_TASKS.md` (permanent canonical task register, commit `a2e709930a1f5189f3f92489d78fa71f42f1016d`) and THIS HANDOFF. Read `MOBILE_NPC_ADAPTIVE_LEARNING_DESIGN.md` for learning internals and `MOBILE_NPC_RADIO_SYSTEM_DESIGN.md` for communications. Always update backlog AND handoff after each engineering round; update test/design docs when relevant. **Do not delete backlog IDs when source code is written; close only after Unity compilation and real Dev Build validation, keep an archived record of completed tasks.** User will compile and test once the implementation phase ends — do NOT demand a build after each iteration. The complete NPC AI decision-tree/architecture diagram is due at the END after major subsystems are structured, not now.
+
+### Source commits in this round
+
+- `1a41e00319464076e1b8c400052bc5dbbf902313` — new `MobileNPCAdaptiveMemory.cs`: bounded (48 records), individual, spatially contextual online success/failure evidence, softened evidence from an actual conversation; no omniscient shared state or neural ML.
+- `564ebfc1a15814ac4dc0f03ff8f3096ef0acd1d1` — attach personal memory to runtime NPC template.
+- `a94ca7ad2ac7567d8b2d1039c282e48453117f44` — forget private experience upon death before corpse retirement; no successor inheritance.
+- `f6b4583f5f689dcf05ab63486f56455384f15784` — resolved loot success/failure and expired loot-goal outcome teach per-NPC loot preference, capped region bias. No invented pathfinding.
+- `a657faad1f1a08169d3a7c53722e9ce7a9edeaff` — committed NPC shots report physical selected-target contact vs missed shot, and learned context controls a small shot cadence multiplier; still realistic weapon dispersion, finite ammo, actual visibility.
+- `a576d9209eee7144482f666bebcf0fab45d78834` and `f2eac633a46d074736e62aa08a2b1a61d6c7e9e9` — learning is shared only during simulated distance-limited and occlusion-attenuated voice conversation between living same-group agents, not a global registry broadcast. Source-only; no player subtitles/audio.
+- `18297285d414c64d1957a0dcaac75658fabda174` — version 3 `MobileNPCPersistence` individual experience snapshots; backward-compatible read of v1/v2 records (no new experience).
+- `c1efbe55d85f2e0600f270dab00d5bfee2a6a0e8` — new `MOBILE_NPC_ADAPTIVE_LEARNING_DESIGN.md` with limitations and tests.
+- `2011a6527c84d50dec67b6ba7f5d6b6b85c4f3ea` — update backlog statuses, retain all IDs.
+
+### Important implementation boundaries
+
+This is the **first connected real feedback slice**, not completed long-term AI learning. Training is simple bounded reinforcement from loot and target hit/miss, affecting small adjustments in subsequent decisions. No adaptive selection yet for cover/retreat/flank, zombie subtype weaknesses, learned routes, embodied audio dialogues, ML models, or radio knowledge transmission. Advice shared by speech is weaker and not forwarded; a speaker's pending lesson may be overwritten by newer events. All actual combat authorization continues to use native/adapter hits, ammo, factions and sighting constraints. Body armor/native XP cannot be inferred from the physical-hit result. The per-individual save still lacks a permanent GUID and exact identity; future extension required.
+
+**Verification:** Re-fetched source via GitHub, checked braces and symbol wiring. **NO Unity C# compile, NO Player Dev Build and NO in-game regression verification.** Do not label completed, particularly AI behavior, corpse/death and cross-POI zombie pursuit. User specifically plans to compile/test at the end.
+
+### Next implementation tasks in preferred order
+
+1. Extend learning into outcome-aware actual defensive tactics (cover success/failure, retreat, flank vs target category), and bounded route memory. Validate against real reachable cover/safe path and no hidden target information.
+2. Stable individual save identity and robust pending/spoken knowledge data lifecycle; sample budgets, confidence and stale observation loss.
+3. Return to urgent native zombie chase across POI/region borders, gun/melee/ragdoll integration, navigation around structures, group/faction validation, and native radio receiver/channel bridge.
+4. Add all relevant tests to `MOBILE_NPC_SINGLEPLAYER_TEST_PLAN.md` and continue tracking EVERY outstanding requirement in `MOBILE_NPC_PENDING_TASKS.md`.
+
