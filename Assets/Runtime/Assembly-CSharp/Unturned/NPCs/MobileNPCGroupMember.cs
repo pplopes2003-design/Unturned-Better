@@ -42,6 +42,7 @@ namespace SDG.Unturned
 		private bool initialized;
 		private bool leftGroup;
 		private float nextContactBroadcastAt;
+		private float nextKnowledgeConversationAt;
 		public enum SquadRole { None, Covering, Advancing }
 		private SquadRole squadRole;
 		private float squadRoleUntil;
@@ -78,6 +79,9 @@ namespace SDG.Unturned
 
 		private void Update()
 		{
+			// Local conversation is rate-limited independently of squad advance orders.
+			// Group identity alone never copies knowledge to absent group members.
+			TryShareExperienceByLocalSpeechServer();
 			if (!Provider.isServer || CurrentSquadRole != SquadRole.Advancing
 				|| pendingAdvanceAt <= 0f || Time.time < pendingAdvanceAt)
 				return;
@@ -239,6 +243,79 @@ namespace SDG.Unturned
 				// Wait for the listener to finish checking the sound before
 				// requesting a short covered movement.
 				advancingAlly.pendingAdvanceAt = Time.time + 1.25f;
+			}
+		}
+
+
+		/// <summary>
+		/// A relaxed living NPC may tell one firsthand lesson to group mates who can
+		/// actually hear it. No voice conversation => no shared knowledge. This is
+		/// NOT radio traffic, remote squad telepathy, or a player-visible subtitle.
+		/// </summary>
+		private void TryShareExperienceByLocalSpeechServer()
+		{
+			if (!Provider.isServer || !initialized || leftGroup || GroupId <= 0
+				|| Time.time < nextKnowledgeConversationAt
+				|| vitals != null && vitals.IsDead
+				|| !groups.TryGetValue(GroupId, out GroupRecord group))
+				return;
+			// Avoid speaking while pursuing an active enemy. Keep pending knowledge if
+			// no one can hear it rather than broadcasting into the group registry.
+			MobileNPCBrainDriver ownBrain = GetComponent<MobileNPCBrainDriver>();
+			if (ownBrain == null || ownBrain.Target != null)
+				return;
+			nextKnowledgeConversationAt = Time.time + Random.Range(15f, 22f);
+			MobileNPCAdaptiveMemory ownMemory = GetComponent<MobileNPCAdaptiveMemory>();
+			if (ownMemory == null || !ownMemory.TryGetUnspokenLessonServer(
+				out MobileNPCAdaptiveMemory.SpokenLesson report))
+				return;
+
+			float normalVoiceRange = motor != null && motor.IsCrouched ? 4f : 7f;
+			int recipients = 0;
+			foreach (MobileNPCGroupMember ally in group.Members)
+			{
+				if (ally == null || ally == this || !ally.initialized || ally.leftGroup
+					|| ally.vitals != null && ally.vitals.IsDead)
+					continue;
+				MobileNPCBrainDriver allyBrain = ally.GetComponent<MobileNPCBrainDriver>();
+				if (allyBrain == null || allyBrain.Target != null)
+					continue;
+
+				Vector3 mouth = transform.position + Vector3.up * 1.45f;
+				Vector3 ear = ally.transform.position + Vector3.up * 1.4f;
+				Vector3 sound = ear - mouth;
+				float distance = sound.magnitude;
+				if (distance < 0.1f || distance > normalVoiceRange)
+					continue;
+
+				// Walls reduce intelligible speech; NPC/player collision shells do not.
+				bool blocked = false;
+				RaycastHit[] hits = Physics.RaycastAll(mouth, sound.normalized, distance,
+					RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+				for (int h = 0; h < hits.Length; ++h)
+				{
+					Collider obstacle = hits[h].collider;
+					if (obstacle == null || obstacle.transform.IsChildOf(transform)
+						|| obstacle.transform.IsChildOf(ally.transform)
+						|| obstacle.GetComponentInParent<Player>() != null
+						|| obstacle.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
+						continue;
+					blocked = true;
+					break;
+				}
+				if (blocked && distance > normalVoiceRange * 0.42f)
+					continue;
+
+				MobileNPCAdaptiveMemory listener = ally.GetComponent<MobileNPCAdaptiveMemory>();
+				if (listener != null && listener.ReceiveSpokenLessonServer(report))
+					recipients++;
+			}
+			if (recipients > 0)
+			{
+				ownMemory.ConfirmLessonSpokenServer(report.Sequence);
+				Debug.Log("[MobileNPCGroupMember] Local experience conversation: speaker="
+					+ name + ", group=" + GroupId + ", heardBy=" + recipients
+					+ ", lesson=" + report.Kind + ". No remote relay.", this);
 			}
 		}
 
