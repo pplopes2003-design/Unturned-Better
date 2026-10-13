@@ -119,7 +119,7 @@ namespace SDG.Unturned
                     else if (!missingClimbClipLogged)
                     {
                         missingClimbClipLogged = true;
-                        Debug.LogWarning("[MobileNPCVisualAnimation] Ladder locomotion is active "
+                        Debug.LogWarning("[MobileNPCVisualAnimation] Native ladder/clamber locomotion is active "
                             + "but NPC_Client has no Move_Climb/Idle_Climb animation state.", this);
                     }
                 }
