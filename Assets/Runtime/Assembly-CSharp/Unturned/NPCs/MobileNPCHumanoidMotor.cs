@@ -423,10 +423,19 @@ namespace SDG.Unturned
 				}
 			}
 
-			if (planarDirection.sqrMagnitude > 0.0001f)
+			Vector3 facingDirection = planarDirection;
+			if (brainDriver.IsListening)
 			{
-				Quaternion targetRotation = Quaternion.LookRotation(planarDirection, Vector3.up);
-				transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, turnSpeed * deltaTime);
+				// Face the uncertain sound bearing, not the player's hidden live
+				// position. Rotation is deliberately slower than combat aiming.
+				facingDirection = brainDriver.ListeningClue - transform.position;
+				facingDirection.y = 0f;
+			}
+			if (facingDirection.sqrMagnitude > 0.0001f)
+			{
+				Quaternion targetRotation = Quaternion.LookRotation(facingDirection, Vector3.up);
+				float steeringSpeed = brainDriver.IsListening ? turnSpeed * 0.35f : turnSpeed;
+				transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, steeringSpeed * deltaTime);
 			}
 
 			float injuryMovementMultiplier = injurySystem != null ? injurySystem.MovementMultiplier : 1f;
