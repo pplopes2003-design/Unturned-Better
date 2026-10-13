@@ -69,6 +69,7 @@ namespace SDG.Unturned
 		// ordinary ground and the floor above cannot become one fake node.
 		private const int VerticalNodeLimit = RouteGridNodeLimit * 2;
 		private static float nextSharedVerticalRouteSlot;
+		private static float nextSharedKnownAccessRouteSlot;
 		private static readonly Vector2Int[] RouteGridDirections =
 		{
 			new Vector2Int(1, 0), new Vector2Int(-1, 0),
@@ -1689,7 +1690,17 @@ namespace SDG.Unturned
 				waitingForApproach = hasPendingKnownAccessPath;
 				return false;
 			}
-			nextKnownAccessPlanTime = Time.time + 0.75f;
+			// Bound physics-heavy validation across all active NPCs, not only
+			// per NPC. Jitter next admission to avoid the same actors always
+			// monopolizing the shared slot when 20-40 NPCs replan together.
+			if (Time.time < nextSharedKnownAccessRouteSlot)
+			{
+				waitingForApproach = hasPendingKnownAccessPath;
+				nextKnownAccessPlanTime = Time.time + Random.Range(0.12f, 0.28f);
+				return false;
+			}
+			nextSharedKnownAccessRouteSlot = Time.time + 0.12f;
+			nextKnownAccessPlanTime = Time.time + 0.65f + Random.Range(0f, 0.25f);
 
 			int excludedEntries = 0;
 			if (hasPendingKnownAccessPath && pendingKnownAccessEntryRouteId >= 0)
