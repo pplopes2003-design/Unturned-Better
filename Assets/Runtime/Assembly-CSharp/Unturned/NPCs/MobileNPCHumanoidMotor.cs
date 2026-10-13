@@ -2349,6 +2349,12 @@ namespace SDG.Unturned
 			int goalX = Mathf.Clamp(RouteGridCenter + Mathf.RoundToInt(goalFromBase.x / RouteGridCellSize), 0, RouteGridSide - 1);
 			int goalZ = Mathf.Clamp(RouteGridCenter + Mathf.RoundToInt(goalFromBase.z / RouteGridCellSize), 0, RouteGridSide - 1);
 			int preferredGoal = goalZ * RouteGridSide + goalX;
+			// When this preferred cell is the approach where the survivor just
+			// got stuck, do not stop A* there or select it again. Explore
+			// physically connected lateral frontiers before retrying that wall.
+			bool preferredRecentlyBlocked = !requireExactLocalGoal
+				&& walkable[preferredGoal]
+				&& LocalDeadEndPenalty(positions[preferredGoal], destination) >= 2.5f;
 
 			// Killzone-like tactical A*: during an actual *visible* hostile
 			// engagement, seeking cover/retreat may prefer a physically sheltered
@@ -2394,7 +2400,8 @@ namespace SDG.Unturned
 				// Stop early when the preferred destination cell is reached. If it is
 				// blocked or disconnected, keep exploring the reachable component so
 				// the fallback can select its nearest reachable node.
-				if (current == preferredGoal && current != start)
+				if (current == preferredGoal && current != start
+					&& !preferredRecentlyBlocked)
 					break;
 
 				int cx = current % RouteGridSide;
@@ -2437,6 +2444,8 @@ namespace SDG.Unturned
 						* Mathf.Max(0.45f, characterController.height * 0.55f);
 					if (IsObstacleBlockingAlong(edgeProbeStart, routeRadius,
 						edge.normalized, edgeLength)
+						&& !IsOnlyTemporaryActorBlockingAlong(edgeProbeStart,
+							routeRadius, edge.normalized, edgeLength)
 						&& (doorNavigation == null
 							|| !doorNavigation.IsTraversableUnlockedDoorEdgeServer(
 								edgeProbeStart, edge.normalized, routeRadius,
@@ -2469,7 +2478,7 @@ namespace SDG.Unturned
 				if (!closed[i] || !walkable[i] || i == start
 					|| previous[i] < 0 || float.IsInfinity(costs[i]))
 					continue;
-				if (i == preferredGoal)
+				if (i == preferredGoal && !preferredRecentlyBlocked)
 				{
 					// A physically reachable preferred cell is still useful
 					// even if the final target is several local grids away.
