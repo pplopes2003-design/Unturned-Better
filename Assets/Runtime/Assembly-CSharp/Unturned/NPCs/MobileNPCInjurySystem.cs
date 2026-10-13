@@ -136,16 +136,30 @@ namespace SDG.Unturned
 				|| float.IsNaN(damage) || float.IsInfinity(damage) || damage <= 0f)
 				return false;
 
+			if (!ApplyInjuryEffectsServer(part, damage, causeBleeding, causeFracture, severity))
+				return false;
+			vitals.ApplyDamage(damage);
+			return true;
+		}
+
+		/// <summary>
+		/// Records body-region effects without applying health damage. Use this when the
+		/// damage adapter has already applied health once through MobileNPCHumanoidVitals.
+		/// </summary>
+		public bool ApplyInjuryEffectsServer(BodyPart part, float damage, bool causeBleeding, bool causeFracture,
+			BleedingSeverity severity = BleedingSeverity.Light)
+		{
+			if (!Provider.isServer || vitals == null || vitals.IsDead || !IsValidPart(part)
+				|| float.IsNaN(damage) || float.IsInfinity(damage) || damage <= 0f)
+				return false;
+
 			PartState state = GetPartState(part);
 			state.Damage(damage);
 			if (causeFracture && (part == BodyPart.LeftLeg || part == BodyPart.RightLeg))
 				state.Fracture();
-
 			if (causeBleeding)
 				SetBleedingServer(severity == BleedingSeverity.None ? BleedingSeverity.Light : severity, part);
-
 			PartConditionChanged?.Invoke(part, state.Condition, state.IsFractured);
-			vitals.ApplyDamage(damage);
 			return true;
 		}
 
