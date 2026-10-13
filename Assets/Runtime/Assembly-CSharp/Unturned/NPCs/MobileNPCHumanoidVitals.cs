@@ -109,12 +109,29 @@ namespace SDG.Unturned
 			MobileNPCInjurySystem.BleedingSeverity severity = MobileNPCInjurySystem.BleedingSeverity.Light,
 			Vector3 hitImpulse = default(Vector3))
 		{
+			return ApplyDamageToPart(damage, bodyPart, causeBleeding, causeFracture, severity, hitImpulse, null);
+		}
+
+		/// <summary>Body-region damage with the validated attacker preserved for kill attribution.</summary>
+		public bool ApplyDamageToPart(float damage, MobileNPCInjurySystem.BodyPart bodyPart,
+			bool causeBleeding, bool causeFracture, MobileNPCInjurySystem.BleedingSeverity severity,
+			Vector3 hitImpulse, Transform attacker)
+		{
 			if (!Provider.isServer || isDead || float.IsNaN(damage) || float.IsInfinity(damage) || damage <= 0f
+				|| !IsFinite(hitImpulse.x) || !IsFinite(hitImpulse.y) || !IsFinite(hitImpulse.z)
 				|| injurySystem == null)
 				return false;
+
+			// Initialize before recording injury so the first hit on a newly activated NPC
+			// cannot create limb effects while the health state is still uninitialized.
+			if (!initialized)
+				InitializeServer();
+			if (!initialized || isDead)
+				return false;
+
 			if (!injurySystem.ApplyInjuryEffectsServer(bodyPart, damage, causeBleeding, causeFracture, severity))
 				return false;
-			return ApplyDamage(damage, hitImpulse);
+			return ApplyDamage(damage, hitImpulse, attacker);
 		}
 
 		/// <summary>
