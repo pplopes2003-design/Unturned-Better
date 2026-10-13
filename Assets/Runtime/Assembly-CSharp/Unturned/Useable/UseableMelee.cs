@@ -552,8 +552,14 @@ namespace SDG.Unturned
 					if (Provider.isServer && !mobileNPCVitals.IsDead)
 					{
 						float mobileNPCDamage = equippedMeleeAsset.zombieOrPlayerDamageMultiplier.multiply(info.limb) * times;
-						mobileNPCVitals.ApplyDamage(Mathf.Max(1f, mobileNPCDamage),
-							info.direction * Mathf.Max(1f, mobileNPCDamage), player.transform);
+						// Zero-damage melee tools must not become damaging merely because
+						// the target is a mobile NPC. Preserve weapon damage scaling.
+						if (!float.IsNaN(mobileNPCDamage) && !float.IsInfinity(mobileNPCDamage)
+							&& mobileNPCDamage > 0f)
+						{
+							mobileNPCVitals.ApplyDamage(mobileNPCDamage,
+								info.direction * mobileNPCDamage, player.transform);
+						}
 					}
 				}
 				else if (info.type == ERaycastInfoType.PLAYER)
