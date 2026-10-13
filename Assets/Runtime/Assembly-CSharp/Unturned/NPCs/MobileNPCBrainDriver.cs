@@ -16,6 +16,7 @@ namespace SDG.Unturned
 	{
 		private MobileNPCBrain brain;
 		private MobileNPCTactics tactics;
+		private readonly MobileNPCPlayerKnowledge playerKnowledge = new MobileNPCPlayerKnowledge();
 		private float nextDefensiveReplanAt;
 		private Vector3 lastDefensiveThreatPosition;
 		private bool hasInitialized;
@@ -50,6 +51,7 @@ namespace SDG.Unturned
 
 			brain.SetSpawnPosition(spawnPosition);
 			brain.Reset();
+			playerKnowledge.Clear();
 			tactics.ClearGoal();
 			hasInitialized = true;
 			MobileNPCRegistry.Register(this);
@@ -63,6 +65,14 @@ namespace SDG.Unturned
 			{
 				return;
 			}
+
+			// This observation is sourced exclusively from confirmed server vision.
+			// Other NPCs/zombies still use the existing brain without player hints.
+			Player visiblePlayer = target.GetComponent<Player>();
+			if (visiblePlayer == null)
+				visiblePlayer = target.GetComponentInParent<Player>();
+			if (visiblePlayer != null && visiblePlayer.life != null && !visiblePlayer.life.isDead)
+				playerKnowledge.ObserveSight(visiblePlayer.transform.position, Time.time);
 
 			brain.ReportVisibleTarget(target, Time.time);
 			PublishDecisionIfChanged();
@@ -117,6 +127,14 @@ namespace SDG.Unturned
 		{
 			if (!CanAcceptServerInput)
 				return;
+
+			// Identified shooter evidence may update player knowledge, but a
+			// source-less gunshot does not magically identify the player.
+			Player shooter = threatTransform != null ? threatTransform.GetComponent<Player>() : null;
+			if (shooter == null && threatTransform != null)
+				shooter = threatTransform.GetComponentInParent<Player>();
+			if (shooter != null)
+				playerKnowledge.ObserveSound(threatPosition, 0.8f, Time.time);
 
 			tactics.ReportIncomingFire(Time.time);
 			// Keep a valid cover/retreat destination long enough to travel toward it.
@@ -335,6 +353,7 @@ namespace SDG.Unturned
 			else
 			{
 				brain.ReportDestinationReached();
+				TryUsePlayerKnowledgeHint();
 			}
 
 			PublishDecisionIfChanged();
@@ -347,7 +366,14 @@ namespace SDG.Unturned
 				return;
 			}
 
+			MobileNPCBrain.State previousState = brain.CurrentState;
 			brain.Tick(Time.time, targetIsVisible);
+			// When the ordinary brain loses the remembered target, its second
+			// advisory layer can propose a nearby search, not reveal live position.
+			if (previousState == MobileNPCBrain.State.Pursuing
+				&& brain.CurrentState == MobileNPCBrain.State.Investigating)
+				TryUsePlayerKnowledgeHint();
+
 			if (tactics.IsGoalExpired(Time.time))
 			{
 				tactics.ClearGoal();
@@ -392,7 +418,28 @@ namespace SDG.Unturned
 
 			brain.Reset();
 			tactics.ClearGoal();
+			playerKnowledge.Clear();
 			PublishDecisionIfChanged();
+		}
+
+		/// <summary>
+		/// The normal decision brain remains authoritative. Hypotheses are useful
+		/// only while investigating; each hint must also pass safe-ground validation.
+		/// </summary>
+		private void TryUsePlayerKnowledgeHint()
+		{
+			if (brain == null || brain.CurrentState != MobileNPCBrain.State.Investigating)
+				return;
+
+			for (int attempt = 0; attempt < 2; ++attempt)
+			{
+				if (!playerKnowledge.TrySuggestSearchPoint(Time.time, out Vector3 hint))
+					return;
+				if (MobileNPCSpawnService.TryFindSafeGroundPosition(hint, 5f, 6f,
+					RayMasks.BLOCK_COLLISION, 40f, out Vector3 ground, out _)
+					&& brain.TrySetInvestigationHint(ground, Time.time))
+					return;
+			}
 		}
 
 		private void OnEnable()
