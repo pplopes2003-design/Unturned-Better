@@ -137,6 +137,15 @@ Also inspect Assets/Runtime/Assembly-CSharp/Unturned/Useable/UseableGun.cs, Usea
 4. Verify melee hit resolution separately; NPC-vs-NPC melee already calls custom vitals, but player melee's exact target branch and collider data must be runtime-tested.
 5. Unity compile and runtime status remains unknown; the two attribution commits have not been build-verified in this conversation.
 
+## Investigation update — loot-goal deadlock fix
+
+- Commit af49be9cd00b7a4dc6e70df207aea807cb9fb849 changes MobileNPCLooting.cs.
+- Confirmed failure mode in source: MobileNPCBrainDriver.TickServer clears an expired tactical goal, but MobileNPCLooting previously retained hasTarget and returned each Update while the world item remained present. That can leave the NPC with no active movement destination but a stale loot target, matching the report of standing idle beside an item/table.
+- The looting loop now detects when its target exists but the tactical Loot goal has expired/been cleared, drops the stale target, and waits for the bounded scan cooldown before choosing again.
+- Pickup transfer success/failure both finish the loot goal and apply a bounded rescan cooldown; a failed transfer emits a diagnostic.
+- This is source-level correction only. It has not been compiled or runtime-tested in Unity. The failed-transfer diagnostic currently reads targetInstanceID after ClearTarget resets it, so it may log 0 rather than the attempted ID; fix that small diagnostic detail before treating the logging as useful.
+- Damage/death still requires native lifecycle research and runtime confirmation; no native death implementation is claimed.
+
 ## Status at time of writing
 
 - Death/damage lifecycle: Not yet verified end-to-end.
