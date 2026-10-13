@@ -165,9 +165,6 @@ namespace SDG.Unturned
 		private int activeContinuationRouteIndex = -1;
 		private int learnedStairStartWaypointIndex = -1;
 		private int learnedContinuationStartWaypointIndex = -1;
-			activeAccessRouteIds.Clear();
-			activeAccessWaypointStarts.Clear();
-			activeAccessFinalWaypointIndex = -1;
 		private float nextRememberedRouteAttemptTime;
 		private readonly List<RegionCoordinate> explorationRegions = new List<RegionCoordinate>(16);
 		private readonly List<LevelObject> explorationObjects = new List<LevelObject>(64);
