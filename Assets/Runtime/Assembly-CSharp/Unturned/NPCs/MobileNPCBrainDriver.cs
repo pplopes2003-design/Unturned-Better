@@ -623,6 +623,7 @@ namespace SDG.Unturned
 		public bool TryStartRememberedSupplySearch(Vector3 validatedPlace)
 		{
 			if (!CanAcceptServerInput || brain.Target != null
+				|| brain.CurrentState != MobileNPCBrain.State.Idle
 				|| (float.IsNaN(validatedPlace.x) || float.IsInfinity(validatedPlace.x)
 				|| float.IsNaN(validatedPlace.y) || float.IsInfinity(validatedPlace.y)
 				|| float.IsNaN(validatedPlace.z) || float.IsInfinity(validatedPlace.z)
