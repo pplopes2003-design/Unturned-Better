@@ -516,17 +516,17 @@ Status: `NAV-LADDER-LINK-01` **QUASE PRONTA — AGUARDANDO BUILD**; no compilati
 - [ ] Run 1/10/20/40 NPCs in indoor POI; check bounded per-actor 1.5s and shared 0.18s survey, local/native A* occupancy, actual runtime CPU/GC and no path request starvation.
 - [ ] Confirm compilation and `Player.log`. Regression: `5fd7cae1` class-scope C# statements were deleted. Check Unity import recognizes stable new .cs.meta GUID and dynamically added components.
 
-## 36. Real parapet clamber with native controller — final Unity Dev Build
+## 36. User-approved standard Unturned-style vault jump — FINAL Dev Build
 
-Status: `NAV-VAULT-CLAMBER-01` **QUASE PRONTA — AGUARDANDO BUILD**; `NAV-VAULT-01` parent EM IMPLEMENTAÇÃO pending authentic rigged Vault pose/IK.
+**Source-only status:** scoped historical `NAV-VAULT-CLAMBER-01` now means **jump over parapet**, QUASE PRONTA — AGUARDANDO BUILD. Parent `NAV-VAULT-01` OPEN for final multi-map/multi-hop coverage. No dedicated vault animation will be created or required. The previous artificial Rise/Across/Land clamber tests are **SUPERSEDED**.
 
-- [ ] Build a static parapet with physical horizontal top at 0.70m, 0.90m, 1.10m above feet, normal destination >2m past wall and SAME-FLOOR walkable landing ~1.85m ahead, headroom. Verify controller physically RISES, travels OVER, descends under gravity and completes only when the actor actually grounded near landing, with no transform warp.
-- [ ] Solid vertical wall >1.10m, window with no wide top, missing landing ground, different-floor destination, low ceiling/beam, second wall immediately behind first: deny clamber; do not treat roof as reachable.
-- [ ] Parked/active vehicle, native locked door, another NPC, player, zombie and moving rigidbody in path. Must not choose them as parapet or phase through.
-- [ ] Insert blocking structure after preflight; test stuck/timeouts, falling, destination changed mid-Rise/Across, water immersion and leg fracture. Abort rather than tunneling; gravity must resume without a teleport.
-- [ ] Distinguish regular low obstacle ballistic JUMP (0.35–0.65m), clamber 0.70–1.10m, and genuine tagged Ladder; none is a walkable floor link in `MobileNPCTravelMemory`.
-- [ ] Verify animation hierarchy: fallback actual `Move_Climb` or `Idle_Climb` only IF runtime referenced; missing dedicated Vault animation should remain a clearly recorded limitation, not an invented clip. During all stages no punch/gunshot/ground-footstep zombie alerts.
-- [ ] 1, 10, 20, 40 NPCs, network/visual state in singleplayer, physics collision stability, `Player.log` and real frame performance; no claims from static C# inspection.
-- [ ] Following any failure, reopen scoped task with map name, height, screenshot/log and reproduction. After demonstrated success, close only `NAV-VAULT-CLAMBER-01`, NOT universal vault animation or CORE-04.
+- [ ] Compare an NPC and Unturned player at real colliding static obstacles of heights **0.65 / 0.75 / 0.90 / 1.02 / 1.10m**. The last height must be rejected by the bounded planning policy; below it, only jumps with a feasible parabolic apex/trajectory, open headroom and a real same-floor landing may start. Use native **JUMP=7** or bounded 25% Parkour-style boost **8.75**, with real gravity applied by CharacterController.
+- [ ] Observe **one normal jump**, optionally forward movement delayed until clearance, and landing under native gravity; verify no scripted vertical climbing, floating hover, transform reposition, ladders’ `Move_Climb` pose or mandatory Vault clip.
+- [ ] With TWO separated obstacles and real solid ground between them: verify **jump 1 -> confirmed ground landing -> cooldown/reprobe -> jump 2**. Deny a second impulse midair, an absent landing, unsafe jump chaining or crossing a building floor.
+- [ ] Blocked wall top, insufficient apex, ceilings, solid wall taller than policy, native locked door, other NPC, Player, Zombie, rigidbody vehicle, missing/steep landing and water: no artificial vault, no geometry bypass, fail closed.
+- [ ] Damage legs, make NPC crouch/sneak/ambush, force visible enemy cover/retreat, change destination while airborne or block the landing after preflight. Preserve combat safety, gravity and correct failed approach recovery; no false learned walk route across the wall.
+- [ ] Inspect visual components: use an authored Jump/Leap clip ONLY if it is actually loaded; otherwise ordinary run/walk pose in air is acceptable per user's direction. `Move_Climb`/`Idle_Climb` remain only for a genuinely tagged Ladder. No airborne footsteps/zombie noise.
+- [ ] Repeat with 1,10,20,40 NPCs, Unity physics collision stress and Profiler measured CPU/GC. Confirm the old three-phase custom clamber source/method calls are gone and actual build compiles; collect `Player.log`, map name, coordinates, reproduction for defects.
+- [ ] Only after the user's runtime approval may scoped `NAV-VAULT-CLAMBER-01` be concluded; parent `CORE-04` remains open if broader navigation or routing still fails. Do not request/demand a dedicated Vault animation.
 
-Related: `MOBILE_NPC_NATIVE_LADDER_DESIGN.md`, `MOBILE_NPC_VAULT_DESIGN.md`, `MOBILE_NPC_PENDING_TASKS.md`. All checks **UNEXECUTED** until user consolidated Dev Build.
+Related: updated canonical `MOBILE_NPC_VAULT_DESIGN.md`, `MOBILE_NPC_PENDING_TASKS.md`. All checks **UNEXECUTED** until consolidated Unity Dev Build.
