@@ -273,3 +273,6 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 - [ ] Confirme que um jogador que mata diretamente NPC **hostil** recebe 10 pontos de XP reais (uma vez), no sistema de experiências do Unturned. NPC amigável/neutro morto dá 0 XP; morto por zumbi, NPC ou sangramento posterior não credita falsamente o jogador. Stats/quest kills ainda não estão implementados.
 - [ ] Corpse remains physical and lootable within lifetime (30s default); replacement spawns with new identity and no former memories after delay (60s default), group survivors retain only already shared knowledge. Stress: 40 NPCs and simultaneous kills.
 - [ ] Regredir zumbi/animal/player vanilla gun and melee: `MOBILE_NPC` enum extension/marker detection doesn't change native hit processing. Não solicitar compilação antes do encerramento da implementação; aguardar a Dev Build final + `Player.log` do usuário.
+
+
+- [ ] Verificar drop lateral (~0,9m da origem do cadáver) em terreno plano e ao lado de casa, parede, plataforma, encosta e outros cadáveres: itens pousam em solo apropriado, sem afundar, flutuar, ficar dentro da cápsula ou duplicar (commit `92ef3dd8`).
