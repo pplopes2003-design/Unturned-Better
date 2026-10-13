@@ -1013,7 +1013,8 @@ namespace SDG.Unturned
 					Vector3 delta = inputInfo.point - origin;
 					float sqrDistance = delta.sqrMagnitude;
 					if (float.IsNaN(sqrDistance) || float.IsInfinity(sqrDistance)
-						|| sqrDistance < 0.0025f || sqrDistance > 65536f)
+						|| sqrDistance < 0.0025f || sqrDistance > 562500f
+						|| (usage == ERaycastInfoUsage.Melee && sqrDistance > 225f))
 						return null;
 					float distance = Mathf.Sqrt(sqrDistance);
 					Vector3 direction = delta / distance;
@@ -1028,6 +1029,10 @@ namespace SDG.Unturned
 						return null;
 					inputInfo.point = confirmation.point;
 					inputInfo.direction = direction;
+					// Vanilla limb serialization is absent for custom hitboxes. Default
+					// to a known torso multiplier; the weapon adapter independently
+					// resolves anatomical head/arm/leg at the confirmed hit point.
+					inputInfo.limb = ELimb.SPINE;
 					inputInfo.transform = confirmedCollider.transform;
 					inputInfo.colliderTransform = confirmedCollider.transform;
 					return inputInfo;
