@@ -108,7 +108,7 @@ namespace SDG.Unturned
                 }
                 if (motor.IsMoving)
                 {
-                    PlayFootstepIfDue(brain != null && brain.CurrentState == MobileNPCBrain.State.Pursuing);
+                    PlayFootstepIfDue(motor.IsSprinting);
                 }
                 else
                 {
@@ -120,13 +120,21 @@ namespace SDG.Unturned
             string desired = idleClip;
             if (motor.IsMoving)
             {
-                bool pursuing = brain != null && brain.CurrentState == MobileNPCBrain.State.Pursuing;
-                desired = pursuing && !string.IsNullOrEmpty(runClip) ? runClip : walkClip;
+                bool running = motor.IsSprinting;
+                desired = running && !string.IsNullOrEmpty(runClip) ? runClip : walkClip;
+                // An actual crouch animation is optional on NPC_Client; never
+                // fabricate a state when the corresponding clip is absent.
+                if (motor.IsCrouched)
+                {
+                    string crouchClip = FindCrouchClip();
+                    if (crouchClip != null)
+                        desired = crouchClip;
+                }
                 if (string.IsNullOrEmpty(desired))
                 {
                     desired = runClip;
                 }
-                PlayFootstepIfDue(pursuing);
+                PlayFootstepIfDue(running);
             }
             else
             {
@@ -134,6 +142,25 @@ namespace SDG.Unturned
             }
 
             PlayIfAvailable(desired);
+        }
+
+        private string FindCrouchClip()
+        {
+            if (legacyAnimation == null)
+                return null;
+            foreach (AnimationState clip in legacyAnimation)
+            {
+                if (clip == null || string.IsNullOrEmpty(clip.name))
+                    continue;
+                bool crouch = clip.name.IndexOf("Crouch", System.StringComparison.OrdinalIgnoreCase) >= 0
+                    || clip.name.IndexOf("Sneak", System.StringComparison.OrdinalIgnoreCase) >= 0;
+                if (crouch)
+                {
+                    clip.wrapMode = WrapMode.Loop;
+                    return clip.name;
+                }
+            }
+            return null;
         }
 
         private void PlayFootstepIfDue(bool isRunning)
@@ -144,7 +171,11 @@ namespace SDG.Unturned
                 return;
             }
 
-            float interval = isRunning ? runningFootstepInterval : walkingFootstepInterval;
+            // Crouched movement produces fewer/quieter footsteps; actual zombie
+            // detection integration will follow after audio source verification.
+            float interval = motor != null && motor.IsCrouched
+                ? walkingFootstepInterval * 1.8f
+                : isRunning ? runningFootstepInterval : walkingFootstepInterval;
             nextFootstepTime = Time.time + Mathf.Max(0.1f, interval) * Random.Range(0.92f, 1.08f);
 
             Vector3 rayOrigin = transform.position + Vector3.up * 0.2f;
@@ -176,7 +207,7 @@ namespace SDG.Unturned
             }
 
             OneShotAudioParameters parameters = new OneShotAudioParameters(transform, clip);
-            parameters.volume = 0.125f * audioDef.volumeMultiplier;
+            parameters.volume = (motor != null && motor.IsCrouched ? 0.035f : 0.125f) * audioDef.volumeMultiplier;
             parameters.RandomizePitch(audioDef.minPitch, audioDef.maxPitch);
             parameters.SetLinearRolloff(1f, 32f);
             parameters.Play();
