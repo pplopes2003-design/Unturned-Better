@@ -95,11 +95,10 @@ namespace SDG.Unturned
                 return;
             }
 
-            // The checked-in NPC_Client rig has Idle_Climb and Move_Climb,
-            // but no verified authored Jump/Vault clip. Only attempt a real
-            // clip if that runtime prefab actually supplies one. Never repeat
-            // or restart it every frame and never emit ground footsteps midair.
-            if (motor.IsClimbingLadder || motor.IsVaultTraversing)
+            // Only a real tagged LADDER uses Move_Climb/Idle_Climb. A
+            // parapet vault is an ordinary gravity-driven Unturned jump,
+            // never a slow clamber or a forced ladder animation.
+            if (motor.IsClimbingLadder)
             {
                 nextFootstepTime = 0f;
                 // These names are present in Human/Basic/Move and Idle
@@ -119,7 +118,7 @@ namespace SDG.Unturned
                     else if (!missingClimbClipLogged)
                     {
                         missingClimbClipLogged = true;
-                        Debug.LogWarning("[MobileNPCVisualAnimation] Native ladder/clamber locomotion is active "
+                        Debug.LogWarning("[MobileNPCVisualAnimation] Native ladder climbing is active "
                             + "but NPC_Client has no Move_Climb/Idle_Climb animation state.", this);
                     }
                 }
@@ -133,6 +132,29 @@ namespace SDG.Unturned
                 {
                     jumpPresentationAttempted = true;
                     TryPlayActionClip("Jump", "Leap");
+                }
+                // NPC_Client does not guarantee an authored Jump clip. Keep
+                // its existing run/walk locomotion pose during the airborne
+                // movement rather than forcing Ladder's climb animation.
+                if (legacyAnimation != null)
+                {
+                    bool hasJumpClip = false;
+                    foreach (AnimationState clip in legacyAnimation)
+                    {
+                        if (clip != null && !string.IsNullOrEmpty(clip.name)
+                            && (clip.name.IndexOf("Jump", System.StringComparison.OrdinalIgnoreCase) >= 0
+                                || clip.name.IndexOf("Leap", System.StringComparison.OrdinalIgnoreCase) >= 0))
+                        {
+                            hasJumpClip = true;
+                            break;
+                        }
+                    }
+                    if (!hasJumpClip)
+                    {
+                        string movingPose = !string.IsNullOrEmpty(runClip)
+                            ? runClip : !string.IsNullOrEmpty(walkClip) ? walkClip : idleClip;
+                        PlayIfAvailable(movingPose);
+                    }
                 }
                 return;
             }
