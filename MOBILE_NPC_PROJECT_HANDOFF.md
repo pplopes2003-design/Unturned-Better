@@ -1037,3 +1037,27 @@ Continue `NAV-ACCESS-01`: create safe map-scoped stair/door portal/entrance grap
 
 
 **Travel memory correctness follow-up `e89e6580f0f5bb4c3257bf973e1d7389e2a67737`:** reset the active remembered route index when the cached waypoints finish; the final tactical destination is still checked separately in 3D. In `RecoverFromUnexpectedFall`, clear the active observed journey and route-use index before resetting the agent's Transform to safe ground. Emergency physics recovery / teleport is NEVER counted as physical walking knowledge. No compile/run done.
+
+
+## 2026-10-13 — LATEST NAV-ACCESS-01: discovered stair entrance from another room
+
+**Mandatory in next session:** read this HANDOFF and `MOBILE_NPC_PENDING_TASKS.md` first, then `MOBILE_NPC_KNOWN_ACCESS_NAVIGATION_DESIGN.md` plus `MOBILE_NPC_ROUTE_LEARNING_DESIGN.md` if editing navigation. Work only on `feature/npc-ai-foundation`. User compiles/tests Unity Dev Build **at end**, not per step. All statuses source-only until feedback; preserve task IDs and complete AI architecture diagram only at the end.
+
+### Root cause addressed
+
+`MobileNPCTravelMemory.TryFindCandidateServer` only matches current actor near the learned **journey start** (3m). A survivor who had physically discovered an upstairs staircase couldn't reuse that information from another room 10m away. Existing local 9×9×2 floor A* only operates near actor/final target; no composed route via *known stair entry*.
+
+### New source work
+
+- `6c3f3eb2bad7c1b38e38d5e5b510f0a6380ddf0f`: new `MobileNPCTravelMemory.TryFindKnownFloorAccessServer(currentPosition, finalDestination, output, out entrance, out routeIndex)`. Checks only *personal* real traveled routes (max 8), whose observed start floor matches actor, observed end floor matches target, full journey spans >=1.2m Y and exit is <=1.9m from current goal. Entrance must be 2.5–25m from NPC; candidate score uses individual successes/stale failures. Does not infer vertical links or reverse unseen paths.
+- `2d5c2936454c751e5f0bf80ab2b619f22d9d2785`: motor probes learned access before asking native A* straight to final upper-storey goal. Additional scratch buffers/interval and pending-state isolated per actor.
+- `1ff9371fba2bd04c2c16577ba44a5ea198b7ed5a`: motor `TryBuildKnownFloorAccessRoute` joins **real approach path** to stair entry and **revalidated personally recorded stair route**. When <=5m from observed entry, exact-goal local 9×9 A* must find path. Farther away (<=25m) requires native async A* path to same entrance if A* backend is actually present; no assumed graph availability or fake wall passage. Before accepting, checks each approach/stair/final segment with `IsActuallyWalkableStairConnection` (ground, slope, head/body collision, valid native unlocked door where appropriate), limits native path length and waypoint count. NPC then walks composed route through CharacterController; brain's actual destination never replaced by entrance, so reaching portal is not success.
+- `a2e2d028e0554a4161d376ccaf54349a8416104a`: when native entrance request is pending **or already completed but unconsumed**, prevent competing request for upstairs final goal until the entrance callback is consumed. This avoids native provider silently discarding a ready route due to requested-goal mismatch.
+- `a4bcc461e2f794532648a98055d0d2fc8f735807`: new `MOBILE_NPC_KNOWN_ACCESS_NAVIGATION_DESIGN.md` with the actual limited approach+one-connector architecture and rigorous final tests.
+- `fdf749c41ffe637532665cd8b58b2d1c544191ce`: canonical backlog updated; NAV-ACCESS-01 remains **EM IMPLEMENTAÇÃO**, CORE-04 open.
+
+### IMPORTANT: not a full portal graph!
+
+The implementation handles **one** individually experienced floor-changing journey whose EXIT is near the user's final goal. It still cannot stitch two or more remembered stairways, find the nearest staircase across an entire POI, route 20m beyond a learned landing on a different floor, assume a staircase in reverse direction, or navigate far from entrance without real native A* backend. No building-wide navmesh/connectivity has been authored. If no confirmed viable route to entry exists, fall back rather than teleport. The memory is private (death clears, v6 snapshot of same living survivor), not automatically transmitted to other faction members. No planned jump/vault/ladder links.
+
+No C# compile, no Unity map playtest, no native A* runtime log or Profiler evidence this round. Final test matrix `MOBILE_NPC_SINGLEPLAYER_TEST_PLAN.md` section 27. **Next scope** likely room-to-stair-to-upper-room continuation as a second explicitly verified route stage, plus multiportal selection with bounded CPU. Must not claim globally reliable urban combat navigation.
