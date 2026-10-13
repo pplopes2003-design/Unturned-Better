@@ -745,3 +745,31 @@ Official Unturned U3 SDK FAQ `https://docs.smartlydressedgames.com/en/latest/u3-
 ### Final safety refinement — 2026-10-13
 
 Commit `143a47fe970f132feb4d18ffbded823823f242f1` augments `Zombie.TryStepPursuitBeyondNavigationOnOpenGround`: even when visible open ground passes slope/collision checks, the next step is rejected unless `Level.checkSafeIncludingClipVolumes(ground.point)` confirms playable ground. This intentionally prevents chasing into forbidden map bounds/clip regions. Source re-fetched and syntax structurally checked; **not** compiled/Dev Build-tested. Add explicit map-edge/clip test; ZMB-01 remains open.
+
+
+## 2026-10-13 — LATEST IMPLEMENTATION: OFF-NAV ZOMBIE CORNER STEERING + REAL OFF-POI NOISE
+
+**READ FIRST each future round:** `MOBILE_NPC_PENDING_TASKS.md` (canonical backlog, never delete until compiled and user-provided Dev Build feedback), this HANDOFF, and now `ZOMBIE_CROSS_REGION_NAVIGATION_DESIGN.md` for zombie paths and native net boundaries. The final full NPC AI architecture diagram is requested after all major modules. User compiles/tests only at the end; partial source slices may be "QUASE PRONTA — AGUARDANDO BUILD", but `ZMB-01` and `ZMB-02` as complete features are still `EM IMPLEMENTAÇÃO`.
+
+### Actual code commits on feature/npc-ai-foundation
+
+1. `6b4465bbb59fc9300708b7a615861ccf0bfb1694` — Zombie.cs: fully server-side `TryStepPursuitBeyondNavigationOnOpenGround` now handles short corners when direct ray is blocked. Four side-heading candidates ±55°/±80°, 2.5m waypoint, at most one candidate scan every 0.65s; each candidate and subsequent movement revalidates line segment, collision, floor, slope<=38°, water, level clip, short vertical delta. Use CharacterController.Move, never bypass collision, teleport or assert full A*. Direct clear always wins. Bounded turn speed, limited movement.
+2. `715eb8304ebc39ad662e8506b1d78731c3903b99` — Reset detour state on `reset()`, `stop()`, acquiring new Player or MobileNPCHumanoidVitals. Three stalled waypoints trigger a 6s native-navigation cooldown; reattempt afterward or when target moves significantly, no permanent stale state.
+3. `d07e66fde6cab24b61d7887bff499409a56195c6` — Off-nav fallback applies when zombie OR target is outside ordinary nav; otherwise original native seeker manages normal pursuit. This prevents a zombie stranded outside the POI when the player steps back inside. Also fixes unintended every-tick candidate rescans when no detour is active and the remembered previous target position is unset.
+4. `0ebc2b77a900063953aedfefb3e0fe332566bda2` — `Managers/ZombieManager.alertZombiesToNoise` no longer requires valid navigation ID for a genuine noise. Validate server + loaded map, finite source/radius, playable `Level.checkSafeIncludingClipVolumes` and preserve existing 0.12s spatial noise cooldown. The origin may be real open terrain outside a POI; zombie recipients are still gated by physical distance, and existing target priority still applies.
+5. `aed6443b6184e9027f00c4aab8a2e8a0a5a81d81` — The same bounded short off-nav movement is also allowed for native `EHuntType.POINT` investigation with no living humanoid target. The target remains the genuine heard-position clue, not a fabricated direct target; normal active player/NPC target checks remain authoritative.
+6. `35ada15201f8bdcc4c0b542ac2a35e1451ebb8a8` — New detailed `ZOMBIE_CROSS_REGION_NAVIGATION_DESIGN.md` for state machine, performance, obstacles, tests, licensing/navigation gap and client interest blocker.
+7. `1fd2fe33283a2b861842f719bb7c2b58729a317d` — `MOBILE_NPC_PENDING_TASKS.md` updated, no ID removed, ZMB-01/ZMB-02 still EM IMPLEMENTAÇÃO.
+
+### Native network blocker (do not implement naive workaround)
+
+Read `Managers/ZombieManager.cs` `ReceiveZombieStates`, `SendZombieStates_Write`, `GatherRemoteClientConnections`. Zombie identities are `bound/id` inside `regions[reference].zombies`, and clients reject states until their region is networked; `GatherRemoteClientConnections(zombie.bound)` only sends to clients in the zombie's **original** region. Physical server-side pursuers can move outside nav yet not appear to clients in the destination region. Broadening the send call to arbitrary nearby remote clients is unsafe unless the zombie has been registered and initialized on that client with its original bound/id. NET-01 and ZMB-01 stay active. User primarily targets singleplayer first.
+
+### Remaining P0 engineering
+
+- Licensed A* Pathfinding Project backend and navigability between distinct regions still unverified; this is **not** full building/bridge/stair navigation nor 24m+ off-mesh routing. Local corner detours may fail on walls longer than 2.5m and defer to native seeker. Don't promise any map can now be traversed.
+- `Zombie.tick` calls `seeker.Move(delta)` if local fallback returns false. Native seeker still controls combat turning and path when both actors are on navigation; manual movement only if server-authorized open ground is physically validated. Check interaction with animation, footfalls, fatigue, nav gravity and 3D raycasts in Unity.
+- Spawn/corpse, ragdoll, firearms damage, native NPC hitboxes, complex NPC building navigation, native radio interception, dynamic zombie network interest and category-level resource place learning remain pending (see permanent backlog).
+- No Unity compilation or gameplay tests were executed in this round. Only GitHub source inspection and source changes. User supplies final Dev Build logs later; don't close items automatically.
+
+**Next step:** audit and address authoritative zombie PLAYER/NPC sight and hearing in POIs, investigate movement stalls under external physical fallback, then return to P0 `CORE-02/CORE-03/CORE-04` NPC hitbox, corpse, building corner routes. For network, design client registration preserving home bound/id; do NOT send invalid state packets. Always update BOTH canonical guides and tests after each implementation round.
