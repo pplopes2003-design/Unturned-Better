@@ -119,11 +119,15 @@ namespace SDG.Unturned
 		private readonly float[] routeSearchCosts = new float[RouteGridNodeLimit];
 		private readonly int[] routeSearchPrevious = new int[RouteGridNodeLimit];
 		private readonly bool[] routeSearchClosed = new bool[RouteGridNodeLimit];
+		// 0=unknown, 1=exposed, 2=sheltered. Only tactical routes probe LOS.
+		// Per-instance arrays prevent cross-NPC exposure knowledge leaks.
+		private readonly byte[] routeSearchExposure = new byte[RouteGridNodeLimit];
 		private readonly List<Vector3> reversedRouteScratch = new List<Vector3>(RouteGridSide);
 		private int routeWaypointIndex;
 		private float nextRoutePlanTime;
 		private float nextLocalRoutePlanTime;
 		private float nextPlannedRouteValidationTime;
+		private float nextRouteCornerShortcutTime;
 		private Vector3 lastRoamingDirection;
 		private bool hasLastRoamingDirection;
 		private int avoidanceSide = 1;
@@ -187,6 +191,7 @@ namespace SDG.Unturned
 			nextJumpTime = 0f;
 			nextLocalRoutePlanTime = 0f;
 			nextPlannedRouteValidationTime = 0f;
+			nextRouteCornerShortcutTime = 0f;
 			brainDriver.InitializeServer(spawnPosition);
 			hasRoamingDestination = false;
 			nextRoamingDecisionTime = Time.time + Random.Range(2f, 5f);
@@ -318,6 +323,18 @@ namespace SDG.Unturned
 						hasDetourWaypoint = false;
 					}
 				}
+				// Detour-style corridor refinement: skip an unnecessary near
+				// corner only when a short, same-floor collision- and ground-
+				// checked segment to the following waypoint is traversable.
+				// This never skips the final brain goal or a door/steep stair.
+				if (!isUnderwater && routeWaypointIndex + 1 < routeWaypoints.Count
+					&& Time.time >= nextRouteCornerShortcutTime)
+				{
+					nextRouteCornerShortcutTime = Time.time + 0.35f;
+					if (CanSafelyShortcutRouteCorner(routeWaypoints[routeWaypointIndex + 1]))
+						++routeWaypointIndex;
+				}
+
 				// Waypoint arrival is planar: the physics controller handles minor
 				// elevation differences independently (stairs, curbs, uneven ground).
 				if (routeWaypointIndex < routeWaypoints.Count
@@ -1294,6 +1311,7 @@ namespace SDG.Unturned
 			bool[] closed = routeSearchClosed;
 			System.Array.Clear(walkable, 0, walkable.Length);
 			System.Array.Clear(closed, 0, closed.Length);
+			System.Array.Clear(routeSearchExposure, 0, routeSearchExposure.Length);
 			for (int i = 0; i < RouteGridNodeLimit; ++i)
 			{
 				costs[i] = float.PositiveInfinity;
@@ -1344,6 +1362,22 @@ namespace SDG.Unturned
 			int goalX = Mathf.Clamp(RouteGridCenter + Mathf.RoundToInt(goalFromBase.x / RouteGridCellSize), 0, RouteGridSide - 1);
 			int goalZ = Mathf.Clamp(RouteGridCenter + Mathf.RoundToInt(goalFromBase.z / RouteGridCellSize), 0, RouteGridSide - 1);
 			int preferredGoal = goalZ * RouteGridSide + goalX;
+
+			// Killzone-like tactical A*: during an actual *visible* hostile
+			// engagement, seeking cover/retreat may prefer a physically sheltered
+			// corridor rather than the exposed shortest path. Never use the
+			// live position of an unseen player as an omniscient path cost.
+			bool tacticalRoute = targetIsVisible && brainDriver != null
+				&& brainDriver.Target != null
+				&& (brainDriver.CurrentGoal == MobileNPCTactics.Goal.SeekCover
+					|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat)
+				&& (brainDriver.Target.position - transform.position).sqrMagnitude < 1600f;
+			Vector3 observedThreatPoint = tacticalRoute
+				? brainDriver.Target.position + Vector3.up * 1.25f : Vector3.zero;
+			// At most 24 supplementary LOS probes per local route, not 81x
+			// every frame for a crowd of NPCs. Unknown nodes are treated as
+			// conservatively exposed; checked sheltered nodes become cheaper.
+			int exposureProbeBudget = 24;
 
 			costs[start] = 0f;
 			for (int iteration = 0; iteration < RouteGridNodeLimit; ++iteration)
@@ -1414,7 +1448,18 @@ namespace SDG.Unturned
 						positions[current] + Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f),
 						routeRadius, edge.normalized, edgeLength))
 						continue;
-					float tentative = costs[current] + edgeLength;
+					float exposureCost = 0f;
+					if (tacticalRoute)
+					{
+						if (routeSearchExposure[next] == 0 && exposureProbeBudget > 0)
+						{
+							--exposureProbeBudget;
+							routeSearchExposure[next] = IsLocalRouteNodeSheltered(
+								positions[next], observedThreatPoint) ? (byte)2 : (byte)1;
+						}
+						exposureCost = routeSearchExposure[next] == 2 ? 0f : 1.45f;
+					}
+					float tentative = costs[current] + edgeLength + exposureCost;
 					if (tentative < costs[next])
 					{
 						costs[next] = tentative;
@@ -1470,6 +1515,75 @@ namespace SDG.Unturned
 			routeWaypointIndex = 0;
 			nextPlannedRouteValidationTime = 0f;
 			return routeWaypoints.Count > 0;
+		}
+
+		/// <summary>
+		/// Local Detour-style visibility optimization. A short corridor may be
+		/// straightened only after validating collision and real walkable floor
+		/// at intermediate samples, not merely a chest-level raycast.
+		/// </summary>
+		private bool CanSafelyShortcutRouteCorner(Vector3 nextWaypoint)
+		{
+			Vector3 delta = nextWaypoint - transform.position;
+			if (Mathf.Abs(delta.y) > Mathf.Max(0.3f, characterController.stepOffset)
+				|| !Level.checkSafeIncludingClipVolumes(nextWaypoint))
+				return false;
+			delta.y = 0f;
+			float length = delta.magnitude;
+			if (length < 0.4f || length > 4.0f)
+				return false;
+			Vector3 direction = delta / length;
+			Vector3 origin = transform.position
+				+ Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f);
+			float radius = Mathf.Clamp(obstacleProbeRadius, 0.05f,
+				Mathf.Max(0.05f, characterController.radius * 0.9f));
+			if (IsObstacleBlockingAlong(origin, radius, direction, length))
+				return false;
+
+			Vector3 previousFloor = transform.position;
+			int steps = Mathf.CeilToInt(length);
+			for (int i = 1; i <= steps; ++i)
+			{
+				Vector3 sample = transform.position + direction * (length * i / steps);
+				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(sample, 1.4f, 1.6f,
+					roamingGroundMask, roamingMaximumSlope, out Vector3 floor, out _)
+					|| Mathf.Abs(floor.y - previousFloor.y) >
+					Mathf.Max(0.35f, characterController.stepOffset + 0.1f))
+					return false;
+				previousFloor = floor;
+			}
+			return true;
+		}
+
+		/// <summary>
+		/// Actual cover ray from a navigable node to a currently observed threat.
+		/// Only world geometry counts; Player/NPC/Zombie colliders cannot supply
+		/// free cover. Saturated buffers fail closed to "exposed", not imagined
+		/// protection.
+		/// </summary>
+		private bool IsLocalRouteNodeSheltered(Vector3 node, Vector3 threatEye)
+		{
+			Vector3 origin = node + Vector3.up * 1.08f;
+			Vector3 delta = threatEye - origin;
+			float distance = delta.magnitude;
+			if (distance <= 0.5f)
+				return false;
+			int hits = Physics.RaycastNonAlloc(origin, delta / distance,
+				ObstacleHitBuffer, distance - 0.2f, RayMasks.BLOCK_COLLISION,
+				QueryTriggerInteraction.Ignore);
+			if (hits >= ObstacleHitBuffer.Length)
+				return false;
+			for (int i = 0; i < hits; ++i)
+			{
+				Collider collider = ObstacleHitBuffer[i].collider;
+				if (collider == null || IsOwnCollider(collider)
+					|| collider.GetComponentInParent<Player>() != null
+					|| collider.GetComponentInParent<Zombie>() != null
+					|| collider.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
+					continue;
+				return true;
+			}
+			return false;
 		}
 
 		private bool IsRouteNodeOccupied(Vector3 groundPosition, float radius)
