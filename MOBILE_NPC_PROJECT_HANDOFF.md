@@ -526,3 +526,38 @@ User asked to improve realism of **voice-only NPC group communications**, and in
 - Continue previous pending: squad covering-fire with real ammo, group/faction validation, grenades Frag and Smoke with ally safety, healing during combat, AI vehicle usage, death/ragdoll/respawn, navigation/A*, animation and dialogue bugs, NPC zombie stealth/optics and long-term individual memory. Full AI diagram only when the major systems are structured.
 
 **IMPORTANT resume order:** verify Unity build, inspect native walkie/earpiece channel reception, then integrate physical radio messages and player interception. Keep HANDOFF and RADIO_SYSTEM_DESIGN up to date each round.
+
+
+## 2026-10-13 — Native-radio gating foundation + zombie pursuit outside POIs (LATEST HANDOFF)
+
+**User request:** Continue radio integration in native Unturned terms and ADD zombie pursuit outside regions/POIs to persistent backlog. Update this guide every round so agents/new conversations can resume the exact current status. Full NPC AI diagram only after all major systems are structured.
+
+### Commits / files
+
+- `617f5df428cf5301af7607b3768c4fba3ee9870f`: new `Assets/Runtime/Assembly-CSharp/Unturned/NPCs/MobileNPCRadioOutbox.cs`. Server-only bounded report queue, requiring NPC inventory ownership of vanilla Walkie Talkie item **1445**; one report / 20s, max 4 pending, 24s TTL, needs a valid group and living hostile speaker. **No transmission.**
+- `6db6f786984f02169bb00133d0c160de019a2f05`: `MobileNPCPopulationBootstrap.cs` installs new outbox on mobile NPC runtime template.
+- `f0361b95518195e331faacd12f6c3d15e0032d27`: `MobileNPCBrainDriver.cs` queues a report solely after confirmed visual acquisition of a player. No invisible player tracking, simulated chat or server-to-client broadcast.
+- `2366c5c60b02c59e3e9a7ef4c4ed8b73c89718b1`: `MOBILE_NPC_RADIO_SYSTEM_DESIGN.md` records the implementation boundary and a new zombie pursuit beyond-POIs engineering/test matrix.
+
+### Honest status of radio
+
+Native vanilla Walkie Talkie 1445 uses player-equipment and channel-dependent voice. Earpiece 1446 is receive-only. Sources (research, NOT tested against current Unity DLLs): https://restoremonarchy.com/browser/vanilla/item/tool/1445 and https://unturned.fandom.com/wiki/Walkie_Talkie . Could NOT fetch native `PlayerVoice.cs`, `PlayerEquipment.cs` or `UseableWalkieTalkie.cs` from this branch at their assumed paths. Do **not** fabricate class names/methods or infer player's tuned frequency from item ownership. The current outbox simply prepares text intelligence; **no player espionage, chat subtitle, frequency matching, NPC voice, portable equip detection, powered base radio, vehicle radio or reinforcement command are operational**. Next step: examine actual game's managed C# APIs/Unity project files or code once available, implement checked native receiver and transmitter bridge, test actual player equipment and channel before delivering `MobileNPCRadioMessage.FormatInterceptedSubtitle`.
+
+### New critical zombie behavior backlog: threat outside POIs
+
+User explicitly requests verifying zombie pursuit beyond native regions and limits so zombies remain dangerous outside points of interest. Investigate native region streaming/leash, persistent target while leaving POI, active/inactive zombie navigation and damage, synchronization, zombie noise response, return to spawn and home, offscreen optimization and multiplayer. Need a controlled chase that crosses regions without teleportation, immortal trackers or global swarms; measure CPU cost and memory with multiple zombies. Map test sequence: chase near POI boundary, cross several map regions, lose sight, generate firearm/footstep noise, drive a vehicle, meet NPC factions, check save/load/map transitions. No native `Zombie.cs`/`ZombieManager.cs` sources were found at the attempted standard paths in current branch; must inspect actual project assemblies before editing. This item stays **PENDING, not implemented**.
+
+### Complete remaining backlog (keep on future rounds)
+
+1. First **Unity compile and real Dev Build** plus Player.log; no Unity compilation/gameplay tests have verified recent GitHub work.
+2. Death, damage, ragdolls, corpse cleanup, delayed replacement and XP/loot; navigation around corners/stairs, jump/crouch, safe A* cover.
+3. **Zombie pursuit outside POIs and across regions**, memory/search and hearing; native zombie AI investigation.
+4. **Faction/group validation**: relationships, alliances, 4-member limit, group leader/death/respawn, separation, persistence, base anchors, no friendly fire.
+5. NPC individual behavior: stealth, stalking, ambush vs players/zombies, scope/binocular perception, last-known target without cheating.
+6. Combat at distance, ammo/reload accuracy, ally safety; *actual suppression* with finite bullets while ally advances; grenades Frag/Smoke safety and effect; medical teammates under combat.
+7. Communication: voice realistic ranges/occlusion done in source, group contact & roles prototypes; native **radio** full transport, frequency/equip/receiver checks and radio interception/subtitle UX; powered fixed base radios/energy construction; vehicle radios and NPC driving future.
+8. Dialogue HUD/cursor/ESC and nameplate, native animation clips for melee/fire/reload/hurt and death.
+9. Future adaptive NPC knowledge sharing and learning with bounded experience/lifetime; unshared memory lost on death. World reports (airdrop, loot, base, reinforcements) only when observed, reported and verified.
+10. Final requested full architecture/behavior decision-tree **diagram ONLY after major systems are structured**, reflecting verified vs untested vs planned behavior.
+
+**Next recommended work:** verify actual native Unturned equipment/channel APIs and runtime zombie region logic from Unity assemblies/sources, not fabricated reflection guesses. Then implement working radio frequency-gated player interception and accurate regional zombie pursuit. Follow up with on-screen subtitles only when physical receiver + channel validated.
