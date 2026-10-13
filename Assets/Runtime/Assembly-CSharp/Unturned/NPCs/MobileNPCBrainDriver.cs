@@ -246,6 +246,95 @@ namespace SDG.Unturned
 			PublishDecisionIfChanged();
 		}
 
+		/// <summary>
+		/// Squad advance is a short, speculative movement toward an ally's
+		/// approximate verbal bearing, NOT pursuit of a target Transform. Require
+		/// safe ground, clear close-range corridor and cover from the reported area.
+		/// Failing to validate any candidate leaves the normal investigation intact.
+		/// </summary>
+		public bool TryStartSquadAdvance(Vector3 approximateClue)
+		{
+			if (!CanAcceptServerInput || brain.CurrentState != MobileNPCBrain.State.Investigating
+				|| tactics.CurrentGoal != MobileNPCTactics.Goal.None
+				|| IsListening || !IsFiniteSquadPoint(approximateClue))
+				return false;
+			Vector3 direction = approximateClue - transform.position;
+			direction.y = 0f;
+			if (direction.sqrMagnitude < 64f || direction.sqrMagnitude > 1225f)
+				return false;
+			direction.Normalize();
+			Vector3 lateral = Vector3.Cross(Vector3.up, direction).normalized;
+			for (int i = 0; i < 4; ++i)
+			{
+				float side = i % 2 == 0 ? 1f : -1f;
+				float forward = i < 2 ? 4.5f : 3f;
+				Vector3 proposed = transform.position + direction * forward + lateral * side * 2.5f;
+				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(proposed, 5f, 5f,
+					RayMasks.BLOCK_COLLISION, 40f, out Vector3 ground, out _))
+					continue;
+				Vector3 corridor = ground - transform.position;
+				corridor.y = 0f;
+				float length = corridor.magnitude;
+				if (length < 2.5f || length > 7f)
+					continue;
+				RaycastHit[] pathHits = Physics.SphereCastAll(transform.position + Vector3.up,
+					0.3f, corridor.normalized, length,
+					RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+				bool blocked = false;
+				foreach (RaycastHit hit in pathHits)
+				{
+					Collider collider = hit.collider;
+					if (collider == null || collider.transform == transform
+						|| collider.transform.IsChildOf(transform)
+						|| collider.GetComponentInParent<Player>() != null
+						|| collider.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
+						continue;
+					if (hit.distance < length - 0.65f)
+					{
+						blocked = true;
+						break;
+					}
+				}
+				if (blocked)
+					continue;
+				Vector3 eye = approximateClue + Vector3.up * 1.35f;
+				Vector3 hideAt = ground + Vector3.up * 1.0f;
+				Vector3 coverVector = hideAt - eye;
+				if (coverVector.sqrMagnitude < 0.1f)
+					continue;
+				bool covered = false;
+				RaycastHit[] coverHits = Physics.RaycastAll(eye, coverVector.normalized,
+					coverVector.magnitude, RayMasks.BLOCK_COLLISION,
+					QueryTriggerInteraction.Ignore);
+				foreach (RaycastHit hit in coverHits)
+				{
+					Collider collider = hit.collider;
+					if (collider == null || collider.GetComponentInParent<Player>() != null
+						|| collider.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
+						continue;
+					if (hit.distance < coverVector.magnitude - 0.6f
+						&& Vector3.Angle(hit.normal, Vector3.up) > 45f)
+					{
+						covered = true;
+						break;
+					}
+				}
+				if (covered && tactics.TryStartFlank(ground, Time.time))
+				{
+					PublishDecisionIfChanged();
+					return true;
+				}
+			}
+			return false;
+		}
+
+		private static bool IsFiniteSquadPoint(Vector3 value)
+		{
+			return !float.IsNaN(value.x) && !float.IsInfinity(value.x)
+				&& !float.IsNaN(value.y) && !float.IsInfinity(value.y)
+				&& !float.IsNaN(value.z) && !float.IsInfinity(value.z);
+		}
+
 		/// <summary>Update server-authoritative health without implying a new damage event.</summary>
 		public void ReportHealth(float currentHealth, float maximumHealth)
 		{
