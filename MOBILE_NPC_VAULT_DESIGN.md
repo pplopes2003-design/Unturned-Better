@@ -1,29 +1,36 @@
-# NAV-VAULT-01 — Collision-authoritative short parapet clamber
+# NAV-VAULT-01 — Standard Unturned-style jumping over parapets
 
-Date: 2026-10-13. Branch `feature/npc-ai-foundation`. **No Unity compile or runtime tests yet.** This is not a promise of arbitrary mantle/ledge/vaulting.
+**Decision updated by user, 2026-10-13.** Branch `feature/npc-ai-foundation`. Source integration inspected; **no Unity compilation/playtest or measured physics yet.**
 
-## Available source and restricted functional scope
+## Product requirement — no dedicated Vault animation
 
-- `MobileNPCVaultTraversal.cs`, added in commit `256609a567924d9c2c990359a43d9139d4f11fab`, is a self-contained server-only, bounded three-phase physical *clamber*: **Rise → Across → Land**. The `MobileNPCHumanoidMotor` is the ONLY caller of `CharacterController.Move` (integration `c606a7eb3b70081fb204230a3ea7542717644795`). The traversal NEVER assigns NPC Transform position/rotation, disables the capsule or teleports the actor.
-- It requires a static wall top actually observed with collision raycasts at **0.70–1.10 m over the NPC's feet**, a genuine horizontal upper surface, destination beyond the wall and on the **same floor**, a walkable exit approx. 1.85m farther with <=0.22m height change, and clear standing-capsule volume and swept full-body paths both upward and over the top. Solid door, vehicles, other mobile NPCs, zombies, players or rigidbody-driven moving obstacles cannot be clambered.
-- It lifts the *real* capsule along the near side of the wall, moves across only after sufficient elevation, then restores ordinary gravity for the grounded landing. Physics collisions and actual blocked progress may cancel the action. Timeout 3.8 seconds; no forced completion and no proof of target arrival merely from choosing an off-mesh link. A failed maneuver may fall under ordinary gravity, never teleport.
-- Integrated into the brain-controlled motor as an optional special action before the short ballistic jump: avoids incompatible planned route, ladder and reactive jump, holds normal firing/melee during entire action, suppresses ground footstep alerts, excludes the vertical/airborne portion from personal walkable route memory, and cancels on loss of target or immersion in water.
-- `MobileNPCVisualAnimation` only uses actual `Move_Climb` / `Idle_Climb` loaded on the NPC_Client legacy Animation. There is **no confirmed dedicated Vault clip** in the checked-in Human/Basic importer. The absence of a dedicated animation makes this an approximate *clamber* presentation, **not** a realistic hand-planted fully synchronized vault. It logs once if neither clip is present and maintains physics authority.
-- Shared expensive geometric probe admission ~0.12sec and per-actor retry >=1sec, cooldown after finish, bounded fixed 20-hit cast/overlap buffers. The budgets are source limits, not profiled FPS.
+The player-facing behavior is an ordinary Unturned-style **jump**. Crossing a series of obstacles means jumping, actually landing on walkable ground, and jumping again when necessary and safe. There is **NO requirement for an authored Vault animation or hand-planted scripted climb**. Do not make one a blocker for this feature. **Genuine Ladder objects still have a distinct Move_Climb/Idle_Climb animation path**. Do not use a ladder animation for jumping over a wall.
 
-## Deliberate unfinished items
+The legacy implementation in this file was a `Rise -> Across -> Land` artificial clamber that prescribed vertical/horizontal motion and suppressed gravity during ascent. **This implementation was replaced** (commit `6d3e969f` planner, `92b6b7c8` motor). Older handoff claims about three-phase artificial clamber are superseded by this document.
 
-- Real authored and rigged arm-hand-vault motion or dedicated animation/IK, third-person replication and synced pose/capsule resizing.
-- A* off-mesh **vault links** between remote rooms and multiple parapets, traversing arbitrary rooftops, moving platforms, windows with vertical clearance, climbing walls without physical traversable tops, broad ledge grabs.
-- Actual stamina consumption. NPC vital model has no validated stamina budget. Do not fabricate one.
-- Runtime proof of Unity collider interaction, ascent direction, game prefab animation, safe fall and multi-NPC performance.
+## Source implementation — physically checked jump, not levitation
 
-## Dev Build — not executed
+- `MobileNPCVaultTraversal` is now only a **bounded ballistic feasibility checker** (`TryPlanJumpServer`). It never moves the NPC, changes Transform, forces the capsule upward or disables gravity. The existing `MobileNPCHumanoidMotor` is the sole `CharacterController.Move` owner.
+- The checker requires a real *static* colliding parapet of height **0.65–1.02m**, horizontal physical top, destination beyond it, same-floor ground for a safe landing about **1.65m** ahead with <=0.22m elevation difference, head/body clearance and a collision-checked simulated ballistic arc. Dynamic bodies, doors, vehicles and ceilings do not become vault links.
+- It uses the game player movement values as a reference: `PlayerMovement` defines a normal jump impulse **7.0** and optional Parkour mastery bonus up to **25%**. The optional higher bound is **8.75**, never unconstrained upward lifting. Same gravity multiplier used by the mobile NPC motor calculates apex, forward-delay and landing duration. A jump that cannot clear a given top at this acceleration/speed is rejected, even if it looked visually convenient.
+- The single motor jump state (`isPlannedJumping`) now handles **both** low hops and higher parapet jumps. `TryBeginVaultJump` consumes `JumpPlan`, starts the actual physics impulse, briefly delays forward motion until the feet can clear the real top, and moves across at a bounded normal-running speed; velocity.y always evolves under actual gravity and collisions until grounded. There is no `Rise/Across/Land` locomotion overriding physics.
+- Once actually grounded, the actor can replan another jump after the cooldown and a fresh physical verification. This allows **sequences of independent jumps** over consecutive obstacles without teleportation or fabricated links between platforms. The air path is never stored as an ordinary walkable route in the individual NPC memory.
+- On missed landing/side collision, target change or immersion, the active jump is canceled; gravity and pathfinding recovery continue. Ordinary jump and higher-hop states suppress midair footsteps. A separate scripted fall-recovery routine does not interfere while the NPC is actively jumping (`9c383849`).
+- `MobileNPCVisualAnimation` treats a parapet hop as `motor.IsJumping`, not `IsClimbingLadder` (`a53bda29`). If a runtime Jump/Leap clip really exists, it may be used; otherwise the pre-existing walk/run pose continues for the air phase, without a fabricated dedicated asset or climbing animation. Reload/fire/melee handling stays with the ordinary motor/brain combat restrictions.
 
-1. Standard static parapet with top 0.8–1.05m, standing headroom, same-floor ground behind ~1.85m; NPC chooses physical 3-stage clamber, never a snap, player can collide with it and actual feet reach final ground before AI considers target reached.
-2. No upper top collider, blocked ceiling, adjacent second wall, moving vehicle, locked door, player/zombie in wall path, slope/ground missing beyond, platform height >1.1m or target on an upper floor: clamber denied.
-3. Another NPC blocks exit *after* preflight, closing doors, damage/target change, water and interruption mid-Rise/Across/Land: no collision bypass, obey real gravity and cooldown.
-4. Distinguish low 0.35–0.65m **ballistic jump** from higher **clamber** and from genuine **Ladder**. No false walkable memories and no shots, punching or zombie-footstep noise midair.
-5. Measure near 1/10/20/40 NPCs for raycast/overlap CPU cost and frame intervals. Check imported Move_Climb is actually referenced in runtime prefab, and record presentation limitations without falsely claiming a real Vault clip.
+## Status, limits and open work
 
-**State:** Scoped `NAV-VAULT-CLAMBER-01` source is **QUASE PRONTA — AGUARDANDO BUILD** (Unity/runtime tests necessary). Parent `NAV-VAULT-01` **EM IMPLEMENTAÇÃO** (animation IK/coverage/offmesh). `CORE-04` still open.
+Scoped source `NAV-VAULT-CLAMBER-01` retains its **historical ID** for continuity, but now means *standard physics jump across a real parapet*: **QUASE PRONTA — AGUARDANDO BUILD**. Label the previous clamber method **SUPERSEDIDO PELO PULO PADRÃO**; never reintroduce a bespoke rise/hover or mark runtime approved until tested.
+
+Parent `NAV-VAULT-01` remains **EM IMPLEMENTAÇÃO** only for movement coverage not yet demonstrated, final Unity physics behavior and general off-mesh planning, **not because a dedicated Vault animation is missing**. `NAV-JUMP-01` and `CORE-04` global routing likewise remain open until verified. We do not claim that obstacles taller than 1.02m, arbitrary ledges/rooftops, moving platforms or multilevel rooms can be reached.
+
+## Final Dev Build tests — not executed
+
+1. Heights **0.65, 0.75, 0.90, 1.02, 1.10m**: 1.10m should not be attempted; among 0.65–1.02m only physically achievable apex/clearance and safe-floor landings may pass. Compare actual Unturned player physics on same obstacles.
+2. Film actual NPC arc and grounded landing, without position snapping, artificial levitation or Move_Climb. A visual Jump clip is optional; lack of one does not block the feature.
+3. Two nearby parapets: first verified jump, **physical ground contact**, fresh preflight/cooldown, second jump. Never launch the second hop while airborne or permit endless bunnyhopping.
+4. Solid tall wall, locked door, another NPC, moving vehicle, water, missing floor, upper ceiling, steep landing, alternative stair/walkable route: refuse unsafe jump or physically collide, do not tunnel.
+5. Brain target change during a jump, leg injury, crouch, ambush and under-fire retreat/cover: preserve tactical guards, no invented jump path memory, no false gun/footstep events.
+6. Test 1/10/20/40 NPCs under profiler and record actual FPS, CPU casts and broken cases. Compile all C# and check `Player.log` before changing any scoped state to CONCLUÍDA.
+
+Source commits `6d3e969f`, `92b6b7c8`, `a53bda29`, `9c383849`. Older three-phase design is explicitly obsolete.
