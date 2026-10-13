@@ -60,7 +60,7 @@ namespace SDG.Unturned
 
 			if (!inventory.HasSpace)
 			{
-				CancelRememberedSupplyTripServer(false);
+				CancelRememberedSupplyTripServer(true);
 				// A full inventory invalidates the pickup objective; don't leave the motor
 				// following a stale loot destination after the target has been discarded.
 				ClearTarget(cancelLootGoal: true);
@@ -361,7 +361,7 @@ namespace SDG.Unturned
 				|| driver.CurrentGoal == MobileNPCTactics.Goal.SeekCover
 				|| driver.CurrentGoal == MobileNPCTactics.Goal.Stalk)
 			{
-				CancelRememberedSupplyTripServer(false);
+				CancelRememberedSupplyTripServer(true);
 				return;
 			}
 
