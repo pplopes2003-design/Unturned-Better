@@ -847,3 +847,34 @@ Checked `Assets/Resources/Characters/NPC_Client.prefab` YAML in the current feat
 
 
 **Final corpse loot refinement:** `92ef3dd8e6331b90a1ba692e4636221995d32e6b` moves corpse world-drop source slightly sideways (0.9m) to keep native ground-probe from striking its own rigidbody capsule. The same real ItemManager hook/region-validation/rollback semantics remain. Game test required near walls, uneven ground, buildings, stacked corpses. `RAG-01` remains OPEN; neither skeletal joints nor actual Unity testing has been completed.
+
+
+## 2026-10-13 — LATEST P0 CORE-02: actual Punch and Zombie / NPC melee paths
+
+**Mandatory when continuing:** read canonical `MOBILE_NPC_PENDING_TASKS.md` AND this handoff BEFORE code edits; append updates after each round. User runs Unity build and playtests only AFTER implementation phase; don't prematurely call any task fully resolved. Final full diagram of NPC A-Life, decision, learning, groups and radio remains requested only after main systems are structured. Branch `feature/npc-ai-foundation`, repo `pplopes2003-design/Unturned-Better`.
+
+### Root causes confirmed from native code (not assumptions)
+
+- `Player/PlayerEquipment.cs` `punch(EPlayerPunch)`: native client raycasts 1.75m and sends `ERaycastInfoUsage.Punch`; server consumes this usage and dispatches only native PLAYER/ZOMBIE/ANIMAL/VEHICLE etc. Custom `MOBILE_NPC` packet recently added but `PlayerInput.getInput` explicitly **rejected usage Punch**, so NPC punches could never affect vitals.
+- `Zombies/Zombie.cs` native damage branch for `mobileNPCTarget` historically called `ApplyDamage(damage, hitImpulse)` directly, without authoritative current-distance+LOS check at the strike instant and without region injuries; a close but wall-separated target could take damage and no bleeding. Attack animation timing/vanilla species damage multipliers already exist; preserve them.
+- `MobileNPCHumanoidCombat.TryAttack(MobileNPCHumanoidDisposition)` also debited `ApplyDamage` without limb injury, though its `Update` had authoritative nearest-transform raycast and faction policy.
+
+### Source commits delivered
+
+- `1a99b7a6ea709a47c47459ac7853f006c28ca38e`: `Player/PlayerInput.cs` allows `ERaycastInfoUsage.Punch` on `MOBILE_NPC` only with angle to actual server aim direction >= dot 0.95, finite range, and a new authoritative `DamageTool.raycast` first-hit collider of a living NPC. Other usage types remain rejected.
+- `96a9594bd478c27a7312bcbdd5f8878e472fabd0`: `Player/PlayerEquipment.cs` client `punch` hitmarker uses specific physical `MobileNPCBodyHitbox` head marker for critical; server processes `MOBILE_NPC` prior to native PLAYER branch, uses `DAMAGE_PLAYER_MULTIPLIER.damage` times normal/head factor, player's real melee `OVERKILL` mastery and fake-lag penalty, invokes `ApplyValidatedWeaponImpactServer` with confirmed physical hit transform and the real Player attacker exactly once. Direct hostile NPC kill XP already handled via `MobileNPCDeathLoot`.
+- `e77b4bb4d79384230338b47a3e4efba97a1a4ee3`: further cap punch packet hit at 2m and server ray maximum 1.95m (vanilla punches raycast at 1.75m); fix listen-host local `sendRaycast` classification when Collider is null but Transform references a mobile NPC.
+- `97c2d29e1f4dd7ddf4e11f5c8a51aebb7944b807`: `Zombies/Zombie.cs` only commits native zombie swipe into living mobile NPC when current horizontal+vertical distances remain within existing game's attack ranges and physical LOS `BLOCK_SENTRY` isn't obstructed by other solids. It may hit its **actual selected NPC collider** but not a wall in front. Calls `ApplyValidatedWeaponImpactServer` (single vitals debit + wound chance + zombie attacker). Vanilla zombie→Player, vehicles, structures, objects unaffected.
+- `4fcbe38839f1e3d79da51d57a9ec2e20c72f5d2c`: `MobileNPCHumanoidCombat.cs` forwards `nearestTransform` physical collider from the already validated fight ray to limb-aware `ApplyValidatedWeaponImpactServer`; legacy API callers can omit the optional hit transform, using conservative torso-height fallback. Existing faction enemy check/cooldown/AttackStarted animation preserved.
+- `4c20cdbd4b5e21eeb9255e9f8c49a838555a0ba8`: permanent backlog change, CORE-02 source **QUASE PRONTA — AGUARDANDO BUILD**; other task IDs untouched.
+
+### Do NOT overclaim
+
+- No Unity compilation, no in-game tests, no Player.log inspected this round. CORE-02 remains open until user tests.
+- Infection from undead bite is **not** yet modeled with validated separate infection status; don't infer it from generic bleed. Zombie target selection, realistic senses, zombie nav beyond POI, animations and rigid capsule corpse remain open under ZMB-01/02, UI-02, RAG-01.
+- Colliders are physically authored but still root-local coarse anatomy rather than truly bone-following rig. Verify physical contacts, gun headshots, hitbox collision masks; don't call it skeleton ragdoll.
+- Punch per-weapon damage, melee range, attack clocks and anti-lag are reused where possible; remote multiplayer is not ready. Zombie line-of-sight uses `RayMasks.BLOCK_SENTRY`, must test cases where first ray hits own/target collider vs real wall.
+
+### Next implementation
+
+Continue P0 `CORE-04` pathfinding in houses and corner detours, `RAG-01` authored bone-based rig/joints if genuine asset support, or tackle UI-01 dialogue HUD/ESC critical regression. Prioritize the user's original visible bugs. Persist changes and tests across conversations; never assume editor compilation.
