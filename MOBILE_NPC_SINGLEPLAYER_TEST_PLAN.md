@@ -503,3 +503,30 @@ See `MOBILE_NPC_NATIVE_LADDER_DESIGN.md`, native `InteractableLadder.cs`, `Playe
 NAV-LADDER-NEAR-01 additional safety (`0aefbef9`): try to start climbing while physically crouched beneath a low ceiling or with severe leg injuries (MovementMultiplier <=0.5). It must reject initiation rather than crossing the ladder attachment in an invalid stance; test again after medically recovering/standing if headroom permits.
 
 NAV-LADDER-NEAR-01 (`420b27ac`): approach a tagged ladder from a slight downhill slope/step; verify normal player-like gravity and floor collision during Approach, then controlled vertical climb only after reaching the verified ladder surface. No horizontal air-walking.
+
+## 35. Directed native Ladder entrance — planned off-mesh approach (final Unity Dev Build)
+
+Status: `NAV-LADDER-LINK-01` **QUASE PRONTA — AGUARDANDO BUILD**; no compilation/playtest here.
+
+- [ ] Confirm the actual collider has a native `Ladder` tag and one valid face orientation. Place NPC 3–5m away on the true lower floor with upper-platform goal. NPC should inspect candidate, compute EXACT local A* waypoints to physical ladder entrance, walk around doorway/corner and only then attempt real climb with same live collider. Arrival at entry is NOT arrival at brain target.
+- [ ] Place NPC >5m and <=11m on same ground floor. With ASPFP genuinely available, confirm native asynchronous A* entry path, pending wait without walking into building wall, eventual close-range Ladder revalidation and actual climb. With no ASPFP backend: no fabricated path; bounded fallback/open parent.
+- [ ] Try a correct Ladder facing the wrong room, an obstructed entry door, another player blocking approach, fake Ladder-tagged angled collider, wrong floor, no top ground, deleted collider, and 128+ unrelated nearby objects. No phantom offmesh link, clipping or teleport, and no heavy unbounded overlap scans.
+- [ ] Move final enemy/loot goal during async A* or midway to entrance. No previous native path consumed for a different destination; no plan to another floor from same XZ coordinate alone.
+- [ ] Two authentic ladders: first blocked, second free. Check bounded re-attempt behavior; note that global optimal multi-ladder choice and chaining are STILL open parent requirements. Never overclaim.
+- [ ] Run 1/10/20/40 NPCs in indoor POI; check bounded per-actor 1.5s and shared 0.18s survey, local/native A* occupancy, actual runtime CPU/GC and no path request starvation.
+- [ ] Confirm compilation and `Player.log`. Regression: `5fd7cae1` class-scope C# statements were deleted. Check Unity import recognizes stable new .cs.meta GUID and dynamically added components.
+
+## 36. Real parapet clamber with native controller — final Unity Dev Build
+
+Status: `NAV-VAULT-CLAMBER-01` **QUASE PRONTA — AGUARDANDO BUILD**; `NAV-VAULT-01` parent EM IMPLEMENTAÇÃO pending authentic rigged Vault pose/IK.
+
+- [ ] Build a static parapet with physical horizontal top at 0.70m, 0.90m, 1.10m above feet, normal destination >2m past wall and SAME-FLOOR walkable landing ~1.85m ahead, headroom. Verify controller physically RISES, travels OVER, descends under gravity and completes only when the actor actually grounded near landing, with no transform warp.
+- [ ] Solid vertical wall >1.10m, window with no wide top, missing landing ground, different-floor destination, low ceiling/beam, second wall immediately behind first: deny clamber; do not treat roof as reachable.
+- [ ] Parked/active vehicle, native locked door, another NPC, player, zombie and moving rigidbody in path. Must not choose them as parapet or phase through.
+- [ ] Insert blocking structure after preflight; test stuck/timeouts, falling, destination changed mid-Rise/Across, water immersion and leg fracture. Abort rather than tunneling; gravity must resume without a teleport.
+- [ ] Distinguish regular low obstacle ballistic JUMP (0.35–0.65m), clamber 0.70–1.10m, and genuine tagged Ladder; none is a walkable floor link in `MobileNPCTravelMemory`.
+- [ ] Verify animation hierarchy: fallback actual `Move_Climb` or `Idle_Climb` only IF runtime referenced; missing dedicated Vault animation should remain a clearly recorded limitation, not an invented clip. During all stages no punch/gunshot/ground-footstep zombie alerts.
+- [ ] 1, 10, 20, 40 NPCs, network/visual state in singleplayer, physics collision stability, `Player.log` and real frame performance; no claims from static C# inspection.
+- [ ] Following any failure, reopen scoped task with map name, height, screenshot/log and reproduction. After demonstrated success, close only `NAV-VAULT-CLAMBER-01`, NOT universal vault animation or CORE-04.
+
+Related: `MOBILE_NPC_NATIVE_LADDER_DESIGN.md`, `MOBILE_NPC_VAULT_DESIGN.md`, `MOBILE_NPC_PENDING_TASKS.md`. All checks **UNEXECUTED** until user consolidated Dev Build.
