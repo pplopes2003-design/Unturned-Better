@@ -43,6 +43,14 @@ namespace SDG.Unturned
 				return;
 			}
 
+			// The wound-care component exclusively owns active bleeding treatment.
+			// Avoid burning a specific rag/dressing as generic HP medicine while
+			// blood loss still needs to be stopped.
+			MobileNPCInjurySystem injuries = GetComponent<MobileNPCInjurySystem>();
+			if (injuries != null
+				&& injuries.CurrentBleeding != MobileNPCInjurySystem.BleedingSeverity.None)
+				return;
+
 			// Do not interrupt an active fight or a higher-priority tactical action.
 			if (driver.Target != null || driver.CurrentGoal != MobileNPCTactics.Goal.None)
 			{
