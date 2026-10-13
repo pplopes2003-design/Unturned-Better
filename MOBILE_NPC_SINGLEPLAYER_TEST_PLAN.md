@@ -292,3 +292,5 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 - [ ] Medir logs do servidor de dano e morte, tempo de recarga de golpe, animação, FPS com 20 zumbis + 20 NPCs; verificar que não existe economia infinita de XP por atacar o mesmo cadáver.
 - [ ] Infecção específica por ataque zombie é **pendência**, não foi simulada como consequência fictícia de todo soco. Guardar observação para sistema médico futuro.
 - [ ] Todos estes são testes PLANEJADOS, não executados. Final Unity Dev Build e Player.log serão fornecidos pelo usuário ao fim, e a pendência só será encerrada após feedback positivo.
+
+- [ ] Conferir a enumeração exata `ERaycastInfoUsage.Punch`: servidor não deve consumir um pacote da categoria `MOBILE_NPC` quando o cliente disser `Gun`, `Melee` ou outro uso durante um soco; manter a sequência da fila e a cadência de ataque nativas.
