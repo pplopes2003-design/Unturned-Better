@@ -165,12 +165,17 @@ namespace SDG.Unturned
                 return false;
 
             float bestScore = float.NegativeInfinity;
+            int selectedEntranceIndex = -1;
             for (int i = 0; i < routes.Count; ++i)
             {
                 LearnedRoute record = routes[i];
                 if (record == null || record.footsteps == null
                     || record.footsteps.Count < 3 || record.failedReuses >= 3)
                     continue;
+                int stairEntranceIndex = FindObservedFloorAccessEntranceIndex(record);
+                if (stairEntranceIndex < 0)
+                    continue;
+                Vector3 observedEntrance = record.footsteps[stairEntranceIndex];
                 // Route's entrance must be on the NPC's CURRENT floor and its
                 // recorded end on the destination's floor. The opposite
                 // direction is not silently assumed to have been experienced.
@@ -178,14 +183,14 @@ namespace SDG.Unturned
                     || Mathf.Abs(record.destination.y - finalDestination.y) > 0.85f
                     || Mathf.Abs(record.destination.y - record.start.y) < 1.2f)
                     continue;
-                float distanceToEntrance = Vector3.Distance(currentPosition, record.start);
+                float distanceToEntrance = Vector3.Distance(currentPosition, observedEntrance);
                 float exitToGoal = Vector3.Distance(finalDestination,
                     record.footsteps[record.footsteps.Count - 1]);
                 // This stage targets entry paths from another room, not
                 // arbitrary navigation across an entire unfamiliar map.
                 if (distanceToEntrance < 2.5f || distanceToEntrance > 25f
                     || exitToGoal > 1.9f
-                    || Mathf.Abs(record.footsteps[0].y - currentPosition.y) > 0.85f)
+                    || Mathf.Abs(observedEntrance.y - currentPosition.y) > 0.85f)
                     continue;
                 float score = record.successes * 3f
                     - record.failedReuses * 5f - distanceToEntrance * 0.15f
@@ -194,16 +199,46 @@ namespace SDG.Unturned
                 {
                     bestScore = score;
                     routeIndex = i;
+                    selectedEntranceIndex = stairEntranceIndex;
                 }
             }
 
-            if (routeIndex < 0)
+            if (routeIndex < 0 || selectedEntranceIndex < 0)
                 return false;
             LearnedRoute learned = routes[routeIndex];
-            entrance = learned.footsteps[0];
+            entrance = learned.footsteps[selectedEntranceIndex];
             output.Clear();
-            output.AddRange(learned.footsteps);
+            for (int i = selectedEntranceIndex; i < learned.footsteps.Count; ++i)
+                output.Add(learned.footsteps[i]);
             return true;
+        }
+
+        /// <summary>
+        /// Derive an observed stair access from ACTUAL footsteps, rather than
+        /// treating the arbitrary starting room of the old journey as the
+        /// staircase entrance. Return the last near-floor sample before the
+        /// recorded ascent/descent. No procedural new connector is created.
+        /// </summary>
+        private static int FindObservedFloorAccessEntranceIndex(LearnedRoute route)
+        {
+            if (route == null || route.footsteps == null || route.footsteps.Count < 3)
+                return -1;
+            float elevationChange = route.destination.y - route.start.y;
+            if (Mathf.Abs(elevationChange) < 1.2f)
+                return -1;
+            float direction = elevationChange > 0f ? 1f : -1f;
+            float baseY = route.footsteps[0].y;
+            for (int i = 2; i < route.footsteps.Count; ++i)
+            {
+                if ((route.footsteps[i].y - baseY) * direction < 0.65f)
+                    continue;
+                int entranceIndex = i - 2;
+                if (route.footsteps.Count - entranceIndex < 3
+                    || Mathf.Abs(route.footsteps[entranceIndex].y - baseY) > 0.55f)
+                    return -1;
+                return entranceIndex;
+            }
+            return -1;
         }
 
         public void ReportReuseFailureServer(int index)
