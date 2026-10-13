@@ -148,11 +148,17 @@ namespace SDG.Unturned
 		/// A single capsule cannot identify exact anatomy, so these bounded
 		/// regions are an approximation until anatomical colliders are authored.
 		/// </summary>
-		public MobileNPCInjurySystem.BodyPart ResolveBodyPartAtWorldPoint(Vector3 impactPoint)
+		public MobileNPCInjurySystem.BodyPart ResolveBodyPartAtWorldPoint(Vector3 impactPoint, Transform hitTransform = null)
 		{
 			if (!IsFinite(impactPoint.x) || !IsFinite(impactPoint.y)
 				|| !IsFinite(impactPoint.z))
 				return MobileNPCInjurySystem.BodyPart.Torso;
+			if (hitTransform != null
+				&& hitTransform.GetComponentInParent<MobileNPCHumanoidVitals>() == this
+				&& MobileNPCBodyHitbox.TryResolve(hitTransform, out MobileNPCInjurySystem.BodyPart markedPart))
+				return markedPart;
+			// Backward-compatible approximation if an old prefab has only one
+			// undifferentiated hit volume. The new 6-collider prefab is explicit.
 			Vector3 local = transform.InverseTransformPoint(impactPoint);
 			if (local.y > 1.49f)
 				return MobileNPCInjurySystem.BodyPart.Head;
@@ -172,7 +178,7 @@ namespace SDG.Unturned
 		/// UseableMelee. This does not damage a Player or create fake XP.
 		/// </summary>
 		public bool ApplyValidatedWeaponImpactServer(float damage, Vector3 impactPoint,
-			Vector3 hitDirection, Transform attacker, bool isFirearm)
+			Vector3 hitDirection, Transform attacker, bool isFirearm, Transform hitTransform = null)
 		{
 			if (!Provider.isServer || isDead || lethalTransitionReserved
 				|| !IsFinite(damage) || damage <= 0f
@@ -181,7 +187,7 @@ namespace SDG.Unturned
 				|| !IsFinite(impactPoint.y) || !IsFinite(impactPoint.z))
 				return false;
 
-			MobileNPCInjurySystem.BodyPart part = ResolveBodyPartAtWorldPoint(impactPoint);
+			MobileNPCInjurySystem.BodyPart part = ResolveBodyPartAtWorldPoint(impactPoint, hitTransform);
 			// Probability uses final damage after the weapon's validated range/
 			// falloff multiplier. Melee and firearms have distinct wound profiles.
 			float bleedProbability = Mathf.Clamp01(
@@ -348,9 +354,12 @@ namespace SDG.Unturned
 			Transform hitboxRoot = transform.Find("MobileNPCHitbox");
 			if (hitboxRoot != null)
 			{
-				Collider damageHitbox = hitboxRoot.GetComponent<Collider>();
-				if (damageHitbox != null)
-					damageHitbox.enabled = false;
+				// All anatomical hit colliders must stop intercepting subsequent
+				// gun/melee rays, not only a collider on the hierarchy root.
+				Collider[] damageHitboxes = hitboxRoot.GetComponentsInChildren<Collider>(true);
+				for (int i = 0; i < damageHitboxes.Length; ++i)
+					if (damageHitboxes[i] != null)
+						damageHitboxes[i].enabled = false;
 			}
 			// NPCs are local single-player entities, not native Player/Zombie instances.
 			// Activate the physical ragdoll already authored in NPC_Client instead of
