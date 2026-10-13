@@ -434,6 +434,9 @@ namespace SDG.Unturned
 					{
 						routeWaypoints.Clear();
 						routeWaypointIndex = 0;
+						// Finished the cached waypoints. Final brain destination
+						// completion is separately judged from actual XYZ position.
+						activeRememberedRouteIndex = -1;
 						hasDetourWaypoint = false;
 						nextDetourAttemptTime = Time.time + 0.35f;
 					}
@@ -880,6 +883,11 @@ namespace SDG.Unturned
 			characterController.enabled = false;
 			transform.position = recoveredPosition;
 			velocity.y = 0f;
+			// Emergency fall recovery is a safety reposition, not a physical
+			// walking segment. Never turn it into a learned shortcut or stair.
+			trackingActualJourney = false;
+			actualTravelFootsteps.Clear();
+			activeRememberedRouteIndex = -1;
 			hasRoamingDestination = false;
 			hasDetourWaypoint = false;
 			routeWaypoints.Clear();
