@@ -168,11 +168,9 @@ namespace SDG.Unturned
 			}
 
 			float previousHealth = CurrentHealth;
-			if (attacker != null)
-			{
-				LastAttacker = attacker;
-				LastDamageTime = Time.time;
-			}
+			// Record even environmental hits so prior attackers are not credited for death.
+			LastAttacker = attacker;
+			LastDamageTime = Time.time;
 			CurrentHealth = Mathf.Max(0.0f, CurrentHealth - damage);
 			if (logDamageDiagnostics)
 			{
@@ -238,7 +236,7 @@ namespace SDG.Unturned
 			{
 				motor.enabled = false;
 			}
-			if (disableCombatOnDeath)
+			// Death always stops gameplay components; retain the serialized field for prefab compatibility.
 			{
 				if (combat != null)
 					combat.enabled = false;
