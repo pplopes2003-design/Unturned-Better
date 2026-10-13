@@ -107,6 +107,9 @@ namespace SDG.Unturned
 		private float nextRoutePlanTime;
 		private Vector3 lastRoamingDirection;
 		private bool hasLastRoamingDirection;
+		private int avoidanceSide = 1;
+		private float avoidanceSideUntil;
+		private int consecutiveStuckRecoveries;
 
 		public bool IsInitialized => hasInitialized;
 		public bool IsMoving { get; private set; }
@@ -165,6 +168,8 @@ namespace SDG.Unturned
 			nextStuckCheckTime = Time.time + 0.75f;
 			blockedMovementDuration = 0f;
 			useRecoverySteering = false;
+			consecutiveStuckRecoveries = 0;
+			avoidanceSide = Random.value < 0.5f ? -1 : 1;
 			hasInitialized = true;
 		}
 
@@ -265,21 +270,17 @@ namespace SDG.Unturned
 				Vector3 globalGoalOffset = destination - transform.position;
 				globalGoalOffset.y = 0f;
 				if (!isUnderwater && routeWaypoints.Count == 0 && !hasDetourWaypoint
-					&& globalGoalOffset.sqrMagnitude > stoppingDistance * stoppingDistance)
+					&& globalGoalOffset.sqrMagnitude > stoppingDistance * stoppingDistance
+					&& Time.time >= nextRoutePlanTime)
 				{
-					bool nativeAStarAvailable = nativeAStarRouteProvider != null && nativeAStarRouteProvider.IsAvailable;
-					bool nativeAStarPending = false;
-					if (nativeAStarAvailable && TryBuildNativeAStarRoute(destination))
+					nextRoutePlanTime = Time.time + 0.75f;
+					if (nativeAStarRouteProvider != null && nativeAStarRouteProvider.IsAvailable
+						&& TryBuildNativeAStarRoute(destination))
 					{
 						detourGoalSnapshot = destination;
 						hasDetourWaypoint = false;
 					}
-				else if (nativeAStarAvailable)
-				{
-					nativeAStarPending = nativeAStarRouteProvider.IsRequestPending;
 				}
-
-			}
 				if (routeWaypointIndex < routeWaypoints.Count
 					&& (transform.position - routeWaypoints[routeWaypointIndex]).sqrMagnitude <= 1.0f)
 				{
@@ -636,6 +637,8 @@ namespace SDG.Unturned
 			{
 				blockedMovementDuration = 0f;
 				useRecoverySteering = false;
+				if (movedDistance >= 0.7f)
+					consecutiveStuckRecoveries = 0;
 				return;
 			}
 
@@ -665,9 +668,15 @@ namespace SDG.Unturned
 				routeWaypoints.Clear();
 				routeWaypointIndex = 0;
 				nextDetourAttemptTime = Time.time + 0.2f;
-				recoverySteeringAngle = Random.value < 0.5f ? -90f : 90f;
+				// Do not randomly flip left/right each time the agent touches a wall.
+				// Keep one side until a genuine route attempt has had time to progress.
+				consecutiveStuckRecoveries++;
+				avoidanceSide = consecutiveStuckRecoveries % 2 == 0 ? -1 : 1;
+				avoidanceSideUntil = Time.time + 3.5f;
+				recoverySteeringAngle = avoidanceSide * 90f;
 				useRecoverySteering = true;
-				recoverySteeringUntil = Time.time + 1.1f;
+				recoverySteeringUntil = Time.time + 1.5f;
+				nextRoutePlanTime = Time.time;
 				blockedMovementDuration = 0.25f;
 			}
 		}
@@ -794,15 +803,25 @@ namespace SDG.Unturned
 
 			if (!leftBlocked && !rightBlocked)
 			{
-				// Avoid a permanent left/right bias when both short routes are open.
-				return Random.value < 0.5f ? left : right;
+				// Commit to one side during a wall-follow interval: per-frame random
+				// choice previously caused left/right oscillation at house corners.
+				if (Time.time >= avoidanceSideUntil)
+				{
+					avoidanceSide = Vector3.Dot(transform.right, desiredDirection) >= 0f ? 1 : -1;
+					avoidanceSideUntil = Time.time + 3f;
+				}
+				return avoidanceSide < 0 ? left : right;
 			}
 			if (!leftBlocked)
 			{
+				avoidanceSide = -1;
+				avoidanceSideUntil = Time.time + 3f;
 				return left;
 			}
 			if (!rightBlocked)
 			{
+				avoidanceSide = 1;
+				avoidanceSideUntil = Time.time + 3f;
 				return right;
 			}
 
