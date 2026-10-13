@@ -54,9 +54,9 @@ namespace SDG.Unturned
         /// Only call AFTER ItemManager confirms an actual transfer and the NPC owns
         /// the transferred item. Nearby visible items are NOT memorized as finds.
         /// </summary>
-        public bool RecordSuccessfulPickupServer(ushort itemID, Vector3 worldPosition)
+        public bool RecordSuccessfulPickupServer(ushort itemID, byte loadedRounds, Vector3 worldPosition)
         {
-            if (!IsAliveServer() || !ValidPosition(worldPosition))
+            if (!IsAliveServer() || loadedRounds == 0 || !ValidPosition(worldPosition))
                 return false;
             ItemMagazineAsset magazine = Assets.find(EAssetType.ITEM, itemID) as ItemMagazineAsset;
             if (magazine == null || magazine.MaxAmountAsByte == 0)
