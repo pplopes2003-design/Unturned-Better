@@ -364,9 +364,16 @@ namespace SDG.Unturned
 							+ Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f);
 						float routeRadius = Mathf.Clamp(obstacleProbeRadius, 0.05f,
 							Mathf.Max(0.05f, characterController.radius * 0.9f));
+						float segmentDistance = Mathf.Min(routeOffset.magnitude,
+							Mathf.Max(0.5f, obstacleProbeDistance));
 						if (IsObstacleBlockingAlong(routeOrigin, routeRadius, routeOffset.normalized,
-							Mathf.Min(routeOffset.magnitude, Mathf.Max(0.5f, obstacleProbeDistance))))
+							segmentDistance)
+							&& !IsOnlyTemporaryActorBlockingAlong(routeOrigin, routeRadius,
+								routeOffset.normalized, segmentDistance))
 						{
+							// A real wall/closed door invalidates the route. A passing
+							// person or zombie does not invalidate a route through a
+							// doorway: local collision avoidance may yield to them.
 							routeWaypoints.Clear();
 							routeWaypointIndex = 0;
 							hasDetourWaypoint = false;
@@ -975,6 +982,36 @@ namespace SDG.Unturned
 					return true;
 			}
 			return false;
+		}
+
+		/// <summary>
+		/// An NPC passing through a doorway is not a permanent map obstacle.
+		/// Only preserve an otherwise valid A* route if EVERY blocking hit
+		/// belongs to another living actor. Any solid wall, vehicle or truncated
+		/// hit buffer is conservatively treated as a genuine obstruction.
+		/// </summary>
+		private bool IsOnlyTemporaryActorBlockingAlong(Vector3 origin, float radius,
+			Vector3 direction, float distance)
+		{
+			int hitCount = Physics.SphereCastNonAlloc(origin, radius, direction,
+				ObstacleHitBuffer, distance, obstacleMask, QueryTriggerInteraction.Ignore);
+			if (hitCount == 0 || hitCount >= ObstacleHitBuffer.Length)
+				return false;
+			bool foundOtherActor = false;
+			for (int i = 0; i < hitCount; ++i)
+			{
+				Collider collider = ObstacleHitBuffer[i].collider;
+				if (collider == null || IsOwnCollider(collider))
+					continue;
+				bool isOtherActor =
+					collider.GetComponentInParent<MobileNPCHumanoidVitals>() != null
+					|| collider.GetComponentInParent<Player>() != null
+					|| collider.GetComponentInParent<Zombie>() != null;
+				if (!isOtherActor)
+					return false;
+				foundOtherActor = true;
+			}
+			return foundOtherActor;
 		}
 
 		private bool IsOwnCollider(Collider hitCollider)
