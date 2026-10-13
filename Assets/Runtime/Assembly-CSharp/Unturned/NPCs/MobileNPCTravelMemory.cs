@@ -311,6 +311,150 @@ namespace SDG.Unturned
             return -1;
         }
 
+        // A personal, directed graph of completed journeys. It is intentionally
+        // limited to the eight routes already stored by this survivor. No global
+        // room graph, unseen door edges, inferred reverse journeys or teleports.
+        public const int MaxAccessChainRoutes = 4;
+        public const int MaxAccessChainFootsteps = MaxAccessChainRoutes * MaxFootsteps;
+
+        /// <summary>
+        /// Choose up to four directed first-hand journeys, beginning at an
+        /// observed floor-changing entry and continuing through observed
+        /// corridors or additional staircases. The caller MUST physically plan
+        /// an approach to entrance, and verify every edge (including small
+        /// inter-record gaps) before setting movement waypoints.
+        /// Excluded entries have failed recent approaches or physical checks;
+        /// retries can select an alternative known stair without forgetting it.
+        /// </summary>
+        public bool TryFindKnownAccessChainServer(Vector3 currentPosition,
+            Vector3 finalDestination, List<Vector3> output,
+            List<int> outputRouteIndices, List<int> outputStageStarts,
+            out Vector3 entrance, int excludedEntryMask = 0)
+        {
+            entrance = Vector3.zero;
+            if (!CanUseMemory() || output == null || outputRouteIndices == null
+                || outputStageStarts == null || !Valid(currentPosition)
+                || !Valid(finalDestination)
+                || Mathf.Abs(finalDestination.y - currentPosition.y) < 1.2f)
+                return false;
+
+            int[] candidate = new int[MaxAccessChainRoutes];
+            int[] best = new int[MaxAccessChainRoutes];
+            int bestDepth = 0;
+            int bestFirstStep = -1;
+            float bestScore = float.PositiveInfinity;
+
+            // At most eight root entries, each with a fixed search allowance.
+            // Graph search does no physics work; expensive real-world checking
+            // is reserved for the one candidate subsequently used by the motor.
+            for (int i = 0; i < routes.Count; ++i)
+            {
+                if ((excludedEntryMask & (1 << i)) != 0)
+                    continue;
+                LearnedRoute first = routes[i];
+                if (!IsUsableGraphRecord(first))
+                    continue;
+                int firstStep = FindObservedFloorAccessEntranceIndex(first);
+                if (firstStep < 0)
+                    continue;
+                Vector3 entry = first.footsteps[firstStep];
+                float approach = Vector3.Distance(currentPosition, entry);
+                if (approach < 0.8f || approach > 25f
+                    || Mathf.Abs(entry.y - currentPosition.y) > 0.85f
+                    || Mathf.Abs(first.start.y - currentPosition.y) > 0.85f)
+                    continue;
+
+                candidate[0] = i;
+                int nodeBudget = 48;
+                float score = approach * 0.18f
+                    + (first.footsteps.Count - firstStep) * 0.035f
+                    + 2.0f + first.failedReuses * 6f
+                    - first.successes * 0.2f;
+                SearchObservedAccessChain(1, 1 << i, first.footsteps[first.footsteps.Count - 1],
+                    finalDestination, candidate, best, firstStep,
+                    ref nodeBudget, score, ref bestScore, ref bestDepth,
+                    ref bestFirstStep);
+            }
+            if (bestDepth <= 0 || bestFirstStep < 0)
+                return false;
+
+            output.Clear();
+            outputRouteIndices.Clear();
+            outputStageStarts.Clear();
+            for (int stage = 0; stage < bestDepth; ++stage)
+            {
+                LearnedRoute route = routes[best[stage]];
+                int start = stage == 0 ? bestFirstStep : 0;
+                outputStageStarts.Add(output.Count);
+                outputRouteIndices.Add(best[stage]);
+                for (int point = start; point < route.footsteps.Count; ++point)
+                    output.Add(route.footsteps[point]);
+            }
+            if (output.Count == 0 || output.Count > MaxAccessChainFootsteps)
+            {
+                output.Clear();
+                outputRouteIndices.Clear();
+                outputStageStarts.Clear();
+                return false;
+            }
+            entrance = output[0];
+            return true;
+        }
+
+        private void SearchObservedAccessChain(int depth, int usedMask,
+            Vector3 lastExit, Vector3 goal, int[] candidate, int[] best,
+            int firstStep, ref int remaining, float score, ref float bestScore,
+            ref int bestDepth, ref int bestFirstStep)
+        {
+            if (--remaining < 0)
+                return;
+            float finishGap = Vector3.Distance(lastExit, goal);
+            if (finishGap <= 1.9f && Mathf.Abs(lastExit.y - goal.y) <= 0.8f)
+            {
+                float completedScore = score + finishGap;
+                if (completedScore < bestScore)
+                {
+                    bestScore = completedScore;
+                    bestDepth = depth;
+                    bestFirstStep = firstStep;
+                    for (int j = 0; j < depth; ++j)
+                        best[j] = candidate[j];
+                }
+                return;
+            }
+            if (depth >= MaxAccessChainRoutes)
+                return;
+
+            for (int i = 0; i < routes.Count && remaining > 0; ++i)
+            {
+                if ((usedMask & (1 << i)) != 0)
+                    continue;
+                LearnedRoute next = routes[i];
+                if (!IsUsableGraphRecord(next))
+                    continue;
+                float gap = Vector3.Distance(lastExit, next.footsteps[0]);
+                if (gap > 2.0f || Mathf.Abs(lastExit.y - next.start.y) > 0.7f)
+                    continue;
+
+                candidate[depth] = i;
+                float nextScore = score + 2.0f + gap
+                    + next.footsteps.Count * 0.035f
+                    + next.failedReuses * 6f - next.successes * 0.2f;
+                SearchObservedAccessChain(depth + 1, usedMask | (1 << i),
+                    next.footsteps[next.footsteps.Count - 1], goal, candidate,
+                    best, firstStep, ref remaining, nextScore, ref bestScore,
+                    ref bestDepth, ref bestFirstStep);
+            }
+        }
+
+        private static bool IsUsableGraphRecord(LearnedRoute route)
+        {
+            return route != null && route.footsteps != null
+                && route.footsteps.Count >= 3
+                && route.footsteps.Count <= MaxFootsteps
+                && route.failedReuses < 3;
+        }
+
         public void ReportReuseFailureServer(int index)
         {
             if (!CanUseMemory() || index < 0 || index >= routes.Count)
