@@ -194,6 +194,7 @@ namespace SDG.Unturned
                         groupMember.TryJoinExistingGroupServer(replacement.FormerGroupId);
                     }
 
+                    // Refresh group provenance after optional reattachment.
                     RegisterSpawnedNPC(instance);
                 }
             }
@@ -214,13 +215,19 @@ namespace SDG.Unturned
             if (!Provider.isServer || instance == null)
                 return;
 
+            MobileNPCGroupMember groupMember = instance.GetComponent<MobileNPCGroupMember>();
             for (int i = 0; i < trackedNPCs.Count; ++i)
             {
                 if (trackedNPCs[i].Instance == instance)
+                {
+                    // A fresh replacement can join its predecessor's group after
+                    // the spawn service first registers it. Refresh while alive.
+                    if (!trackedNPCs[i].DeathObserved && trackedNPCs[i].Vitals != null
+                        && !trackedNPCs[i].Vitals.IsDead && groupMember != null)
+                        trackedNPCs[i].GroupId = groupMember.GroupId;
                     return;
+                }
             }
-
-            MobileNPCGroupMember groupMember = instance.GetComponent<MobileNPCGroupMember>();
             trackedNPCs.Add(new TrackedNPC
             {
                 Instance = instance,
