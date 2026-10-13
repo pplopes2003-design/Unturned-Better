@@ -102,6 +102,7 @@ namespace SDG.Unturned
             template.AddComponent<MobileNPCSettlementPlanner>();
             template.AddComponent<MobileNPCSettlementBuilder>();
             template.AddComponent<MobileNPCGroupMember>();
+            template.AddComponent<MobileNPCRadioOutbox>();
             template.AddComponent<MobileNPCCompanionContract>();
 
             // Reuse the game's existing humanoid visual hierarchy without modifying its
