@@ -413,6 +413,7 @@ namespace SDG.Unturned
 				routeWaypointIndex = 0;
 				hasDetourWaypoint = false;
 				hasPendingKnownAccessPath = false;
+				hasPlannedLadderApproach = false;
 				activeRememberedRouteIndex = -1;
 				activeContinuationRouteIndex = -1;
 				activeAccessRouteIds.Clear();
@@ -422,6 +423,7 @@ namespace SDG.Unturned
 			}
 			if (!hasDestination)
 			{
+				hasPlannedLadderApproach = false;
 				if (ladderTraversal != null && ladderTraversal.IsTraversing)
 					ladderTraversal.AbortServer();
 				trackingActualJourney = false;
@@ -461,6 +463,8 @@ namespace SDG.Unturned
 			activeAccessWaypointStarts.Clear();
 			activeAccessFinalWaypointIndex = -1;
 					hasPendingKnownAccessPath = false;
+					if ((destination - plannedLadderGoal).sqrMagnitude > 2.25f)
+						hasPlannedLadderApproach = false;
 				}
 				else if (routeWaypoints.Count == 0 && !hasDetourWaypoint)
 				{
@@ -483,6 +487,14 @@ namespace SDG.Unturned
 				// unrelated request to the final upstairs destination.
 				if (!isUnderwater && routeWaypoints.Count == 0 && !hasDetourWaypoint)
 					TryBuildKnownFloorAccessRoute(destination, out waitingForLearnedAccess);
+				// A real Ladder is a directed off-mesh movement action. Before
+				// global pathfinding to another floor, consider an approach
+				// through actual walkable ground to its observed entry side.
+				bool waitingForLadderApproach = false;
+				if (!isUnderwater && !waitingForLearnedAccess
+					&& !waitingForLadderApproach
+					&& routeWaypoints.Count == 0 && !hasDetourWaypoint)
+					TryBuildPhysicalLadderApproach(destination, out waitingForLadderApproach);
 				// Ask for a map-wide path before the NPC gets close enough to collide with
 				// something. This is essential for open-world goals separated by buildings,
 				// fences or terrain; local obstacle probing alone cannot discover such routes.
@@ -505,6 +517,7 @@ namespace SDG.Unturned
 				// discover REAL stairs between nearby floors. Never infer a
 				// vertical shortcut merely from identical X/Z coordinates.
 				if (!isUnderwater && !waitingForLearnedAccess
+					&& !waitingForLadderApproach
 					&& routeWaypoints.Count == 0 && !hasDetourWaypoint
 					&& Mathf.Abs(destination.y - transform.position.y) > 1.0f
 					&& PlanarDistanceSquared(destination, transform.position) <= 30f
@@ -590,7 +603,8 @@ namespace SDG.Unturned
 				Vector3 movementDestination = routeWaypointIndex < routeWaypoints.Count
 					? routeWaypoints[routeWaypointIndex]
 					: (hasDetourWaypoint ? detourWaypoint
-						: (waitingForLearnedAccess ? transform.position : destination));
+						: ((waitingForLearnedAccess || waitingForLadderApproach)
+							? transform.position : destination));
 
 				// Routes are snapshots of the scene. If a door closes or an entity blocks
 				// the next segment after planning, discard the stale route and try again
