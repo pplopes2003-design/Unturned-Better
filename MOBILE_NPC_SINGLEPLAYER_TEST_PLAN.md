@@ -121,3 +121,18 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 - [ ] Testar ataque corpo a corpo do jogador e de outro NPC, validando o mesmo comportamento sem dupla contagem de dano.
 - [ ] Aplicar ferimento com sangramento: conferir dano periódico independente; parar após morte; observar atribuição do último golpe vs. morte ambiental.
 - [ ] Se houver falha, salvar mensagens `[MobileNPCHumanoidVitals] Damage accepted`, `Death transition`, `Death ragdoll activated` e erros do Console com mapa/arma/alvo. O commit 2f94246 apenas corrige o valor de retorno de `MobileNPCInjurySystem.ApplyHit`, sem comprovar funcionamento do dano no jogo.
+
+
+## 11. Experiência individual e aprendizado contextual (NOVO — ainda não validado)
+
+- [ ] Dois NPCs recém-nascidos começam com 0 registros de aprendizado, sem herança de facção/grupo.
+- [ ] Com arma real/ammo, um NPC dispara várias vezes em zumbi, player hostil ou NPC rival: só tiro efetivamente comprometido gera um resultado; bloqueio/erro conta como erro e contato físico com o alvo selecionado como acerto.
+- [ ] Após sequência de erros no mesmo setor, o intervalo entre tiros muda modestamente sem eliminar o erro humano e sem disparar através de paredes; após acertos, pode se aproximar do baseline. Não confundir acertar o corpo com causar dano/XP.
+- [ ] NPC recolhe loot, registra resultado no setor e prioriza subsequentemente com pequena bonificação; após destino de loot expirar bloqueado, o setor recebe penalização limitada, sem bloquear item crítico.
+- [ ] A e B estão no mesmo grupo, mas a 20 m de distância: A aprende algo, B continua com memória anterior; grupos da mesma facção, mas IDs diferentes, também não compartilham.
+- [ ] Aproximar A de B até ~7 m, em período fora de combate: uma lição da experiência de A é transmitida com peso menor, sem cópia total de estatísticas; parede reduz distância de fala. Agachado usa faixa menor (~4 m).
+- [ ] A morre sem contar: memória particular é apagada; substituto não recebe conhecimento. Se B tiver ouvido antes, B mantém o que aprendeu, mesmo com A morto.
+- [ ] Salvar NPC vivo com aprendizagem; voltar ao mesmo mapa/personagem e verificar o snapshot JSON v3 `experience` por indivíduo; saves v1/v2 devem carregar com memória vazia, sem crash.
+- [ ] Repetir experiências em diferentes setores e com >=20 NPCs, observar memória limitada a 48 registros/indivíduo e ausência de exploração indevida de dados invisíveis.
+- [ ] Testar que a troca de lições ainda é apenas um evento simulado do servidor: **não** existe áudio, diálogo de jogador ou rádio até a integração nativa ser concluída.
+- [ ] **Futuro:** validar estratégias realmente aprendidas contra diferentes tipos de zumbi, caminhos bloqueados, cobertura e flanqueamento; estas ainda não estão implementadas nesta etapa.
