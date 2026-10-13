@@ -144,3 +144,15 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 - [ ] Simular cobertura atrás de parede com acesso inválido: NPC deve continuar usando teste físico do corredor e não criar caminho mágico.
 - [ ] Repetir falhas em um setor e disponibilizar duas coberturas candidatas: NPC deve preferir uma opção não penalizada que ainda passe verificação geométrica. Se nenhuma alternativa existir, manter tentativa defensiva de fallback, sem ficar congelado.
 - [ ] Não confundir sucesso ao chegar na cobertura com proteção contra dano. Medir separadamente dano após chegar, risco de recuo e flanqueamento (aprendizado tático mais amplo pendente).
+
+
+## 13. Regressão P0: dano zero, avanço real e cobertura ε-greedy (2026-10-13)
+
+- [ ] Com arma do player cujo dano de NPC calculado é zero, acertar hitbox: HP **não cai** (arma não vira 1 HP por força de `Mathf.Max`). Com multiplicador positivo, debita apenas uma vez e preserva o atacante. Comparar com zumbi nativo quando aplicável.
+- [ ] Repetir com melee sem dano / com dano e verificar que o hitmarker não cria evidência falsa de dano (a UI ainda pode precisar de correção separada).
+- [ ] Em corredor com parede e meio-fio, o NPC pode tocar uma lateral do CharacterController e mesmo assim andar: animação de caminhada e footsteps seguem **deslocamento real**; não bloquear `IsMoving` apenas por `CollisionFlags.Sides`.
+- [ ] Aproximar-se de parede frontal e provocar oscilação esquerda/direita: NPC não deve registrar progresso de objetivo fictício; o detector stuck deve tentar solução nova em ciclos limitados, sem teleporte.
+- [ ] Acompanhar NPC dando volta real em quina: deslocamento lateral significativo deve ser aceito quando continua viável sem se afastar demais do objetivo. Trocar o objetivo no meio da rota e confirmar reset do contador stuck.
+- [ ] Em ambiente com duas ou mais coberturas verificadas, acumular no mesmo indivíduo acertos de `CoverAccess` e timeouts. Repetir eventos de ameaça em posições comparáveis e verificar que a opção mais confiável tende a ser escolhida, **mas uma alternativa segura pode ser explorada**. Nunca aceitar um ponto sem solo, obstrução e corredor liberado.
+- [ ] Confirmar que o conjunto de candidatas de cobertura é limitado a 10 verificadas por planejamento; avaliar FPS/GC com 20 NPCs e ameaças simultâneas.
+- [ ] Guardar `Player.log`, Console, mapa, arma, ângulo, objeto, coordenadas aproximadas e passos de reprodução; não marcar funcionalidade concluída antes de compile + Dev Build.
