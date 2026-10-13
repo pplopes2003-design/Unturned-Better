@@ -81,3 +81,16 @@ Communication requires a *sender endpoint* and a *receiver endpoint*: functional
 - `MobileNPCRadioMessage.cs` stores bounded data-only reports with confidence, expiry, faction, group, call sign and five kinds: EnemyContact, NeedReinforcements, UsefulLoot, Airdrop, UnknownBase. `FormatInterceptedSubtitle` creates simulated conversational text with coarse 100m map sectors, never precise player location.
 - **No code yet** bridges these reports into the native Unturned radio channel, inventory/equipment detection or player HUD. This file must not be considered proof of working interception.
 - Voice-only group contact messages are separately implemented in `MobileNPCGroupMember`; do not confuse local voice with broadcast radio.
+
+
+## 2026-10-13 — Radio report preparation implementation (NOT transmission)
+
+- New `Assets/Runtime/Assembly-CSharp/Unturned/NPCs/MobileNPCRadioOutbox.cs`: non-transmitting server-only outbox. Requires `MobileNPCInventory.ContainsItemID(1445)` and a living NPC with a real group ID. The radio must be owned; inventory ownership by itself does **not** yet prove the radio is held/equipped or that a native frequency is selected.
+- Reports are created from server-confirmed player sightings only (through `MobileNPCBrainDriver.ReportVisibleTarget`), at most once every 20 seconds, maximum four queued records per NPC, 24-second expiry. `MobileNPCPopulationBootstrap` now adds the component to the runtime mobile humanoid template.
+- `TryPeekFreshReport` and `ConfirmTransmittedReport` are internal handoff operations for a **future channel-verified transport**. They do not send voice/chat or text to players and do not change NPC combat behavior. Messages may disappear when NPC dies/unloads.
+- Next requirement is a verified native player receiver/equipped item/frequency check before a message is ever shown or delivered. Do not bypass this by sending `PlayerUI.message` or chat to every player. Compare native Walkie Talkie and Earpiece semantics with this game's actual runtime APIs.
+- Existing report templates in `MobileNPCRadioMessage.cs` contain simulated Portuguese dialogue to show only after native receiver validation succeeds.
+
+## Separate user addition: zombies beyond points of interest
+
+The user wants zombies to remain a credible threat **outside the POI/spawn region**. Add this to the persistent backlog, distinct from NPC radios. Native `Zombie.cs` and `ZombieManager.cs` are not directly accessible at the expected repository paths on this branch; do not invent field names or bypass native network/region sync. Study current zombie chasing/target retention, activation and unloading across region boundaries, leash / return-to-spawn logic, LOS/hearing event response, streaming and host authority, pathfinding distance and performance; compare whether a zombie should **continue an existing chase** vs spawn/wander globally. Require finite loss-of-target policy, safe despawn/respawn, multiplayer compatibility and performance bounds. Dev Build tests: lure a zombie away from POI, cross one/multiple map regions, maintain/lose LOS, sound pursuit, nighttime/environmental scenarios, unloaded region transitions, vehicle noise, NPC group encounters, and how far chasing remains fair. Do not claim zombies already follow seamlessly outside POIs.
