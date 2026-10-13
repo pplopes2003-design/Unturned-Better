@@ -145,6 +145,67 @@ namespace SDG.Unturned
             return true;
         }
 
+        /// <summary>
+        /// Find a known floor-connecting JOURNEY whose original entrance is
+        /// farther away than ordinary same-start route reuse. This only
+        /// proposes a personally observed entrance and its actual traveled
+        /// steps. The motor must separately discover a physical path to the
+        /// entrance and recheck every connector segment and the final goal.
+        /// Never infer a staircase solely from two stacked floor positions.
+        /// </summary>
+        public bool TryFindKnownFloorAccessServer(Vector3 currentPosition,
+            Vector3 finalDestination, List<Vector3> output,
+            out Vector3 entrance, out int routeIndex)
+        {
+            entrance = Vector3.zero;
+            routeIndex = -1;
+            if (!CanUseMemory() || output == null
+                || !Valid(currentPosition) || !Valid(finalDestination)
+                || Mathf.Abs(finalDestination.y - currentPosition.y) < 1.2f)
+                return false;
+
+            float bestScore = float.NegativeInfinity;
+            for (int i = 0; i < routes.Count; ++i)
+            {
+                LearnedRoute record = routes[i];
+                if (record == null || record.footsteps == null
+                    || record.footsteps.Count < 3 || record.failedReuses >= 3)
+                    continue;
+                // Route's entrance must be on the NPC's CURRENT floor and its
+                // recorded end on the destination's floor. The opposite
+                // direction is not silently assumed to have been experienced.
+                if (Mathf.Abs(record.start.y - currentPosition.y) > 0.85f
+                    || Mathf.Abs(record.destination.y - finalDestination.y) > 0.85f
+                    || Mathf.Abs(record.destination.y - record.start.y) < 1.2f)
+                    continue;
+                float distanceToEntrance = Vector3.Distance(currentPosition, record.start);
+                float exitToGoal = Vector3.Distance(finalDestination,
+                    record.footsteps[record.footsteps.Count - 1]);
+                // This stage targets entry paths from another room, not
+                // arbitrary navigation across an entire unfamiliar map.
+                if (distanceToEntrance < 2.5f || distanceToEntrance > 25f
+                    || exitToGoal > 1.9f
+                    || Mathf.Abs(record.footsteps[0].y - currentPosition.y) > 0.85f)
+                    continue;
+                float score = record.successes * 3f
+                    - record.failedReuses * 5f - distanceToEntrance * 0.15f
+                    - exitToGoal;
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    routeIndex = i;
+                }
+            }
+
+            if (routeIndex < 0)
+                return false;
+            LearnedRoute learned = routes[routeIndex];
+            entrance = learned.footsteps[0];
+            output.Clear();
+            output.AddRange(learned.footsteps);
+            return true;
+        }
+
         public void ReportReuseFailureServer(int index)
         {
             if (!CanUseMemory() || index < 0 || index >= routes.Count)
