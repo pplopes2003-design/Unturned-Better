@@ -394,6 +394,8 @@ namespace SDG.Unturned
 			bool hasDestination = hasBrainDestination || hasRoamingDestination;
 			Vector3 destination = hasBrainDestination ? brainDriver.Destination : roamingDestination;
 			if (hasDestination && !isUnderwater && !isPlannedJumping
+				&& !physicallyCrouched
+				&& (injurySystem == null || injurySystem.MovementMultiplier > 0.5f)
 				&& ladderTraversal != null && !ladderTraversal.IsTraversing
 				&& Mathf.Abs(destination.y - transform.position.y) >= 1.4f
 				&& PlanarDistanceSquared(destination, transform.position) < 30f
