@@ -537,8 +537,14 @@ namespace SDG.Unturned
 					}
 				}
 
-				MobileNPCHumanoidVitals mobileNPCVitals = info.transform != null
-					? info.transform.GetComponentInParent<MobileNPCHumanoidVitals>()
+				// The server's authoritative melee raycast stores the actual hit collider
+				// separately from info.transform. NPC hitboxes are custom colliders and can
+				// have ERaycastInfoType.NONE, so resolve their owner before the vanilla type switch.
+				Transform authoritativeMeleeHit = info.colliderTransform != null
+					? info.colliderTransform
+					: info.transform;
+				MobileNPCHumanoidVitals mobileNPCVitals = authoritativeMeleeHit != null
+					? authoritativeMeleeHit.GetComponentInParent<MobileNPCHumanoidVitals>()
 					: null;
 				if (mobileNPCVitals != null)
 				{
