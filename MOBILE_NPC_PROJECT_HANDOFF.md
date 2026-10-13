@@ -1034,3 +1034,6 @@ No Unity compilation or gameplay test performed; static GitHub source structure 
 ### Next priorities
 
 Continue `NAV-ACCESS-01`: create safe map-scoped stair/door portal/entrance graph from actual confirmed traversals (do NOT infer connectors from mere stacked floors), support goal across rooms with real path to remembered portal. Or `NAV-JUMP-01` with physics-verified landing and native animation. Note `UI-01` nameplate/dialogue/ESC visible regression still pending and `RAG-01` joint ragdoll unresolved. The full diagram remains an end-of-project deliverable.
+
+
+**Travel memory correctness follow-up `e89e6580f0f5bb4c3257bf973e1d7389e2a67737`:** reset the active remembered route index when the cached waypoints finish; the final tactical destination is still checked separately in 3D. In `RecoverFromUnexpectedFall`, clear the active observed journey and route-use index before resetting the agent's Transform to safe ground. Emergency physics recovery / teleport is NEVER counted as physical walking knowledge. No compile/run done.
