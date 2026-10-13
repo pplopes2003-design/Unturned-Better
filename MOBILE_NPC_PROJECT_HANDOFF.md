@@ -311,3 +311,18 @@ Reread new/modified C# files, checked expected integration points and balanced b
 - **Investigation:** uncertain hypotheses and search priors from sensed events only, plausible last-known velocity and nearby obstacles, limited retries, forget/decay; avoid deterministic spiral as only behavior and avoid psychic navigation.
 - **Future learning/social memory (not yet in scope):** constrained per-NPC adaptive statistics / tabular reinforcement or utility-weight tuning before heavy ML training; share knowledge only when two living NPCs actually communicate in-world within hearing/radio range; receiver gets partial aged confidence, not a globally synced omniscient memory. Unshared memory dies with the NPC. Limit memory size, CPU and runaway difficulty; allow player counterplay and faction-filtered communication.
 - **Prerequisite runtime validation remains outstanding:** Unity compilation; hit-to-death/ragdoll/despawn/respawn; house corner and curb navigation; 30–50m firefight and aiming realism; cover reachability; clip availability (punch/fire/reload/flinch); dialogue focus/ESC/HUD/nameplates. Native kill XP and networking not implemented. Report these pending items at end of every future round.
+
+
+## Tactical locomotion decision layer — 2026-10-13
+
+User specifically requested that NPCs dynamically decide whether to crouch, walk, sprint, jump, or pause, instead of repeating one movement action. This round adds tactical movement decisions; no stealth guarantee without zombie hearing integration.
+
+Commits:
+- `3df81c98f45192018a6e0b717bac3954d5f6da36`: new pure C# `MobileNPCLocomotionPolicy`, a context-based gait utility layer (Hold, Sneak, Walk, Sprint) considering pursuit, target sight, investigation, close proximity, retreat, suppression, cover, injury, swimming and destination. Minimum gait commitment avoids per-frame oscillation.
+- `ccf99755ff009ff62e6b150a7e7687753e048cca`, `3ed0625396186c4388a7c72baa7780d617f7c552`: motor uses gait-selected run/walk/sneak speed and a guarded low-obstacle jump with cooldown. Jump requires ground, non-sneaking gait, injury threshold, low obstacle but clear head space, and terrain ahead. Fixed initial lower-obstacle probe so it does not depend on chest-height blockage.
+- `363429ec4c395329f86308f1b937ba278ea612aa`, `edc08cf1038a71691a0f2a4a164c55989f05bd77`: NPC motor now changes actual CharacterController height/center to crouch and checks available head space before standing. Clearance uses only the newly occupied upper region to avoid floor contacts falsely blocking stand-up.
+- `ca16d523fb3238d0d38db27fcd8d2a8e5df2c18c`: animation locomotion follows actual gait rather than only pursuing state; searches runtime clips for crouch/sneak and falls back to authored walking if missing. Crouched footsteps reduced in volume and frequency. This is audio presentation only; native zombie hearing attenuation and player-footstep perception still need implementation.
+
+Fetched all three key source files after changes and verified braces balanced and presence of policy/crouch/jump/audio hookups, but no Unity compile/runtime validation occurred.
+
+**Outstanding after this round:** Unity build and runtime check; reliable zombie notice/ignore while stealthing (native sound/hide mechanic), player footstep stimuli, real zoom/optics visibility, stalking ambush state machine, ML/social learning, obstacle jumping/safe stand-up in varied map geometry; and earlier death/respawn, navigation/cover, ranged fire, nameplates/dialogue UI, animation clip availability. Native XP credit/network replication not implemented. In-game tests must specifically check no crouch-lock, repetitive hopping, hotbar input conflicts, footstep audibility, and AI pose transitions.
