@@ -16,7 +16,7 @@ namespace SDG.Unturned
 	/// </summary>
 	internal static class MobileNPCPersistence
 	{
-		private const int CurrentVersion = 4;
+		private const int CurrentVersion = 5;
 		private const float SaveInterval = 30f;
 		private const float DeferredRestoreInterval = 3f;
 		private static float nextSaveTime;
