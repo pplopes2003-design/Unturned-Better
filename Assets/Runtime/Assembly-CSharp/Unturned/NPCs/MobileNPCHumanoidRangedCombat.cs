@@ -183,6 +183,15 @@ namespace SDG.Unturned
 				return;
 			}
 
+			MobileNPCAdaptiveMemory adaptiveMemory = GetComponent<MobileNPCAdaptiveMemory>();
+			MobileNPCAdaptiveMemory.ExperienceKind shotContext = targetPlayer != null
+				? MobileNPCAdaptiveMemory.ExperienceKind.FireAtPlayer
+				: targetZombie != null ? MobileNPCAdaptiveMemory.ExperienceKind.FireAtZombie
+				: MobileNPCAdaptiveMemory.ExperienceKind.FireAtHostileNPC;
+			// Local contextual experience can modestly change the fire cadence, never
+			// grant perfect aim, unlimited ammo, target visibility or permission to shoot.
+			float learnedCadence = adaptiveMemory != null
+				? adaptiveMemory.GetShotCadenceMultiplier(shotContext, transform.position) : 1f;
 			Vector3 muzzle = transform.position + Vector3.up * muzzleHeight;
 			Vector3 targetPoint = targetTransform.position + Vector3.up * targetHeight;
 			Vector3 toTarget = targetPoint - muzzle;
@@ -234,12 +243,12 @@ namespace SDG.Unturned
 				waitingForBurstPause = true;
 				nextShotTime = Time.time + Random.Range(
 					Mathf.Min(minimumBurstPause, maximumBurstPause),
-					Mathf.Max(minimumBurstPause, maximumBurstPause));
+					Mathf.Max(minimumBurstPause, maximumBurstPause)) * learnedCadence;
 			}
 			else
 			{
 				float intervalScale = Random.Range(1f - shotIntervalJitter, 1f + shotIntervalJitter);
-				nextShotTime = Time.time + Mathf.Max(0.05f, GetSecondsPerShot() * intervalScale);
+				nextShotTime = Time.time + Mathf.Max(0.05f, GetSecondsPerShot() * intervalScale * learnedCadence);
 			}
 
 			// Find the nearest external collider without allocating a per-shot array or sorting all hits.
@@ -278,6 +287,7 @@ namespace SDG.Unturned
 				}
 			}
 
+			bool contactedSelectedTarget = false;
 			if (!float.IsPositiveInfinity(nearestHitDistance))
 			{
 				RaycastHit hit = nearestHit;
@@ -299,6 +309,8 @@ namespace SDG.Unturned
 					parameters.respectArmor = true;
 					EPlayerKill kill;
 					DamageTool.damagePlayer(parameters, out kill);
+					// Valid physical contact, not a guarantee of an unarmored kill.
+					contactedSelectedTarget = true;
 				}
 				else if (targetNPC != null)
 				{
@@ -309,7 +321,7 @@ namespace SDG.Unturned
 						&& MobileNPCHumanoidDisposition.AreHostile(ownDisposition, hitNPC))
 					{
 						float hitDamage = GetWeaponDamage();
-						hitVitals.ApplyDamage(hitDamage, shotDirection * hitDamage, transform);
+						contactedSelectedTarget = hitVitals.ApplyDamage(hitDamage, shotDirection * hitDamage, transform);
 					}
 				}
 				else if (targetZombie != null)
@@ -321,9 +333,15 @@ namespace SDG.Unturned
 						int roundedDamage = Mathf.Clamp(Mathf.RoundToInt(GetWeaponDamage()), 1, ushort.MaxValue);
 						hitZombie.askDamage((ushort)roundedDamage, shotDirection * roundedDamage,
 							out _, out _, trackKill: false, dropLoot: true);
+						contactedSelectedTarget = true;
 					}
 				}
 			}
+
+			// Only a committed, ammo-accounted shot produces feedback. Misses, obstruction
+			// and validated target contact are distinguishable; no hidden hit oracle is used.
+			if (adaptiveMemory != null)
+				adaptiveMemory.RecordOwnOutcomeServer(shotContext, transform.position, contactedSelectedTarget);
 
 			// Gunfire is a world stimulus: vanilla zombies investigate the shot position
 			// regardless of which mobile faction fired it.
