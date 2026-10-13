@@ -349,6 +349,7 @@ namespace SDG.Unturned
 			}
 
 			bool waitingForDoorToOpen = false;
+			bool waitingForLearnedAccess = false;
 			bool hasDestination = hasBrainDestination || hasRoamingDestination;
 			Vector3 destination = hasBrainDestination ? brainDriver.Destination : roamingDestination;
 			if (!hasDestination)
@@ -410,7 +411,6 @@ namespace SDG.Unturned
 				// then traverse the individually verified remembered connector.
 				// Pending async A* to the entrance must not be cancelled by an
 				// unrelated request to the final upstairs destination.
-				bool waitingForLearnedAccess = false;
 				if (!isUnderwater && routeWaypoints.Count == 0 && !hasDetourWaypoint)
 					TryBuildKnownFloorAccessRoute(destination, out waitingForLearnedAccess);
 				// Ask for a map-wide path before the NPC gets close enough to collide with
@@ -514,9 +514,13 @@ namespace SDG.Unturned
 					hasDetourWaypoint = false;
 					nextDetourAttemptTime = Time.time + 0.3f;
 				}
+				// Do not march blindly through a wall while native A* is
+				// still calculating an approach to the known doorway/stair.
+				// Brain goal and combat remain active while locomotion pauses.
 				Vector3 movementDestination = routeWaypointIndex < routeWaypoints.Count
 					? routeWaypoints[routeWaypointIndex]
-					: (hasDetourWaypoint ? detourWaypoint : destination);
+					: (hasDetourWaypoint ? detourWaypoint
+						: (waitingForLearnedAccess ? transform.position : destination));
 
 				// Routes are snapshots of the scene. If a door closes or an entity blocks
 				// the next segment after planning, discard the stale route and try again
@@ -569,7 +573,8 @@ namespace SDG.Unturned
 
 				Vector3 goalOffset = destination - transform.position;
 				goalOffset.y = 0f;
-				if (!hasDetourWaypoint && routeWaypoints.Count == 0
+				if (!waitingForLearnedAccess && !hasDetourWaypoint
+					&& routeWaypoints.Count == 0
 					&& goalOffset.sqrMagnitude > stoppingDistance * stoppingDistance
 					&& Time.time >= nextDetourAttemptTime
 					&& IsObstacleBlocking(goalOffset.normalized))
@@ -638,7 +643,7 @@ namespace SDG.Unturned
 			// A suspicious footstep can suspend walking briefly while the survivor
 			// listens. A confirmed threat or retreat pre-empts this immediately.
 			if (brainDriver.IsListening || brainDriver.IsAmbushPreparing
-				|| waitingForDoorToOpen)
+				|| waitingForDoorToOpen || waitingForLearnedAccess)
 				planarDirection = Vector3.zero;
 
 			bool wantedToMove = planarDirection.sqrMagnitude > 0.0001f;
