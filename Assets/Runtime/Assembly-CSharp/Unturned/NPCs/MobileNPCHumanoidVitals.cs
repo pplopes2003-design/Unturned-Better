@@ -260,6 +260,10 @@ namespace SDG.Unturned
 				DisableOnDeath<MobileNPCSettlementPlanner>();
 				DisableOnDeath<MobileNPCSettlementBuilder>();
 				DisableOnDeath<MobileNPCRangedPresentation>();
+				DisableOnDeath<MobileNPCTacticalCombatBehavior>();
+				DisableOnDeath<MobileNPCCompanionContract>();
+				DisableOnDeath<MobileNPCMedicalBehavior>();
+				DisableOnDeath<MobileNPCInjurySystem>();
 				DisableOnDeath<MobileNPCNameplate>();
 				DisableOnDeath<MobileNPCVisualGuard>();
 			}
