@@ -220,7 +220,8 @@ namespace SDG.Unturned
 				|| float.IsNaN(position.x) || float.IsInfinity(position.x)
 				|| float.IsNaN(position.y) || float.IsInfinity(position.y)
 				|| float.IsNaN(position.z) || float.IsInfinity(position.z)
-				|| !Regions.checkSafe(position))
+				|| !Regions.checkSafe(position)
+				|| !Level.checkSafeIncludingClipVolumes(position))
 				return false;
 
 			ItemAsset asset = item.GetAsset();
@@ -239,6 +240,7 @@ namespace SDG.Unturned
 			bool shouldAllow = true;
 			onServerSpawningItemDrop?.Invoke(item, ref position, ref shouldAllow);
 			if (!shouldAllow || !Regions.checkSafe(position)
+				|| !Level.checkSafeIncludingClipVolumes(position)
 				|| !Regions.tryGetCoordinate(position, out byte x, out byte y)
 				|| regions[x, y] == null)
 				return false;
