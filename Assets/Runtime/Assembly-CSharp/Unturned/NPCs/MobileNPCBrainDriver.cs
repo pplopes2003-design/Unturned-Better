@@ -97,12 +97,14 @@ namespace SDG.Unturned
 
 		private float nextFootstepInvestigationAt;
 		private float listenUntil;
+		private Vector3 listeningClue;
 
 		/// <summary>Briefly stop and crouch to discriminate an uncertain sound before searching.</summary>
 		public bool IsListening => Provider.isServer && hasInitialized && Time.time < listenUntil
 			&& brain != null && brain.CurrentState != MobileNPCBrain.State.Pursuing
 			&& tactics != null && tactics.CurrentGoal != MobileNPCTactics.Goal.Retreat
 			&& tactics.CurrentGoal != MobileNPCTactics.Goal.SeekCover;
+		public Vector3 ListeningClue => listeningClue;
 
 		/// <summary>
 		/// Respond to an audible *approximate* clue. This never assigns a visible
@@ -129,6 +131,7 @@ namespace SDG.Unturned
 			float clarity = Mathf.Clamp01(confidence);
 			nextFootstepInvestigationAt = Time.time + Mathf.Lerp(4f, 2.5f, clarity);
 			listenUntil = Time.time + Mathf.Lerp(1.4f, 0.55f, clarity);
+			listeningClue = approximatePosition;
 			playerKnowledge.ObserveSound(approximatePosition, clarity, Time.time);
 			if (clarity >= 0.25f)
 			{
