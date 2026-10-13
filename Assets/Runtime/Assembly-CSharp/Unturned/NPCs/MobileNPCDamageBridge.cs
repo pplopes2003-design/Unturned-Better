@@ -51,14 +51,9 @@ namespace SDG.Unturned
 			if (vitals == null || vitals.IsDead)
 				return false;
 
-			// Keep attribution and injury processing in one validated damage operation.
-			// Injury metadata is recorded by the vitals component before health is deducted.
-			if (!vitals.ApplyDamageToPart(damage, bodyPart, causeBleeding, causeFracture, severity, hitImpulse))
-				return false;
-
-			// ApplyDamageToPart currently has no attacker overload, so attribution is handled
-			// by the normal API in the non-limb path. Avoid applying health damage twice here.
-			return true;
+			// Injury metadata and health loss are committed once, with the attacker preserved.
+			return vitals.ApplyDamageToPart(damage, bodyPart, causeBleeding, causeFracture,
+				severity, hitImpulse, attacker);
 		}
 	}
 }
