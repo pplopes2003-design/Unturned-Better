@@ -355,9 +355,12 @@ namespace SDG.Unturned
 
 			bool shouldRun = runWhenPursuing && brainDriver.CurrentState == MobileNPCBrain.State.Pursuing
 				|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat;
+			float injuryMovementMultiplier = injurySystem != null ? injurySystem.MovementMultiplier : 1f;
+			// A fractured leg is a walking/limping state, not a full-speed sprint animation.
+			if (injuryMovementMultiplier <= 0.5f)
+				shouldRun = false;
 			float speed = shouldRun ? runSpeed : walkSpeed;
-			if (injurySystem != null)
-				speed *= injurySystem.MovementMultiplier;
+			speed *= injuryMovementMultiplier;
 			Vector3 motion = planarDirection * speed;
 
 			// Match the player's grounded handling: CharacterController.isGrounded alone can be
