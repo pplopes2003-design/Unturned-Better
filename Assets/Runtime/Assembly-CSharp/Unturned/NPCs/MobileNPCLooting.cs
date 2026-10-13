@@ -73,7 +73,8 @@ namespace SDG.Unturned
 			{
 				if ((targetPosition - transform.position).sqrMagnitude <= pickupDistance * pickupDistance)
 				{
-					bool pickedUp = inventory.TryPickupWorldItemServer(targetInstanceID, transform.position, pickupDistance + 0.5f);
+					uint attemptedInstanceID = targetInstanceID;
+					bool pickedUp = inventory.TryPickupWorldItemServer(attemptedInstanceID, transform.position, pickupDistance + 0.5f);
 					ClearTarget();
 					// Both success and failure must finish the loot goal. Failed transfers
 					// are retried only after the bounded scan cooldown, not every frame.
