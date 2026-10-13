@@ -102,6 +102,8 @@ namespace SDG.Unturned
 		private Vector3 plannedJumpDestinationSnapshot;
 		private float plannedJumpStartedAt;
 		private float suppressJourneyUntil;
+		private float nextPlannedJumpProbeTime;
+		private static float nextSharedPlannedJumpProbeSlot;
 		public bool IsJumping => isPlannedJumping || (velocity.y > 0.5f
 			&& characterController != null && !characterController.isGrounded);
 		private float nextFootstepNoiseAt;
@@ -269,6 +271,7 @@ namespace SDG.Unturned
 			plannedJumpDirection = Vector3.zero;
 			plannedJumpDestinationSnapshot = Vector3.zero;
 			suppressJourneyUntil = 0f;
+			nextPlannedJumpProbeTime = 0f;
 			nextLocalRoutePlanTime = 0f;
 			nextVerticalRoutePlanTime = 0f;
 			consecutiveVerticalPlanFailures = 0;
@@ -891,8 +894,14 @@ namespace SDG.Unturned
 		{
 			if (!Provider.isServer || isPlannedJumping || characterController == null
 				|| !characterController.enabled || Time.time < nextJumpTime
+				|| Time.time < nextPlannedJumpProbeTime
+				|| Time.time < nextSharedPlannedJumpProbeSlot
 				|| physicallyCrouched)
 				return false;
+			// Only one full ballistic validation begins every 0.10s across
+			// the population, and each individual waits 0.75s after a probe.
+			nextSharedPlannedJumpProbeSlot = Time.time + 0.10f;
+			nextPlannedJumpProbeTime = Time.time + 0.75f;
 			desired.y = 0f;
 			if (desired.sqrMagnitude < 0.6f)
 				return false;
@@ -1012,20 +1021,6 @@ namespace SDG.Unturned
 			return true;
 		}
 
-		private bool ShouldJumpOverLowObstacle(Vector3 direction)
-		{
-			direction.y = 0f;
-			if (direction.sqrMagnitude < 0.01f)
-				return false;
-			direction.Normalize();
-			Vector3 lower = transform.position + Vector3.up * 0.28f;
-			Vector3 upper = transform.position + Vector3.up * 1.25f;
-			float distance = Mathf.Max(0.7f, characterController.radius + 0.45f);
-			// Check only world obstacles, excluding our own hitbox.
-			bool lowHit = IsObstacleBlockingAlong(lower, 0.12f, direction, distance);
-			bool highHit = IsObstacleBlockingAlong(upper, 0.12f, direction, distance);
-			return lowHit && !highHit && HasWalkableGroundAhead(direction);
-		}
 
 		/// <summary>
 		/// Mirrors PlayerMovement.checkGround: short sphere cast against the game's
