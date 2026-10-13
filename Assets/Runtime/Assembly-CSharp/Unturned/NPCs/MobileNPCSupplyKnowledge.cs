@@ -9,10 +9,10 @@ using UnityEngine;
 namespace SDG.Unturned
 {
     /// <summary>
-    /// Individual, bounded associative memory of where an ACTUAL server-validated
-    /// magazine was picked up. Compatibility with an owned gun is checked against
-    /// native ItemGunAsset / ItemMagazineAsset calibers, never a guessed item name.
-    /// A memory is a search hypothesis, not proof that loot currently respawned.
+    /// Individual, bounded associative memory of ACTUAL world-item pickups:
+    /// medicine, food, water, equipment, compatible magazines and construction
+    /// supplies. Current demand determines which memory is useful. Site visits
+    /// never guarantee loot has respawned, and no map loot database is revealed.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class MobileNPCSupplyKnowledge : MonoBehaviour
@@ -20,7 +20,8 @@ namespace SDG.Unturned
         [Serializable]
         public sealed class SiteRecord
         {
-            public int magazineID;
+            public int magazineID; // v4 legacy serialized magazine record; v5 reads this as itemID
+            public int itemID;
             public float x;
             public float y;
             public float z;
@@ -30,7 +31,7 @@ namespace SDG.Unturned
 
         public struct SpokenSiteLesson
         {
-            public ushort MagazineID;
+            public ushort ItemID;
             public Vector3 ApproximateLocation;
             public int Sequence;
         }
@@ -51,15 +52,18 @@ namespace SDG.Unturned
         }
 
         /// <summary>
-        /// Only call AFTER ItemManager confirms an actual transfer and the NPC owns
-        /// the transferred item. Nearby visible items are NOT memorized as finds.
+        /// Only call AFTER ItemManager confirms an actual transfer. Never learn by
+        /// seeing nearby drops, inspecting unloaded buildings or guessing loot.
         /// </summary>
         public bool RecordSuccessfulPickupServer(ushort itemID, byte loadedRounds, Vector3 worldPosition)
         {
-            if (!IsAliveServer() || loadedRounds == 0 || !ValidPosition(worldPosition))
+            if (!IsAliveServer() || loadedRounds == 0 || itemID == 0 || !ValidPosition(worldPosition))
                 return false;
-            ItemMagazineAsset magazine = Assets.find(EAssetType.ITEM, itemID) as ItemMagazineAsset;
-            if (magazine == null || magazine.MaxAmountAsByte == 0)
+            ItemAsset itemAsset = Assets.find(EAssetType.ITEM, itemID) as ItemAsset;
+            if (itemAsset == null)
+                return false;
+            // An empty magazine isn't proof the site yields useful ammunition.
+            if (itemAsset is ItemMagazineAsset magazine && magazine.MaxAmountAsByte == 0)
                 return false;
 
             SiteRecord site = FindSite(itemID, worldPosition);
@@ -69,7 +73,7 @@ namespace SDG.Unturned
                     EvictLeastUsefulSite();
                 site = new SiteRecord
                 {
-                    magazineID = itemID,
+                    itemID = itemID,
                     x = worldPosition.x,
                     y = worldPosition.y,
                     z = worldPosition.z
@@ -86,7 +90,7 @@ namespace SDG.Unturned
             hasPendingLesson = true;
             pendingLesson = new SpokenSiteLesson
             {
-                MagazineID = itemID,
+                ItemID = itemID,
                 ApproximateLocation = new Vector3(site.x, site.y, site.z),
                 Sequence = nextLessonSequence
             };
@@ -94,11 +98,11 @@ namespace SDG.Unturned
         }
 
         /// <summary>One failed physical visit reduces confidence, not erases the site.</summary>
-        public void RecordUnsuccessfulVisitServer(ushort magazineID, Vector3 sitePosition)
+        public void RecordUnsuccessfulVisitServer(ushort itemID, Vector3 sitePosition)
         {
             if (!IsAliveServer())
                 return;
-            SiteRecord site = FindSite(magazineID, sitePosition);
+            SiteRecord site = FindSite(itemID, sitePosition);
             if (site != null)
                 site.failedVisits = Mathf.Min(12f, site.failedVisits + 1f);
         }
@@ -121,9 +125,10 @@ namespace SDG.Unturned
             for (int i = 0; i < sites.Count; ++i)
             {
                 SiteRecord site = sites[i];
-                if (site == null || site.magazineID <= 0 || site.magazineID > ushort.MaxValue)
+                int siteItemID = ResolveItemID(site);
+                if (siteItemID <= 0 || siteItemID > ushort.MaxValue)
                     continue;
-                ItemMagazineAsset magazine = Assets.find(EAssetType.ITEM, (ushort)site.magazineID) as ItemMagazineAsset;
+                ItemMagazineAsset magazine = Assets.find(EAssetType.ITEM, (ushort)siteItemID) as ItemMagazineAsset;
                 if (magazine == null || magazine.MaxAmountAsByte == 0
                     || magazine.calibers == null || magazine.calibers.Length == 0
                     || !magazine.CalibersContainAnyOfIds(gun.magazineCalibers))
@@ -142,7 +147,7 @@ namespace SDG.Unturned
                 {
                     bestUtility = utility;
                     suggestedPosition = knownPlace;
-                    magazineID = (ushort)site.magazineID;
+                    magazineID = (ushort)siteItemID;
                 }
             }
             return magazineID != 0;
@@ -169,18 +174,18 @@ namespace SDG.Unturned
         /// </summary>
         public bool ReceiveSpokenSiteLessonServer(SpokenSiteLesson lesson)
         {
-            if (!IsAliveServer() || lesson.MagazineID == 0 || !ValidPosition(lesson.ApproximateLocation)
-                || !(Assets.find(EAssetType.ITEM, lesson.MagazineID) is ItemMagazineAsset))
+            if (!IsAliveServer() || lesson.ItemID == 0 || !ValidPosition(lesson.ApproximateLocation)
+                || !(Assets.find(EAssetType.ITEM, lesson.ItemID) is ItemAsset))
                 return false;
 
-            SiteRecord site = FindSite(lesson.MagazineID, lesson.ApproximateLocation);
+            SiteRecord site = FindSite(lesson.ItemID, lesson.ApproximateLocation);
             if (site == null)
             {
                 if (sites.Count >= MaximumSites)
                     EvictLeastUsefulSite();
                 site = new SiteRecord
                 {
-                    magazineID = lesson.MagazineID,
+                    itemID = lesson.ItemID,
                     x = lesson.ApproximateLocation.x,
                     y = lesson.ApproximateLocation.y,
                     z = lesson.ApproximateLocation.z
@@ -214,8 +219,8 @@ namespace SDG.Unturned
             {
                 SiteRecord site = snapshot[i];
                 if (!ValidRecord(site)
-                    || !(Assets.find(EAssetType.ITEM, (ushort)site.magazineID) is ItemMagazineAsset)
-                    || FindSite((ushort)site.magazineID, new Vector3(site.x, site.y, site.z)) != null)
+                    || !(Assets.find(EAssetType.ITEM, (ushort)ResolveItemID(site)) is ItemAsset)
+                    || FindSite((ushort)ResolveItemID(site), new Vector3(site.x, site.y, site.z)) != null)
                     continue;
                 sites.Add(Clone(site));
             }
@@ -239,7 +244,7 @@ namespace SDG.Unturned
             for (int i = 0; i < sites.Count; ++i)
             {
                 SiteRecord site = sites[i];
-                if (site == null || site.magazineID != itemID)
+                if (site == null || ResolveItemID(site) != itemID)
                     continue;
                 Vector3 knownPlace = new Vector3(site.x, site.y, site.z);
                 Vector3 delta = knownPlace - position;
@@ -248,6 +253,124 @@ namespace SDG.Unturned
                     return site;
             }
             return null;
+        }
+
+        /// <summary>
+        /// Demand-weighted memory search for supplies the actor can actually use
+        /// now. Native item category and magazine caliber constrain usefulness.
+        /// Future systems can add more needs without teaching hidden spawn tables.
+        /// </summary>
+        public bool TrySuggestNeededSupplySiteServer(MobileNPCInventory inventory,
+            MobileNPCHumanoidVitals health, MobileNPCInjurySystem injuries,
+            MobileNPCSurvivalNeeds survival, Vector3 from,
+            out Vector3 position, out ushort itemID)
+        {
+            position = Vector3.zero;
+            itemID = 0;
+            if (!IsAliveServer() || inventory == null || !ValidPosition(from))
+                return false;
+
+            ItemGunAsset ownedGun = null;
+            Item gunSnapshot = null;
+            inventory.TryGetBestGun(out gunSnapshot, out ownedGun);
+            float bestUtility = float.NegativeInfinity;
+            for (int i = 0; i < sites.Count; ++i)
+            {
+                SiteRecord site = sites[i];
+                int candidateID = ResolveItemID(site);
+                if (candidateID <= 0 || candidateID > ushort.MaxValue)
+                    continue;
+                ItemAsset asset = Assets.find(EAssetType.ITEM, (ushort)candidateID) as ItemAsset;
+                if (asset == null)
+                    continue;
+                float need = GetCurrentItemNeed(asset, inventory, health, injuries,
+                    survival, gunSnapshot, ownedGun);
+                if (need <= 0f)
+                    continue;
+
+                Vector3 remembered = new Vector3(site.x, site.y, site.z);
+                float distance = Vector3.Distance(from, remembered);
+                if (distance < 12f || distance > 240f)
+                    continue;
+                float confidence = (site.finds + 1f) /
+                    (site.finds + site.failedVisits + 2f);
+                if (confidence < 0.28f)
+                    continue;
+                float utility = need * confidence - distance * 0.2f;
+                if (utility > bestUtility)
+                {
+                    bestUtility = utility;
+                    position = remembered;
+                    itemID = (ushort)candidateID;
+                }
+            }
+            return itemID != 0;
+        }
+
+        /// <summary>
+        /// Strictly need-driven utility. Never schedule a trip merely because an
+        /// object is known. Medical care, hydration and hunger outrank nonessential
+        /// spare equipment; compatible magazines use the vanilla caliber list.
+        /// </summary>
+        private static float GetCurrentItemNeed(ItemAsset asset,
+            MobileNPCInventory inventory, MobileNPCHumanoidVitals health,
+            MobileNPCInjurySystem injuries, MobileNPCSurvivalNeeds survival,
+            Item heldGun, ItemGunAsset gun)
+        {
+            switch (asset.type)
+            {
+                case EItemType.MEDICAL:
+                    if (inventory.CountItemType(EItemType.MEDICAL) > 0)
+                        return 0f;
+                    bool bleeding = injuries != null
+                        && injuries.CurrentBleeding != MobileNPCInjurySystem.BleedingSeverity.None;
+                    bool hurt = health != null && health.HealthFraction < 0.68f;
+                    return bleeding ? 145f : hurt ? 115f : 0f;
+                case EItemType.FOOD:
+                    return survival != null && survival.NeedsFood
+                        && inventory.CountItemType(EItemType.FOOD) == 0 ? 92f : 0f;
+                case EItemType.WATER:
+                    return survival != null && survival.NeedsWater
+                        && inventory.CountItemType(EItemType.WATER) == 0 ? 110f : 0f;
+                case EItemType.MAGAZINE:
+                {
+                    ItemMagazineAsset magazine = asset as ItemMagazineAsset;
+                    if (gun == null || heldGun == null || heldGun.state == null
+                        || heldGun.state.Length < 11 || heldGun.state[10] > 8
+                        || magazine == null || magazine.MaxAmountAsByte == 0
+                        || magazine.calibers == null || gun.magazineCalibers == null
+                        || !magazine.CalibersContainAnyOfIds(gun.magazineCalibers)
+                        || inventory.TryFindCompatibleMagazine(gun,
+                            out int spareSlot, out ItemMagazineAsset spareAsset))
+                        return 0f;
+                    return 90f;
+                }
+                case EItemType.GUN:
+                    return inventory.CountItemType(EItemType.GUN) == 0 ? 98f : 0f;
+                case EItemType.MELEE:
+                    return inventory.CountItemType(EItemType.GUN) == 0
+                        && inventory.CountItemType(EItemType.MELEE) == 0 ? 80f : 0f;
+                case EItemType.BACKPACK:
+                case EItemType.VEST:
+                    return inventory.CountItemType(asset.type) == 0 ? 45f : 0f;
+                case EItemType.SHIRT:
+                case EItemType.PANTS:
+                    // A future clothing-to-rags native crafting policy may use this
+                    // remembered location. Don't make a dangerous medical trip just
+                    // because any clothing could potentially be torn into rags.
+                    return inventory.CountItemType(asset.type) == 0 ? 25f : 0f;
+                case EItemType.BARRICADE:
+                case EItemType.STORAGE:
+                case EItemType.STRUCTURE:
+                    return inventory.CountItemType(asset.type) == 0 ? 35f : 0f;
+                default:
+                    return 0f;
+            }
+        }
+
+        private static int ResolveItemID(SiteRecord site)
+        {
+            return site == null ? 0 : site.itemID > 0 ? site.itemID : site.magazineID;
         }
 
         private void EvictLeastUsefulSite()
@@ -272,6 +395,7 @@ namespace SDG.Unturned
             return new SiteRecord
             {
                 magazineID = source.magazineID,
+                itemID = source.itemID,
                 x = source.x, y = source.y, z = source.z,
                 finds = source.finds, failedVisits = source.failedVisits
             };
@@ -279,7 +403,7 @@ namespace SDG.Unturned
 
         private static bool ValidRecord(SiteRecord site)
         {
-            return site != null && site.magazineID > 0 && site.magazineID <= ushort.MaxValue
+            return site != null && ResolveItemID(site) > 0 && ResolveItemID(site) <= ushort.MaxValue
                 && ValidPosition(new Vector3(site.x, site.y, site.z))
                 && !float.IsNaN(site.finds) && !float.IsInfinity(site.finds)
                 && !float.IsNaN(site.failedVisits) && !float.IsInfinity(site.failedVisits)
