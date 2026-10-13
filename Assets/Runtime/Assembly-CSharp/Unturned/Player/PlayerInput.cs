@@ -506,8 +506,9 @@ namespace SDG.Unturned
 						writer.WriteUInt32(info.vehicle.instanceID);
 						writer.WriteTransform(info.collider?.transform);
 					}
-					else if (info.collider != null &&
-						info.collider.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
+					else if ((info.collider != null
+							? info.collider.transform : info.transform) is Transform mobileHitTransform
+						&& mobileHitTransform.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
 					{
 						// No unsynchronized runtime Transform in network packets.
 						writer.WriteEnum(ERaycastInfoType.MOBILE_NPC);
