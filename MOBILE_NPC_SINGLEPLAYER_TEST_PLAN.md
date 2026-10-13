@@ -397,3 +397,17 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 
 
 - [ ] Verificar `24ba6037`: NPC aprende trajeto que começa dentro de uma sala, passa 8–10m pelo corredor e então sobe escada. Ao procurar o acesso conhecido de outra sala, deve buscar **último ponto observado antes da subida**, não a posição inicial arbitrária daquela viagem. Nunca inventar um conector quando não existe variação de altura comprovada nos passos.
+
+
+## 28. NAV-ACCESS-01 resumed — chaining observed stair with observed upper-room corridor (FINAL DEV BUILD ONLY)
+
+- [ ] Same living NPC completes journey A from floor 1 through real staircase to landing on floor 2; separately completes journey B from near landing along hallway to upstairs room. Position this survivor in a different downstairs room with matching upper-room goal. Motor must physically approach remembered stair entrance, walk stair A and corridor B, then reach the actual goal. Intermediate entrance/landing never satisfies brain destination.
+- [ ] Survivor has experienced ONLY stair A, but final upstairs goal is 5–15m from exit with no known second segment. It must **not** claim that a corridor exists or skip wall/door; try other valid navigation or keep goal pending.
+- [ ] Add a wall or locked native door along the approach from the new downstairs room: no fake passage, and previous stair A and corridor B confidence must remain unchanged if the motor never reached their learned segments.
+- [ ] Block the actual staircase only: reduce confidence of A, not B; block only upper-floor learned corridor: reduce confidence of B, not A. Re-check record selection after repeated failures.
+- [ ] Goal changed or survivor falls and is safety-repositioned while following composed trip: clear both active route references, no penalties to future unrelated route, no recording teleport as genuine walked knowledge.
+- [ ] Test same destinations in **reverse direction** without separate firsthand reverse trip: no inferred reversed stairs/corridors. NPC may use real native A* separately if available.
+- [ ] Two learned corridors available from stair landing: only physically compatible and verified one may be selected. Changing map geometry after learning forces fresh segment validation; no invisible floor paths.
+- [ ] Validate memory v6 save/reload of the SAME living NPC and full memory loss on death; newly generated substitute or ally does not inherit route segments. No magical sharing through group/radio.
+- [ ] Native A* missing/pending: near entrance local route may still work, far entrance remains unresolved; no ping-pong between pending entrance request and final-goal request.
+- [ ] Profile 1, 4, 20 and 40 active NPCs, recording extra raycasts / 104 max composed waypoints, time to find entrances, incorrect early ReportDestinationReached events, CPU, GC and logs. Source only until final user Dev Build/Player.log.
