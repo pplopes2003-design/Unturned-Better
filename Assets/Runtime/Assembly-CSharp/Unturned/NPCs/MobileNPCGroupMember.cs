@@ -41,6 +41,9 @@ namespace SDG.Unturned
 		private MobileNPCHumanoidDisposition disposition;
 		private bool initialized;
 		private bool leftGroup;
+		private float nextContactBroadcastAt;
+		private const float ContactVoiceRange = 35f;
+		private const float ContactBroadcastCooldown = 4f;
 
 		public int GroupId { get; private set; }
 		public Vector3 GroupAnchor { get; private set; }
@@ -116,6 +119,52 @@ namespace SDG.Unturned
 			RemoveFromCurrentGroupServer(false);
 			initialized = false;
 			InitializeServer();
+		}
+
+		/// <summary>
+		/// A living member verbally reports a freshly seen hostile player to
+		/// nearby living members of its *own* group. Reports are intentionally
+		/// approximate, short-lived hints: recipients never inherit a visible
+		/// target, weapon firing authorization or the player's live Transform.
+		/// </summary>
+		public void BroadcastPlayerContactServer(Vector3 observedPosition)
+		{
+			if (!Provider.isServer || !initialized || leftGroup || GroupId <= 0
+				|| Time.time < nextContactBroadcastAt
+				|| vitals != null && vitals.IsDead
+				|| !groups.TryGetValue(GroupId, out GroupRecord group)
+				|| group.Faction != GetCurrentFaction(disposition != null
+					? disposition.CurrentRole : MobileNPCHumanoidDisposition.Role.Neutral)
+				|| !IsFinitePosition(observedPosition))
+				return;
+
+			nextContactBroadcastAt = Time.time + ContactBroadcastCooldown;
+			foreach (MobileNPCGroupMember ally in group.Members)
+			{
+				if (ally == null || ally == this || !ally.initialized || ally.leftGroup
+					|| ally.vitals != null && ally.vitals.IsDead)
+					continue;
+				Vector3 toAlly = ally.transform.position - transform.position;
+				if (toAlly.sqrMagnitude > ContactVoiceRange * ContactVoiceRange)
+					continue;
+
+				MobileNPCBrainDriver allyBrain = ally.GetComponent<MobileNPCBrainDriver>();
+				if (allyBrain == null)
+					continue;
+
+				// Verbal bearing is inherently uncertain. Individual listeners
+				// receive different estimates, never perfect synchronized tracking.
+				Vector2 error = Random.insideUnitCircle * Random.Range(1.5f, 4.5f);
+				Vector3 clue = observedPosition + new Vector3(error.x, 0f, error.y);
+				allyBrain.ReportGroupPlayerContactClue(clue, 0.6f);
+			}
+		}
+
+		private static bool IsFinitePosition(Vector3 value)
+		{
+			return !float.IsNaN(value.x) && !float.IsInfinity(value.x)
+				&& !float.IsNaN(value.y) && !float.IsInfinity(value.y)
+				&& !float.IsNaN(value.z) && !float.IsInfinity(value.z);
 		}
 
 		/// <summary>Moves the living group's shared home anchor when its planner chooses a base site.</summary>
