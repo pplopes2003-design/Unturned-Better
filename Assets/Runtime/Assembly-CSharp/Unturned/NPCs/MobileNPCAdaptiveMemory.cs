@@ -23,7 +23,8 @@ namespace SDG.Unturned
             LootAccess = 0,
             FireAtPlayer = 1,
             FireAtZombie = 2,
-            FireAtHostileNPC = 3
+            FireAtHostileNPC = 3,
+            CoverAccess = 4
         }
 
         [Serializable]
@@ -135,6 +136,19 @@ namespace SDG.Unturned
             // Bayesian prior avoids making one unlucky attempt a permanent blacklist.
             float signedEvidence = record.positiveEvidence - record.negativeEvidence;
             return Mathf.Clamp(signedEvidence * 5f, -24f, 8f);
+        }
+
+        /// <summary>
+        /// Route experience can influence which *already geometry-validated* cover
+        /// waypoint the NPC attempts first. An old failure is a weak preference,
+        /// never an assertion that new world construction makes a route impossible.
+        /// </summary>
+        public float GetCoverAccessAdjustment(Vector3 place)
+        {
+            ExperienceRecord record = FindRecord(ExperienceKind.CoverAccess, place);
+            if (record == null)
+                return 0f;
+            return Mathf.Clamp((record.positiveEvidence - record.negativeEvidence) * 5f, -24f, 8f);
         }
 
         /// <summary>
@@ -281,7 +295,7 @@ namespace SDG.Unturned
         private static bool ValidRecord(ExperienceRecord r)
         {
             return r.kind >= (int)ExperienceKind.LootAccess
-                && r.kind <= (int)ExperienceKind.FireAtHostileNPC
+                && r.kind <= (int)ExperienceKind.CoverAccess
                 && r.sectorX > -50000 && r.sectorX < 50000
                 && r.sectorZ > -50000 && r.sectorZ < 50000
                 && !float.IsNaN(r.positiveEvidence) && !float.IsInfinity(r.positiveEvidence)
@@ -293,7 +307,7 @@ namespace SDG.Unturned
 
         private static bool ValidKind(ExperienceKind kind)
         {
-            return kind >= ExperienceKind.LootAccess && kind <= ExperienceKind.FireAtHostileNPC;
+            return kind >= ExperienceKind.LootAccess && kind <= ExperienceKind.CoverAccess;
         }
 
         private static bool ValidPosition(Vector3 place)
