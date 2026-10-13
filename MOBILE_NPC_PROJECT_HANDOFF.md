@@ -457,3 +457,46 @@ Other outstanding: build/compilation; damage/death/corpse/respawn; navigation (c
 ### Suggested next implementation step
 
 After verifying no compilation blockers, implement genuine **squad role coordination** (a lookout reports a sector, a suppressor with a valid firearm/ammo maintains limited fire ONLY with appropriate line-of-fire safety, and a flanker advances to a verified safe waypoint). Avoid relying on hidden player's current transform. Separately evaluate group-aware ally-safe explosive eligibility, without spawning real grenades until inventory/projectile/throw APIs are verified.
+
+
+## 2026-10-13 — Squad roles and future radio system (LATEST HANDOFF)
+
+**User instructions:** Continue implementing real NPC AI in `feature/npc-ai-foundation`. Update this guide each development round, so other agents and later conversations can resume without guessing. Always report outstanding tasks at the end. A comprehensive AI architecture diagram is requested **only after all major modules are structured**.
+
+**Repo:** `pplopes2003-design/Unturned-Better`; NPC source path `Assets/Runtime/Assembly-CSharp/Unturned/NPCs/`.
+
+### Changes committed this round
+
+- `b470b61dd9357bd14481c708bd9db80c028b2538` — `MobileNPCBrainDriver.TryStartSquadAdvance(Vector3 approximateClue)`: accepts **only an uncertain verbal clue** when the local NPC is in investigation and has no higher-priority tactical destination. Tests four short lateral/forward ground candidates; requires safe ground, a direct corridor free of world obstacles, and environmental concealment from the last reported area. Orders a time-limited `MobileNPCTactics.Goal.Flank` when valid. This is short direct-path candidate validation, **not complete A* reachability**. If none passes, normal investigation continues; no hidden target Transform is read.
+- `bcb4a0b883a4063a6ca3b5a78fe18bccc79ab36a` — `MobileNPCGroupMember` introduces temporary `SquadRole.Covering` / `SquadRole.Advancing`. A member with a currently usable gun and ammo can direct one nearby same-group member who received its uncertain local contact report. The advancing member waits ~1.25s for its listening phase, then attempts `TryStartSquadAdvance`. Role ends after 7s, and membership departure/death clears it. **The covering role is not yet suppressive gunfire**; it only assigns responsibilities while the normal weapon system handles actual visible target firing.
+- `59eab4cb27c343177f6dc26a57ad55533d853fdb` — forbid a single Covering member from simultaneously assigning multiple advancing partners during repeated sighting reports.
+- `312b131e34ae3c9c590e07334102fc3bde26d0cb` — created **`MOBILE_NPC_RADIO_SYSTEM_DESIGN.md`**, the canonical future-radio design: device possession and power requirements, walkie-talkie, placed powered base radio, future vehicle radio, faction/group frequency limits, reinforcements, good loot, airdrops, unknown bases, TTL/confidence, counterplay and exact test checklist. **Radio NOT IMPLEMENTED**.
+
+### System design decision: physical radios, not telepathy
+
+Until implemented and verified, long-range messages MUST NOT work simply due to shared group/faction identity. Sender AND receiver need appropriate physical walkie-talkie, reachable powered fixed radio or a validated vehicle radio, plus channel/range/power/authentication. Fixed radio is an actual future construction objective in the base/settlement planner tied to generator/energy; vehicle radio depends on a separate future NPC vehicle module. Include equipment upkeep, transmission limits, faction filtering, loss-of-power, stale intel and message categories: help/reinforcement, loot, airdrop, previously unknown enemy base and actual target sightings. Do not invent IDs or item APIs. See `MOBILE_NPC_RADIO_SYSTEM_DESIGN.md` for details.
+
+### What is and is not working
+
+- Source code contains observation-to-voice report chain, bounded uncertain memory, `Covering`/`Advancing` role choice, tentative close covered advance, and existing ranged/melee combat. **No new suppressive ammo/volume effect, AI grenade throw, smoke LOS effect, medical squad triage or radio transmission** has been implemented.
+- Re-fetch and basic structural checks of modified source files are possible via GitHub, but **no Unity C# compile or Player Dev Build/in-game tests have been performed in these rounds**. Do not mark runtime behaviors as proven. No automatic game-map navigation/radio range test was run.
+- A squad member advancing toward a reported location still requires original individual visual confirmation to fire. Memory report cannot reveal live hidden player coordinates.
+
+### Remaining work (append and refine each round)
+
+1. **Critical:** compile and run Unity Dev Build, collect Player.log and fix errors; movement, damage/death/ragdoll/corpse/despawn/respawn/loot after death.
+2. **Navigation:** A* reachability beyond straight corridors, building corners/doors, terrain stairs, crouch standing, safe jump/landing, water, dynamic obstacles, real cover.
+3. **Combat:** gun ownership/ammo, accuracy, range/reload, safety/friendly-fire checks, humanized reaction timing, zombie and hostile NPC engagement, combat acoustics.
+4. **Faction/group validation:** hostility and alliances, role/faction changes, correct groups up to four, stable group IDs, dead leader handoff, survivor group lifespan, delayed replacement joining survivors, base ownership/persistence, map unload and rejoin, squad contact no unintended cross-group leak.
+5. **Real squad suppression:** ensure finite ammo, line-of-fire, viable target area and player counterplay, safe fire angles from nearby allies; coordinating an advance is NOT yet actual suppressive fire.
+6. **Frag grenades:** stock/loadout check, ballistic trajectory, explosion timing/radius and **hard ally safety**; only when utility beats alternatives.
+7. **Smoke grenades:** actual opaque LOS/sight/sound effects integrated in AI; advancement/retreat/heal protection, valid item ownership.
+8. **Medic in combat:** patient triage, inventory and route, protection and animation; no resurrection/infinite healing.
+9. **Radio (new user requirement):** physical walkie-talkie, powered placed base radio in settlement builder and later vehicle radios; channel/faction, message TTL and consent, help/reinforcement/loot/airdrop/base intel. See canonical `MOBILE_NPC_RADIO_SYSTEM_DESIGN.md`.
+10. **Vehicles (future):** agent driving/navigation, ownership/fuel/health and radio power, not implemented.
+11. **Stealth/ambush:** real zombie-specific stalking, sound and stance correctness, target rediscovery without X-ray, optics/binoculars/scopes, cover-to-cover reachability.
+12. **UI/presentation:** mouse/HUD/ESC dialogue focus, nameplate, native animations (melee/shoot/reload/hit), audio/ragdoll; native XP attribution and network replication still require work.
+13. **Long-term learning/social intel:** bounded individual experience/skills and knowledge exchanged only via authentic physical conversation/radio; unshared NPC memory lost at death; sophisticated ML optional, not implemented.
+14. **Diagram:** full NPC AI graph after all main modules structured, not prematurely.
+
+**Next practical engineering work:** verify latest code compilation compatibility and test tactical group roles. Then implement conservative suppression with ammo and friendly-sector checks, but do not write a purely cosmetic suppression command; ensure it actually affects player pressure and squad movement only after target evidence.
