@@ -27,7 +27,8 @@ namespace SDG.Unturned
 		private MobileNPCInventory inventory;
 		private MobileNPCAdaptiveMemory adaptiveMemory;
 		private MobileNPCSupplyKnowledge supplyKnowledge;
-		private ushort targetItemID;
+				private ushort targetItemID;
+		private byte targetItemRounds;
 		private bool isRememberedSupplyTrip;
 		private ushort rememberedMagazineID;
 		private Vector3 rememberedSitePosition;
@@ -98,7 +99,7 @@ namespace SDG.Unturned
 					// A remembered ammunition source requires an ACTUAL successful
 					// world-to-inventory transfer, not merely spotting an item.
 					if (pickedUp && supplyKnowledge != null && targetItemID != 0)
-						supplyKnowledge.RecordSuccessfulPickupServer(targetItemID, targetPosition);
+						supplyKnowledge.RecordSuccessfulPickupServer(targetItemID, targetItemRounds, targetPosition);
 					if (pickedUp && isRememberedSupplyTrip && targetItemID == rememberedMagazineID)
 						CancelRememberedSupplyTripServer(false);
 					if (adaptiveMemory != null)
@@ -182,6 +183,8 @@ namespace SDG.Unturned
 			{
 				targetItemID = bestItem.jar != null && bestItem.jar.item != null
 					? bestItem.jar.item.id : (ushort)0;
+				targetItemRounds = bestItem.jar != null && bestItem.jar.item != null
+					? bestItem.jar.item.amount : (byte)0;
 				targetInstanceID = bestID;
 				targetPosition = bestItem.transform.position;
 				hasTarget = true;
@@ -304,7 +307,8 @@ namespace SDG.Unturned
 			}
 			hasTarget = false;
 			targetInstanceID = 0;
-			targetItemID = 0;
+						targetItemID = 0;
+			targetItemRounds = 0;
 		}
 
 		/// <summary>
