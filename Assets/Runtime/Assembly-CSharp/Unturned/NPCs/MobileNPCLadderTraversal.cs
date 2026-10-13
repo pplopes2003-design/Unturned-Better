@@ -27,6 +27,97 @@ namespace SDG.Unturned
         private static float nextSharedAttempt;
         private readonly Collider[] clearanceBuffer = new Collider[24];
         private readonly RaycastHit[] approachBuffer = new RaycastHit[12];
+        private readonly Collider[] surveyedLadders = new Collider[24];
+        private float nextSurvey;
+        private static float nextSharedSurvey;
+
+        /// <summary>
+        /// Find a physically real, directed off-mesh ladder opportunity whose
+        /// first endpoint is on OUR current floor and second endpoint is on
+        /// the requested floor. This does not commit movement or assert the
+        /// approach is reachable: the motor must plan a true path to entry.
+        /// </summary>
+        public bool TryFindApproachServer(Vector3 goal, LayerMask groundMask,
+            float maximumSlope, out Vector3 entrance)
+        {
+            entrance = Vector3.zero;
+            if (!Provider.isServer || IsTraversing || controller == null
+                || !controller.enabled || Time.time < nextSurvey
+                || Time.time < nextSharedSurvey
+                || Mathf.Abs(goal.y - transform.position.y) < 1.4f)
+                return false;
+            nextSurvey = Time.time + 1.5f;
+            nextSharedSurvey = Time.time + 0.18f;
+
+            // A bounded local discovery, not an unbounded map-wide authoring pass.
+            int count = Physics.OverlapSphereNonAlloc(transform.position, 12f,
+                surveyedLadders, RayMasks.LADDER_INTERACT,
+                QueryTriggerInteraction.Collide);
+            if (count >= surveyedLadders.Length)
+                return false; // saturated discovery cannot prove completeness
+
+            float directionY = Mathf.Sign(goal.y - transform.position.y);
+            float best = float.PositiveInfinity;
+            for (int i = 0; i < count; ++i)
+            {
+                Collider candidate = surveyedLadders[i];
+                if (candidate == null || !candidate.enabled
+                    || !candidate.gameObject.activeInHierarchy
+                    || !candidate.CompareTag("Ladder"))
+                    continue;
+                Vector3 ladderFace = candidate.transform.up;
+                if (Mathf.Abs(Vector3.Dot(ladderFace, Vector3.up)) > 0.1f)
+                    continue;
+                ladderFace.y = 0f;
+                if (ladderFace.sqrMagnitude < 0.9f)
+                    continue;
+                ladderFace.Normalize();
+
+                Bounds bounds = candidate.bounds;
+                float entryY = directionY > 0f ? bounds.min.y : bounds.max.y;
+                if (Mathf.Abs(entryY - transform.position.y) > 0.9f)
+                    continue;
+
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    Vector3 outward = ladderFace * side;
+                    Vector3 approx = candidate.transform.position
+                        + outward * Mathf.Clamp(controller.radius + 0.15f, 0.45f, 0.65f);
+                    approx.y = entryY + 0.4f;
+                    if (!MobileNPCSpawnService.TryFindSafeGroundPosition(
+                        approx, 1f, 1.3f, groundMask, maximumSlope,
+                        out Vector3 entryGround, out _)
+                        || Mathf.Abs(entryGround.y - transform.position.y) > 0.45f
+                        || !Level.checkSafeIncludingClipVolumes(entryGround)
+                        || !IsClearStandingSpace(entryGround))
+                        continue;
+                    float approachDistance = Vector3.Distance(transform.position, entryGround);
+                    if (approachDistance < 2.0f || approachDistance > 11.0f)
+                        continue; // existing direct ladder entry handles short range
+
+                    // Prove an authentic Ladder collider faces the chosen
+                    // entry; a floor/wall between them rejects this offmesh link.
+                    Vector3 eye = entryGround + Vector3.up * 0.55f;
+                    if (!Physics.Raycast(eye, -outward, out RaycastHit faceHit,
+                        1.1f, RayMasks.LADDER_INTERACT,
+                        QueryTriggerInteraction.Collide)
+                        || faceHit.collider != candidate
+                        || Mathf.Abs(Vector3.Dot(faceHit.normal, candidate.transform.up)) <= 0.9f
+                        || !FindRealExit(bounds, entryGround, outward, directionY,
+                            goal, groundMask, maximumSlope, out Vector3 groundedExit))
+                        continue;
+
+                    float score = approachDistance + Vector3.Distance(goal, groundedExit) * 0.35f;
+                    if (score < best)
+                    {
+                        best = score;
+                        entrance = entryGround;
+                    }
+                }
+            }
+            return !float.IsPositiveInfinity(best);
+        }
+
 
         public bool IsTraversing => phase != Phase.None;
         public bool IsClimbing => phase == Phase.Climb || phase == Phase.Exit;
