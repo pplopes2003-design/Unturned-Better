@@ -32,7 +32,11 @@ namespace SDG.Unturned
 		private bool isDead;
 
 		public event System.Action<float, float> HealthChanged;
+		/// <summary>Raised after validated server damage; attacker may be null for environmental damage.</summary>
+		public event System.Action<Transform, float> DamageReceived;
 		public event System.Action Died;
+		public Transform LastAttacker { get; private set; }
+		public float LastDamageTime { get; private set; } = -1f;
 		/// <summary>Server-side death snapshot for a future entity replication/presentation layer. This event does not itself send a network message.</summary>
 		public event System.Action<Vector3, Quaternion, Vector3> DeathPresentationRequested;
 
@@ -119,6 +123,15 @@ namespace SDG.Unturned
 		/// </summary>
 		public bool ApplyDamage(float damage, Vector3 hitImpulse)
 		{
+			return ApplyDamage(damage, hitImpulse, null);
+		}
+
+		/// <summary>
+		/// Apply damage after server-side hit validation and preserve the source for kill credit,
+		/// faction consequences, and investigation behavior. Null is valid for world damage.
+		/// </summary>
+		public bool ApplyDamage(float damage, Vector3 hitImpulse, Transform attacker)
+		{
 			if (!Provider.isServer || isDead || float.IsNaN(damage) || float.IsInfinity(damage) || damage <= 0.0f
 				|| !IsFinite(hitImpulse.x) || !IsFinite(hitImpulse.y) || !IsFinite(hitImpulse.z))
 			{
@@ -136,8 +149,14 @@ namespace SDG.Unturned
 				return false;
 			}
 
+			if (attacker != null)
+			{
+				LastAttacker = attacker;
+				LastDamageTime = Time.time;
+			}
 			CurrentHealth = Mathf.Max(0.0f, CurrentHealth - damage);
 			brainDriver?.ReportDamage(CurrentHealth, maximumHealth);
+			DamageReceived?.Invoke(attacker, damage);
 			HealthChanged?.Invoke(CurrentHealth, maximumHealth);
 
 			if (CurrentHealth <= 0.0f)
