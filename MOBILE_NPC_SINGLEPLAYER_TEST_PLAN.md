@@ -423,3 +423,7 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 ## 29. Trade panel button visibility (source-reviewed; await Dev Build)
 
 Open trading with 9 stocked items. Verify option buttons 1-9 are separately clickable, none overlaps `Fechar`, and selecting 7-9 selects the intended slot. Test both numpad/number row, Escape, changing dialogue state, lower screen resolutions and no HUD loss. Compare after closing with ordinary Unturned HUD. Commit `6173447` modifies footer geometry only: do not assume the broader dialogue/HUD bug is fixed until user feedback.
+
+## 30. Near-entry known staircase handoff (source-only)
+
+Teach the same living NPC an authentic stair route, then position it roughly 0.7m, 0.9m, 2.4m and 2.6m from the genuinely observed stair entry with an upstairs target. Verify it never loses access merely crossing 2.5m, never warps or clips, and successfully validates approach/steps/final XYZ where feasible. With a new locked door or blockage, remembered entry must not bypass collisions. Verify with optional native A* unavailable and multiple bots; collect log/fps evidence. Source fix `8457dc4`, runtime untested.
