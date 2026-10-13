@@ -70,6 +70,7 @@ namespace SDG.Unturned
 
 		private CharacterController characterController;
 		private MobileNPCBrainDriver brainDriver;
+		private MobileNPCInjurySystem injurySystem;
 		private Vector3 spawnPosition;
 		private Vector3 velocity;
 		private bool hasInitialized;
@@ -170,6 +171,7 @@ namespace SDG.Unturned
 		{
 			characterController = GetComponent<CharacterController>();
 			brainDriver = GetComponent<MobileNPCBrainDriver>();
+			injurySystem = GetComponent<MobileNPCInjurySystem>();
 			if (visualRoot == null)
 			{
 				visualRoot = transform;
@@ -354,6 +356,8 @@ namespace SDG.Unturned
 			bool shouldRun = runWhenPursuing && brainDriver.CurrentState == MobileNPCBrain.State.Pursuing
 				|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat;
 			float speed = shouldRun ? runSpeed : walkSpeed;
+			if (injurySystem != null)
+				speed *= injurySystem.MovementMultiplier;
 			Vector3 motion = planarDirection * speed;
 
 			// Match the player's grounded handling: CharacterController.isGrounded alone can be
