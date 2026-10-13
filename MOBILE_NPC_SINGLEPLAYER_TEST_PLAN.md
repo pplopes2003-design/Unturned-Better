@@ -377,3 +377,6 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 - [ ] From a newly visited room far from known stair entrance, with goal upstairs: existing cache may NOT have a matching start/goal and must not pretend to know a global connector. `NAV-ACCESS-01` requires future learned entrance/exit portal graph and native map routing; lack of link is pending, not user error.
 - [ ] With 1/4/20/40 NPCs making repeated trips, profile waypoint revalidation casts, route lookup/CPU, garbage allocations, save-file size, FPS and stutters. Performance improvement is a TESTABLE expectation, not confirmed result.
 - [ ] Final user Dev Build only: attach `Player.log`, map/build, start/end XYZ, path blockage and snapshot version; only then close or reopen scoped `LEARN-ROUTE-01`. Keep global CORE-04, LEARN-05, NAV-STAIR-01 and jumping/access graph tasks pending until proven.
+
+
+- [ ] Forçar `RecoverFromUnexpectedFall` durante viagem longa entre andares: a posição recuperada por segurança NÃO pode ser contada como passo fisicamente aprendido. Depois de cumprir todos os waypoints lembrados, apagar o ID da rota atual e não penalizá-la por um futuro obstáculo em uma rota já diferente (`e89e6580`).
