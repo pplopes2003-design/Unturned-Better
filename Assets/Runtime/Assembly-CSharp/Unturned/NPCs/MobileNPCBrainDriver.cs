@@ -99,6 +99,9 @@ namespace SDG.Unturned
 			if (visiblePlayer != null && visiblePlayer.life != null && !visiblePlayer.life.isDead)
 			{
 				playerKnowledge.ObserveSight(visiblePlayer.transform.position, Time.time);
+				MobileNPCRadioOutbox radioOutbox = GetComponent<MobileNPCRadioOutbox>();
+				if (radioOutbox != null)
+					radioOutbox.TryQueueObservedContact(visiblePlayer.transform.position);
 				MobileNPCHumanoidDisposition ownDisposition = GetComponent<MobileNPCHumanoidDisposition>();
 				if (ownDisposition != null && ownDisposition.CanEngagePlayers)
 				{
