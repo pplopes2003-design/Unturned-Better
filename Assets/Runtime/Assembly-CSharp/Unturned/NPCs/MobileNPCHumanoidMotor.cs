@@ -321,7 +321,9 @@ namespace SDG.Unturned
 				// Waypoint arrival is planar: the physics controller handles minor
 				// elevation differences independently (stairs, curbs, uneven ground).
 				if (routeWaypointIndex < routeWaypoints.Count
-					&& PlanarDistanceSquared(transform.position, routeWaypoints[routeWaypointIndex]) <= 1.0f)
+					&& PlanarDistanceSquared(transform.position, routeWaypoints[routeWaypointIndex]) <= 1.0f
+					&& Mathf.Abs(routeWaypoints[routeWaypointIndex].y - transform.position.y)
+					<= Mathf.Max(0.45f, characterController.stepOffset + 0.2f))
 				{
 					++routeWaypointIndex;
 					if (routeWaypointIndex >= routeWaypoints.Count)
@@ -334,7 +336,9 @@ namespace SDG.Unturned
 				}
 				// A single-hop detour is not the goal. Once reached, stop steering
 				// toward the old corner and resume the original destination.
-				if (hasDetourWaypoint && PlanarDistanceSquared(transform.position, detourWaypoint) <= 0.8f * 0.8f)
+				if (hasDetourWaypoint && PlanarDistanceSquared(transform.position, detourWaypoint) <= 0.8f * 0.8f
+					&& Mathf.Abs(detourWaypoint.y - transform.position.y)
+					<= Mathf.Max(0.45f, characterController.stepOffset + 0.2f))
 				{
 					hasDetourWaypoint = false;
 					nextDetourAttemptTime = Time.time + 0.3f;
@@ -1419,7 +1423,10 @@ namespace SDG.Unturned
 		private bool IsRouteNodeOccupied(Vector3 groundPosition, float radius)
 		{
 			float height = Mathf.Max(radius * 2f, characterController.height);
-			Vector3 center = groundPosition + Vector3.up * (height * 0.5f);
+			// Keep the occupancy volume just above actual walked-on floor;
+			// otherwise a terrain collider touching its lower sphere makes
+			// every adjacent node appear occupied and disconnects the grid.
+			Vector3 center = groundPosition + Vector3.up * (height * 0.5f + 0.10f);
 			float halfSegment = Mathf.Max(0f, height * 0.5f - radius);
 			Vector3 bottom = center - Vector3.up * halfSegment;
 			Vector3 top = center + Vector3.up * halfSegment;
