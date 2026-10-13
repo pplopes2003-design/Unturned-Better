@@ -1578,9 +1578,11 @@ namespace SDG.Unturned
 			}
 			if (Time.time < nextKnownAccessPlanTime)
 			{
-				waitingForApproach = hasPendingKnownAccessPath
-					&& nativeAStarRouteProvider != null
-					&& nativeAStarRouteProvider.IsRequestPending;
+				// The asynchronous result may already be ready. Preserve the
+				// entrance request until this method consumes it on its next
+				// scheduled tick; otherwise the next request to the upstairs
+				// FINAL destination could silently discard the entrance result.
+				waitingForApproach = hasPendingKnownAccessPath;
 				return false;
 			}
 			nextKnownAccessPlanTime = Time.time + 0.75f;
