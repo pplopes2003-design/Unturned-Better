@@ -448,3 +448,21 @@ Teach the same living NPC an authentic stair route, then position it roughly 0.7
 Related: `MOBILE_NPC_KNOWN_ACCESS_NAVIGATION_DESIGN.md` and permanent `MOBILE_NPC_PENDING_TASKS.md`. All tests unexecuted until the user consolidates final Dev Build.
 
 NAV-ACCESS-01 additional async regression (commit `1f6ae7f`): while native A* has a pending entrance request, verify the NPC stops walking toward a blocking building wall, retains combat activity, does not falsely mark arrival, does not accumulate unwanted stuck recoveries and resumes once a physically valid route is accepted.
+
+## 32. Final pre-jump navigation regressions — Dev Build pending
+
+**Source verification only**. Scoped `NAV-UNKNOWN-01` and `NAV-NATIVE-01` are QUASE PRONTA — AGUARDANDO BUILD. `CORE-04` global nav and `NAV-STAIR-01` arbitrary complex stair geometry stay open.
+
+- [ ] **Previously unknown corners:** player on opposite side of 1- and 2-corner house wall, no recorded route. NPC should stop choosing the same wall-adjacent blocked cell; after an actual stuck event (~1.5s) it prefers a reachable alternative frontier. It must not report destination reached until real XYZ matches.
+- [ ] **Alternative entrance:** from a room with two doorways, lock the first native door. NPC may try genuinely walkable other approaches, but never opens the locked door, clips through walls, or invents a portal. If no real path/back-end, fail safely rather than claiming navigation solved.
+- [ ] **Stale dead-end expiration:** remove a temporary barricade after 18 seconds, ensure stuck evidence expires and previously blocked route can become usable again. Changing tactical goal (>3m) must not bias navigation to unrelated destination.
+- [ ] **Player/other NPC in doorway:** temporary body occupation should not permanently erase graph nodes, but physical CharacterController collision must continue to prevent overlap.
+- [ ] **Floor continuity:** place small missing-floor segments between grounded grid points; no shortcut across the void. A different existing ramp/bridge must remain usable if its floor is actually continuous.
+- [ ] **Narrow stairs:** real 0.625m or narrower sampled staircase landing vs original 1.25m graph, both directions. Verify no full-body/capsule intersections, no missing floor jumps, no multiple-floor snap. Profile double-pass cost.
+- [ ] **Native A* field/property compatibility:** when genuine UnturnedPathfinding_ASPFP runtime exists, verify Seeker.StartPath callback with public `Path.error`, `Path.vectorPath` API, await/consume route and check final goal. When SDK has UnturnedPathfinding_Empty, expect unavailable diagnostics and safe fallback, not fictional global routing.
+- [ ] **Native partial/stale safety:** no acceptance of wrong-floor endpoint (same XZ, different Y), changed goal, >128 waypoints, nonfinite vector, missing clip or first waypoint >4m from character. Confirm no crash or path spam after timeout.
+- [ ] **20/40 active NPCs:** log global shared local plan admission (~0.10s), per-NPC route planning delays, A* pending, repeated unsuccessful routes and total frame CPU for new midpoint probes. Measure rather than assuming performance.
+- [ ] **Cross-map:** test at least two maps, including enclosed POI, doors, steep curbs, stairs, water boundary and outdoor obstacle pursuit. If inaccessible indoor map without native graph still fails, keep CORE-04 OPEN with exact screenshot/log instead of marking full navigation complete.
+- [ ] **Before jumping work:** record any new collision/stuck failures in backlog. NAV-JUMP-01 remains separate planned jump/vault/ladder work, not part of this source milestone.
+
+Related commits: `7facf620`, `4968e145`, `d5cedb68`, `a6ce9d3b`, `8856f815`, `fde0be8e`, `36d647ef`.
