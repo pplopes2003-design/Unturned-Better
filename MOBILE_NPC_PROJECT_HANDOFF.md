@@ -341,3 +341,14 @@ The user said "Próxima etapa", following the request to link NPC sneak/crouch g
 Fetched five changed files back from GitHub and checked code presence and brace balance; **NO UNITY BUILD OR TEST**, nor proof native zombie response/noise masks are right.
 
 Critical future follow-ups: more accurate native footstep event/stance/terrain-based volume if game's private runtime API is exposed; hearing calibration/obstacle materials and distance, moving vehicle false positives; prevent improbable shared omniscient inference across groups; verify that NPCs can actually crouch/stand, that zombie response is audible and throttled; stealth intent (listening/ambushing/stalking) and zoom optics still pending. Earlier death, movement, combat, cover, animation, dialogue/HUD issues still await user's combined Dev Build and Player.log.
+
+
+## Listening and suspicion decision round — 2026-10-13
+
+User requested the next stage of cautious listening/stealth investigation. Commits:
+- `07b1fc358bd1a952cc1808aa91b64da3d15eee6c` `MobileNPCBrainDriver`: uncertain footstep sound now triggers a bounded listening window (about 0.55–1.4s). Low clarity (<0.25) yields watchful pause without initiating travel; clearer cues produce a 10s investigation. Footstep cooldown ensures no per-frame infinite resets. Valid visual acquisition and incoming fire interrupt the pause immediately; active pursuit/cover/retreat retain priority.
+- `917193b4aea40ad5dcc1d8282168fc166e793d5c` `MobileNPCHumanoidMotor`: active listening holds movement and crouches while preserving the existing destination for later investigation; it cannot reset navigation by itself.
+- `edcdadf8a377a3fd12863fc202c510c2ea116923`, `84a375075bc304b6f08f3a1b4ad7073c6d42ae40`: listening actor orients more slowly toward the *approximate* sound clue without exposing live hidden player coordinates or walking to it prematurely.
+- Source files re-fetched, key integration confirmed, braces matched. **No Unity compile or gameplay test.**
+
+Outstanding: native player footstep and stance detection refinement; zombie native hearing calibration; full stalking/ambush planning (cover-to-cover movement and concealment), optics/zoom; evaluation of actual crouch/stand, terrain transitions, noise suppression and NPC turn animation; prior death cycle/respawn, navigation, ranged combat, cover, dialogue/HUD, animation clip checks all need combined Unity build and Player.log. Future adaptive learning and per-NPC conversations sharing bounded memories remain planned only.
