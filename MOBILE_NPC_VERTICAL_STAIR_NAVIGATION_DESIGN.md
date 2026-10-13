@@ -42,3 +42,8 @@ This **does NOT solve universal indoor pathfinding**: stairs farther than ~5m fr
 ## Source review checklist
 
 Source validation can verify method names, scope, graph dimension, braces, bounded buffers and no calls to set NPC elevation directly. It is **not** compile or behavior validation. Update both `MOBILE_NPC_PENDING_TASKS.md` and `MOBILE_NPC_PROJECT_HANDOFF.md` every round.
+
+
+## Additional tactical failure handling — `077bb7a3cc1e4bdeb338ecfbfbbad21d798963b5`
+
+If the destination differs by >1m in Y and is within the same nearby horizontal window, the legacy planar `TryBuildLocalRoute` no longer accepts a partial route on the wrong storey; only a verified vertical floor connector route or the genuine native global path is acceptable. After three locally observed failures to reach the *same optional cover/flank destination* at another elevation, the NPC brain is notified and may record negative individual `CoverAccess` evidence, dropping only that optional tactic. Pursuit and survival-critical actions are not cancelled simply because a limited grid cannot find a stairwell. No runtime evidence yet.
