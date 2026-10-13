@@ -21,7 +21,8 @@ namespace SDG.Unturned
 			SeekCover,
 			Retreat,
 			Loot,
-			Flank
+			Flank,
+			Stalk
 		}
 
 		private const float LowHealthThreshold = 0.30f;
@@ -132,7 +133,7 @@ namespace SDG.Unturned
 		/// </summary>
 		public bool TryStartLoot(Vector3 itemPosition, float now)
 		{
-			if (currentGoal == Goal.Retreat || currentGoal == Goal.SeekCover)
+			if (currentGoal == Goal.Retreat || currentGoal == Goal.SeekCover || currentGoal == Goal.Stalk)
 			{
 				return false;
 			}
@@ -144,10 +145,31 @@ namespace SDG.Unturned
 			return true;
 		}
 
+		/// <summary>
+		/// Quietly approach a validated concealed vantage point near the last
+		/// sensory clue. This does not authorize firing or reveal the actual target.
+		/// </summary>
+		public bool TryStartStalk(Vector3 coveredPoint, float now)
+		{
+			if (currentGoal != Goal.None || !IsFinite(coveredPoint))
+				return false;
+			currentGoal = Goal.Stalk;
+			tacticalDestination = coveredPoint;
+			hasTacticalDestination = true;
+			goalDeadline = now + 7f;
+			return true;
+		}
+
+		private static bool IsFinite(Vector3 point)
+		{
+			return !float.IsNaN(point.x) && !float.IsNaN(point.y) && !float.IsNaN(point.z)
+				&& !float.IsInfinity(point.x) && !float.IsInfinity(point.y) && !float.IsInfinity(point.z);
+		}
+
 		/// <summary>Starts a time-bounded flank to a host-validated alternate firing position.</summary>
 		public bool TryStartFlank(Vector3 validatedPosition, float now)
 		{
-			if (currentGoal == Goal.Retreat || currentGoal == Goal.SeekCover)
+			if (currentGoal == Goal.Retreat || currentGoal == Goal.SeekCover || currentGoal == Goal.Stalk)
 				return false;
 
 			currentGoal = Goal.Flank;
