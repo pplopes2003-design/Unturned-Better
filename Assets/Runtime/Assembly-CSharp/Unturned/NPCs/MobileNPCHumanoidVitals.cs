@@ -3,6 +3,7 @@
 // Please refer to the included LICENSE.txt for copyright notice and license details. //
 ////////////////////////////////////////////////////////////////////////////////////////
 using System;
+using System.Collections;
 using UnityEngine;
 
 namespace SDG.Unturned
@@ -146,6 +147,26 @@ namespace SDG.Unturned
 			return !float.IsNaN(value) && !float.IsInfinity(value);
 		}
 
+		/// <summary>
+		/// Visible local fallback for the current single-player prototype. The SDK's
+		/// humanoid prefab does not guarantee a death clip or ragdoll, so a lethal hit
+		/// must not leave the NPC standing upright after its AI has been disabled.
+		/// </summary>
+		private IEnumerator PlayDeathFallPresentation()
+		{
+			Quaternion startRotation = transform.rotation;
+			Quaternion endRotation = Quaternion.AngleAxis(78.0f, transform.forward) * startRotation;
+			const float duration = 0.45f;
+			float elapsed = 0.0f;
+			while (elapsed < duration)
+			{
+				elapsed += Time.deltaTime;
+				transform.rotation = Quaternion.Slerp(startRotation, endRotation, Mathf.Clamp01(elapsed / duration));
+				yield return null;
+			}
+			transform.rotation = endRotation;
+		}
+
 		private void DieServer(Vector3 hitImpulse)
 		{
 			if (!Provider.isServer || isDead)
@@ -183,6 +204,7 @@ namespace SDG.Unturned
 				}
 			}
 			DeathPresentationRequested?.Invoke(transform.position, transform.rotation, hitImpulse);
+			StartCoroutine(PlayDeathFallPresentation());
 			// Remove dead agents from active AI enumeration after publishing the final reset.
 			if (brainDriver != null)
 			{
