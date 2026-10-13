@@ -842,7 +842,26 @@ namespace SDG.Unturned
 				bool advancingAroundObstacle =
 					PlanarDistanceSquared(samplePosition, lastMeaningfulRouteProgressPosition) >= 1.44f
 					&& currentGoalDistance <= anchorDistance + 0.6f;
-				madeMeaningfulProgress = advancingTowardGoal || advancingAroundObstacle;
+				// Taking a valid corner route often increases straight-line
+				// distance to the *final* destination. Measure progress against
+				// the current route/detour waypoint as well, so the motor doesn't
+				// tear down working A* paths halfway around a building.
+				bool advancingAlongPlannedRoute = false;
+				if (routeWaypointIndex < routeWaypoints.Count)
+				{
+					Vector3 waypoint = routeWaypoints[routeWaypointIndex];
+					advancingAlongPlannedRoute =
+						Mathf.Sqrt(PlanarDistanceSquared(previousPosition, waypoint))
+						- Mathf.Sqrt(PlanarDistanceSquared(samplePosition, waypoint)) >= 0.10f;
+				}
+				else if (hasDetourWaypoint)
+				{
+					advancingAlongPlannedRoute =
+						Mathf.Sqrt(PlanarDistanceSquared(previousPosition, detourWaypoint))
+						- Mathf.Sqrt(PlanarDistanceSquared(samplePosition, detourWaypoint)) >= 0.10f;
+				}
+				madeMeaningfulProgress = advancingTowardGoal || advancingAroundObstacle
+					|| advancingAlongPlannedRoute;
 				if (madeMeaningfulProgress)
 					lastMeaningfulRouteProgressPosition = samplePosition;
 			}
@@ -890,8 +909,14 @@ namespace SDG.Unturned
 				// Do not randomly flip left/right each time the agent touches a wall.
 				// Keep one side until a genuine route attempt has had time to progress.
 				consecutiveStuckRecoveries++;
-				avoidanceSide = consecutiveStuckRecoveries % 2 == 0 ? -1 : 1;
-				avoidanceSideUntil = Time.time + 3.5f;
+				// Give a chosen side enough time to reach the end of a house wall.
+				// Flip only after that side's commitment actually expires, not
+				// on every 1.5-second stuck recovery event.
+				if (Time.time >= avoidanceSideUntil)
+				{
+					avoidanceSide = -avoidanceSide;
+					avoidanceSideUntil = Time.time + 4f;
+				}
 				recoverySteeringAngle = avoidanceSide * 90f;
 				useRecoverySteering = true;
 				recoverySteeringUntil = Time.time + 1.5f;
