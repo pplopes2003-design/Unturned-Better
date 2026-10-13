@@ -287,6 +287,66 @@ namespace SDG.Unturned
 				component.enabled = false;
 		}
 
+		/// <summary>
+		/// A physical, non-articulated corpse when NPC_Client contains no complete bone
+		/// ragdoll. This does not pretend to be a skeletal ragdoll; it ensures the dead
+		/// character actually falls instead of standing forever without collision.
+		/// </summary>
+		private void ActivateRigidCorpseFallback(Transform visualRoot, Vector3 hitImpulse,
+			Rigidbody[] incompleteBodies, Collider[] incompleteColliders)
+		{
+			for (int i = 0; i < incompleteColliders.Length; ++i)
+			{
+				if (incompleteColliders[i] != null)
+					incompleteColliders[i].enabled = false;
+			}
+			for (int i = 0; i < incompleteBodies.Length; ++i)
+			{
+				if (incompleteBodies[i] == null)
+					continue;
+				incompleteBodies[i].isKinematic = true;
+				incompleteBodies[i].detectCollisions = false;
+			}
+
+			MobileNPCVisualGuard visualGuard = GetComponent<MobileNPCVisualGuard>();
+			if (visualGuard != null)
+				visualGuard.enabled = false;
+
+			// The proxy uses the world-upright NPC capsule frame, rather than the
+			// -90 degree rotated visual rig frame. It stays inside the NPC hierarchy
+			// so the existing corpse cleanup removes it with the dead instance.
+			GameObject corpse = new GameObject("MobileNPCCorpsePhysics");
+			corpse.layer = LayerMasks.AGENT;
+			corpse.transform.SetParent(transform, false);
+			corpse.transform.localPosition = Vector3.zero;
+			corpse.transform.localRotation = Quaternion.identity;
+			visualRoot.SetParent(corpse.transform, true);
+
+			CapsuleCollider corpseCollider = corpse.AddComponent<CapsuleCollider>();
+			corpseCollider.direction = 1;
+			corpseCollider.center = new Vector3(0f, 0.9f, 0f);
+			corpseCollider.height = 1.8f;
+			corpseCollider.radius = 0.34f;
+			Rigidbody corpseBody = corpse.AddComponent<Rigidbody>();
+			corpseBody.mass = 70f;
+			corpseBody.useGravity = true;
+			corpseBody.isKinematic = false;
+			corpseBody.interpolation = RigidbodyInterpolation.Interpolate;
+			corpseBody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+
+			Vector3 direction = hitImpulse.sqrMagnitude > 0.001f
+				? hitImpulse.normalized : transform.forward;
+			direction.y = 0f;
+			if (direction.sqrMagnitude < 0.001f)
+				direction = transform.forward;
+			direction.Normalize();
+			corpseBody.AddForceAtPosition(direction * Mathf.Max(60f, hitImpulse.magnitude),
+				corpse.transform.position + Vector3.up * 1.5f, ForceMode.Impulse);
+			Debug.LogWarning("[MobileNPCHumanoidVitals] Incomplete authored skeletal ragdoll; "
+				+ "activated physical capsule corpse fallback for " + name
+				+ ". This is a rigid-body fall, not articulated bone ragdoll.", this);
+		}
+
 		private void ActivateAuthoredRagdoll(Vector3 hitImpulse)
 		{
 			Transform visualRoot = transform.Find("HumanoidVisual");
@@ -311,6 +371,19 @@ namespace SDG.Unturned
 			}
 
 			Collider[] colliders = visualRoot.GetComponentsInChildren<Collider>(true);
+			Rigidbody[] authoredBodies = visualRoot.GetComponentsInChildren<Rigidbody>(true);
+			Joint[] authoredJoints = visualRoot.GetComponentsInChildren<Joint>(true);
+			int usableColliders = 0;
+			for (int i = 0; i < colliders.Length; ++i)
+			{
+				if (colliders[i] != null && !colliders[i].isTrigger)
+					usableColliders++;
+			}
+			if (authoredBodies.Length == 0 || authoredJoints.Length == 0 || usableColliders == 0)
+			{
+				ActivateRigidCorpseFallback(visualRoot, hitImpulse, authoredBodies, colliders);
+				return;
+			}
 			int enabledColliders = 0;
 			for (int i = 0; i < colliders.Length; ++i)
 			{
