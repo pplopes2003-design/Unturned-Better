@@ -5,7 +5,6 @@
 using System.Collections.Generic;
 using SDG.Framework.Water;
 using UnityEngine;
-using UnityEngine.AI;
 
 namespace SDG.Unturned
 {
@@ -14,7 +13,7 @@ namespace SDG.Unturned
 	/// Attach to a server-spawned humanoid prefab with a CharacterController and
 	/// MobileNPCBrainDriver. This motor intentionally moves only on the server;
 	/// network replication and client interpolation are a separate integration step.
-	/// It prefers Unturned's native A* graph, then optional Unity NavMesh, with bounded local routing as fallback.
+	/// It prefers Unturned's native A* graph, with bounded local routing as fallback.
 	/// </summary>
 	[DisallowMultipleComponent]
 	[RequireComponent(typeof(CharacterController))]
@@ -106,11 +105,6 @@ namespace SDG.Unturned
 		private readonly List<Vector3> reversedRouteScratch = new List<Vector3>(RouteGridSide);
 		private int routeWaypointIndex;
 		private float nextRoutePlanTime;
-		// Unity NavMesh is an optional global planner: Unturned's own ASPFP data is not exposed through this API.
-		[SerializeField] private bool useUnityNavMeshWhenAvailable = true;
-		[SerializeField, Min(0.5f)] private float navMeshSampleRadius = 3.0f;
-		private float nextGlobalRoutePlanTime;
-		private readonly NavMeshPath globalNavMeshPath = new NavMeshPath();
 		private Vector3 lastRoamingDirection;
 		private bool hasLastRoamingDirection;
 
@@ -285,21 +279,7 @@ namespace SDG.Unturned
 					nativeAStarPending = nativeAStarRouteProvider.IsRequestPending;
 				}
 
-					// Prefer Unturned's own A* graph when its licensed runtime backend is
-					// present. Unity NavMesh is a fallback only if native A* is absent or
-					// has failed, and never competes with an in-flight native route request.
-					if (routeWaypoints.Count == 0 && !nativeAStarPending
-						&& (!nativeAStarAvailable || nativeAStarRouteProvider.LastPathFailed)
-						&& useUnityNavMeshWhenAvailable && Time.time >= nextGlobalRoutePlanTime)
-					{
-						if (TryBuildUnityNavMeshRoute(destination))
-						{
-							detourGoalSnapshot = destination;
-							hasDetourWaypoint = false;
-						}
-				}
-				}
-
+			}
 				if (routeWaypointIndex < routeWaypoints.Count
 					&& (transform.position - routeWaypoints[routeWaypointIndex]).sqrMagnitude <= 1.0f)
 				{
@@ -871,14 +851,6 @@ namespace SDG.Unturned
 				return;
 			}
 
-			// Unity NavMesh is a secondary backend; many Unturned maps do not bake one.
-			if (TryBuildUnityNavMeshRoute(destination))
-			{
-				detourGoalSnapshot = destination;
-				hasDetourWaypoint = false;
-				return;
-			}
-
 			// Fallback: bounded local grid search. The grid is centered on the NPC,
 			// limited to 81 nodes, and resolves only ground close to the current floor.
 			// A distant goal is approached in successive local segments rather than
@@ -959,45 +931,6 @@ namespace SDG.Unturned
 				&& (routeWaypoints[0] - transform.position).sqrMagnitude <= 0.36f)
 			{
 				routeWaypoints.RemoveAt(0);
-			}
-
-			if (routeWaypoints.Count == 0)
-				return false;
-
-			return true;
-		}
-
-		/// <summary>
-		/// Attempts a map-wide route using Unity's baked NavMesh, but only when both
-		/// endpoints can be sampled and the resulting route is complete. This is an
-		/// optional backend; it does not pretend to read Unturned's private ASPFP data.
-		/// </summary>
-		private bool TryBuildUnityNavMeshRoute(Vector3 destination)
-		{
-			if (!useUnityNavMeshWhenAvailable || Time.time < nextGlobalRoutePlanTime)
-				return false;
-			nextGlobalRoutePlanTime = Time.time + 1.25f;
-
-			float sampleRadius = Mathf.Max(0.5f, navMeshSampleRadius);
-			if (!NavMesh.SamplePosition(transform.position, out NavMeshHit startHit, sampleRadius, NavMesh.AllAreas)
-				|| !NavMesh.SamplePosition(destination, out NavMeshHit goalHit, sampleRadius, NavMesh.AllAreas))
-				return false;
-
-			globalNavMeshPath.ClearCorners();
-			if (!NavMesh.CalculatePath(startHit.position, goalHit.position, NavMesh.AllAreas, globalNavMeshPath)
-				|| globalNavMeshPath.status != NavMeshPathStatus.PathComplete)
-				return false;
-
-			Vector3[] corners = globalNavMeshPath.corners;
-			if (corners == null || corners.Length < 2)
-				return false;
-
-			routeWaypoints.Clear();
-			routeWaypointIndex = 0;
-			for (int i = 1; i < corners.Length; ++i)
-			{
-				if ((corners[i] - transform.position).sqrMagnitude > 0.36f)
-					routeWaypoints.Add(corners[i]);
 			}
 
 			if (routeWaypoints.Count == 0)
