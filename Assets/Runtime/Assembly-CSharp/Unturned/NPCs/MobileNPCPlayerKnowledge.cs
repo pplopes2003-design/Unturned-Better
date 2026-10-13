@@ -28,6 +28,33 @@ namespace SDG.Unturned
         public Sense LastSense => lastSense;
         public bool HasEvidence => hasEvidence;
 
+        /// <summary>
+        /// Read-only uncertainty snapshot. This is an old sensory observation, never
+        /// the actual player's live Transform after visual contact is lost.
+        /// </summary>
+        public bool TryGetEvidence(float now, out Vector3 center, out float confidence,
+            out float uncertainty, out Sense sense)
+        {
+            center = Vector3.zero;
+            confidence = 0f;
+            uncertainty = 0f;
+            sense = Sense.None;
+            if (!hasEvidence || !IsFinite(now))
+                return false;
+
+            float age = Mathf.Max(0f, now - lastEvidenceTime);
+            float lifespan = lastSense == Sense.Sight ? 22f : 14f;
+            confidence = initialConfidence * Mathf.Clamp01(1f - age / lifespan);
+            if (confidence < 0.16f)
+                return false;
+            center = lastEvidencePosition + observedVelocity *
+                (lastSense == Sense.Sight ? Mathf.Min(age, 1.5f) : 0f);
+            uncertainty = Mathf.Min(16f, uncertaintyRadius +
+                age * (lastSense == Sense.Sight ? 0.65f : 0.95f));
+            sense = lastSense;
+            return true;
+        }
+
         public void ObserveSight(Vector3 position, float now)
         {
             if (!IsFinite(position) || !IsFinite(now))
