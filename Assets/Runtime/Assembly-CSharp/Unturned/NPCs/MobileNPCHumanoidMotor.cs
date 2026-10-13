@@ -28,6 +28,11 @@ namespace SDG.Unturned
 		[SerializeField, Range(0.5f, 1f)] private float crouchedHeightFraction = 0.67f;
 		[SerializeField, Min(0.1f)] private float jumpImpulse = 4.6f;
 		[SerializeField, Min(0.5f)] private float jumpCooldown = 2.5f;
+		[Header("Verified planned low-obstacle jump (no ladder/vault link)")]
+		[SerializeField, Range(0.4f, 1.0f)] private float plannedJumpMaximumObstacleHeight = 0.70f;
+		[SerializeField, Range(0.8f, 2.0f)] private float plannedJumpTravelDistance = 1.35f;
+		[SerializeField, Range(2.5f, 5.5f)] private float plannedJumpHorizontalSpeed = 4.0f;
+		[SerializeField, Range(6f, 12f)] private float plannedJumpVerticalImpulse = 9.5f;
 		[SerializeField, Min(0.05f)] private float stoppingDistance = 0.65f;
 		[SerializeField, Min(0.1f)] private float gravity = 20.0f;
 		[SerializeField] private bool runWhenPursuing = true;
@@ -90,6 +95,14 @@ namespace SDG.Unturned
 		private bool targetIsVisible;
 		private readonly MobileNPCLocomotionPolicy locomotionPolicy = new MobileNPCLocomotionPolicy();
 		private float nextJumpTime;
+		private bool isPlannedJumping;
+		private Vector3 plannedJumpLanding;
+		private Vector3 plannedJumpDirection;
+		private Vector3 plannedJumpDestinationSnapshot;
+		private float plannedJumpStartedAt;
+		private float suppressJourneyUntil;
+		public bool IsJumping => isPlannedJumping || (velocity.y > 0.5f
+			&& characterController != null && !characterController.isGrounded);
 		private float nextFootstepNoiseAt;
 		private float standingHeight;
 		private Vector3 standingCenter;
@@ -250,6 +263,11 @@ namespace SDG.Unturned
 			physicallyCrouched = false;
 			locomotionPolicy.Reset();
 			nextJumpTime = 0f;
+			isPlannedJumping = false;
+			plannedJumpLanding = Vector3.zero;
+			plannedJumpDirection = Vector3.zero;
+			plannedJumpDestinationSnapshot = Vector3.zero;
+			suppressJourneyUntil = 0f;
 			nextLocalRoutePlanTime = 0f;
 			nextVerticalRoutePlanTime = 0f;
 			consecutiveVerticalPlanFailures = 0;
@@ -963,6 +981,8 @@ namespace SDG.Unturned
 			characterController.enabled = false;
 			transform.position = recoveredPosition;
 			velocity.y = 0f;
+			isPlannedJumping = false;
+			suppressJourneyUntil = Time.time + 0.35f;
 			// Emergency fall recovery is a safety reposition, not a physical
 			// walking segment. Never turn it into a learned shortcut or stair.
 			trackingActualJourney = false;
@@ -1540,6 +1560,7 @@ namespace SDG.Unturned
 			Vector3 requestedGoal, bool isUnderwater)
 		{
 			if (!hasDestination || !trackingActualJourney || isUnderwater
+				|| isPlannedJumping || Time.time < suppressJourneyUntil
 				|| travelMemory == null || actualJourneyExceededLimit)
 				return;
 			Vector3 actual = transform.position;
