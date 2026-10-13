@@ -85,3 +85,7 @@ This is a **bounded two-record connector composition** after a physical approach
 ## Save restoration hardening — 2026-10-13
 
 Commit `80f91042204dd670e5b7b81fc693f6d5f68ae009`: the v6 individual-route snapshot loader now rejects tracks that violate the completed-journey footprint constraints, including discontinuities, degenerate duplicate samples, inconsistent start/end and impossible observed total length. This is a prerequisite for treating a past saved stair/corridor as *candidate knowledge*, not proof of present traversability. On replay the motor must still recheck physical floor, doors and colliders. Unity compilation/playtest deferred to final Dev Build.
+
+## Near-entry selection refinement — 2026-10-13
+
+Source `8457dc4`: eligible observed entrance distance now begins at 0.8m (was 2.5m). This avoids abruptly losing a personally known stair route immediately before entry, but the motor must still obtain a physically validated actual approach and traverse the observed route. Below 0.8m the bounded local vertical routing is relied upon; this is a remaining handoff/boundary risk to validate, not universal stair access.
