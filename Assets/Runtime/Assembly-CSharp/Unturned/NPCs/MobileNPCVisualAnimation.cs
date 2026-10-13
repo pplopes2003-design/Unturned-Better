@@ -32,6 +32,7 @@ namespace SDG.Unturned
         private string currentClip;
         private float nextFootstepTime;
         private float attackAnimationUntil;
+        private bool jumpPresentationAttempted;
 
         private void Awake()
         {
@@ -92,6 +93,22 @@ namespace SDG.Unturned
             {
                 return;
             }
+
+            // The checked-in NPC_Client rig has Idle_Climb and Move_Climb,
+            // but no verified authored Jump/Vault clip. Only attempt a real
+            // clip if that runtime prefab actually supplies one. Never repeat
+            // or restart it every frame and never emit ground footsteps midair.
+            if (motor.IsJumping)
+            {
+                nextFootstepTime = 0f;
+                if (!jumpPresentationAttempted)
+                {
+                    jumpPresentationAttempted = true;
+                    TryPlayActionClip("Jump", "Leap");
+                }
+                return;
+            }
+            jumpPresentationAttempted = false;
 
             if (legacyAnimation != null && Time.time < attackAnimationUntil)
             {
