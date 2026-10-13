@@ -26,7 +26,6 @@ namespace SDG.Unturned
 		[SerializeField, Min(0.1f)] private float turnSpeed = 540.0f;
 		[SerializeField, Min(0.1f)] private float sneakSpeed = 1.15f;
 		[SerializeField, Range(0.5f, 1f)] private float crouchedHeightFraction = 0.67f;
-		[SerializeField, Min(0.1f)] private float jumpImpulse = 4.6f;
 		[SerializeField, Min(0.5f)] private float jumpCooldown = 2.5f;
 		[Header("Verified planned low-obstacle jump (no ladder/vault link)")]
 		[SerializeField, Range(0.4f, 1.0f)] private float plannedJumpMaximumObstacleHeight = 0.70f;
@@ -806,6 +805,11 @@ namespace SDG.Unturned
 					&& injuryMovementMultiplier >= 0.95f
 					&& gait != MobileNPCLocomotionPolicy.Gait.Sneak
 					&& !brainDriver.IsListening && !brainDriver.IsAmbushPreparing
+					// Defensive exposure goals should choose real cover/retreat
+					// paths rather than an airborne exposed leap by default.
+					&& !(targetIsVisible && (brainDriver.CurrentGoal
+							== MobileNPCTactics.Goal.SeekCover
+						|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat))
 					&& TryBeginPlannedLowJump(jumpRequestedDirection, destination))
 				{
 					wantedToMove = true;
@@ -948,7 +952,8 @@ namespace SDG.Unturned
 				if (collider.GetComponentInParent<Player>() != null
 					|| collider.GetComponentInParent<Zombie>() != null
 					|| collider.GetComponentInParent<MobileNPCHumanoidVitals>() != null
-					|| collider.GetComponentInParent<InteractableDoor>() != null)
+					|| collider.GetComponentInParent<InteractableDoor>() != null
+					|| collider.GetComponentInParent<InteractableVehicle>() != null)
 					return false;
 				foundStaticLowObstacle = true;
 			}
