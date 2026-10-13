@@ -26,6 +26,8 @@ namespace SDG.Unturned
 		private MethodInfo cancelPathMethod;
 		private Delegate pathCallback;
 		private bool initialized;
+		private float nextInitializationAttemptTime;
+		private string diagnosticStatus = "waiting-for-backend";
 		private bool requestPending;
 		private bool routeReady;
 		private bool lastPathFailed;
@@ -45,6 +47,8 @@ namespace SDG.Unturned
 
 		public bool IsRequestPending => requestPending;
 		public bool LastPathFailed => lastPathFailed;
+		/// <summary>Compact runtime state for debugging without per-frame log spam.</summary>
+		public string DiagnosticStatus => diagnosticStatus;
 
 		/// <summary>
 		/// Returns true only when a completed native A* route is ready for consumption.
@@ -79,6 +83,7 @@ namespace SDG.Unturned
 				{
 					CancelPendingRequest();
 					lastPathFailed = true;
+					diagnosticStatus = "request-timeout";
 					diagnosticStatus = "request-timeout";
 					nextRequestTime = Time.time + 2.5f;
 				}
@@ -127,6 +132,7 @@ namespace SDG.Unturned
 			{
 				requestPending = false;
 				lastPathFailed = true;
+				diagnosticStatus = "startpath-invocation-failed";
 				nextRequestTime = Time.time + 2.5f;
 				return false;
 			}
@@ -134,8 +140,9 @@ namespace SDG.Unturned
 
 		private void EnsureInitialized()
 		{
-			if (initialized)
+			if (initialized || Time.time < nextInitializationAttemptTime)
 				return;
+			nextInitializationAttemptTime = Time.time + 2.0f;
 
 			// Do not attach a generic Seeker to an unrelated or empty A* instance.
 			// Unturned selects this backend only in builds that include the licensed
@@ -143,13 +150,19 @@ namespace SDG.Unturned
 			IUnturnedPathfindingInterface activeBackend = UnturnedPathfinding.Get();
 			if (activeBackend == null)
 				return;
-			initialized = true;
 			if (activeBackend.GetType().Name != "UnturnedPathfinding_ASPFP")
+			{
+				diagnosticStatus = "native-aspfp-backend-unavailable";
+				initialized = true;
 				return;
+			}
 
 			Type seekerType = FindType("Pathfinding.Seeker");
 			if (seekerType == null || !typeof(Component).IsAssignableFrom(seekerType))
+			{
+				diagnosticStatus = "aspfp-active-seeker-type-not-found";
 				return;
+			}
 
 			try
 			{
@@ -192,6 +205,7 @@ namespace SDG.Unturned
 				Type callbackType = startPathMethod.GetParameters()[2].ParameterType;
 				MethodInfo callbackTarget = GetType().GetMethod(
 					nameof(OnNativePathComplete), BindingFlags.Instance | BindingFlags.NonPublic);
+				ParameterInfo[] callbackParameters = callbackType.GetMethod("Invoke").GetParameters();
 				ParameterExpression callbackArgument = Expression.Parameter(callbackParameters[0].ParameterType, "path");
 				MethodCallExpression callbackBody = Expression.Call(
 					Expression.Constant(this), callbackTarget, Expression.Convert(callbackArgument, typeof(object)));
@@ -241,6 +255,7 @@ namespace SDG.Unturned
 					&& (bool)errorProperty.GetValue(path, null))
 				{
 					lastPathFailed = true;
+					diagnosticStatus = "path-error";
 					nextRequestTime = Time.time + 2.5f;
 					return;
 				}
@@ -264,6 +279,7 @@ namespace SDG.Unturned
 
 				routeReady = completedRoute.Count >= 2;
 				lastPathFailed = !routeReady;
+				diagnosticStatus = routeReady ? "route-ready" : "empty-route";
 				if (lastPathFailed)
 					nextRequestTime = Time.time + 2.5f;
 			}
@@ -272,6 +288,7 @@ namespace SDG.Unturned
 				completedRoute.Clear();
 				routeReady = false;
 				lastPathFailed = true;
+				diagnosticStatus = "path-processing-failed";
 				nextRequestTime = Time.time + 2.5f;
 			}
 		}
