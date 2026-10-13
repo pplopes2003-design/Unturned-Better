@@ -171,18 +171,46 @@ namespace SDG.Unturned
                 return;
             }
 
-            string clipName = Random.value < 0.5f ? "Idle_Kick_Left" : "Idle_Kick_Right";
-            AnimationState state = legacyAnimation[clipName];
-            if (state == null)
+            // Prefer the two confirmed native kick/strike clips. Search every legacy
+            // Animation component under the visual rig because some NPC_Client prefab
+            // variants split gestures and locomotion across different child objects.
+            string[] candidates = Random.value < 0.5f
+                ? new[] { "Idle_Kick_Left", "Idle_Kick_Right" }
+                : new[] { "Idle_Kick_Right", "Idle_Kick_Left" };
+            Animation clipOwner = null;
+            string clipName = null;
+            AnimationState state = null;
+            Animation[] animations = GetComponentsInChildren<Animation>(true);
+            for (int i = 0; i < animations.Length && state == null; ++i)
             {
-                Debug.LogWarning("[MobileNPCVisualAnimation] No native melee animation clip named '" + clipName + "'.", this);
+                Animation candidate = animations[i];
+                if (candidate == null || candidate == legacyAnimation && candidate[candidates[0]] == null
+                    && candidate[candidates[1]] == null)
+                    continue;
+                for (int c = 0; c < candidates.Length; ++c)
+                {
+                    AnimationState found = candidate[candidates[c]];
+                    if (found == null)
+                        continue;
+                    clipOwner = candidate;
+                    clipName = candidates[c];
+                    state = found;
+                    break;
+                }
+            }
+
+            if (state == null || clipOwner == null || string.IsNullOrEmpty(clipName))
+            {
+                Debug.LogWarning("[MobileNPCVisualAnimation] Neither native strike clip (Idle_Kick_Left/Right) "
+                    + "is available on the NPC_Client animation hierarchy.", this);
                 return;
             }
 
             state.wrapMode = WrapMode.Once;
             attackAnimationUntil = Time.time + Mathf.Max(0.2f, state.length);
             currentClip = clipName;
-            legacyAnimation.CrossFade(clipName, Mathf.Min(crossFadeDuration, 0.08f));
+            clipOwner.enabled = true;
+            clipOwner.CrossFade(clipName, Mathf.Min(crossFadeDuration, 0.08f));
         }
 
         private void OnDestroy()
