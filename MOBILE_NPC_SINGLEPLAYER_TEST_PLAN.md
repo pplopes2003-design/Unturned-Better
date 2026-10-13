@@ -343,3 +343,19 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 
 
 - [ ] Em teste de navegação A* local, inserir collider de prefab InteractableDoor ainda **não registrado** em BarricadeManager/BarricadeRegion: o NPC não pode presumir que a célula/aresta é atravessável apenas por haver componente de porta (`775fb0aa`).
+
+
+## 25. NAV-STAIR-01 — real vertical stairs and floors (reserved for user's FINAL Dev Build)
+
+- [ ] NPC on house ground floor, player directly overhead on upper floor (same X/Z). It must **not** move through ceiling or claim reached destination solely by X/Z; if a walkable stair lies within bounded local grid, it should follow floor-supported horizontal waypoints up to the upper floor, physically using the CharacterController.
+- [ ] Ascend then descend a simple straight staircase or gently sloped 35° ramp: floor sampled every ~0.35m, climbing within real stepOffset/skinWidth and slope limit, not one giant vertical jump; no interruption of melee/firearm attack detection beyond ordinary collision.
+- [ ] L-shaped staircase and landing, narrow flights, real multi-level office stairs: record which connect within the 9×9×2 local grid; a search failure is a pending NAV-STAIR-01 scenario, not evidence of success. Test route across two distinct floors with roof geometry.
+- [ ] Two horizontal floors separated by 3m and NO stairs: two walkable overlapping surfaces alone must NEVER form a route. Vertical edges within same XZ cell are forbidden, even if target stands directly above NPC.
+- [ ] Open shaft, cliff, stairwell with missing tread, water below, locked door on stairs, wall/railing or head-level beam: reject physically disconnected adjacent nodes. Validate samples, full capsule clearance, door permissions, collision and map clip safety. No teleport, no forced Y correction and no fake jump.
+- [ ] NPC approaching stairs occupied by allied mobile NPC, Zombie or Player: temporary actor doesn't irreversibly delete the path but real movement must wait/steer — characters cannot pass through each other; if an additional solid wall blocks the stairwell, path must fail.
+- [ ] Combat scenario: enemy moves upstairs without changing X/Z; previously built downstairs route must be invalidated because target Y changed >0.8m, and the NPC must only shoot if real LOS and weapon/fire rules permit.
+- [ ] Test a corridor with an unlocked native BarricadeDoor and actual staircase: A* may classify native unlocked door as a possible edge, but the agent must physically open it, wait for hinge collider and then traverse stair. Locked and unregistered doors remain impassable.
+- [ ] With 1, 4, 20 and 40 NPCs attempting nearby floor transitions, inspect Profiler: one vertical plan globally every >=0.16s, per-agent >=2.5s, max 180 connector tests per plan, 24 floor hits buffer/cell. Measure CPU, allocations, spikes and frame-rate.
+- [ ] Several floors (>2) stacked at one X/Z and maze-like stairwells whose entry is >5m away: are KNOWN LIMITATIONS; avoid pretending the current planner works there. Future authored level connectors / global A* path graph necessary.
+- [ ] Test at least two stock maps plus custom house; record 3D coordinates, floor geometry, map name, A* backend status, any invalid ray collider, `Player.log` and short clip for user's final Dev Build review.
+- [ ] Until compilation and genuine in-game behavior are verified, keep `NAV-STAIR-01` and `CORE-04` EM IMPLEMENTAÇÃO. Do not delete or close either task.
