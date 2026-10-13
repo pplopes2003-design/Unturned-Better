@@ -1690,8 +1690,9 @@ namespace SDG.Unturned
 						RuntimeGizmos.Get().Line(ray.origin, ray.origin + ray.direction * travelLength, Color.red, lifespan: 30.0f);
 #endif // WITH_BALLISTIC_TRAJECTORY_GIZMOS
 
-						MobileNPCHumanoidVitals mobileNPCVitals = info.transform != null
-							? info.transform.GetComponentInParent<MobileNPCHumanoidVitals>()
+						Transform clientNPCHit = info.collider != null ? info.collider.transform : info.transform;
+						MobileNPCHumanoidVitals mobileNPCVitals = clientNPCHit != null
+							? clientNPCHit.GetComponentInParent<MobileNPCHumanoidVitals>()
 							: null;
 						if (mobileNPCVitals != null && equippedGunAsset.zombieOrPlayerDamageMultiplier.multiply(info.limb) > 1)
 						{
