@@ -20,6 +20,7 @@ namespace SDG.Unturned
 		private bool investigatingPlayerClue;
 		private float nextDefensiveReplanAt;
 		private Vector3 lastDefensiveThreatPosition;
+		private float nextStalkPlanAt;
 		private bool hasInitialized;
 		private bool hasPublishedDecision;
 		private bool lastHasDestination;
@@ -79,6 +80,8 @@ namespace SDG.Unturned
 
 			investigatingPlayerClue = false;
 			listenUntil = 0f;
+			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Stalk)
+				tactics.ClearGoal();
 			brain.ReportVisibleTarget(target, Time.time);
 			PublishDecisionIfChanged();
 		}
@@ -123,7 +126,8 @@ namespace SDG.Unturned
 			if (brain.CurrentState == MobileNPCBrain.State.Pursuing && brain.Target != null)
 				return;
 			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Retreat
-				|| tactics.CurrentGoal == MobileNPCTactics.Goal.SeekCover)
+				|| tactics.CurrentGoal == MobileNPCTactics.Goal.SeekCover
+				|| tactics.CurrentGoal == MobileNPCTactics.Goal.Stalk)
 				return;
 
 			// Quiet, ambiguous sound: listen and wait for further evidence rather
@@ -401,7 +405,15 @@ namespace SDG.Unturned
 			}
 			if (tactics.CurrentGoal != MobileNPCTactics.Goal.None)
 			{
+				bool finishedStalk = tactics.CurrentGoal == MobileNPCTactics.Goal.Stalk;
 				tactics.ReportGoalReached();
+				if (finishedStalk)
+				{
+					// Wait at the vantage point briefly, without claiming to see
+					// a hidden player or firing through cover.
+					listenUntil = Time.time + 1.5f;
+					listeningClue = brain.Destination;
+				}
 			}
 			else
 			{
@@ -439,6 +451,15 @@ namespace SDG.Unturned
 			if (tactics.IsGoalExpired(Time.time))
 			{
 				tactics.ClearGoal();
+			}
+			// An active clue is evaluated at a bounded rate and only when no more
+			// urgent tactical action or confirmed pursuit is underway.
+			if (investigatingPlayerClue && brain.CurrentState == MobileNPCBrain.State.Investigating
+				&& tactics.CurrentGoal == MobileNPCTactics.Goal.None
+				&& !IsListening && Time.time >= nextStalkPlanAt)
+			{
+				nextStalkPlanAt = Time.time + 5f;
+				TryPlanConcealedApproach();
 			}
 			PublishDecisionIfChanged();
 		}
@@ -484,6 +505,113 @@ namespace SDG.Unturned
 			investigatingPlayerClue = false;
 			listenUntil = 0f;
 			PublishDecisionIfChanged();
+		}
+
+		/// <summary>
+		/// Find a sheltered point that can be reached by an unobstructed short walk.
+		/// The point is chosen relative to an *aged evidence estimate*, never a
+		/// hidden player's Transform. A blocked route is rejected instead of guessed.
+		/// </summary>
+		private void TryPlanConcealedApproach()
+		{
+			if (!CanAcceptServerInput || !investigatingPlayerClue)
+				return;
+			MobileNPCHumanoidDisposition disposition = GetComponent<MobileNPCHumanoidDisposition>();
+			if (disposition == null
+				|| disposition.CurrentRole != MobileNPCHumanoidDisposition.Role.Hostile
+				|| !playerKnowledge.TryGetEvidence(Time.time, out Vector3 clue,
+					out float confidence, out float uncertainty, out _)
+				|| confidence < 0.34f || uncertainty > 12f)
+				return;
+
+			Vector3 toClue = clue - transform.position;
+			toClue.y = 0f;
+			if (toClue.sqrMagnitude < 16f || toClue.sqrMagnitude > 900f)
+				return;
+
+			float bestScore = float.NegativeInfinity;
+			Vector3 selected = Vector3.zero;
+			Vector3 direction = toClue.normalized;
+			for (int i = -2; i <= 2; ++i)
+			{
+				Vector3 lateral = Quaternion.AngleAxis(i * 27f, Vector3.up) * direction;
+				Vector3 rawPoint = transform.position + lateral * 5f;
+				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(rawPoint, 5f, 5f,
+					RayMasks.BLOCK_COLLISION, 40f, out Vector3 ground, out _))
+					continue;
+
+				Vector3 approach = ground - transform.position;
+				approach.y = 0f;
+				float length = approach.magnitude;
+				if (length < 2.5f || length > 7f)
+					continue;
+
+				Vector3 chestOrigin = transform.position + Vector3.up * 1f;
+				RaycastHit[] pathHits = Physics.SphereCastAll(chestOrigin, 0.28f,
+					approach.normalized, length, RayMasks.BLOCK_COLLISION,
+					QueryTriggerInteraction.Ignore);
+				bool blocked = false;
+				for (int h = 0; h < pathHits.Length; ++h)
+				{
+					Collider obstacle = pathHits[h].collider;
+					if (obstacle == null || obstacle.transform == transform
+						|| obstacle.transform.IsChildOf(transform)
+						|| obstacle.GetComponentInParent<Player>() != null
+						|| obstacle.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
+						continue;
+					if (pathHits[h].distance < length - 0.6f)
+					{
+						blocked = true;
+						break;
+					}
+				}
+				if (blocked)
+					continue;
+
+				// Concealment: environment geometry interrupts the line from
+				// last-known player area to this candidate. No actor qualifies as cover.
+				Vector3 sightOrigin = clue + Vector3.up * 1.35f;
+				Vector3 sightTarget = ground + Vector3.up * 1.1f;
+				Vector3 sightOffset = sightTarget - sightOrigin;
+				if (sightOffset.sqrMagnitude < 0.2f)
+					continue;
+				RaycastHit[] coverHits = Physics.RaycastAll(sightOrigin,
+					sightOffset.normalized, sightOffset.magnitude,
+					RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+				bool sheltered = false;
+				for (int h = 0; h < coverHits.Length; ++h)
+				{
+					Collider obstacle = coverHits[h].collider;
+					if (obstacle == null || obstacle.transform == transform
+						|| obstacle.transform.IsChildOf(transform)
+						|| obstacle.GetComponentInParent<Player>() != null
+						|| obstacle.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
+						continue;
+					if (coverHits[h].distance < sightOffset.magnitude - 0.7f
+						&& Vector3.Angle(coverHits[h].normal, Vector3.up) > 45f)
+					{
+						sheltered = true;
+						break;
+					}
+				}
+				if (!sheltered)
+					continue;
+
+				Vector3 candidateOffset = clue - ground;
+				candidateOffset.y = 0f;
+				float score = -candidateOffset.magnitude
+					+ length * 0.2f + Random.Range(-0.35f, 0.35f);
+				if (score > bestScore)
+				{
+					bestScore = score;
+					selected = ground;
+				}
+			}
+
+			if (bestScore > float.NegativeInfinity
+				&& tactics.TryStartStalk(selected, Time.time))
+				Debug.Log("[MobileNPCBrainDriver] Cautious concealed approach chosen for "
+					+ name + "; evidenceConfidence=" + confidence.ToString("F2") + ".", this);
 		}
 
 		/// <summary>
