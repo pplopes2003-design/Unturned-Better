@@ -463,11 +463,10 @@ namespace SDG.Unturned
 			{
 				MobileNPCCompanionContract contract = activeNPC.GetComponent<MobileNPCCompanionContract>();
 				bool escortAssigned = contract != null && contract.AssignServer(activePlayer);
-				ShowPrompt(
+				ShowMainMenu(
 					escortAssigned
-						? "Aliança aceita. Agora pertenço aos sobreviventes, vou acompanhar você quando estiver fora de combate e enfrentarei saqueadores hostis que detectar."
-						: "Aliança aceita. Agora pertenço aos sobreviventes e enfrentarei saqueadores hostis que detectar, mas não consegui iniciar a escolta.");
-				Clear();
+						? "Aliança aceita. Vou acompanhar você fora de combate e enfrentar saqueadores hostis."
+						: "Aliança aceita, mas não consegui iniciar a escolta.");
 			}
 			else
 			{
