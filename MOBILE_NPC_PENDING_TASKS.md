@@ -28,7 +28,7 @@
 | GRP-01 | P1 | Grupos de até 4: líder, mudança de papel/facção, alianças, sem friendly fire nem inteligência global | EM IMPLEMENTAÇÃO | Matriz de relações, reconciliação, morte do líder, recrutar e combater facções rivais |
 | GRP-02 | P1 | Grupos sobrevivem à morte de um membro; dissolvem quando todos morrem; respawn não herda memória individual | EM IMPLEMENTAÇÃO | ID/âncora corretos, não recria grupo morto e reposições respeitam intervalo |
 | GRP-03 | P1 | Construção de bases padronizadas, recursos, armazenamento, território e persistência | EM IMPLEMENTAÇÃO | Estruturas válidas/energia no mapa e estado restaurado |
-| SAVE-01 | P1 | Persistência identidade individual, HP, itens, ferimentos, facção/grupo, conhecimento e migração | EM IMPLEMENTAÇÃO | Save/reload com continuidade da mesma pessoa, nenhum dado herdado por recém-criado |
+| SAVE-01 | P1 | Persistência identidade individual, HP, itens, ferimentos, facção/grupo, conhecimento e migração | EM IMPLEMENTAÇÃO (memória versionada v3; identidade/ferimentos completos pendentes) | Save/reload com continuidade da mesma pessoa, nenhum dado herdado por recém-criado |
 | COM-01 | P1 | Voz local realista, audível com distância/parede/agachamento e observação, grupo/facção | IMPLEMENTADA / NÃO COMPILADA (parcial) | Aliados recebem somente falas ao alcance; outros não ganham dados mágicos |
 | COM-02 | P1 | Rádio nativo portátil 1445, escuta 1446, canal/equipamento, mensagens, player intercepta com legenda | EM IMPLEMENTAÇÃO (outbox apenas) | Frequência compatível + aparelho real, sem interceptação sem receptor |
 | COM-03 | P2 | Rádio fixo de base com infraestrutura elétrica comprovada e eventual rádio veicular | NÃO INVESTIGADA | Base construída e energizada, transmissão interrompe sem energia |
@@ -38,10 +38,10 @@
 | UI-02 | P1 | Animações/som humanoides reais de punch, tiro, recarga, hit, correr, ajoelhar, ragdoll | EM IMPLEMENTAÇÃO | Conferir clips/rig reais da Unity; reproduções sincronizadas |
 | PERF-01 | P2 | Limite 1–40, respawn, escalonamento, streaming regiões, perf/GC e logs limitados | EM IMPLEMENTAÇÃO | FPS/GC e logs com 20 NPCs + zumbis em dois mapas |
 | NET-01 | P3 | Replicação multiplayer de NPC/loot/animações/combate/rádio e atribuição nativa | NÃO INVESTIGADA | Cliente/servidor com estados consistentes |
-| LEARN-01 | P1 | Memória longa **por indivíduo**: resultados de combate contra jogador/zumbi, táticas, caminhos e perigos | NÃO INVESTIGADA | Aprendizado observável e limitado, sem acesso a dados invisíveis |
-| LEARN-02 | P1 | Aprendizado online (contextual bandit/recompensa incremental, ou ML viável), exploração, esquecimento/validade | NÃO INVESTIGADA | Evidência sucesso/fracasso altera escolha de tática em contexto comparável; sem exploit |
-| LEARN-03 | P1 | Transmissão de ensinamentos **somente por voz local ou rádio físico**; confiabilidade, rumor, consentimento | NÃO INVESTIGADA | Membro ausente não sabe; com contato pode aprender, com erro/incerteza; sem facção-telepatia |
-| LEARN-04 | P1 | Morte apaga conhecimento privado não compartilhado; sobreviventes guardam apenas o que ouviram; persistência individual | NÃO INVESTIGADA | Morte antes de contar apaga; depois de contar sobrevivente lembra; substituto nasce novo |
+| LEARN-01 | P1 | Memória longa **por indivíduo**: resultados de combate contra jogador/zumbi, táticas, caminhos e perigos | EM IMPLEMENTAÇÃO (loot e disparos; táticas/rotas pendentes) | Aprendizado observável e limitado, sem acesso a dados invisíveis |
+| LEARN-02 | P1 | Aprendizado online (contextual bandit/recompensa incremental, ou ML viável), exploração, esquecimento/validade | EM IMPLEMENTAÇÃO (feedback incremental e decisões limitadas; aprendizado tático pendente) | Evidência sucesso/fracasso altera escolha de tática em contexto comparável; sem exploit |
+| LEARN-03 | P1 | Transmissão de ensinamentos **somente por voz local ou rádio físico**; confiabilidade, rumor, consentimento | EM IMPLEMENTAÇÃO (fala local simulada; rádio/áudio/UI pendentes) | Membro ausente não sabe; com contato pode aprender, com erro/incerteza; sem facção-telepatia |
+| LEARN-04 | P1 | Morte apaga conhecimento privado não compartilhado; sobreviventes guardam apenas o que ouviram; persistência individual | IMPLEMENTADA / NÃO COMPILADA (parcial; identidade e fila de conversas pendentes) | Morte antes de contar apaga; depois de contar sobrevivente lembra; substituto nasce novo |
 | LEARN-05 | P2 | Aprender rotas/obstáculos, cobertura válida, comportamento contra diferentes tipos de zumbi/jogador | NÃO INVESTIGADA | Cache por mapa/local e validação de mudanças; bloqueios não viram caminho perfeito |
 | DOC-01 | P0 | **Atualizar sempre** este registro, HANDOFF, designs/testes e links de commits em cada rodada | EM VALIDAÇÃO (processo contínuo) | Histórico nunca perde itens; cada etapa registrou seu status |
 | DOC-02 | P2 | Diagrama completo da IA/árvore de decisão e fluxo de memória/comunicação ao final de todos os módulos | NÃO INVESTIGADA | Diagrama fiel ao que existe, distinguindo implementado/testado/proposto |
@@ -69,3 +69,13 @@
 ## Itens concluídos e verificados no jogo
 
 *Nenhum foi formalmente encerrado por este critério até 2026-10-13.* Componentes parciais ou commits existentes permanecem acima.
+
+## Histórico de atualização — 2026-10-13, rodada de memória/aprendizado
+
+**LEARN-01 a LEARN-04 continuam ATIVAS, não encerradas.** Implementada em fonte uma camada inicial de aprendizagem online individual a partir de resultados reais de saque e de disparos. A ação posterior de seleção de loot ou o intervalo entre disparos consulta experiência do próprio indivíduo. Até 48 registros com contribuição de conhecimento ouvido mais fraca do que aprendizado direto; transmissão simulada só em conversa local entre membros vivos do mesmo grupo próximos o bastante para ouvir, sujeita a paredes; sem rádio remoto. Morte apaga memória privada. Snapshot individual `MobileNPCPersistence` migrou de versão 2 para 3, aceitando versões anteriores.
+
+Arquivos: `MobileNPCAdaptiveMemory.cs`, `MobileNPCPopulationBootstrap.cs`, `MobileNPCHumanoidVitals.cs`, `MobileNPCLooting.cs`, `MobileNPCHumanoidRangedCombat.cs`, `MobileNPCGroupMember.cs`, `MobileNPCPersistence.cs`.
+
+Commits de implementação: `1a41e003`, `564ebfc1`, `a94ca7ad`, `f6b4583f`, `a657faad`, `a576d920`, `f2eac633`, `18297285`. Documento técnico: `MOBILE_NPC_ADAPTIVE_LEARNING_DESIGN.md` commit `c1efbe55`.
+
+**Critério de verdade:** código revisado estruturalmente via GitHub, mas NÃO compilado, NÃO testado em Dev Build e NÃO runtime-verificado. Aprender estratégias de cobertura/emboscada, planos contra tipos de zumbis, caminhos bem-sucedidos, ML sofisticado, voz audível, fila/persistência de lições não contadas, identidade individual persistente e compartilhamento via rádio nativo **seguem pendentes**. O usuário fará compilação/testes ao final da implementação. Atualizar ambos este guia e HANDOFF em toda rodada.
