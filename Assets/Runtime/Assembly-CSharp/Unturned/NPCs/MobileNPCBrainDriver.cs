@@ -24,6 +24,14 @@ namespace SDG.Unturned
 		private float ambushArmedUntil;
 		private float ambushAttackUnlockAt;
 		private Transform ambushTarget;
+		public enum AmbushMethod { None, Ranged, CloseAssault }
+		private AmbushMethod ambushMethod;
+		private float ambushMethodExpiresAt;
+		public AmbushMethod CurrentAmbushMethod =>
+			ambushMethod != AmbushMethod.None && Time.time < ambushMethodExpiresAt
+			? ambushMethod : AmbushMethod.None;
+		public bool HoldRangedFireForCloseAssault => CurrentAmbushMethod == AmbushMethod.CloseAssault
+			&& brain != null && brain.Target == ambushTarget;
 		/// <summary>Combat must wait for a finite visual confirmation/ready interval.</summary>
 		public bool IsAmbushPreparing => Provider.isServer && hasInitialized && ambushTarget != null
 			&& Time.time < ambushAttackUnlockAt
@@ -67,6 +75,8 @@ namespace SDG.Unturned
 			ambushArmedUntil = 0f;
 			ambushAttackUnlockAt = 0f;
 			ambushTarget = null;
+			ambushMethod = AmbushMethod.None;
+			ambushMethodExpiresAt = 0f;
 			tactics.ClearGoal();
 			hasInitialized = true;
 			MobileNPCRegistry.Register(this);
@@ -107,10 +117,28 @@ namespace SDG.Unturned
 					&& delta.sqrMagnitude <= 18f * 18f
 					&& delta.sqrMagnitude >= 2f * 2f)
 				{
-					ambushTarget = target;
-					ambushAttackUnlockAt = Time.time + UnityEngine.Random.Range(0.45f, 0.85f);
+					MobileNPCHumanoidRangedCombat ranged = GetComponent<MobileNPCHumanoidRangedCombat>();
+					bool gunUsable = ranged != null && ranged.SelectedGunAsset != null
+						&& ranged.RoundsRemaining > 0;
+					bool closeEnough = delta.sqrMagnitude <= 6f * 6f;
+					if (gunUsable && !closeEnough)
+						ambushMethod = AmbushMethod.Ranged;
+					else if (closeEnough)
+						ambushMethod = AmbushMethod.CloseAssault;
+					else
+						ambushMethod = AmbushMethod.None;
+
+					// No usable attack opportunity means abandon the planned ambush.
+					// Ordinary pursuit can still begin if the enemy is confirmed.
+					if (ambushMethod != AmbushMethod.None)
+					{
+						ambushTarget = target;
+						ambushMethodExpiresAt = Time.time + 4f;
+						ambushAttackUnlockAt = Time.time + UnityEngine.Random.Range(0.45f, 0.85f);
+						Debug.Log("[MobileNPCBrainDriver] Visible-target ambush method="
+							+ ambushMethod + " with brief ready delay.", this);
+					}
 					ambushArmedUntil = 0f;
-					Debug.Log("[MobileNPCBrainDriver] Ambush acquired visible target; brief ready delay.", this);
 				}
 			}
 			investigatingPlayerClue = false;
@@ -448,6 +476,8 @@ namespace SDG.Unturned
 					// Never fire at the remembered position itself.
 					ambushArmedUntil = Time.time + 5f;
 					ambushTarget = null;
+					ambushMethod = AmbushMethod.None;
+					ambushMethodExpiresAt = 0f;
 					listenUntil = Time.time + 1.5f;
 					listeningClue = brain.Destination;
 				}
@@ -469,12 +499,14 @@ namespace SDG.Unturned
 				return;
 			}
 
-			if (ambushTarget != null && (Time.time >= ambushAttackUnlockAt
-				|| !targetIsVisible || brain.Target != ambushTarget))
+			if (ambushTarget != null && (!targetIsVisible
+				|| (brain.Target != null && brain.Target != ambushTarget)
+				|| Time.time >= ambushMethodExpiresAt))
 			{
-				ambushTarget = null;
-				ambushAttackUnlockAt = 0f;
+				CancelAmbush();
 			}
+			else if (ambushTarget != null && Time.time >= ambushAttackUnlockAt)
+				ambushAttackUnlockAt = 0f;
 			MobileNPCBrain.State previousState = brain.CurrentState;
 			Transform previousTarget = brain.Target;
 			brain.Tick(Time.time, targetIsVisible);
@@ -556,6 +588,8 @@ namespace SDG.Unturned
 			ambushArmedUntil = 0f;
 			ambushAttackUnlockAt = 0f;
 			ambushTarget = null;
+			ambushMethod = AmbushMethod.None;
+			ambushMethodExpiresAt = 0f;
 		}
 
 		/// <summary>
