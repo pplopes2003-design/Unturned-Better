@@ -971,3 +971,6 @@ No Unity compile, no game test, no Player.log this turn. GitHub code, native def
 ### NEXT P0 action
 
 Inspect actual *stairs / multilevel navigation link* representations in U3SDK level objects/nav boundaries and graph API without inventing A* source. Avoid authoring universal stairs from floor height alone; require actual safe traversable connectors and geolocated entrance/exits. Alternatively prioritize `UI-01` severe dialogue HUD/ESC bug or `UI-02` native attack animation gap. Source changes and documentation required for each continuation.
+
+
+**NAV-DOOR-01 final static safety**: `775fb0aa0bcfefd90c44e3dff08d5325c2245e41` rejects unregistered/stale door objects from both the local A* edge and grid-cell traversability classifiers; merely finding an `InteractableDoor` MonoBehaviour is not proof it can actually be opened through BarricadeManager. Physical server opening already checks registration separately. Source only; no Unity compile. Keep NAV-DOOR-01 near-ready scoped, CORE-04 open.
