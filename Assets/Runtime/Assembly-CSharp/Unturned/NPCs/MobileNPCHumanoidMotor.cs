@@ -122,6 +122,8 @@ namespace SDG.Unturned
 		private readonly List<Vector3> reversedRouteScratch = new List<Vector3>(RouteGridSide);
 		private int routeWaypointIndex;
 		private float nextRoutePlanTime;
+		private float nextLocalRoutePlanTime;
+		private float nextPlannedRouteValidationTime;
 		private Vector3 lastRoamingDirection;
 		private bool hasLastRoamingDirection;
 		private int avoidanceSide = 1;
@@ -183,6 +185,8 @@ namespace SDG.Unturned
 			physicallyCrouched = false;
 			locomotionPolicy.Reset();
 			nextJumpTime = 0f;
+			nextLocalRoutePlanTime = 0f;
+			nextPlannedRouteValidationTime = 0f;
 			brainDriver.InitializeServer(spawnPosition);
 			hasRoamingDestination = false;
 			nextRoamingDecisionTime = Time.time + Random.Range(2f, 5f);
@@ -385,9 +389,21 @@ namespace SDG.Unturned
 				}
 				else if (hasBrainDestination)
 				{
-					brainDriver.ReportDestinationReached();
+					// A detour node or A* intermediary is not the destination of
+					// the brain's seek-cover, loot, investigate or pursue goal.
+					// Do not acknowledge arrival until the *actual requested goal*
+					// is physically within stopping distance, with no artificial
+					// bridging across stairs or different floors.
+					if (PlanarDistanceSquared(transform.position, destination)
+						<= stoppingDistance * stoppingDistance
+						&& Mathf.Abs(destination.y - transform.position.y)
+						<= Mathf.Max(0.45f, characterController.stepOffset + 0.2f))
+						brainDriver.ReportDestinationReached();
 				}
-				else
+				else if (PlanarDistanceSquared(transform.position, destination)
+				<= stoppingDistance * stoppingDistance
+				&& Mathf.Abs(destination.y - transform.position.y)
+				<= Mathf.Max(0.45f, characterController.stepOffset + 0.2f))
 				{
 					hasRoamingDestination = false;
 					nextRoamingDecisionTime = Time.time + Random.Range(
@@ -1176,9 +1192,9 @@ namespace SDG.Unturned
 
 		private bool TryBuildLocalRoute(Vector3 destination)
 		{
-			if (Time.time < nextRoutePlanTime)
+			if (Time.time < nextLocalRoutePlanTime)
 				return false;
-			nextRoutePlanTime = Time.time + 0.75f;
+			nextLocalRoutePlanTime = Time.time + 0.75f;
 
 			Vector3 goalOffset = destination - transform.position;
 			goalOffset.y = 0f;
