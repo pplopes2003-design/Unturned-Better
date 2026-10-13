@@ -29,6 +29,13 @@ namespace SDG.Unturned
 
 		private bool isLocked;
 
+		/// <summary>
+		/// Public read-only lock state for non-player navigation. In single-player
+		/// checkToggle has a native compatibility bypass, so AI must inspect the
+		/// actual asset-derived lock state rather than assuming it has permission.
+		/// </summary>
+		public bool IsLockedForMobileNPCNavigation => isLocked;
+
 		public bool isOpenable => Time.realtimeSinceStartup - opened > 0.75f;
 
 		private float opened;
