@@ -234,6 +234,7 @@ namespace SDG.Unturned
 				if (points == null)
 				{
 					lastPathFailed = true;
+					nextRequestTime = Time.time + 2.5f;
 					return;
 				}
 
