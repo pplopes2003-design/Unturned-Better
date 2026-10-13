@@ -2273,9 +2273,14 @@ namespace SDG.Unturned
 				return false;
 			if (!requireExactLocalGoal)
 			{
-				if (Time.time < nextLocalRoutePlanTime)
+				if (Time.time < nextLocalRoutePlanTime
+					|| Time.time < nextSharedUnknownRouteSlot)
 					return false;
-				nextLocalRoutePlanTime = Time.time + 0.75f;
+				// Broad local discovery is the expensive fallback when a native
+				// graph is unavailable. Spread its ground probes across NPCs.
+				nextSharedUnknownRouteSlot = Time.time + 0.10f;
+				nextLocalRoutePlanTime = Time.time + 0.75f
+					+ Random.Range(0f, 0.25f);
 			}
 
 			Vector3 goalOffset = destination - transform.position;
@@ -2318,7 +2323,8 @@ namespace SDG.Unturned
 						continue;
 					if (index != RouteGridCenter * RouteGridSide + RouteGridCenter
 						&& IsRouteNodeOccupied(resolved, routeRadius)
-						&& !IsOnlyUnlockedDoorOccupyingRouteNodeServer(resolved, routeRadius))
+						&& !IsOnlyUnlockedDoorOccupyingRouteNodeServer(resolved, routeRadius)
+						&& !IsOnlyTemporaryActorOccupyingRouteNode(resolved, routeRadius))
 						continue;
 
 					// Node occupancy is already checked above; real traversability
@@ -2457,24 +2463,43 @@ namespace SDG.Unturned
 			}
 
 			int goal = -1;
-			float bestGoalDistance = float.PositiveInfinity;
+			float bestFrontierScore = float.PositiveInfinity;
 			for (int i = 0; i < RouteGridNodeLimit; ++i)
 			{
-				if (!closed[i] || !walkable[i] || i == start)
+				if (!closed[i] || !walkable[i] || i == start
+					|| previous[i] < 0 || float.IsInfinity(costs[i]))
 					continue;
-				Vector3 delta = positions[i] - localGoal;
-				delta.y = 0f;
-				float distance = delta.sqrMagnitude;
-				// Prefer the intended cell when reachable; otherwise route to the
-				// closest node that is actually connected to the NPC's start cell.
 				if (i == preferredGoal)
 				{
+					// A physically reachable preferred cell is still useful
+					// even if the final target is several local grids away.
 					goal = i;
 					break;
 				}
-				if (distance < bestGoalDistance)
+				if (requireExactLocalGoal)
+					continue;
+
+				// The closest cell to a target on the opposite side of a wall
+				// is often a dead end. Penalize *experienced* dead ends while
+				// preferring reachable boundary/frontier cells that can lead
+				// around the wall on subsequent local planning windows.
+				float forwardDistance = Mathf.Sqrt(
+					PlanarDistanceSquared(positions[i], localGoal));
+				float travelDistance = Mathf.Sqrt(
+					PlanarDistanceSquared(positions[i], basePosition));
+				if (travelDistance < 1.4f)
+					continue;
+				int x = i % RouteGridSide;
+				int z = i / RouteGridSide;
+				bool boundary = x <= 1 || x >= RouteGridSide - 2
+					|| z <= 1 || z >= RouteGridSide - 2;
+				float frontierScore = forwardDistance
+					+ Mathf.Max(0f, costs[i]) * 0.12f
+					+ LocalDeadEndPenalty(positions[i], destination)
+					- (boundary ? 0.65f : 0f);
+				if (frontierScore < bestFrontierScore)
 				{
-					bestGoalDistance = distance;
+					bestFrontierScore = frontierScore;
 					goal = i;
 				}
 			}
