@@ -264,7 +264,7 @@ namespace SDG.Unturned
 					? meleeHitTransform.GetComponentInParent<MobileNPCHumanoidVitals>()
 					: null;
 				if (mobileNPCVitals != null && !mobileNPCVitals.IsDead && equippedMeleeAsset.zombieOrPlayerDamageMultiplier.multiply(
-					mobileNPCVitals.ResolveBodyPartAtWorldPoint(info.point) == MobileNPCInjurySystem.BodyPart.Head
+					mobileNPCVitals.ResolveBodyPartAtWorldPoint(info.point, meleeHitTransform) == MobileNPCInjurySystem.BodyPart.Head
 						? ELimb.SKULL : info.limb) > 1)
 				{
 					if (Provider.provider.statisticsService.userStatisticsService.getStatistic("Accuracy_Hit", out data))
@@ -272,7 +272,7 @@ namespace SDG.Unturned
 						Provider.provider.statisticsService.userStatisticsService.setStatistic("Accuracy_Hit", data + 1);
 					}
 					PlayerUI.hitmark(info.point, false,
-						mobileNPCVitals.ResolveBodyPartAtWorldPoint(info.point)
+						mobileNPCVitals.ResolveBodyPartAtWorldPoint(info.point, meleeHitTransform)
 						== MobileNPCInjurySystem.BodyPart.Head
 						? EPlayerHit.CRITICAL : EPlayerHit.ENTITIY);
 				}
@@ -556,9 +556,9 @@ namespace SDG.Unturned
 				{
 					if (Provider.isServer && !mobileNPCVitals.IsDead)
 					{
-						MobileNPCInjurySystem.BodyPart hitPart = mobileNPCVitals.ResolveBodyPartAtWorldPoint(info.point);
+						MobileNPCInjurySystem.BodyPart hitPart = mobileNPCVitals.ResolveBodyPartAtWorldPoint(info.point, authoritativeMeleeHit);
 						ELimb effectiveLimb = hitPart == MobileNPCInjurySystem.BodyPart.Head
-							? ELimb.SKULL : info.limb;
+							? ELimb.SKULL : ELimb.SPINE;
 						float mobileNPCDamage = equippedMeleeAsset.zombieOrPlayerDamageMultiplier.multiply(effectiveLimb) * times;
 						// Zero-damage melee tools must not become damaging merely because
 						// the target is a mobile NPC. Preserve weapon damage scaling.
@@ -566,7 +566,7 @@ namespace SDG.Unturned
 							&& mobileNPCDamage > 0f)
 						{
 							mobileNPCVitals.ApplyValidatedWeaponImpactServer(mobileNPCDamage,
-								info.point, info.direction, player.transform, false);
+								info.point, info.direction, player.transform, false, authoritativeMeleeHit);
 						}
 					}
 				}
