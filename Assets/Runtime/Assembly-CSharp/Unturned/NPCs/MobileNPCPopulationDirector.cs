@@ -280,6 +280,9 @@ namespace SDG.Unturned
                         insertIndex--;
                     }
                     pendingRespawns.Insert(insertIndex, pending);
+                    Debug.Log("[MobileNPCPopulationDirector] Death queued: npc=" + tracked.Instance.name
+                        + ", group=" + tracked.GroupId + ", corpseCleanupAt=" + (Time.time + Mathf.Max(1f, deadBodyLifetime)).ToString("F1")
+                        + ", replacementAt=" + respawnAt.ToString("F1") + ".", this);
                     if (tracked.GroupId > 0)
                     {
                         Debug.Log("[MobileNPCPopulationDirector] Mobile NPC from group " + tracked.GroupId
@@ -298,6 +301,7 @@ namespace SDG.Unturned
                     // Retaining it allows a future update to retry cleanup.
                     if (MobileNPCSpawnService.TryDespawnServer(tracked.Instance, out string despawnError))
                     {
+                        Debug.Log("[MobileNPCPopulationDirector] Corpse cleanup completed.", this);
                         trackedNPCs.RemoveAt(i);
                     }
                     else
