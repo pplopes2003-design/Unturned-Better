@@ -466,3 +466,5 @@ NAV-ACCESS-01 additional async regression (commit `1f6ae7f`): while native A* ha
 - [ ] **Before jumping work:** record any new collision/stuck failures in backlog. NAV-JUMP-01 remains separate planned jump/vault/ladder work, not part of this source milestone.
 
 Related commits: `7facf620`, `4968e145`, `d5cedb68`, `a6ce9d3b`, `8856f815`, `fde0be8e`, `36d647ef`.
+
+NAV-NATIVE-01 regression `6e59544a`: on licensed ASPFP runtime inspect selected `Seeker.StartPath` reflection signature (exact three parameters), confirm graph mask is not accidentally set to zero by the adapter; verify callback receives a valid route. Absent backend must still fail safely with diagnostics.
