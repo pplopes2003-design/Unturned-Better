@@ -1367,6 +1367,283 @@ namespace SDG.Unturned
 			return TryBuildLocalRoute(coverPoint, coverRouteScratch, true);
 		}
 
+		/// <summary>
+		/// Local multi-surface route for a REAL flight of stairs or sloped ramp.
+		/// There are at most two independently grounded surfaces per horizontal
+		/// cell. Identical X/Z on two floors does NOT create a vertical edge:
+		/// only adjacent cells linked by a sampled, stepwise walkable connector do.
+		/// The ordinary horizontal planner remains cheaper for outdoor walking.
+		/// </summary>
+		private bool TryBuildNearbyVerticalRoute(Vector3 destination)
+		{
+			if (!Provider.isServer || characterController == null || !characterController.enabled
+				|| !Level.checkSafeIncludingClipVolumes(destination)
+				|| Mathf.Abs(destination.y - transform.position.y) > 4.5f
+				|| PlanarDistanceSquared(destination, transform.position) > 30f)
+				return false;
+
+			Vector3 basePosition = transform.position;
+			float lowY = Mathf.Min(basePosition.y, destination.y) - 0.65f;
+			float highY = Mathf.Max(basePosition.y, destination.y) + 1.4f;
+			float rayLength = highY - lowY;
+			float radius = Mathf.Clamp(obstacleProbeRadius, 0.05f,
+				Mathf.Max(0.05f, characterController.radius * 0.9f));
+			for (int i = 0; i < VerticalNodeLimit; ++i)
+			{
+				verticalWalkable[i] = false;
+				verticalClosed[i] = false;
+				verticalCost[i] = float.PositiveInfinity;
+				verticalPrevious[i] = -1;
+			}
+			for (int z = 0; z < RouteGridSide; ++z)
+			{
+				for (int x = 0; x < RouteGridSide; ++x)
+				{
+					int cell = z * RouteGridSide + x;
+					Vector3 world = basePosition + new Vector3(
+						(x - RouteGridCenter) * RouteGridCellSize, 0f,
+						(z - RouteGridCenter) * RouteGridCellSize);
+					world.y = highY;
+					int count = Physics.RaycastNonAlloc(world, Vector3.down,
+						verticalFloorHitBuffer, rayLength, roamingGroundMask,
+						QueryTriggerInteraction.Ignore);
+					// Buffer truncation may conceal a ceiling or an intermediate
+					// staircase step, so never infer safe ground from partial data.
+					if (count <= 0 || count >= verticalFloorHitBuffer.Length)
+						continue;
+					float lowest = float.PositiveInfinity;
+					float highest = float.NegativeInfinity;
+					for (int j = 0; j < count; ++j)
+					{
+						RaycastHit groundHit = verticalFloorHitBuffer[j];
+						Collider collider = groundHit.collider;
+						if (collider == null || IsOwnCollider(collider)
+							|| collider.GetComponentInParent<Player>() != null
+							|| collider.GetComponentInParent<Zombie>() != null
+							|| collider.GetComponentInParent<MobileNPCHumanoidVitals>() != null
+							|| Vector3.Angle(groundHit.normal, Vector3.up)
+								> Mathf.Min(characterController.slopeLimit, roamingMaximumSlope))
+							continue;
+						Vector3 ground = groundHit.point + Vector3.up * 0.05f;
+						if (ground.y < lowY || ground.y > highY
+							|| !Level.checkSafeIncludingClipVolumes(ground))
+							continue;
+						if (ground.y < lowest) lowest = ground.y;
+						if (ground.y > highest) highest = ground.y;
+					}
+					if (float.IsPositiveInfinity(lowest))
+						continue;
+					int first = cell * 2;
+					Vector3 lower = new Vector3(world.x, lowest, world.z);
+					if (!IsRouteNodeOccupied(lower, radius)
+						|| IsOnlyUnlockedDoorOccupyingRouteNodeServer(lower, radius))
+					{
+						verticalPositions[first] = lower;
+						verticalWalkable[first] = true;
+					}
+					if (highest - lowest > 0.38f)
+					{
+						Vector3 upper = new Vector3(world.x, highest, world.z);
+						if (!IsRouteNodeOccupied(upper, radius)
+							|| IsOnlyUnlockedDoorOccupyingRouteNodeServer(upper, radius))
+						{
+							verticalPositions[first + 1] = upper;
+							verticalWalkable[first + 1] = true;
+						}
+					}
+				}
+			}
+
+			int startCell = (RouteGridCenter * RouteGridSide + RouteGridCenter) * 2;
+			int start = -1;
+			float nearestStart = 0.75f;
+			for (int layer = 0; layer < 2; ++layer)
+			{
+				int index = startCell + layer;
+				float error = verticalWalkable[index]
+					? Mathf.Abs(verticalPositions[index].y - basePosition.y)
+					: float.PositiveInfinity;
+				if (error < nearestStart)
+				{
+					nearestStart = error;
+					start = index;
+				}
+			}
+			if (start < 0)
+				return false;
+			verticalPositions[start] = basePosition;
+			verticalCost[start] = 0f;
+
+			// A complete route requires a connected floor at the requested
+			// destination, not the closest X/Z location on the wrong storey.
+			int destinationX = Mathf.RoundToInt((destination.x - basePosition.x) / RouteGridCellSize)
+				+ RouteGridCenter;
+			int destinationZ = Mathf.RoundToInt((destination.z - basePosition.z) / RouteGridCellSize)
+				+ RouteGridCenter;
+			if (destinationX < 0 || destinationX >= RouteGridSide
+				|| destinationZ < 0 || destinationZ >= RouteGridSide)
+				return false;
+			int destinationCell = destinationZ * RouteGridSide + destinationX;
+			int goal = -1;
+			float bestGoalError = float.PositiveInfinity;
+			for (int layer = 0; layer < 2; ++layer)
+			{
+				int index = destinationCell * 2 + layer;
+				if (!verticalWalkable[index])
+					continue;
+				float horizontalError = PlanarDistanceSquared(verticalPositions[index], destination);
+				float heightError = Mathf.Abs(verticalPositions[index].y - destination.y);
+				if (horizontalError > 1.20f || heightError > 0.65f)
+					continue;
+				float score = horizontalError + heightError * heightError;
+				if (score < bestGoalError)
+				{
+					bestGoalError = score;
+					goal = index;
+				}
+			}
+			if (goal < 0 || goal == start)
+				return false;
+
+			// Hard cap prevents simultaneous 40-NPC searches from exploding into
+			// thousands of raycasts per route. Exhaustion fails closed.
+			int connectorProbeBudget = 180;
+			for (int iteration = 0; iteration < VerticalNodeLimit; ++iteration)
+			{
+				int current = -1;
+				float best = float.PositiveInfinity;
+				for (int i = 0; i < VerticalNodeLimit; ++i)
+				{
+					if (!verticalWalkable[i] || verticalClosed[i]
+						|| float.IsPositiveInfinity(verticalCost[i]))
+						continue;
+					float score = verticalCost[i]
+						+ Vector3.Distance(verticalPositions[i], verticalPositions[goal]);
+					if (score < best)
+					{
+						best = score;
+						current = i;
+					}
+				}
+				if (current < 0 || connectorProbeBudget <= 0)
+					break;
+				verticalClosed[current] = true;
+				if (current == goal)
+					break;
+				int cell = current / 2;
+				int cx = cell % RouteGridSide;
+				int cz = cell / RouteGridSide;
+				for (int d = 0; d < RouteGridDirections.Length; ++d)
+				{
+					int dx = RouteGridDirections[d].x;
+					int dz = RouteGridDirections[d].y;
+					int nx = cx + dx;
+					int nz = cz + dz;
+					if (nx < 0 || nx >= RouteGridSide || nz < 0 || nz >= RouteGridSide)
+						continue;
+					if (dx != 0 && dz != 0)
+					{
+						float expected = verticalPositions[current].y;
+						if (!VerticalCellHasCompatibleFloor(cz * RouteGridSide + nx, expected)
+							|| !VerticalCellHasCompatibleFloor(nz * RouteGridSide + cx, expected))
+							continue;
+					}
+					int adjacentCell = (nz * RouteGridSide + nx) * 2;
+					for (int layer = 0; layer < 2; ++layer)
+					{
+						int next = adjacentCell + layer;
+						if (!verticalWalkable[next] || verticalClosed[next])
+							continue;
+						Vector3 edge = verticalPositions[next] - verticalPositions[current];
+						float flat = Mathf.Sqrt(edge.x * edge.x + edge.z * edge.z);
+						if (flat < 0.2f || Mathf.Abs(edge.y) > flat
+							* Mathf.Tan(Mathf.Min(characterController.slopeLimit, roamingMaximumSlope)
+							* Mathf.Deg2Rad))
+							continue;
+						--connectorProbeBudget;
+						if (!IsActuallyWalkableStairConnection(
+							verticalPositions[current], verticalPositions[next], radius))
+							continue;
+						float tentative = verticalCost[current] + edge.magnitude;
+						if (tentative < verticalCost[next])
+						{
+							verticalCost[next] = tentative;
+							verticalPrevious[next] = current;
+						}
+					}
+				}
+			}
+			if (!verticalClosed[goal] || verticalPrevious[goal] < 0)
+				return false;
+
+			verticalReverseScratch.Clear();
+			int cursor = goal;
+			while (cursor != start && cursor >= 0
+				&& verticalReverseScratch.Count < VerticalNodeLimit)
+			{
+				verticalReverseScratch.Add(verticalPositions[cursor]);
+				cursor = verticalPrevious[cursor];
+			}
+			if (cursor != start || verticalReverseScratch.Count == 0)
+				return false;
+			routeWaypoints.Clear();
+			for (int i = verticalReverseScratch.Count - 1; i >= 0; --i)
+				routeWaypoints.Add(verticalReverseScratch[i]);
+			routeWaypointIndex = 0;
+			nextPlannedRouteValidationTime = 0f;
+			return true;
+		}
+
+		private bool VerticalCellHasCompatibleFloor(int cell, float expectedY)
+		{
+			for (int layer = 0; layer < 2; ++layer)
+			{
+				int index = cell * 2 + layer;
+				if (verticalWalkable[index]
+					&& Mathf.Abs(verticalPositions[index].y - expectedY) <= 0.75f)
+					return true;
+			}
+			return false;
+		}
+
+		private bool IsActuallyWalkableStairConnection(Vector3 from,
+			Vector3 to, float radius)
+		{
+			Vector3 edge = to - from;
+			float planarLength = Mathf.Sqrt(edge.x * edge.x + edge.z * edge.z);
+			if (planarLength < 0.2f)
+				return false;
+			float length = edge.magnitude;
+			Vector3 chestOrigin = from + Vector3.up * Mathf.Max(0.45f,
+				characterController.height * 0.55f);
+			if (IsObstacleBlockingAlong(chestOrigin, radius, edge / length, length)
+				&& (doorNavigation == null
+					|| !doorNavigation.IsTraversableUnlockedDoorEdgeServer(
+						chestOrigin, edge / length, radius, length, obstacleMask)))
+				return false;
+			// A chest-level clear ray is not permission to step across a stair
+			// well. Sample the actual floor every <=0.35m, ensuring each
+			// consecutive rise/drop can be handled by the CharacterController.
+			int samples = Mathf.CeilToInt(planarLength / 0.35f);
+			float lastY = from.y;
+			for (int i = 1; i <= samples; ++i)
+			{
+				float t = (float)i / samples;
+				Vector3 desired = Vector3.Lerp(from, to, t);
+				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(desired,
+					0.46f, 0.55f, roamingGroundMask,
+					Mathf.Min(characterController.slopeLimit, roamingMaximumSlope),
+					out Vector3 actualFloor, out _)
+					|| Mathf.Abs(actualFloor.y - desired.y) > 0.30f
+					|| actualFloor.y - lastY > characterController.stepOffset
+						+ characterController.skinWidth + 0.10f
+					|| lastY - actualFloor.y > 0.52f)
+					return false;
+				lastY = actualFloor.y;
+			}
+			return Mathf.Abs(lastY - to.y) <= 0.30f;
+		}
+
 		private bool TryBuildLocalRoute(Vector3 destination,
 			List<Vector3> alternateOutput = null, bool requireExactLocalGoal = false)
 		{
