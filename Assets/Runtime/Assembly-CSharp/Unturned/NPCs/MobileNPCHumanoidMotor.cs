@@ -401,6 +401,11 @@ namespace SDG.Unturned
 				nextRoamingDecisionTime = Time.time + Random.Range(0.4f, 1.2f);
 			}
 
+			// A suspicious footstep can suspend walking briefly while the survivor
+			// listens. A confirmed threat or retreat pre-empts this immediately.
+			if (brainDriver.IsListening)
+				planarDirection = Vector3.zero;
+
 			bool wantedToMove = planarDirection.sqrMagnitude > 0.0001f;
 			if (wantedToMove)
 			{
@@ -442,7 +447,8 @@ namespace SDG.Unturned
 				DestinationDistance = hasDestination ? Vector3.Distance(destination, transform.position) : 0f
 			};
 			MobileNPCLocomotionPolicy.Gait gait = locomotionPolicy.Decide(context, Time.time);
-			UpdateCrouchStance(gait == MobileNPCLocomotionPolicy.Gait.Sneak && !isUnderwater);
+			UpdateCrouchStance((gait == MobileNPCLocomotionPolicy.Gait.Sneak
+				|| brainDriver.IsListening) && !isUnderwater);
 			float speed = gait == MobileNPCLocomotionPolicy.Gait.Sprint && runWhenPursuing
 				? runSpeed : gait == MobileNPCLocomotionPolicy.Gait.Sneak ? sneakSpeed : walkSpeed;
 			speed *= injuryMovementMultiplier;
