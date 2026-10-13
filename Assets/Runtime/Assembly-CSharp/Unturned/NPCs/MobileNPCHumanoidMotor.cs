@@ -81,6 +81,7 @@ namespace SDG.Unturned
 		private MobileNPCBrainDriver brainDriver;
 		private MobileNPCInjurySystem injurySystem;
 		private MobileNPCDoorNavigation doorNavigation;
+		private MobileNPCTravelMemory travelMemory;
 		private MobileNPCNativeAStarRouteProvider nativeAStarRouteProvider;
 		private Vector3 spawnPosition;
 		private Vector3 velocity;
@@ -116,6 +117,16 @@ namespace SDG.Unturned
 		private Vector3 detourGoalSnapshot;
 		private float nextDetourAttemptTime;
 		private readonly List<Vector3> routeWaypoints = new List<Vector3>(16);
+		private readonly List<Vector3> actualTravelFootsteps
+			= new List<Vector3>(MobileNPCTravelMemory.MaxFootsteps);
+		private readonly List<Vector3> rememberedRouteScratch
+			= new List<Vector3>(MobileNPCTravelMemory.MaxFootsteps);
+		private Vector3 actualTravelStart;
+		private Vector3 actualTravelGoal;
+		private bool trackingActualJourney;
+		private bool actualJourneyExceededLimit;
+		private int activeRememberedRouteIndex = -1;
+		private float nextRememberedRouteAttemptTime;
 		private readonly List<RegionCoordinate> explorationRegions = new List<RegionCoordinate>(16);
 		private readonly List<LevelObject> explorationObjects = new List<LevelObject>(64);
 		// Reuse the bounded search workspace so several blocked NPCs do not allocate
@@ -210,6 +221,10 @@ namespace SDG.Unturned
 			nextVerticalRoutePlanTime = 0f;
 			consecutiveVerticalPlanFailures = 0;
 			failedVerticalGoal = Vector3.zero;
+			trackingActualJourney = false;
+			actualTravelFootsteps.Clear();
+			activeRememberedRouteIndex = -1;
+			nextRememberedRouteAttemptTime = 0f;
 			nextPlannedRouteValidationTime = 0f;
 			nextRouteCornerShortcutTime = 0f;
 			brainDriver.InitializeServer(spawnPosition);
@@ -232,6 +247,7 @@ namespace SDG.Unturned
 			brainDriver = GetComponent<MobileNPCBrainDriver>();
 			injurySystem = GetComponent<MobileNPCInjurySystem>();
 			doorNavigation = GetComponent<MobileNPCDoorNavigation>();
+			travelMemory = GetComponent<MobileNPCTravelMemory>();
 			nativeAStarRouteProvider = GetComponent<MobileNPCNativeAStarRouteProvider>();
 			if (nativeAStarRouteProvider == null)
 				nativeAStarRouteProvider = gameObject.AddComponent<MobileNPCNativeAStarRouteProvider>();
@@ -305,6 +321,9 @@ namespace SDG.Unturned
 			Vector3 destination = hasBrainDestination ? brainDriver.Destination : roamingDestination;
 			if (!hasDestination)
 			{
+				trackingActualJourney = false;
+				actualTravelFootsteps.Clear();
+				activeRememberedRouteIndex = -1;
 				// Completed/expired goals must not leave the previous route waiting to
 				// steer the next unrelated investigation or roaming destination.
 				routeWaypoints.Clear();
@@ -314,6 +333,7 @@ namespace SDG.Unturned
 			}
 			if (hasDestination)
 			{
+				BeginOrContinueActualJourney(destination);
 				// Keep a planned route while its goal remains stable. The previous condition
 				// cleared routeWaypoints whenever hasDetourWaypoint was false, which is also
 				// the normal state for a multi-corner native A* route.
@@ -323,12 +343,22 @@ namespace SDG.Unturned
 					hasDetourWaypoint = false;
 					routeWaypoints.Clear();
 					routeWaypointIndex = 0;
+					activeRememberedRouteIndex = -1;
 				}
 				else if (routeWaypoints.Count == 0 && !hasDetourWaypoint)
 				{
 					routeWaypointIndex = 0;
 				}
 
+				// A known route must have been physically traversed by THIS
+				// survivor. Recheck every short segment against current geometry
+				// before spending new CPU on global/native A* planning.
+				if (!isUnderwater && routeWaypoints.Count == 0 && !hasDetourWaypoint
+					&& Time.time >= nextRememberedRouteAttemptTime)
+				{
+					nextRememberedRouteAttemptTime = Time.time + 4f;
+					TryReuseActualLearnedRoute(destination);
+				}
 				// Ask for a map-wide path before the NPC gets close enough to collide with
 				// something. This is essential for open-world goals separated by buildings,
 				// fences or terrain; local obstacle probing alone cannot discover such routes.
@@ -665,6 +695,7 @@ namespace SDG.Unturned
 				if (audibleRadius > 0f)
 					ZombieManager.alertZombiesToNoise(transform.position, audibleRadius);
 			}
+			RecordActualMovementAndJourneyOutcome(hasDestination, destination, isUnderwater);
 			UpdateStuckRecovery(wantedToMove, deltaTime);
 		}
 
