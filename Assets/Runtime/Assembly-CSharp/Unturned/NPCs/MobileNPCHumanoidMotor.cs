@@ -1623,7 +1623,11 @@ namespace SDG.Unturned
 					for (int i = 1; i < activeAccessWaypointStarts.Count; ++i)
 						if (routeWaypointIndex >= activeAccessWaypointStarts[i])
 							stage = i;
-					travelMemory.ReportReuseFailureServer(activeAccessRouteIds[stage]);
+					// At a stage's first waypoint the attempted movement may be
+					// the small, newly verified gap BETWEEN old journeys,
+					// rather than an observed step within that journey.
+					if (routeWaypointIndex > activeAccessWaypointStarts[stage])
+						travelMemory.ReportReuseFailureServer(activeAccessRouteIds[stage]);
 				}
 			}
 			else if (travelMemory != null)
