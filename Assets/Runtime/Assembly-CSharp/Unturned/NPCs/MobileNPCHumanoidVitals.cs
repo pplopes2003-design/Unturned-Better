@@ -257,6 +257,9 @@ namespace SDG.Unturned
 				DisableOnDeath<MobileNPCSurvivalNeeds>();
 				DisableOnDeath<MobileNPCSettlementPlanner>();
 				DisableOnDeath<MobileNPCSettlementBuilder>();
+				DisableOnDeath<MobileNPCRangedPresentation>();
+				DisableOnDeath<MobileNPCNameplate>();
+				DisableOnDeath<MobileNPCVisualGuard>();
 			}
 			// Stop the living hit volume from intercepting later damage rays. The
 			// authored ragdoll colliders below become the physical corpse instead.
@@ -340,8 +343,11 @@ namespace SDG.Unturned
 			if (direction.sqrMagnitude < 0.001f)
 				direction = transform.forward;
 			direction.Normalize();
+			// An off-centre push causes the corpse to tip naturally instead of
+			// remaining an upright, static-looking capsule after death.
 			corpseBody.AddForceAtPosition(direction * Mathf.Max(60f, hitImpulse.magnitude),
 				corpse.transform.position + Vector3.up * 1.5f, ForceMode.Impulse);
+			corpseBody.AddTorque(Vector3.Cross(Vector3.up, direction) * 35f, ForceMode.Impulse);
 			Debug.LogWarning("[MobileNPCHumanoidVitals] Incomplete authored skeletal ragdoll; "
 				+ "activated physical capsule corpse fallback for " + name
 				+ ". This is a rigid-body fall, not articulated bone ragdoll.", this);
