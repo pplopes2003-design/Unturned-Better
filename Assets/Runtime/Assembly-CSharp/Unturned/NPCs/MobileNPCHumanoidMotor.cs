@@ -948,18 +948,32 @@ namespace SDG.Unturned
 			for (int iteration = 0; iteration < RouteGridNodeLimit; ++iteration)
 			{
 				int current = -1;
-				float bestCost = float.PositiveInfinity;
+				float bestEstimatedTotalCost = float.PositiveInfinity;
 				for (int i = 0; i < RouteGridNodeLimit; ++i)
 				{
-					if (!closed[i] && walkable[i] && costs[i] < bestCost)
+					if (!closed[i] && walkable[i] && !float.IsPositiveInfinity(costs[i]))
 					{
-						bestCost = costs[i];
-						current = i;
+						// A* prioritizes nodes by known travel cost plus a straight-line
+						// estimate to the preferred local goal. Edge costs are physical
+						// distances, so this heuristic is admissible for this grid.
+						Vector3 remaining = positions[i] - localGoal;
+						remaining.y = 0f;
+						float estimatedTotalCost = costs[i] + remaining.magnitude;
+						if (estimatedTotalCost < bestEstimatedTotalCost)
+						{
+							bestEstimatedTotalCost = estimatedTotalCost;
+							current = i;
+						}
 					}
 				}
 				if (current < 0)
 					break;
 				closed[current] = true;
+				// Stop early when the preferred destination cell is reached. If it is
+				// blocked or disconnected, keep exploring the reachable component so
+				// the fallback can select its nearest reachable node.
+				if (current == preferredGoal)
+					break;
 
 				int cx = current % RouteGridSide;
 				int cz = current / RouteGridSide;
