@@ -637,3 +637,23 @@ No external ML runtime/library is required. Start with auditable, tiny online co
 - Stuck detection is not full pathfinding; moving through doors/around buildings still depends on native A* and local route fallback. A moving player target can shift its goal; future tests must check false-positive stuck recoveries.
 - Contextual epsilon-greedy cover selection requires a valid sensory threat and short unobstructed local approach; higher quality A* reachability and measured bullet protection are future tasks. Sample 10 candidates max to bound physics work.
 - Continue CORE-02/03/04 and ZMB-01 next, then faction coordination, real radio channel/equipment and full adaptive tactic/route memory. Add tests without asking for Unity compilation each round. Preserve all backlog IDs.
+
+
+## 2026-10-13 — FOLLOW-UP IMPLEMENTATION: lethal transition reservation and group-compatible replacement
+
+**Read** `MOBILE_NPC_PENDING_TASKS.md` plus this handoff BEFORE changes; update both docs in every round. Keep the user-requested final AI diagram deferred until the main modules are structured. User compiles/tests only after the implementation stage, so do not ask for a Unity build every round.
+
+### Commits and source-level findings
+
+1. `270072bc821d3643897816322b0f409eb774f1b6` (`MobileNPCHumanoidVitals.cs`): a lethal hit now reserves `lethalTransitionReserved` immediately after health decreases to zero, *before* publishing synchronous `DamageReceived` or `HealthChanged`. Other damage/healing requests arriving while death is reserved are refused; native zombie/player death APIs are NOT faked. This prevents a nested callback from mutating the fatal hit and attribution before `DieServer` marks the NPC dead. The authoritative `Died` event and corpse presentation flow still need Dev Build verification. Do not claim that this solves failure to register a gun/melee raycast.
+2. `466829ece0b4b129ca3baddf470ef45845b5b38a` (`MobileNPCGroupMember.cs`): add server-only, living-survivor-and-capacity-gated read of a group's actual role and faction. A dissolved or full (four members) group is not a valid target for a replacement.
+3. `946d2b62cc2a8fd54d9f5d0f757b01741827075f` and `cd01dac2cdf5157dd83063333387ef9831f32d55` (`MobileNPCPopulationDirector.cs`): due delayed replacement first checks whether predecessor's group survives, spawns a **new individual** with compatible role and sets matching faction before attempting `TryJoinExistingGroupServer`; otherwise ordinary independent population role applies. Pending replacement removed only after successful spawn; fix default initialization for C# definite-assignment safety. No shared dead-person memory, health, inventory, identity or guaranteed same location. Spawn and group join remain separate operations and the join itself revalidates group membership.
+4. `MOBILE_NPC_SINGLEPLAYER_TEST_PLAN.md` updated with tests for reentrant lethal callbacks, same-faction rejoin, group dissolution, capacity and retry after spawn failure.
+
+### Explicit state / remaining work
+
+- **GitHub commit and static inspection only. NOT Unity-compiled, NOT Dev-Build runtime-tested.** This is not a certified death/ragdoll/respawn fix.
+- Native firearm/melee actual collider hit detection and health loss, visual hit feedback, full ragdoll behavior, attribution/loot/XP, zombie cross-POI/region pursuit, navigation, and many other P0/P1 items remain open.
+- Replace/extend current NPC death with a native-compatible, tested lifecycle only after source trace and game tests. Do not attach fake `Player`/`Zombie` APIs.
+- When moving into next P0 slice, investigate native zombie streaming/pursuit boundary and faction combat under real map constraints; `Zombie.cs`/`ZombieManager.cs` standard repository paths have not been located in this project and must not be guessed.
+- After work, update the permanent backlog and handoff each time; move a task to completed ONLY with Unity compile and real runtime evidence.
