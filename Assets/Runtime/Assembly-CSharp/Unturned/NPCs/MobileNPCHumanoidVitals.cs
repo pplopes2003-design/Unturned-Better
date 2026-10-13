@@ -19,6 +19,7 @@ namespace SDG.Unturned
 	{
 		[SerializeField, Min(1.0f)] private float maximumHealth = 100.0f;
 		[SerializeField] private bool disableCombatOnDeath = true;
+		[SerializeField] private bool logDamageDiagnostics = true;
 
 		private MobileNPCBrainDriver brainDriver;
 		private MobileNPCInjurySystem injurySystem;
@@ -166,12 +167,21 @@ namespace SDG.Unturned
 				return false;
 			}
 
+			float previousHealth = CurrentHealth;
 			if (attacker != null)
 			{
 				LastAttacker = attacker;
 				LastDamageTime = Time.time;
 			}
 			CurrentHealth = Mathf.Max(0.0f, CurrentHealth - damage);
+			if (logDamageDiagnostics)
+			{
+				string attackerName = attacker != null ? attacker.name : "<environment>";
+				Debug.Log("[MobileNPCHumanoidVitals] Damage accepted: npc=" + name
+					+ ", attacker=" + attackerName + ", damage=" + damage.ToString("F1")
+					+ ", health=" + previousHealth.ToString("F1") + "->" + CurrentHealth.ToString("F1")
+					+ ", lethal=" + (CurrentHealth <= 0.0f) + ".", this);
+			}
 			brainDriver?.ReportDamage(CurrentHealth, maximumHealth);
 			DamageReceived?.Invoke(attacker, damage);
 			HealthChanged?.Invoke(CurrentHealth, maximumHealth);
@@ -217,6 +227,12 @@ namespace SDG.Unturned
 			}
 
 			isDead = true;
+			if (logDamageDiagnostics)
+			{
+				Debug.Log("[MobileNPCHumanoidVitals] Death transition: npc=" + name
+					+ ", lastAttacker=" + (LastAttacker != null ? LastAttacker.name : "<unknown>")
+					+ ", lastDamageTime=" + LastDamageTime.ToString("F2") + ".", this);
+			}
 			brainDriver?.ResetServer();
 			if (motor != null)
 			{
@@ -299,6 +315,7 @@ namespace SDG.Unturned
 			}
 
 			Rigidbody[] bodies = visualRoot.GetComponentsInChildren<Rigidbody>(true);
+			Joint[] joints = visualRoot.GetComponentsInChildren<Joint>(true);
 			int releasedBodies = 0;
 			Rigidbody impulseBody = null;
 			float nearestSqrDistance = float.PositiveInfinity;
@@ -329,16 +346,16 @@ namespace SDG.Unturned
 			if (impulseBody != null && hitImpulse.sqrMagnitude > 0.0001f)
 				impulseBody.AddForce(hitImpulse, ForceMode.Impulse);
 
-			if (releasedBodies == 0 || enabledColliders == 0)
+			if (releasedBodies == 0 || enabledColliders == 0 || joints.Length == 0)
 			{
-				Debug.LogError("[MobileNPCHumanoidVitals] NPC_Client death ragdoll is incomplete: released rigidbodies="
-					+ releasedBodies + ", enabled colliders=" + enabledColliders
+				Debug.LogError("[MobileNPCHumanoidVitals] NPC_Client death ragdoll may be incomplete: released rigidbodies="
+					+ releasedBodies + ", enabled colliders=" + enabledColliders + ", joints=" + joints.Length
 					+ ". Check the NPC_Client prefab's authored ragdoll hierarchy.", this);
 			}
 			else
 			{
 				Debug.Log("[MobileNPCHumanoidVitals] Death ragdoll activated: rigidbodies="
-					+ releasedBodies + ", colliders=" + enabledColliders + ".", this);
+					+ releasedBodies + ", colliders=" + enabledColliders + ", joints=" + joints.Length + ".", this);
 			}
 		}
 
