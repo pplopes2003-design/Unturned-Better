@@ -29,6 +29,7 @@ namespace SDG.Unturned
 		private bool requestPending;
 		private bool routeReady;
 		private bool lastPathFailed;
+		private float nextRequestTime;
 		private Vector3 requestedGoal;
 		private readonly List<Vector3> completedRoute = new List<Vector3>(32);
 
@@ -79,9 +80,13 @@ namespace SDG.Unturned
 				CancelPendingRequest();
 			}
 
+			if (Time.time < nextRequestTime)
+				return false;
+
 			requestedGoal = goal;
 			lastPathFailed = false;
 			completedRoute.Clear();
+			requestPending = true;
 			try
 			{
 				ParameterInfo[] parameters = startPathMethod.GetParameters();
@@ -102,13 +107,13 @@ namespace SDG.Unturned
 				}
 
 				startPathMethod.Invoke(seeker, args);
-				requestPending = true;
 				return false;
 			}
 			catch (Exception)
 			{
 				requestPending = false;
 				lastPathFailed = true;
+				nextRequestTime = Time.time + 2.5f;
 				return false;
 			}
 		}
@@ -194,6 +199,7 @@ namespace SDG.Unturned
 			if (path == null)
 			{
 				lastPathFailed = true;
+				nextRequestTime = Time.time + 2.5f;
 				return;
 			}
 
@@ -205,6 +211,7 @@ namespace SDG.Unturned
 					&& (bool)errorProperty.GetValue(path, null))
 				{
 					lastPathFailed = true;
+					nextRequestTime = Time.time + 2.5f;
 					return;
 				}
 
@@ -226,12 +233,15 @@ namespace SDG.Unturned
 
 				routeReady = completedRoute.Count >= 2;
 				lastPathFailed = !routeReady;
+				if (lastPathFailed)
+					nextRequestTime = Time.time + 2.5f;
 			}
 			catch (Exception)
 			{
 				completedRoute.Clear();
 				routeReady = false;
 				lastPathFailed = true;
+				nextRequestTime = Time.time + 2.5f;
 			}
 		}
 
