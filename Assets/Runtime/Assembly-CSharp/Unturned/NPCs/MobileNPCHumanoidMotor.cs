@@ -1221,14 +1221,11 @@ namespace SDG.Unturned
 						&& IsRouteNodeOccupied(resolved, routeRadius))
 						continue;
 
-					Vector3 mid = resolved + Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f);
-					Vector3 horizontal = resolved - basePosition;
-					horizontal.y = 0f;
-					if (horizontal.sqrMagnitude > 0.2f
-						&& IsObstacleBlockingAlong(mid, routeRadius, horizontal.normalized,
-							Mathf.Min(RouteGridCellSize * 0.35f, horizontal.magnitude)))
-						continue;
-
+					// Node occupancy is already checked above; real traversability
+					// is validated for every A* edge below. The previous probe
+					// started at this candidate but cast FURTHER AWAY from the NPC,
+					// incorrectly rejecting perfectly usable cells beside a wall,
+					// and disconnecting the grid at building corners.
 					positions[index] = resolved;
 					walkable[index] = true;
 				}
@@ -1302,6 +1299,14 @@ namespace SDG.Unturned
 					}
 
 					Vector3 edge = positions[next] - positions[current];
+					float verticalChange = edge.y;
+					// Neighbouring cells may be on different floors even when each
+					// individual ground probe is valid. Don't connect levels the
+					// CharacterController cannot actually step between.
+					if (verticalChange > characterController.stepOffset
+						+ characterController.skinWidth + 0.1f
+						|| verticalChange < -1.1f)
+						continue;
 					edge.y = 0f;
 					float edgeLength = edge.magnitude;
 					if (edgeLength < 0.1f || IsObstacleBlockingAlong(
