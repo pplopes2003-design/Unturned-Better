@@ -91,7 +91,7 @@ namespace SDG.Unturned
 					if (!pickedUp)
 					{
 						Debug.Log("[MobileNPCLooting] Pickup transfer failed for item instance "
-							+ targetInstanceID + " on " + name + "; will rescan after cooldown.", this);
+							+ attemptedInstanceID + " on " + name + "; will rescan after cooldown.", this);
 					}
 				}
 				else if (Time.time >= nextScanTime)
