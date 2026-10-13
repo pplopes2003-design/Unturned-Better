@@ -97,3 +97,15 @@ Commits de implementação: `1a41e003`, `564ebfc1`, `a94ca7ad`, `f6b4583f`, `a65
 **Estado de verificação:** commits remotos e inspeção de código; **não compilado**, **não executado**, **não testado no jogo**. Permanecem todas as demais pendências, principalmente `ZMB-01` perseguição dos zumbis entre regiões/POIs, rádio físico e interceptação `COM-02`, aprendizado de táticas contra tipos de inimigo `LEARN-01/05`, diálogo e animações.
 
 **Decisão de algoritmo:** sem biblioteca externa obrigatória. Usar inicialmente política ε-greedy/bandido contextual pequeno em C# com recompensas de consequências observadas; técnicas alternativas (UCB/Thompson, Q-learning ou rede neural) só mediante avaliação de desempenho/benefício, dados e integração com escolhas reais. Regras físicas e de facção continuam determinísticas.
+
+
+## Histórico — 2026-10-13, rodada seguinte: morte idempotente e reposição compatível por facção/grupo
+
+**Sem baixa de pendências.** A compilação e os testes no Player Dev Build continuam reservados para a fase final do desenvolvimento, por escolha do usuário.
+
+- **CORE-02 / CORE-03:** commit `270072bc821d3643897816322b0f409eb774f1b6` — `MobileNPCHumanoidVitals.cs` passa a reservar a morte imediatamente quando o HP chega a zero, antes de publicar `DamageReceived` e `HealthChanged`. Tentativas reentrantes de dano ou cura durante esses callbacks não devem alterar o golpe fatal nem substituir o autor; `DieServer` continua a única rotina autoritativa de transição. Sem alteração dos APIs nativos `PlayerLife`/`Zombie`; hitbox, ragdoll, kill credit e drop ainda pendentes de validação.
+- **GRP-02 / CORE-03:** commit `466829ece0b4b129ca3baddf470ef45845b5b38a` — `MobileNPCGroupMember.TryGetSurvivingGroupIdentityServer` retorna função e facção **somente** de grupo com 1–3 membros vivos, mantendo 4 como máximo. Grupo extinto, inexistente ou lotado não pode ser readmitido por este mecanismo.
+- **GRP-02 / GRP-01:** commits `946d2b62cc2a8fd54d9f5d0f757b01741827075f` e `cd01dac2cdf5157dd83063333387ef9831f32d55` — `MobileNPCPopulationDirector` verifica um evento de reposição cujo prazo venceu **antes** do spawn. Caso o grupo anterior ainda tenha vaga, cria um indivíduo novo com papel e facção compatíveis e pede `TryJoinExistingGroupServer`; caso tenha desaparecido, cria indivíduo independente com papel normal sorteado. Consome a reserva somente após geração válida; mantém delay/cadáver separados e não transfere inventário, memória ou identidade do morto. Corrigida atribuição inicial de variáveis do grupo.
+- **Risco ainda aberto:** a criação da instância e o cadastro no grupo são ações sequenciais; morte de último sobrevivente ou mudança de facção durante o spawn deve resultar em falha segura de reentrada. Testar limite quatro, facções customizadas, múltiplas mortes, grupo dissolvido, reposição que falha ao procurar terreno, mudança de mapa/salvamento.
+
+**Status:** fontes e commits confirmados; não compilado, não testado em jogo. CORE-02/03, GRP-01/02 e todos os outros IDs acima permanecem abertos.
