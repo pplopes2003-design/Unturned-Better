@@ -111,3 +111,13 @@ Este plano cobre a fundação local dos NPCs móveis no Unturned/U3-SDK. Executa
 ## Relatório a guardar
 
 Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resultado observado, trecho do Console e Editor.log completo se houver falha de build. Distinguir erros de compilação C#, erros de inicialização em runtime, falhas de gameplay e falhas de infraestrutura/cache do Unity.
+
+
+## 10. Regressão de hit/ferimento (acrescentado em 2026-10-13)
+
+- [ ] Em ambiente servidor local, disparar na cabeça e tronco de um NPC: confirmar um único débito de vida por impacto, registro do atacante e classificação corporal correta.
+- [ ] Aplicar dano suficiente para matar: confirmar apenas uma transição de morte, desativação de IA/ataques/interações e apresentação física de cadáver (distinguir ragdoll esquelético de fallback rígido).
+- [ ] Repetir dano após morte: a API de vida deve rejeitar a tentativa e a rota de ferimentos não deve declarar sucesso nem modificar estado de partes corporais.
+- [ ] Testar ataque corpo a corpo do jogador e de outro NPC, validando o mesmo comportamento sem dupla contagem de dano.
+- [ ] Aplicar ferimento com sangramento: conferir dano periódico independente; parar após morte; observar atribuição do último golpe vs. morte ambiental.
+- [ ] Se houver falha, salvar mensagens `[MobileNPCHumanoidVitals] Damage accepted`, `Death transition`, `Death ragdoll activated` e erros do Console com mapa/arma/alvo. O commit 2f94246 apenas corrige o valor de retorno de `MobileNPCInjurySystem.ApplyHit`, sem comprovar funcionamento do dano no jogo.
