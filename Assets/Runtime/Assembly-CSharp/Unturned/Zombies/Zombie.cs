@@ -3238,6 +3238,7 @@ namespace SDG.Unturned
 				|| ground.collider.GetComponentInParent<MobileNPCHumanoidVitals>() != null
 				|| Vector3.Angle(ground.normal, Vector3.up) > 38f
 				|| Mathf.Abs(ground.point.y - transform.position.y) > 0.65f
+				|| !Level.checkSafeIncludingClipVolumes(ground.point)
 				|| SDG.Framework.Water.WaterUtility.isPointUnderwater(ground.point))
 				return false;
 
