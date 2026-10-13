@@ -130,6 +130,26 @@ namespace SDG.Unturned
                 return;
             }
 
+            // A due replacement is a NEW person, but may join an existing group
+            // if its members are still alive. Choose compatible role/faction before
+            // spawning; a random role would make TryJoinExistingGroupServer fail.
+            PendingRespawn dueReplacement = pendingRespawns.Count > 0
+                && Time.time >= pendingRespawns[0].RespawnAt ? pendingRespawns[0] : null;
+            MobileNPCHumanoidDisposition.Role groupRole;
+            MobileNPCFaction.Id groupFaction;
+            bool eligibleGroup = dueReplacement != null
+                && MobileNPCGroupMember.TryGetSurvivingGroupIdentityServer(
+                    dueReplacement.FormerGroupId, out groupRole, out groupFaction);
+            // Explicit defaults keep the values defined even when short-circuit
+            // evaluation skips the out-parameter call.
+            if (!eligibleGroup)
+            {
+                groupRole = MobileNPCHumanoidDisposition.Role.Neutral;
+                groupFaction = MobileNPCFaction.Id.Unaffiliated;
+            }
+            MobileNPCHumanoidDisposition.Role selectedRole = eligibleGroup
+                ? groupRole : MobileNPCSettings.SelectPopulationRole();
+
             // Try a bounded number of anchors/sectors per interval. Anchors are only regional
             // hints: every actual candidate still passes ground, slope, occupancy, bounds,
             // player visibility and NPC spacing checks in the spawn service.
@@ -162,7 +182,7 @@ namespace SDG.Unturned
                     Mathf.Max(0f, maximumDropDistance),
                     groundMask,
                     maximumSlopeAngle,
-                    MobileNPCSettings.SelectPopulationRole(),
+                    selectedRole,
                     spawnedThisAttempt,
                     player.transform,
                     out spawnedCount,
@@ -171,10 +191,10 @@ namespace SDG.Unturned
 
             if (spawnedCount > 0)
             {
-                PendingRespawn replacement = null;
-                if (pendingRespawns.Count > 0 && Time.time >= pendingRespawns[0].RespawnAt)
+                if (dueReplacement != null && pendingRespawns.Count > 0
+                    && object.ReferenceEquals(pendingRespawns[0], dueReplacement))
                 {
-                    replacement = pendingRespawns[0];
+                    // Consume the reservation only after successful world placement.
                     pendingRespawns.RemoveAt(0);
                 }
 
@@ -187,11 +207,17 @@ namespace SDG.Unturned
                     }
 
                     MobileNPCGroupMember groupMember = instance.GetComponent<MobileNPCGroupMember>();
-                    if (replacement != null && replacement.FormerGroupId > 0 && groupMember != null)
+                    if (eligibleGroup && dueReplacement != null && groupMember != null)
                     {
-                        // Preserve group continuity only if the former group still has living
-                        // members. If it dissolved, the new NPC keeps its independently assigned group.
-                        groupMember.TryJoinExistingGroupServer(replacement.FormerGroupId);
+                        // Set the new person's faction to match the surviving group
+                        // BEFORE membership checks. This does not copy the previous
+                        // NPC's memory, inventory, health or individual identity.
+                        MobileNPCFaction faction = instance.GetComponent<MobileNPCFaction>();
+                        if (faction != null && faction.CurrentFaction != groupFaction)
+                            faction.SetFactionServer(groupFaction);
+                        // Recheck existence/capacity and identity atomically at join.
+                        // A group whose last member died during placement stays dissolved.
+                        groupMember.TryJoinExistingGroupServer(dueReplacement.FormerGroupId);
                     }
 
                     // Refresh group provenance after optional reattachment.
