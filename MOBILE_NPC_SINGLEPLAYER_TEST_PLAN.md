@@ -480,3 +480,5 @@ NAV-NATIVE-01 regression `6e59544a`: on licensed ASPFP runtime inspect selected 
 - [ ] Compile `MobileNPCHumanoidMotor.cs` + `MobileNPCVisualAnimation.cs` with game/Unity actual refs, inspect physics/contact logs and record user feedback. Mark only physical low-hop subitem concluded if approved; NAV-JUMP-01 parent remains open for off-mesh graph jumping, proper vault pose, ladders.
 
 Technical design: `MOBILE_NPC_PLANNED_JUMP_DESIGN.md`. Commits `b92feff1`, `a1892748`, `04ccd8b0`, `03d4724a`, `b3c9080c`, `ba9c4b36`, `6571aaa5`.
+
+NAV-JUMP-01 follow-up (commit `489ed764`): park a vehicle low in front of NPC and confirm it cannot be treated as static jump obstacle. With visible hostile targeting NPC and brain goal SeekCover or Retreat, verify jump is suppressed in favor of safer real movement. Other valid ordinary movement goals may still use preflight hop. Untested until final Dev Build.
