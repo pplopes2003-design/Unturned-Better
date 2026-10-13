@@ -1695,10 +1695,10 @@ namespace SDG.Unturned
 							? clientNPCHit.GetComponentInParent<MobileNPCHumanoidVitals>()
 							: null;
 						if (mobileNPCVitals != null && !mobileNPCVitals.IsDead && equippedGunAsset.zombieOrPlayerDamageMultiplier.multiply(
-						mobileNPCVitals.ResolveBodyPartAtWorldPoint(info.point) == MobileNPCInjurySystem.BodyPart.Head
+						mobileNPCVitals.ResolveBodyPartAtWorldPoint(info.point, clientNPCHit) == MobileNPCInjurySystem.BodyPart.Head
 							? ELimb.SKULL : info.limb) > 1)
 						{
-							bool headHit = mobileNPCVitals.ResolveBodyPartAtWorldPoint(info.point)
+							bool headHit = mobileNPCVitals.ResolveBodyPartAtWorldPoint(info.point, clientNPCHit)
 								== MobileNPCInjurySystem.BodyPart.Head;
 							PlayerUI.hitmark(info.point, pellets > 1,
 								headHit ? EPlayerHit.CRITICAL : EPlayerHit.ENTITIY);
@@ -2034,9 +2034,9 @@ namespace SDG.Unturned
 					{
 						if (Provider.isServer && !mobileNPCVitals.IsDead)
 						{
-							MobileNPCInjurySystem.BodyPart hitPart = mobileNPCVitals.ResolveBodyPartAtWorldPoint(info.point);
+							MobileNPCInjurySystem.BodyPart hitPart = mobileNPCVitals.ResolveBodyPartAtWorldPoint(info.point, gunHitTransform);
 							ELimb effectiveLimb = hitPart == MobileNPCInjurySystem.BodyPart.Head
-								? ELimb.SKULL : info.limb;
+								? ELimb.SKULL : ELimb.SPINE;
 							float mobileNPCDamage = equippedGunAsset.zombieOrPlayerDamageMultiplier.multiply(effectiveLimb) * times;
 							// Do not turn a zero/negative damage multiplier into a magical
 							// 1 HP hit. Vitals remains the sole authoritative damage owner.
@@ -2044,7 +2044,7 @@ namespace SDG.Unturned
 								&& mobileNPCDamage > 0f)
 							{
 								mobileNPCVitals.ApplyValidatedWeaponImpactServer(mobileNPCDamage,
-									info.point, info.direction, player.transform, true);
+									info.point, info.direction, player.transform, true, gunHitTransform);
 							}
 						}
 					}
