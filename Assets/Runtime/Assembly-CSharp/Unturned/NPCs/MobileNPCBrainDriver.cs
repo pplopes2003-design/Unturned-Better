@@ -16,6 +16,8 @@ namespace SDG.Unturned
 	{
 		private MobileNPCBrain brain;
 		private MobileNPCTactics tactics;
+		private float nextDefensiveReplanAt;
+		private Vector3 lastDefensiveThreatPosition;
 		private bool hasInitialized;
 		private bool hasPublishedDecision;
 		private bool lastHasDestination;
@@ -117,6 +119,14 @@ namespace SDG.Unturned
 				return;
 
 			tactics.ReportIncomingFire(Time.time);
+			// Keep a valid cover/retreat destination long enough to travel toward it.
+			// Repeated nearby gunshots previously reset the target every frame/shot.
+			bool alreadyDefending = tactics.CurrentGoal == MobileNPCTactics.Goal.SeekCover
+				|| tactics.CurrentGoal == MobileNPCTactics.Goal.Retreat;
+			Vector3 threatDelta = threatPosition - lastDefensiveThreatPosition;
+			threatDelta.y = 0f;
+			bool keepDefense = alreadyDefending && tactics.HasTacticalDestination
+				&& Time.time < nextDefensiveReplanAt && threatDelta.sqrMagnitude < 100f;
 			MobileNPCHumanoidAim aim = GetComponent<MobileNPCHumanoidAim>();
 			if (aim != null)
 				aim.ReportSuppression();
@@ -125,6 +135,14 @@ namespace SDG.Unturned
 			if (brain.CurrentState != MobileNPCBrain.State.Pursuing || brain.Target == null)
 				brain.ReportNoise(threatPosition, Time.time, 25f);
 
+			if (keepDefense)
+			{
+				PublishDecisionIfChanged();
+				return;
+			}
+
+			lastDefensiveThreatPosition = threatPosition;
+			nextDefensiveReplanAt = Time.time + 2.5f;
 			Vector3? coverPoint = TryFindNearbyCoverPoint(threatPosition);
 			if (tactics.TryChooseDefensiveGoal(transform.position, coverPoint, threatPosition, Time.time)
 				&& tactics.CurrentGoal == MobileNPCTactics.Goal.Retreat && !tactics.HasTacticalDestination)
