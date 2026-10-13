@@ -2259,6 +2259,30 @@ namespace SDG.Unturned
 			return Mathf.Abs(lastY - to.y) <= 0.30f;
 		}
 
+		/// <summary>
+		/// A clear chest sweep between grounded grid nodes is not evidence of
+		/// a walkable floor between them. A midpoint probe rejects small gaps,
+		/// broken bridges and false connections across overlapping interiors.
+		/// Called only after the cheap occupancy and height tests passed.
+		/// </summary>
+		private bool HasContinuousLocalFloor(Vector3 from, Vector3 to)
+		{
+			Vector3 midpoint = (from + to) * 0.5f;
+			if (!MobileNPCSpawnService.TryFindSafeGroundPosition(midpoint,
+				0.7f, 0.85f, roamingGroundMask,
+				Mathf.Min(characterController.slopeLimit, roamingMaximumSlope),
+				out Vector3 floor, out _)
+				|| Mathf.Abs(floor.y - midpoint.y) > 0.35f)
+				return false;
+			float riseLimit = characterController.stepOffset
+				+ characterController.skinWidth + 0.10f;
+			return floor.y - from.y <= riseLimit
+				&& to.y - floor.y <= riseLimit
+				&& from.y - floor.y <= 0.55f
+				&& floor.y - to.y <= 0.55f
+				&& Level.checkSafeIncludingClipVolumes(floor);
+		}
+
 		private bool TryBuildLocalRoute(Vector3 destination,
 			List<Vector3> alternateOutput = null, bool requireExactLocalGoal = false)
 		{
@@ -2371,6 +2395,9 @@ namespace SDG.Unturned
 			// every frame for a crowd of NPCs. Unknown nodes are treated as
 			// conservatively exposed; checked sheltered nodes become cheaper.
 			int exposureProbeBudget = 24;
+			// Shared search admission and a local fixed budget prevent a crowd
+			// from doing unbounded ground checks in a single planning pass.
+			int continuousFloorProbeBudget = 220;
 
 			costs[start] = 0f;
 			for (int iteration = 0; iteration < RouteGridNodeLimit; ++iteration)
@@ -2450,6 +2477,11 @@ namespace SDG.Unturned
 							|| !doorNavigation.IsTraversableUnlockedDoorEdgeServer(
 								edgeProbeStart, edge.normalized, routeRadius,
 								edgeLength, obstacleMask)))
+						continue;
+					if (continuousFloorProbeBudget <= 0)
+						continue;
+					--continuousFloorProbeBudget;
+					if (!HasContinuousLocalFloor(positions[current], positions[next]))
 						continue;
 					float exposureCost = 0f;
 					if (tacticalRoute)
