@@ -49,7 +49,11 @@ namespace SDG.Unturned
 		private Vector3 pendingAdvanceClue;
 		public SquadRole CurrentSquadRole => Provider.isServer && !leftGroup
 			&& Time.time < squadRoleUntil ? squadRole : SquadRole.None;
-		private const float ContactVoiceRange = 35f;
+		// Audible shouts may travel farther than ordinary speech; crouched
+		// survivors speak softly to avoid revealing their position.
+		private const float AlertShoutRange = 24f;
+		private const float QuietVoiceRange = 7f;
+		private const float WallHearingMultiplier = 0.42f;
 		private const float ContactBroadcastCooldown = 4f;
 
 		public int GroupId { get; private set; }
@@ -158,6 +162,9 @@ namespace SDG.Unturned
 				|| !IsFinitePosition(observedPosition))
 				return;
 
+			MobileNPCHumanoidMotor voiceMotor = GetComponent<MobileNPCHumanoidMotor>();
+			bool whispering = voiceMotor != null && voiceMotor.IsCrouched;
+			float speakingRange = whispering ? QuietVoiceRange : AlertShoutRange;
 			nextContactBroadcastAt = Time.time + ContactBroadcastCooldown;
 			MobileNPCHumanoidRangedCombat ownWeapon = GetComponent<MobileNPCHumanoidRangedCombat>();
 			bool canCover = CurrentSquadRole == SquadRole.None
@@ -172,7 +179,30 @@ namespace SDG.Unturned
 					|| ally.vitals != null && ally.vitals.IsDead)
 					continue;
 				Vector3 toAlly = ally.transform.position - transform.position;
-				if (toAlly.sqrMagnitude > ContactVoiceRange * ContactVoiceRange)
+				float hearingDistance = toAlly.magnitude;
+				if (hearingDistance > speakingRange || hearingDistance < 0.1f)
+					continue;
+				// Geometry attenuates a spoken contact report. Ignore actors' own
+				// hitboxes; otherwise a nearby NPC could block every utterance.
+				Vector3 mouth = transform.position + Vector3.up * 1.45f;
+				Vector3 ear = ally.transform.position + Vector3.up * 1.4f;
+				Vector3 ray = ear - mouth;
+				RaycastHit[] barriers = Physics.RaycastAll(mouth, ray.normalized,
+					ray.magnitude, RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+				bool behindWall = false;
+				for (int h = 0; h < barriers.Length; ++h)
+				{
+					Collider blocker = barriers[h].collider;
+					if (blocker == null || blocker.transform.IsChildOf(transform)
+						|| blocker.transform.IsChildOf(ally.transform)
+						|| blocker.GetComponentInParent<Player>() != null
+						|| blocker.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
+						continue;
+					behindWall = true;
+					break;
+				}
+				float effectiveRange = speakingRange * (behindWall ? WallHearingMultiplier : 1f);
+				if (hearingDistance > effectiveRange)
 					continue;
 
 				MobileNPCBrainDriver allyBrain = ally.GetComponent<MobileNPCBrainDriver>();
@@ -181,9 +211,12 @@ namespace SDG.Unturned
 
 				// Verbal bearing is inherently uncertain. Individual listeners
 				// receive different estimates, never perfect synchronized tracking.
-				Vector2 error = Random.insideUnitCircle * Random.Range(1.5f, 4.5f);
+				float clarity = Mathf.Clamp01(1f - hearingDistance / (effectiveRange + 0.01f));
+				float confidence = Mathf.Clamp(0.32f + 0.5f * clarity, 0.24f, 0.78f);
+				float errorRadius = Mathf.Lerp(6f, 1.4f, confidence);
+				Vector2 error = Random.insideUnitCircle * errorRadius;
 				Vector3 clue = observedPosition + new Vector3(error.x, 0f, error.y);
-				allyBrain.ReportGroupPlayerContactClue(clue, 0.6f);
+				allyBrain.ReportGroupPlayerContactClue(clue, confidence);
 
 				// One shooter can cover one cautious advancement. This stage
 				// assigns roles only; genuine suppression fire requires its
