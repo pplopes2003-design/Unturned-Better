@@ -450,6 +450,7 @@ namespace SDG.Unturned
 				InCover = brainDriver.CurrentGoal == MobileNPCTactics.Goal.SeekCover
 					&& !hasBrainDestination,
 				Investigating = brainDriver.CurrentState == MobileNPCBrain.State.Investigating,
+				Stalking = brainDriver.CurrentGoal == MobileNPCTactics.Goal.Stalk,
 				Pursuing = brainDriver.CurrentState == MobileNPCBrain.State.Pursuing,
 				NearTarget = brainDriver.Target != null
 					&& (brainDriver.Target.position - transform.position).sqrMagnitude < 100f,
