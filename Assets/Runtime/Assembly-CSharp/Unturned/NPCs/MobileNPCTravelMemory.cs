@@ -155,17 +155,20 @@ namespace SDG.Unturned
         /// </summary>
         public bool TryFindKnownFloorAccessServer(Vector3 currentPosition,
             Vector3 finalDestination, List<Vector3> output,
-            out Vector3 entrance, out int routeIndex)
+            List<Vector3> continuationOutput, out Vector3 entrance,
+            out int routeIndex, out int continuationIndex)
         {
             entrance = Vector3.zero;
             routeIndex = -1;
-            if (!CanUseMemory() || output == null
+            continuationIndex = -1;
+            if (!CanUseMemory() || output == null || continuationOutput == null
                 || !Valid(currentPosition) || !Valid(finalDestination)
                 || Mathf.Abs(finalDestination.y - currentPosition.y) < 1.2f)
                 return false;
 
             float bestScore = float.NegativeInfinity;
             int selectedEntranceIndex = -1;
+            int selectedContinuationIndex = -1;
             for (int i = 0; i < routes.Count; ++i)
             {
                 LearnedRoute record = routes[i];
@@ -189,17 +192,36 @@ namespace SDG.Unturned
                 // This stage targets entry paths from another room, not
                 // arbitrary navigation across an entire unfamiliar map.
                 if (distanceToEntrance < 2.5f || distanceToEntrance > 25f
-                    || exitToGoal > 1.9f
                     || Mathf.Abs(observedEntrance.y - currentPosition.y) > 0.85f)
                     continue;
+
+                // A separate *previously traversed* same-floor route can
+                // continue beyond the known stair landing into another room.
+                // This is a real two-record connection, not a guessed shortcut
+                // across an upper-floor wall. Actual geometry is motor-verified.
+                int possibleContinuation = -1;
+                if (exitToGoal > 1.9f)
+                {
+                    possibleContinuation = FindObservedContinuationRoute(
+                        i, record.footsteps[record.footsteps.Count - 1], finalDestination);
+                    if (possibleContinuation < 0)
+                        continue;
+                }
                 float score = record.successes * 3f
                     - record.failedReuses * 5f - distanceToEntrance * 0.15f
-                    - exitToGoal;
+                    - exitToGoal * 0.15f;
+                if (possibleContinuation >= 0)
+                {
+                    LearnedRoute nextRecord = routes[possibleContinuation];
+                    score += nextRecord.successes * 1.5f
+                        - nextRecord.failedReuses * 4f;
+                }
                 if (score > bestScore)
                 {
                     bestScore = score;
                     routeIndex = i;
                     selectedEntranceIndex = stairEntranceIndex;
+                    selectedContinuationIndex = possibleContinuation;
                 }
             }
 
@@ -210,7 +232,51 @@ namespace SDG.Unturned
             output.Clear();
             for (int i = selectedEntranceIndex; i < learned.footsteps.Count; ++i)
                 output.Add(learned.footsteps[i]);
+            continuationOutput.Clear();
+            if (selectedContinuationIndex >= 0)
+            {
+                LearnedRoute connection = routes[selectedContinuationIndex];
+                continuationOutput.AddRange(connection.footsteps);
+                continuationIndex = selectedContinuationIndex;
+            }
             return true;
+        }
+
+        /// <summary>
+        /// A learned upper-floor corridor is eligible as a second stage ONLY
+        /// when it was physically traversed by this same living survivor.
+        /// No reverse link or room-to-room connection is inferred from XZ.
+        /// </summary>
+        private int FindObservedContinuationRoute(int firstRouteIndex, Vector3 exit,
+            Vector3 finalGoal)
+        {
+            int best = -1;
+            float bestScore = float.NegativeInfinity;
+            for (int i = 0; i < routes.Count; ++i)
+            {
+                if (i == firstRouteIndex)
+                    continue;
+                LearnedRoute record = routes[i];
+                if (record == null || record.footsteps == null
+                    || record.footsteps.Count < 3 || record.failedReuses >= 3)
+                    continue;
+                float entryGap = Vector3.Distance(exit, record.footsteps[0]);
+                float goalGap = Vector3.Distance(finalGoal,
+                    record.footsteps[record.footsteps.Count - 1]);
+                if (entryGap > 2.0f || goalGap > 1.9f
+                    || Mathf.Abs(record.start.y - exit.y) > 0.7f
+                    || Mathf.Abs(record.destination.y - finalGoal.y) > 0.7f
+                    || Mathf.Abs(record.destination.y - record.start.y) > 0.85f)
+                    continue;
+                float score = record.successes * 3f
+                    - record.failedReuses * 4f - entryGap - goalGap;
+                if (score > bestScore)
+                {
+                    best = i;
+                    bestScore = score;
+                }
+            }
+            return best;
         }
 
         /// <summary>
