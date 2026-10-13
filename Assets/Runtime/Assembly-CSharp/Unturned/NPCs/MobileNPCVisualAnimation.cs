@@ -22,6 +22,7 @@ namespace SDG.Unturned
         private MobileNPCHumanoidMotor motor;
         private MobileNPCBrainDriver brain;
         private MobileNPCHumanoidCombat combat;
+        private MobileNPCHumanoidRangedCombat rangedCombat;
         private MobileNPCHumanoidVitals vitals;
         private Animation legacyAnimation;
         private Animator animatorFallback;
@@ -37,6 +38,12 @@ namespace SDG.Unturned
             motor = GetComponent<MobileNPCHumanoidMotor>();
             brain = GetComponent<MobileNPCBrainDriver>();
             combat = GetComponent<MobileNPCHumanoidCombat>();
+            rangedCombat = GetComponent<MobileNPCHumanoidRangedCombat>();
+            if (rangedCombat != null)
+            {
+                rangedCombat.ShotFired += HandleShotFired;
+                rangedCombat.ReloadStarted += HandleReloadStarted;
+            }
             vitals = GetComponent<MobileNPCHumanoidVitals>();
             if (combat != null)
             {
@@ -224,6 +231,55 @@ namespace SDG.Unturned
             clipOwner.CrossFade(clipName, Mathf.Min(crossFadeDuration, 0.08f));
         }
 
+        private void HandleShotFired()
+        {
+            // Only play clips verified present on this runtime Animation rig.
+            // Shoot audio and weapon model are owned by MobileNPCRangedPresentation.
+            TryPlayActionClip("Shoot", "Fire", "Recoil");
+        }
+
+        private void HandleReloadStarted()
+        {
+            TryPlayActionClip("Reload");
+        }
+
+        private void TryPlayActionClip(params string[] fragments)
+        {
+            if (vitals != null && vitals.IsDead)
+                return;
+
+            Animation[] animations = GetComponentsInChildren<Animation>(true);
+            for (int a = 0; a < animations.Length; ++a)
+            {
+                Animation animation = animations[a];
+                if (animation == null)
+                    continue;
+                foreach (AnimationState state in animation)
+                {
+                    if (state == null || string.IsNullOrEmpty(state.name))
+                        continue;
+                    bool matches = false;
+                    for (int i = 0; i < fragments.Length; ++i)
+                    {
+                        if (state.name.IndexOf(fragments[i], System.StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            matches = true;
+                            break;
+                        }
+                    }
+                    if (!matches)
+                        continue;
+                    state.wrapMode = WrapMode.Once;
+                    animation.enabled = true;
+                    animation.CrossFade(state.name, Mathf.Min(crossFadeDuration, 0.08f));
+                    attackAnimationUntil = Time.time + Mathf.Max(0.15f, state.length);
+                    currentClip = state.name;
+                    return;
+                }
+            }
+            // No fabricated animation when the actual NPC_Client rig lacks one.
+        }
+
         private void HandleDied()
         {
             // Death presentation releases the authored bone rigidbodies. Stop this
@@ -240,6 +296,11 @@ namespace SDG.Unturned
             if (vitals != null)
             {
                 vitals.Died -= HandleDied;
+            }
+            if (rangedCombat != null)
+            {
+                rangedCombat.ShotFired -= HandleShotFired;
+                rangedCombat.ReloadStarted -= HandleReloadStarted;
             }
         }
 
