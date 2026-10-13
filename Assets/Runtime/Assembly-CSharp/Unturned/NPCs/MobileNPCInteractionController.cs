@@ -35,7 +35,7 @@ namespace SDG.Unturned
 		private bool tradeUsesCash;
 		private uint pendingExperienceCost;
 		private string lastPrompt;
-		private float nextPromptRefreshTime;
+		private Vector2 menuScroll;
 
 		private void Awake()
 		{
@@ -54,10 +54,11 @@ namespace SDG.Unturned
 			if (instance == null || player == null || npc == null)
 			{
 				if (player != null)
-					PlayerUI.message(EPlayerMessage.NPC_CUSTOM, "A interface de interação dos sobreviventes não está disponível.");
+					Debug.LogWarning("[MobileNPCInteractionController] Interaction requested before the mobile NPC controller was installed.");
 				return;
 			}
 
+			instance.Clear();
 			instance.activePlayer = player;
 			instance.activeNPC = npc;
 			instance.state = MenuState.Main;
@@ -80,109 +81,115 @@ namespace SDG.Unturned
 			if (Input.GetKeyDown(KeyCode.Escape))
 			{
 				Clear();
-				ShowPrompt( "Conversa encerrada.");
 				return;
 			}
 
-			if (state != MenuState.Closed && !string.IsNullOrEmpty(lastPrompt) && Time.time >= nextPromptRefreshTime)
+			for (int number = 1; number <= 9; ++number)
 			{
-				PlayerUI.message(EPlayerMessage.NPC_CUSTOM, lastPrompt);
-				nextPromptRefreshTime = Time.time + 1.25f;
+				if (IsNumberKeyDown(number))
+				{
+					ChooseOption(number);
+					break;
+				}
 			}
+		}
 
+		private void ChooseOption(int number)
+		{
+			if (state == MenuState.Closed)
+				return;
 			if (state == MenuState.ChooseTradePayment)
 			{
-				if (IsNumberKeyDown(1))
+				if (number == 1 || number == 2 || number == 3)
 				{
-					tradeUsesCash = true;
-					tradeUsesExperience = false;
-					OpenTradeMenu("Pagamento selecionado: notas e moedas canadenses.");
-				}
-				else if (IsNumberKeyDown(2))
-				{
-					tradeUsesCash = false;
-					tradeUsesExperience = false;
-					OpenTradeMenu("Pagamento selecionado: troca de item.");
-				}
-				else if (IsNumberKeyDown(3))
-				{
-					tradeUsesCash = false;
-					tradeUsesExperience = true;
-					OpenTradeMenu("Pagamento selecionado: pontos de experiência (XP).");
+					tradeUsesCash = number == 1;
+					tradeUsesExperience = number == 3;
+					OpenTradeMenu(number == 1 ? "Pagamento selecionado: notas e moedas canadenses."
+						: number == 2 ? "Pagamento selecionado: troca de item."
+						: "Pagamento selecionado: pontos de experiência (XP).");
 				}
 				return;
 			}
-
 			if (state == MenuState.ConfirmPurchase)
 			{
-				if (IsNumberKeyDown(1))
+				if (number == 1)
 					ConfirmPurchase();
-				else if (IsNumberKeyDown(2))
+				else if (number == 2)
 				{
 					pendingStockSlot = -1;
 					pendingCurrencyItemId = 0;
 					pendingExperienceCost = 0;
-					state = MenuState.TradeStock;
 					OpenTradeMenu();
 				}
 				return;
 			}
-
 			if (state == MenuState.ConfirmAlliance)
 			{
-				if (IsNumberKeyDown(1))
+				if (number == 1)
 					ConfirmAllianceOffer();
-				else if (IsNumberKeyDown(2))
+				else if (number == 2)
 					ShowMainMenu();
 				return;
 			}
-
-			if (IsNumberKeyDown(1))
+			if (state == MenuState.TradeStock)
 			{
-				if (state == MenuState.Main)
-					ShowTradePaymentMenu();
-				else if (state == MenuState.TradeStock)
-					SelectStockSlot(0);
+				if (number >= 1 && number <= 9)
+					SelectStockSlot(number - 1);
+				return;
 			}
-			else if (IsNumberKeyDown(2))
+			if (state == MenuState.Main)
 			{
-				if (state == MenuState.Main)
-					TryOfferAlliance();
-				else if (state == MenuState.TradeStock)
-					SelectStockSlot(1);
-			}
-			else if (IsNumberKeyDown(3))
-			{
-				if (state == MenuState.Main)
-					ShowConversation();
-				else if (state == MenuState.TradeStock)
-					SelectStockSlot(2);
-			}
-			else if (IsNumberKeyDown(4))
-			{
-				if (state == MenuState.TradeStock) SelectStockSlot(3);
-			}
-			else if (IsNumberKeyDown(5))
-			{
-				if (state == MenuState.TradeStock) SelectStockSlot(4);
-			}
-			else if (IsNumberKeyDown(6))
-			{
-				if (state == MenuState.TradeStock) SelectStockSlot(5);
-			}
-			else if (IsNumberKeyDown(7))
-			{
-				if (state == MenuState.TradeStock) SelectStockSlot(6);
-			}
-			else if (IsNumberKeyDown(8))
-			{
-				if (state == MenuState.TradeStock) SelectStockSlot(7);
-			}
-			else if (IsNumberKeyDown(9))
-			{
-				if (state == MenuState.TradeStock) SelectStockSlot(8);
+				switch (number)
+				{
+					case 1: ShowTradePaymentMenu(); break;
+					case 2: TryOfferAlliance(); break;
+					case 3: ShowConversation(); break;
+				}
 			}
 		}
+
+#if !DEDICATED_SERVER
+		// A persistent screen panel, not NPC_CUSTOM (which belongs to native NPC UI).
+		// No native HUD visibility, focus or cursor state is modified by this flow.
+		private void OnGUI()
+		{
+			if (state == MenuState.Closed || activePlayer == null || activeNPC == null)
+				return;
+
+			float width = Mathf.Min(540f, Screen.width - 24f);
+			if (width <= 120f)
+				return;
+			float height = Mathf.Min(420f, Screen.height - 24f);
+			Rect panel = new Rect((Screen.width - width) * 0.5f, Screen.height - height - 18f, width, height);
+			GUI.Box(panel, GUIContent.none);
+
+			GUIStyle messageStyle = new GUIStyle(GUI.skin.label);
+			messageStyle.wordWrap = true;
+			messageStyle.richText = false;
+			messageStyle.fontSize = Mathf.Clamp(Mathf.RoundToInt(Screen.height / 52f), 12, 20);
+			messageStyle.normal.textColor = Color.white;
+
+			Rect textArea = new Rect(panel.x + 16f, panel.y + 14f, panel.width - 32f, panel.height - 77f);
+			string message = lastPrompt ?? "";
+			float textHeight = Mathf.Max(textArea.height, messageStyle.CalcHeight(new GUIContent(message), textArea.width - 18f) + 8f);
+			menuScroll = GUI.BeginScrollView(textArea, menuScroll,
+				new Rect(0f, 0f, textArea.width - 18f, textHeight));
+			GUI.Label(new Rect(0f, 0f, textArea.width - 18f, textHeight), message, messageStyle);
+			GUI.EndScrollView();
+
+			float buttonY = panel.yMax - 50f;
+			int count = state == MenuState.TradeStock ? 9 : state == MenuState.Main || state == MenuState.ChooseTradePayment ? 3 : 2;
+			float buttonWidth = Mathf.Min(54f, (panel.width - 104f) / count);
+			for (int option = 1; option <= count; ++option)
+			{
+				if (GUI.Button(new Rect(panel.x + 16f + (option - 1) * (buttonWidth + 4f),
+					buttonY, buttonWidth, 32f), option.ToString()))
+					ChooseOption(option);
+			}
+			if (GUI.Button(new Rect(panel.xMax - 82f, buttonY, 66f, 32f), "Fechar"))
+				Clear();
+		}
+#endif
 
 		private void ShowMainMenu(string notice = null)
 		{
@@ -503,8 +510,7 @@ namespace SDG.Unturned
 		private void ShowPrompt(string message)
 		{
 			lastPrompt = message;
-			nextPromptRefreshTime = Time.time + 1.25f;
-			PlayerUI.message(EPlayerMessage.NPC_CUSTOM, message);
+			menuScroll = Vector2.zero;
 		}
 
 		private void Clear()
@@ -518,6 +524,7 @@ namespace SDG.Unturned
 			tradeUsesExperience = false;
 			tradeUsesCash = false;
 			state = MenuState.Closed;
+			menuScroll = Vector2.zero;
 		}
 	}
 }
