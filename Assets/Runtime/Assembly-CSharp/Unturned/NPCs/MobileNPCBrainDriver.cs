@@ -21,6 +21,14 @@ namespace SDG.Unturned
 		private float nextDefensiveReplanAt;
 		private Vector3 lastDefensiveThreatPosition;
 		private float nextStalkPlanAt;
+		private float ambushArmedUntil;
+		private float ambushAttackUnlockAt;
+		private Transform ambushTarget;
+		/// <summary>Combat must wait for a finite visual confirmation/ready interval.</summary>
+		public bool IsAmbushPreparing => Provider.isServer && hasInitialized && ambushTarget != null
+			&& Time.time < ambushAttackUnlockAt
+			&& tactics != null && tactics.CurrentGoal != MobileNPCTactics.Goal.Retreat
+			&& tactics.CurrentGoal != MobileNPCTactics.Goal.SeekCover;
 		private bool hasInitialized;
 		private bool hasPublishedDecision;
 		private bool lastHasDestination;
@@ -56,6 +64,9 @@ namespace SDG.Unturned
 			playerKnowledge.Clear();
 			investigatingPlayerClue = false;
 			listenUntil = 0f;
+			ambushArmedUntil = 0f;
+			ambushAttackUnlockAt = 0f;
+			ambushTarget = null;
 			tactics.ClearGoal();
 			hasInitialized = true;
 			MobileNPCRegistry.Register(this);
@@ -78,10 +89,32 @@ namespace SDG.Unturned
 			if (visiblePlayer != null && visiblePlayer.life != null && !visiblePlayer.life.isDead)
 				playerKnowledge.ObserveSight(visiblePlayer.transform.position, Time.time);
 
+			// Ambush readiness is only armed by an actual concealed approach.
+			// Repeated perception scans do not reset its countdown.
+			bool wasStalking = tactics.CurrentGoal == MobileNPCTactics.Goal.Stalk;
+			if (wasStalking)
+			{
+				tactics.ClearGoal();
+				ambushArmedUntil = Time.time + 2.0f;
+			}
+			if (Time.time < ambushArmedUntil && ambushTarget == null)
+			{
+				MobileNPCHumanoidDisposition disposition = GetComponent<MobileNPCHumanoidDisposition>();
+				Vector3 delta = target.position - transform.position;
+				delta.y = 0f;
+				if (disposition != null
+					&& disposition.CurrentRole == MobileNPCHumanoidDisposition.Role.Hostile
+					&& delta.sqrMagnitude <= 18f * 18f
+					&& delta.sqrMagnitude >= 2f * 2f)
+				{
+					ambushTarget = target;
+					ambushAttackUnlockAt = Time.time + UnityEngine.Random.Range(0.45f, 0.85f);
+					ambushArmedUntil = 0f;
+					Debug.Log("[MobileNPCBrainDriver] Ambush acquired visible target; brief ready delay.", this);
+				}
+			}
 			investigatingPlayerClue = false;
 			listenUntil = 0f;
-			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Stalk)
-				tactics.ClearGoal();
 			brain.ReportVisibleTarget(target, Time.time);
 			PublishDecisionIfChanged();
 		}
@@ -166,6 +199,7 @@ namespace SDG.Unturned
 			}
 
 			tactics.ReportDamage(currentHealth, maximumHealth, Time.time);
+			CancelAmbush();
 			PublishDecisionIfChanged();
 		}
 
@@ -193,6 +227,7 @@ namespace SDG.Unturned
 				playerKnowledge.ObserveSound(threatPosition, 0.8f, Time.time);
 
 			listenUntil = 0f;
+			CancelAmbush();
 			tactics.ReportIncomingFire(Time.time);
 			// Keep a valid cover/retreat destination long enough to travel toward it.
 			// Repeated nearby gunshots previously reset the target every frame/shot.
@@ -409,8 +444,10 @@ namespace SDG.Unturned
 				tactics.ReportGoalReached();
 				if (finishedStalk)
 				{
-					// Wait at the vantage point briefly, without claiming to see
-					// a hidden player or firing through cover.
+					// Ambush opportunity expires without visual confirmation.
+					// Never fire at the remembered position itself.
+					ambushArmedUntil = Time.time + 5f;
+					ambushTarget = null;
 					listenUntil = Time.time + 1.5f;
 					listeningClue = brain.Destination;
 				}
@@ -432,6 +469,12 @@ namespace SDG.Unturned
 				return;
 			}
 
+			if (ambushTarget != null && (Time.time >= ambushAttackUnlockAt
+				|| !targetIsVisible || brain.Target != ambushTarget))
+			{
+				ambushTarget = null;
+				ambushAttackUnlockAt = 0f;
+			}
 			MobileNPCBrain.State previousState = brain.CurrentState;
 			Transform previousTarget = brain.Target;
 			brain.Tick(Time.time, targetIsVisible);
@@ -504,7 +547,15 @@ namespace SDG.Unturned
 			playerKnowledge.Clear();
 			investigatingPlayerClue = false;
 			listenUntil = 0f;
+			CancelAmbush();
 			PublishDecisionIfChanged();
+		}
+
+		private void CancelAmbush()
+		{
+			ambushArmedUntil = 0f;
+			ambushAttackUnlockAt = 0f;
+			ambushTarget = null;
 		}
 
 		/// <summary>
