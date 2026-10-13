@@ -68,6 +68,7 @@ namespace SDG.Unturned
 		// elevations. Two independently sampled walkable surfaces per XZ cell;
 		// ordinary ground and the floor above cannot become one fake node.
 		private const int VerticalNodeLimit = RouteGridNodeLimit * 2;
+		private static float nextSharedVerticalRouteSlot;
 		private static readonly Vector2Int[] RouteGridDirections =
 		{
 			new Vector2Int(1, 0), new Vector2Int(-1, 0),
@@ -347,9 +348,14 @@ namespace SDG.Unturned
 				if (!isUnderwater && routeWaypoints.Count == 0 && !hasDetourWaypoint
 					&& Mathf.Abs(destination.y - transform.position.y) > 1.0f
 					&& PlanarDistanceSquared(destination, transform.position) <= 30f
-					&& Time.time >= nextVerticalRoutePlanTime)
+					&& Time.time >= nextVerticalRoutePlanTime
+					&& Time.time >= nextSharedVerticalRouteSlot)
 				{
 					nextVerticalRoutePlanTime = Time.time + 2.5f;
+					// Across all NPCs, admit at most one expensive vertical
+					// search roughly every 0.16s. Ordinary local routing is
+					// unaffected by this shared CPU budget.
+					nextSharedVerticalRouteSlot = Time.time + 0.16f;
 					if (TryBuildNearbyVerticalRoute(destination))
 					{
 						detourGoalSnapshot = destination;
@@ -1638,6 +1644,12 @@ namespace SDG.Unturned
 					|| actualFloor.y - lastY > characterController.stepOffset
 						+ characterController.skinWidth + 0.10f
 					|| lastY - actualFloor.y > 0.52f)
+					return false;
+				// The floor may be physically connected yet a low ceiling or
+				// railing could intersect the full NPC capsule between grid
+				// nodes. Intermediate clearance is part of the connector.
+				if (i < samples && IsRouteNodeOccupied(actualFloor, radius)
+					&& !IsOnlyUnlockedDoorOccupyingRouteNodeServer(actualFloor, radius))
 					return false;
 				lastY = actualFloor.y;
 			}
