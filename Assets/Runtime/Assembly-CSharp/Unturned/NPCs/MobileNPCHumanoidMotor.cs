@@ -920,6 +920,21 @@ namespace SDG.Unturned
 				// Do not randomly flip left/right each time the agent touches a wall.
 				// Keep one side until a genuine route attempt has had time to progress.
 				consecutiveStuckRecoveries++;
+				if (consecutiveStuckRecoveries >= 4
+					&& brainDriver.ReportTacticalDestinationUnreachableServer(brainDriver.Destination))
+				{
+					// Avoid hammering an impossible seek-cover/flank point. The
+					// driver records the failed physical route as personal evidence,
+					// then chooses another option on a later decision tick.
+					blockedMovementDuration = 0f;
+					useRecoverySteering = false;
+					consecutiveStuckRecoveries = 0;
+					hasDetourWaypoint = false;
+					routeWaypoints.Clear();
+					routeWaypointIndex = 0;
+					nextLocalRoutePlanTime = Time.time + 0.75f;
+					return;
+				}
 				// Give a chosen side enough time to reach the end of a house wall.
 				// Flip only after that side's commitment actually expires, not
 				// on every 1.5-second stuck recovery event.
