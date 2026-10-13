@@ -71,6 +71,12 @@ namespace SDG.Unturned
 			CurrentHealth = maximumHealth;
 			isDead = false;
 			initialized = true;
+			// Ensure mobile humanoids receive the optional server-side medical behavior.
+			// RequireComponent on that behavior adds the NPC inventory if the prefab omitted it.
+			if (GetComponent<MobileNPCMedicalBehavior>() == null)
+			{
+				gameObject.AddComponent<MobileNPCMedicalBehavior>();
+			}
 			if (motor != null && !motor.IsInitialized)
 			{
 				motor.InitializeServer();
