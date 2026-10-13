@@ -213,6 +213,24 @@ namespace SDG.Unturned
 			return selected;
 		}
 
+		/// <summary>
+		/// Starts a flank only after the caller validates safe ground, line of fire,
+		/// and a meaningful displacement from the current position.
+		/// </summary>
+		public bool TryStartFlank(Vector3 validatedPosition)
+		{
+			if (!CanAcceptServerInput
+				|| float.IsNaN(validatedPosition.x) || float.IsInfinity(validatedPosition.x)
+				|| float.IsNaN(validatedPosition.y) || float.IsInfinity(validatedPosition.y)
+				|| float.IsNaN(validatedPosition.z) || float.IsInfinity(validatedPosition.z)
+				|| (validatedPosition - transform.position).sqrMagnitude < 9f)
+				return false;
+
+			bool selected = tactics.TryStartFlank(validatedPosition, Time.time);
+			PublishDecisionIfChanged();
+			return selected;
+		}
+
 		public void ReportValidatedRetreatPoint(Vector3 safePoint)
 		{
 			if (!CanAcceptServerInput)
