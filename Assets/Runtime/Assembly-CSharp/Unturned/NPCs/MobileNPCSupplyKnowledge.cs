@@ -292,6 +292,13 @@ namespace SDG.Unturned
                 float distance = Vector3.Distance(from, remembered);
                 if (distance < 12f || distance > 240f)
                     continue;
+                // Avoid fatal long expeditions for active bleeding. Emergency
+                // supplies or salvage garments should be nearby, or a higher
+                // priority survival/treatment decision should take over.
+                bool activelyBleeding = injuries != null
+                    && injuries.CurrentBleeding != MobileNPCInjurySystem.BleedingSeverity.None;
+                if (activelyBleeding && distance > 75f)
+                    continue;
                 float confidence = (site.finds + 1f) /
                     (site.finds + site.failedVisits + 2f);
                 if (confidence < 0.28f)
@@ -367,10 +374,19 @@ namespace SDG.Unturned
                     return inventory.CountItemType(asset.type) == 0 ? 45f : 0f;
                 case EItemType.SHIRT:
                 case EItemType.PANTS:
-                    // A future clothing-to-rags native crafting policy may use this
-                    // remembered location. Don't make a dangerous medical trip just
-                    // because any clothing could potentially be torn into rags.
-                    return inventory.CountItemType(asset.type) == 0 ? 25f : 0f;
+                {
+                    if (inventory.CountItemType(asset.type) > 0)
+                        return 0f;
+                    bool requiresDressing = injuries != null
+                        && injuries.CurrentBleeding != MobileNPCInjurySystem.BleedingSeverity.None
+                        && !inventory.ContainsItemID(393)
+                        && !inventory.ContainsItemID(95)
+                        && !inventory.ContainsItemID(394);
+                    // Garments are *potential* ingredients. The actual conversion
+                    // only happens if the vanilla blueprint chain exists and all
+                    // supplies are in inventory. Never hand out free bandages.
+                    return requiresDressing ? 70f : 25f;
+                }
                 case EItemType.BARRICADE:
                 case EItemType.STORAGE:
                 case EItemType.STRUCTURE:
