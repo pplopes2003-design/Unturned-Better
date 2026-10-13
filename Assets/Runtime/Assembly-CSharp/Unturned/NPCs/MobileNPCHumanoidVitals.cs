@@ -142,6 +142,64 @@ namespace SDG.Unturned
 		}
 
 		/// <summary>
+		/// Resolve a hit against the actual upright mobile-NPC hit volume. Vanilla
+		/// RaycastInfo.limb belongs to Player/Zombie hitboxes and may be the
+		/// default SPINE when the target is our custom Entity-layer collider.
+		/// A single capsule cannot identify exact anatomy, so these bounded
+		/// regions are an approximation until anatomical colliders are authored.
+		/// </summary>
+		public MobileNPCInjurySystem.BodyPart ResolveBodyPartAtWorldPoint(Vector3 impactPoint)
+		{
+			if (!IsFinite(impactPoint.x) || !IsFinite(impactPoint.y)
+				|| !IsFinite(impactPoint.z))
+				return MobileNPCInjurySystem.BodyPart.Torso;
+			Vector3 local = transform.InverseTransformPoint(impactPoint);
+			if (local.y > 1.49f)
+				return MobileNPCInjurySystem.BodyPart.Head;
+			if (local.y < 0.78f)
+				return local.x < 0f ? MobileNPCInjurySystem.BodyPart.LeftLeg
+					: MobileNPCInjurySystem.BodyPart.RightLeg;
+			if (Mathf.Abs(local.x) > 0.24f && local.y > 0.92f)
+				return local.x < 0f ? MobileNPCInjurySystem.BodyPart.LeftArm
+					: MobileNPCInjurySystem.BodyPart.RightArm;
+			return MobileNPCInjurySystem.BodyPart.Torso;
+		}
+
+		/// <summary>
+		/// Server-verified player weapon impact: one health debit, one body-region
+		/// injury result, and the actual attacker for later death attribution.
+		/// Physical collision/range/ammunition validation remains in UseableGun/
+		/// UseableMelee. This does not damage a Player or create fake XP.
+		/// </summary>
+		public bool ApplyValidatedWeaponImpactServer(float damage, Vector3 impactPoint,
+			Vector3 hitDirection, Transform attacker, bool isFirearm)
+		{
+			if (!Provider.isServer || isDead || lethalTransitionReserved
+				|| !IsFinite(damage) || damage <= 0f
+				|| !IsFinite(hitDirection.x) || !IsFinite(hitDirection.y)
+				|| !IsFinite(hitDirection.z) || !IsFinite(impactPoint.x)
+				|| !IsFinite(impactPoint.y) || !IsFinite(impactPoint.z))
+				return false;
+
+			MobileNPCInjurySystem.BodyPart part = ResolveBodyPartAtWorldPoint(impactPoint);
+			// Probability uses final damage after the weapon's validated range/
+			// falloff multiplier. Melee and firearms have distinct wound profiles.
+			float bleedProbability = Mathf.Clamp01(
+				(isFirearm ? 0.2f : 0.07f) + damage * (isFirearm ? 0.012f : 0.007f));
+			bool bleed = damage >= (isFirearm ? 6f : 9f)
+				&& UnityEngine.Random.value < bleedProbability;
+			bool fracture = (part == MobileNPCInjurySystem.BodyPart.LeftLeg
+				|| part == MobileNPCInjurySystem.BodyPart.RightLeg)
+				&& damage >= 16f && UnityEngine.Random.value < 0.18f;
+			MobileNPCInjurySystem.BleedingSeverity severity =
+				damage > 32f && UnityEngine.Random.value < 0.4f
+				? MobileNPCInjurySystem.BleedingSeverity.Heavy
+				: MobileNPCInjurySystem.BleedingSeverity.Light;
+			return ApplyDamageToPart(damage, part, bleed, fracture, severity,
+				hitDirection * Mathf.Min(damage, 100f), attacker);
+		}
+
+		/// <summary>
 		/// Apply validated damage and optionally provide the world-space impulse associated with the lethal hit.
 		/// The impulse is only a presentation hint; callers must still validate the hit on the server.
 		/// </summary>
