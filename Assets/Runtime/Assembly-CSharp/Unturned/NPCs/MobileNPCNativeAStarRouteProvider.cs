@@ -203,7 +203,10 @@ namespace SDG.Unturned
 						continue;
 					}
 
-					if (method.Name != "StartPath" || parameters.Length < 3
+					// Prefer the documented three-argument overload. Reflection
+					// order is unspecified, and a four-argument GraphMask
+					// overload with default(struct)==0 may disable all graphs.
+					if (method.Name != "StartPath" || parameters.Length != 3
 						|| parameters[0].ParameterType != typeof(Vector3)
 						|| parameters[1].ParameterType != typeof(Vector3)
 						|| !typeof(Delegate).IsAssignableFrom(parameters[2].ParameterType))
