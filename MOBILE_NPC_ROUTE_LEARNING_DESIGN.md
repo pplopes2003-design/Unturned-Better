@@ -75,3 +75,10 @@ This is an explicit **episodic experience cache** and an incremental success/fai
 
 
 **Additional fix:** `e89e6580f0f5bb4c3257bf973e1d7389e2a67737` clears cached-route-use tracking after waypoint completion and clears observed journey traces when safety recovery repositions an NPC after a physics fall. An emergency `transform.position` correction is not first-hand route traversal and must never appear in the learned data. Final Dev Build test required.
+
+
+## 2026-10-13 — Resumed access navigation: bounded composition of two learned journeys
+
+The existing private v6 saved-route data can now be **composed**, without inventing additional route records or changing the persistence schema. `MobileNPCTravelMemory.TryFindKnownFloorAccessServer` selects a firsthand staircase journey and, for an upper-floor target more than 1.9m from its exit, requires a **separate firsthand same-floor route** beginning within 2m of that exit and ending within 1.9m of the target. The motor first physically plans an approach to the known stair base, then validates and follows both experienced trails in order. No airborne shortcuts, wall penetration, assumed reverse edges, faction knowledge, or unobserved doors.
+
+At runtime, a blocked **new approach** does not discredit the already learned stair; a blocked observed staircase or upstairs corridor decreases confidence only in the corresponding learned record. Distinguish this from the existing per-trip cache matched only by the same start and destination. Full building-scale access graph and generalized many-hop inference are still unimplemented under `NAV-ACCESS-01`; performance benefit of route caching remains unmeasured. See `MOBILE_NPC_KNOWN_ACCESS_NAVIGATION_DESIGN.md` for actual source commits and Dev Build cases.
