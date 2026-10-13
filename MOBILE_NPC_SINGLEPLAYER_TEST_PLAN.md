@@ -170,3 +170,18 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 - [ ] Múltiplas mortes com diferentes `RespawnAt`: nenhuma vaga deve ser usada antes do seu prazo, com limpeza de corpo independente.
 - [ ] Salvar/trocar mapa/reabrir: verificar grupo, facção, inventário e conhecimento do novo indivíduo; separar claramente o que o snapshot salva do que ainda precisa de migração.
 - [ ] Registrar `Player.log` e Console + cenário completo; nenhum destes testes foi realizado na rodada de código.
+
+
+## 15. Lembrança de munição/carregadores e perseguição fora das POIs (2026-10-13)
+
+- [ ] NPC adquire arma Cobra real: consultar asset nativo do jogo, sem adivinhar item ID. Encontrar e RECOLHER carregador nativo **compatível e com pelo menos 1 bala** num local concreto (delegacia ou loja de armas do mapa). Antes da coleta: `KnownSiteCount` não cresce. Depois: registra magazine ID, posição e evidência positiva.
+- [ ] Recolher carregador vazio: não pode ensinar falso local de munição. Carregador incompatível com a arma atual pode ser memorizado como item encontrado, mas **não** recomendado para essa arma (interseção de calibres nativos obrigatória).
+- [ ] Com carregador usado/arma com até 8 tiros restantes e nenhum sobressalente compatível, afastar NPC entre 12 e 240m da posição lembrada. Quando estiver ocioso, inventário com espaço e nenhum loot próximo, deve considerar uma viagem limitada ao local real; verificar trajetória por A*, terreno, obstáculos, prioridade de combate e sem teleporte.
+- [ ] No destino, item real ainda presente: NPC recolhe via `ItemManager.TryTransferWorldItemToMobileNPCServer`, não duplica; novo local de coleta reforça memória. Sem item: após janela de procura, a visita infrutífera reduz confiança; nunca materializa munição nem considera sucesso por chegar ao prédio.
+- [ ] Testar interrupção no caminho por tiro, zumbi, perseguição e inventário cheio: o NPC abandona a tarefa secundária, retoma prioridades de sobrevivência e **não** registra falsamente uma visita fracassada quando foi interrompido.
+- [ ] Grupo: A conhece local; B está longe ou atrás de parede que bloqueia audição: B continua sem localização. Dentro do alcance correto em repouso: B recebe informação mais fraca por conversa simulada. Se A morre sem contar, não há herança; se A contou antes, B mantém o que ouviu.
+- [ ] Save v4: salvar, fechar e reabrir mapa; confirmar memórias particulares de fonte de munição em NPCs sobreviventes. Saves v1–v3 continuam carregando sem campos novos; personagem novo ou substituto não recebe lembranças do morto.
+- [ ] Distinguir `LEARN-06` de `LEARN-07`: o NPC sabe o LOCAL concreto, **não** que todos os prédios do mesmo tipo têm munição. Testar outro tipo de arma / outro magazine compatível por API nativa; evitar mapeamentos hardcoded de Cobra.
+- [ ] Zumbi já persegue jogador dentro da POI; jogador cruza a fronteira de navegação e `player.movement.nav` chega a 255: o zumbi **não** deve desistir apenas por esse valor. Observar se o A* consegue seguir no terreno externo; caso contrário, documentar barreira de navegação sem marcar ZMB-01 como concluída.
+- [ ] Repetir zumbi cruzando para região vizinha e voltando à POI, sem teleporte, flutuação, travamento, explosão de logs ou perda errada de prioridade do jogador. Testar perseguição de NPC, ruído e swim separadamente. Registrar FPS/GC e logs com 20+ NPCs.
+- [ ] Estas verificações são do plano FINAL de Dev Build, não foram executadas na rodada.
