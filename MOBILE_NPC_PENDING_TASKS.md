@@ -213,3 +213,6 @@ Revisão estática adicional: conferidos `MobileNPCLooting`, `MobileNPCSupplyKno
 **STATUS:** `CORE-02` **QUASE PRONTA — AGUARDANDO BUILD** para *Gun/Melee e NPC→NPC*, não para soco nativo desarmado, alcance perfeito ou multiplayer. `CORE-03` e `RAG-01` **PENDENTES**: drop/XP/queda rígida implementados na fonte, falta animação/ragdoll esquelético e comprovação da Dev Build. `CORE-04` ainda exige testes. Nenhuma pendência apagada; não houve compilação no Unity.
 
 **Próxima prioridade:** verificar soco desarmado no `PlayerInput/Punch` e dano de zumbi→NPC, aprofundar animação/ragdoll e navegação em casas; arquitetura do aprendizado/facções/rádios segue no guia principal.
+
+
+**Refinamento de queda/loot:** commit `92ef3dd8e6331b90a1ba692e4636221995d32e6b` muda o ponto inicial do item derrubado para 0,9m ao lado do corpo físico. O raycast descendente do `ItemManager` reduz risco de pousar no próprio collider dinâmico da cápsula. Validar próximo de paredes/obstáculos; `CORE-03` e `RAG-01` seguem abertos, `CORE-02` quase pronta somente no escopo source Gun/Melee.
