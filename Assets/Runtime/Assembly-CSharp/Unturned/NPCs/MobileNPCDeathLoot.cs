@@ -114,8 +114,13 @@ namespace SDG.Unturned
                     continue;
                 }
 
-                if (ItemManager.TryDropMobileNPCItemServer(transferred,
-                    transform.position + Vector3.up * 0.6f))
+                // Place the drop slightly beside the corpse rather than
+                // through the new rigidbody capsule. This allows ItemManager's
+                // downward ground probe to find real ground, not the corpse's
+                // own dynamic collider immediately below its center.
+                Vector3 dropAnchor = transform.position + transform.right * 0.9f
+                    + Vector3.up * 0.6f;
+                if (ItemManager.TryDropMobileNPCItemServer(transferred, dropAnchor))
                 {
                     ++released;
                 }
