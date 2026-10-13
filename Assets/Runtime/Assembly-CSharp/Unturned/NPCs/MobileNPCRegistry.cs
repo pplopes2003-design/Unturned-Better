@@ -54,7 +54,8 @@ namespace SDG.Unturned
 		}
 
 		/// <summary>Broadcasts a server-confirmed gunshot as a stimulus to mobile NPCs in hearing range.</summary>
-		public static void NotifyGunfire(Vector3 shooterPosition, float radius, Player shooter)
+		public static void NotifyGunfire(Vector3 shooterPosition, float radius, Player shooter,
+			Transform sourceNPC = null)
 		{
 			if (!Provider.isServer || float.IsNaN(radius) || float.IsInfinity(radius) || radius <= 0f)
 				return;
@@ -63,7 +64,8 @@ namespace SDG.Unturned
 			float radiusSquared = radius * radius;
 			foreach (MobileNPCBrainDriver driver in activeDrivers)
 			{
-				if (driver == null || !driver.gameObject.activeInHierarchy)
+				if (driver == null || !driver.gameObject.activeInHierarchy
+					|| sourceNPC != null && driver.transform == sourceNPC)
 					continue;
 
 				MobileNPCHumanoidVitals vitals = driver.GetComponent<MobileNPCHumanoidVitals>();
