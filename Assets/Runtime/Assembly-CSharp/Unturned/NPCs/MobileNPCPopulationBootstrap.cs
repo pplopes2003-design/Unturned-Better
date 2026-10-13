@@ -130,11 +130,13 @@ namespace SDG.Unturned
                 visualTransforms[i].gameObject.layer = visualRenderLayer;
             }
 
-            // The visual rig has no colliders. Add a separate trigger hit volume so
-            // Unturned's normal aim/interact raycasts can resolve the NPC, without
-            // adding a second solid body that interferes with CharacterController movement.
+            // Native zombie/animal damage hitboxes use Entity (23), independently of
+            // their Agent movement capsules and the visual render layer (Medium/16).
+            // A trigger hitbox can be ignored by damage raycasts depending on physics
+            // query settings, so author a non-trigger Entity hitbox instead.
             GameObject hitboxObject = new GameObject("MobileNPCHitbox");
-            hitboxObject.layer = visualRenderLayer;
+            const int mobileNpcHitboxLayer = 23; // Unturned Entity layer
+            hitboxObject.layer = mobileNpcHitboxLayer;
             hitboxObject.transform.SetParent(template.transform, false);
             hitboxObject.transform.localPosition = Vector3.zero;
             hitboxObject.transform.localRotation = Quaternion.identity;
@@ -143,7 +145,15 @@ namespace SDG.Unturned
             hitbox.center = new Vector3(0f, 0.9f, 0f);
             hitbox.height = 1.8f;
             hitbox.radius = 0.34f;
-            hitbox.isTrigger = true;
+            hitbox.isTrigger = false;
+            // The root CharacterController already handles movement collisions.
+            // Avoid collision feedback between its capsule and the separate hit volume.
+            Physics.IgnoreCollision(hitbox, controller, true);
+            Debug.Log("[MobileNPCPopulationBootstrap] Damage hitbox: layer=Entity (23), trigger="
+                + hitbox.isTrigger + ", DAMAGE_CLIENT includes layer="
+                + ((RayMasks.DAMAGE_CLIENT & (1 << mobileNpcHitboxLayer)) != 0)
+                + ", DAMAGE_SERVER includes layer="
+                + ((RayMasks.DAMAGE_SERVER & (1 << mobileNpcHitboxLayer)) != 0) + ".");
 
             Camera mainCamera = Camera.main;
             if (mainCamera != null)
