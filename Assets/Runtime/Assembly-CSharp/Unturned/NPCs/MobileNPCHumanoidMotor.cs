@@ -1980,6 +1980,19 @@ namespace SDG.Unturned
 		/// </summary>
 		private bool TryBuildNearbyVerticalRoute(Vector3 destination)
 		{
+			// A narrow real staircase may have no treads at 1.25m samples.
+			// One smaller second pass is allowed for nearby vertical targets;
+			// the same global per-NPC admission and each A* budget still apply.
+			if (TryBuildNearbyVerticalRouteAtResolution(destination, RouteGridCellSize))
+				return true;
+			return PlanarDistanceSquared(destination, transform.position) <= 6.25f
+				&& TryBuildNearbyVerticalRouteAtResolution(
+					destination, RouteGridCellSize * 0.5f);
+		}
+
+		private bool TryBuildNearbyVerticalRouteAtResolution(
+			Vector3 destination, float cellSize)
+		{
 			if (!Provider.isServer || characterController == null || !characterController.enabled
 				|| !Level.checkSafeIncludingClipVolumes(destination)
 				|| Mathf.Abs(destination.y - transform.position.y) > 4.5f
@@ -2005,8 +2018,8 @@ namespace SDG.Unturned
 				{
 					int cell = z * RouteGridSide + x;
 					Vector3 world = basePosition + new Vector3(
-						(x - RouteGridCenter) * RouteGridCellSize, 0f,
-						(z - RouteGridCenter) * RouteGridCellSize);
+						(x - RouteGridCenter) * cellSize, 0f,
+						(z - RouteGridCenter) * cellSize);
 					world.y = highY;
 					int count = Physics.RaycastNonAlloc(world, Vector3.down,
 						verticalFloorHitBuffer, rayLength, roamingGroundMask,
@@ -2082,9 +2095,9 @@ namespace SDG.Unturned
 
 			// A complete route requires a connected floor at the requested
 			// destination, not the closest X/Z location on the wrong storey.
-			int destinationX = Mathf.RoundToInt((destination.x - basePosition.x) / RouteGridCellSize)
+			int destinationX = Mathf.RoundToInt((destination.x - basePosition.x) / cellSize)
 				+ RouteGridCenter;
-			int destinationZ = Mathf.RoundToInt((destination.z - basePosition.z) / RouteGridCellSize)
+			int destinationZ = Mathf.RoundToInt((destination.z - basePosition.z) / cellSize)
 				+ RouteGridCenter;
 			if (destinationX < 0 || destinationX >= RouteGridSide
 				|| destinationZ < 0 || destinationZ >= RouteGridSide)
