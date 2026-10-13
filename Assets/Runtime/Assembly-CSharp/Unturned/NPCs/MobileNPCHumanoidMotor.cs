@@ -1669,7 +1669,10 @@ namespace SDG.Unturned
 			waitingForApproach = false;
 			if (!Provider.isServer || travelMemory == null || characterController == null
 				|| !characterController.enabled || routeWaypoints.Count > 0
-				|| Mathf.Abs(destination.y - transform.position.y) < 1.2f
+				// For same-floor rooms, preserve cheap local steering inside 5m.
+				// Longer known corridors can now be composed like stair paths.
+				|| (Mathf.Abs(destination.y - transform.position.y) < 1.2f
+					&& PlanarDistanceSquared(destination, transform.position) <= 25f)
 				|| (targetIsVisible && brainDriver != null
 					&& (brainDriver.CurrentGoal == MobileNPCTactics.Goal.SeekCover
 						|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat)))
