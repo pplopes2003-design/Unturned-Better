@@ -110,7 +110,8 @@ namespace SDG.Unturned
                     out Vector3 entryGround, out _)
                     || Mathf.Abs(entryGround.y - currentY) > 0.35f
                     || !IsClearStandingSpace(entryGround)
-                    || !HasClearApproach(transform.position, entryGround))
+                    || !HasClearApproach(transform.position, entryGround,
+                        groundMask, maximumSlope))
                     continue;
                 anchor = entryGround;
 
@@ -151,7 +152,8 @@ namespace SDG.Unturned
             return true;
         }
 
-        private bool HasClearApproach(Vector3 from, Vector3 to)
+        private bool HasClearApproach(Vector3 from, Vector3 to,
+            LayerMask groundMask, float maximumSlope)
         {
             Vector3 displacement = to - from;
             displacement.y = 0f;
@@ -160,7 +162,8 @@ namespace SDG.Unturned
                 return true;
             Vector3 midway = (from + to) * 0.5f;
             if (!MobileNPCSpawnService.TryFindSafeGroundPosition(midway,
-                0.7f, 0.7f, ~0, 45f, out Vector3 middleGround, out _)
+                0.7f, 0.7f, groundMask, maximumSlope,
+                out Vector3 middleGround, out _)
                 || Mathf.Abs(middleGround.y - midway.y) > 0.35f)
                 return false;
             float radius = Mathf.Max(0.12f, controller.radius * 0.75f);
