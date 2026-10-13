@@ -326,3 +326,18 @@ Commits:
 Fetched all three key source files after changes and verified braces balanced and presence of policy/crouch/jump/audio hookups, but no Unity compile/runtime validation occurred.
 
 **Outstanding after this round:** Unity build and runtime check; reliable zombie notice/ignore while stealthing (native sound/hide mechanic), player footstep stimuli, real zoom/optics visibility, stalking ambush state machine, ML/social learning, obstacle jumping/safe stand-up in varied map geometry; and earlier death/respawn, navigation/cover, ranged fire, nameplates/dialogue UI, animation clip availability. Native XP credit/network replication not implemented. In-game tests must specifically check no crouch-lock, repetitive hopping, hotbar input conflicts, footstep audibility, and AI pose transitions.
+
+
+## Stealth hearing integration round — 2026-10-13
+
+The user said "Próxima etapa", following the request to link NPC sneak/crouch gait with game senses. New source-only changes committed to `feature/npc-ai-foundation`:
+
+- `ad8a615dcfe51631d0af7e36954a0b311da42594`: new server-only `MobileNPCPlayerFootstepSensor` sampling actual planar Player displacement at 0.2-second intervals; uses footfall cooldowns, estimated walking/running speed and bounded radius (9 m walk, 17 m run). Stationary/very slow displacement and implausibly fast movement produce no sound. This is an approximation, **not** an actual native footstep event, stance detection, or source of perfect player location.
+- `33a2cb752f0fbd92713b8be2c0f7ac2a0d20b2c7`, `d0e944005e0dce24d452cce5b2a8f43891122993`: `MobileNPCRegistry.NotifyPlayerFootstep` routes only nearby plausible audible sound evidence, attenuates behind world obstacles and adds confidence-based position error. Occlusion ray excludes listener and humanoid shells.
+- `be07b9c533317bb4b3e26625c44cb49fe6047f6f`: `MobileNPCBrainDriver.ReportPlayerFootstepClue` uses approximate sound evidence, no player reference, pursuit target or sight claim. A 3–6-second cooldown prevents perpetual resetting, and active pursuit/retreat/cover is not overridden.
+- `86b69e03e8e05b4db42a663af22715f0ebe307ba`: installs player-footstep sensor with single-player runtime director.
+- `5fefadd7c8cf9ff8a06fa2b46e51c19f708d302a`: mobile NPC motor emits native `ZombieManager.alertZombiesToNoise` only for actual moving NPC: approximately 9 m sprint, 3.5 m walk, none crouched; per-footstep cooldown limits frequency.
+
+Fetched five changed files back from GitHub and checked code presence and brace balance; **NO UNITY BUILD OR TEST**, nor proof native zombie response/noise masks are right.
+
+Critical future follow-ups: more accurate native footstep event/stance/terrain-based volume if game's private runtime API is exposed; hearing calibration/obstacle materials and distance, moving vehicle false positives; prevent improbable shared omniscient inference across groups; verify that NPCs can actually crouch/stand, that zombie response is audible and throttled; stealth intent (listening/ambushing/stalking) and zoom optics still pending. Earlier death, movement, combat, cover, animation, dialogue/HUD issues still await user's combined Dev Build and Player.log.
