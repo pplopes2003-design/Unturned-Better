@@ -30,6 +30,7 @@ namespace SDG.Unturned
 		private bool routeReady;
 		private bool lastPathFailed;
 		private float nextRequestTime;
+		private float requestStartedAt;
 		private Vector3 requestedGoal;
 		private readonly List<Vector3> completedRoute = new List<Vector3>(32);
 
@@ -74,10 +75,20 @@ namespace SDG.Unturned
 
 			if (requestPending)
 			{
-				if ((goal - requestedGoal).sqrMagnitude <= 9f)
+				if (Time.time - requestStartedAt > 4.0f)
+				{
+					CancelPendingRequest();
+					lastPathFailed = true;
+					nextRequestTime = Time.time + 2.5f;
+				}
+				else if ((goal - requestedGoal).sqrMagnitude <= 9f)
+				{
 					return false;
-
-				CancelPendingRequest();
+				}
+				else
+				{
+					CancelPendingRequest();
+				}
 			}
 
 			if (Time.time < nextRequestTime)
@@ -87,6 +98,7 @@ namespace SDG.Unturned
 			lastPathFailed = false;
 			completedRoute.Clear();
 			requestPending = true;
+			requestStartedAt = Time.time;
 			try
 			{
 				ParameterInfo[] parameters = startPathMethod.GetParameters();
