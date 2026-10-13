@@ -618,6 +618,21 @@ namespace SDG.Unturned
 			return true;
 		}
 
+		/// <summary>Travel to a personally remembered supply site only while safe/idle.
+		/// This is an intent to investigate, not confirmation of any new loot.</summary>
+		public bool TryStartRememberedSupplySearch(Vector3 validatedPlace)
+		{
+			if (!CanAcceptServerInput || brain.Target != null
+				|| (float.IsNaN(validatedPlace.x) || float.IsInfinity(validatedPlace.x)
+				|| float.IsNaN(validatedPlace.y) || float.IsInfinity(validatedPlace.y)
+				|| float.IsNaN(validatedPlace.z) || float.IsInfinity(validatedPlace.z)
+				|| !Level.checkSafeIncludingClipVolumes(validatedPlace))
+				|| !tactics.TryStartSupplySearch(validatedPlace, Time.time))
+				return false;
+			PublishDecisionIfChanged();
+			return true;
+		}
+
 		public void ReportDestinationReached()
 		{
 			if (!CanAcceptServerInput)
