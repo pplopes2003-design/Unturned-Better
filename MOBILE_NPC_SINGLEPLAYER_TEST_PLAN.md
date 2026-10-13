@@ -419,3 +419,7 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 - With an intentionally corrupt test save (separate backup), verify first/last footprint mismatch, zero-length repeated steps, >2.6m skipped samples, invalid/NaN coordinate and observed route lengths outside 3.5–80m are ignored without crashes or bogus upstairs routing.
 - Change door lock/geometry after an authentic save: learned paths are only candidates and must be rejected by real-world collision checks.
 - Kill an NPC and spawn replacement: no inheritance of personal stair/room knowledge. Code commit `80f9104` was **not** compiled or runtime-tested; verify in final Unity Dev Build only.
+
+## 29. Trade panel button visibility (source-reviewed; await Dev Build)
+
+Open trading with 9 stocked items. Verify option buttons 1-9 are separately clickable, none overlaps `Fechar`, and selecting 7-9 selects the intended slot. Test both numpad/number row, Escape, changing dialogue state, lower screen resolutions and no HUD loss. Compare after closing with ordinary Unturned HUD. Commit `6173447` modifies footer geometry only: do not assume the broader dialogue/HUD bug is fixed until user feedback.
