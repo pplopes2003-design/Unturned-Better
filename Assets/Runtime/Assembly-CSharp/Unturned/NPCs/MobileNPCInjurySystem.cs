@@ -231,7 +231,7 @@ namespace SDG.Unturned
 
 		private static bool IsValidPart(BodyPart part)
 		{
-			return part >= BodyPart.Head && part <= BodyPart.RightLeg;
+			return (int)part >= (int)BodyPart.Head && (int)part <= (int)BodyPart.RightLeg;
 		}
 	}
 }
