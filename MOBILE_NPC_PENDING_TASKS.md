@@ -274,3 +274,6 @@ Revisão estática adicional: conferidos `MobileNPCLooting`, `MobileNPCSupplyKno
 - `145ff0761bc884b4ffa2e9cb82f04df4bcebe6cd`: design detalhado com critérios de aceitação em `MOBILE_NPC_DOOR_NAVIGATION_DESIGN.md`.
 
 **Status:** `NAV-DOOR-01` **QUASE PRONTA — AGUARDANDO BUILD** para **portas barricade InteractableDoor destrancadas e registradas**; NÃO afirmar solução universal para portas de mapas, veículos, portas trancadas, arrombamento ou escadas. `CORE-04` continua `EM IMPLEMENTAÇÃO`. O código foi alterado na feature branch mas **não compilado**, nem playtest realizado. Após última Dev Build do usuário, fechar ou reabrir de acordo com logs/feedback. Pendências nunca apagadas.
+
+
+**Auditoria extra NAV-DOOR-01:** commit `775fb0aa0bcfefd90c44e3dff08d5325c2245e41` exige registro nativo `BarricadeRegion` + `FindBarricadeByRootFast` também durante as consultas **sem efeitos colaterais** do A* (célula e aresta). Uma porta simulada/stale com collider mas sem item barricade real não deve virar uma passagem virtual no grafo. Escadas e navegação mundial seguem CORE-04 EM IMPLEMENTAÇÃO; testes de porta ficam reservados à Dev Build final.
