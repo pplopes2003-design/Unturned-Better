@@ -18,6 +18,7 @@ namespace SDG.Unturned
     public sealed class MobileNPCDeathLoot : MonoBehaviour
     {
         [SerializeField, Min(1f)] private float retryIntervalSeconds = 4f;
+        [SerializeField, Range(0, 100)] private int hostileNPCDefeatXP = 10;
         private MobileNPCHumanoidVitals vitals;
         private MobileNPCInventory inventory;
         private bool deathObserved;
@@ -50,7 +51,29 @@ namespace SDG.Unturned
             if (!Provider.isServer || deathObserved)
                 return;
             deathObserved = true;
+            AwardLegitimateHostileDefeatXPServer();
             ReleaseRealInventoryServer();
+        }
+
+        /// <summary>
+        /// Optional modest reward through the actual vanilla experience system.
+        /// A non-hostile survivor never awards farming XP. This is not a fake
+        /// Player kill event, statistics entry or quest completion.
+        /// </summary>
+        private void AwardLegitimateHostileDefeatXPServer()
+        {
+            if (!Provider.isServer || hostileNPCDefeatXP <= 0 || vitals == null)
+                return;
+            MobileNPCHumanoidDisposition disposition = GetComponent<MobileNPCHumanoidDisposition>();
+            if (disposition == null || disposition.CurrentRole != MobileNPCHumanoidDisposition.Role.Hostile)
+                return;
+            Transform attacker = vitals.LastAttacker;
+            Player killer = attacker != null ? attacker.GetComponentInParent<Player>() : null;
+            if (killer == null || killer.skills == null)
+                return;
+            killer.skills.askAward((uint)hostileNPCDefeatXP);
+            Debug.Log("[MobileNPCDeathLoot] Awarded " + hostileNPCDefeatXP
+                + " vanilla XP to direct player killer of hostile " + name + ".", this);
         }
 
         private void Update()
