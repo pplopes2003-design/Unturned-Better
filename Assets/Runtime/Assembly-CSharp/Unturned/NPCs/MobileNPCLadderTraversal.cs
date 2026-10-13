@@ -94,6 +94,14 @@ namespace SDG.Unturned
                 if (Vector3.Distance(transform.position, anchor) > 1.5f
                     || !Level.checkSafeIncludingClipVolumes(anchor))
                     continue;
+                if (!MobileNPCSpawnService.TryFindSafeGroundPosition(anchor,
+                    0.9f, 0.9f, groundMask, maximumSlope,
+                    out Vector3 entryGround, out _)
+                    || Mathf.Abs(entryGround.y - currentY) > 0.35f
+                    || !IsClearStandingSpace(entryGround)
+                    || !HasClearApproach(transform.position, entryGround))
+                    continue;
+                anchor = entryGround;
 
                 // Find an ACTUAL upper/lower walkable platform, not a guessed
                 // coordinate above the ladder or an arbitrary neighboring roof.
@@ -128,6 +136,30 @@ namespace SDG.Unturned
             lastY = transform.position.y;
             nextContactProbe = 0f;
             phase = Phase.Approach;
+            return true;
+        }
+
+        private bool HasClearApproach(Vector3 from, Vector3 to)
+        {
+            Vector3 displacement = to - from;
+            displacement.y = 0f;
+            float length = displacement.magnitude;
+            if (length < 0.10f)
+                return true;
+            float radius = Mathf.Max(0.12f, controller.radius * 0.75f);
+            Vector3 a = from + Vector3.up * (radius + 0.12f);
+            Vector3 b = from + Vector3.up * (controller.height - radius + 0.08f);
+            RaycastHit[] hits = new RaycastHit[12];
+            int count = Physics.CapsuleCastNonAlloc(a, b, radius,
+                displacement / length, hits, length,
+                RayMasks.BLOCK_LADDER, QueryTriggerInteraction.Ignore);
+            if (count >= hits.Length)
+                return false;
+            for (int i = 0; i < count; ++i)
+                if (hits[i].collider != null
+                    && hits[i].collider.transform != transform
+                    && !hits[i].collider.transform.IsChildOf(transform))
+                    return false;
             return true;
         }
 
@@ -211,6 +243,14 @@ namespace SDG.Unturned
 
             if (phase == Phase.Climb)
             {
+                // Reaching the top/bottom ends contact with the ladder; begin
+                // the physically checked exit BEFORE probing rung contact.
+                if (Mathf.Abs(transform.position.y - exit.y) <= 0.55f)
+                    phase = Phase.Exit;
+            }
+
+            if (phase == Phase.Climb)
+            {
                 if (Time.time >= nextContactProbe)
                 {
                     nextContactProbe = Time.time + 0.18f;
@@ -226,10 +266,7 @@ namespace SDG.Unturned
                         return Vector3.zero;
                     }
                 }
-                if (Mathf.Abs(transform.position.y - exit.y) <= 0.55f)
-                    phase = Phase.Exit;
-                else
-                    return Vector3.up * directionY * 1.65f;
+                return Vector3.up * directionY * 1.65f;
             }
 
             if (phase == Phase.Exit)
@@ -253,7 +290,7 @@ namespace SDG.Unturned
         {
             if (phase == Phase.None)
                 return;
-            if (Vector3.Distance(transform.position, before) >= 0.045f)
+            if (Vector3.Distance(transform.position, before) >= 0.009f)
             {
                 lastProgress = Time.time;
                 lastY = transform.position.y;
