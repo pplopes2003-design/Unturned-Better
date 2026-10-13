@@ -1064,3 +1064,27 @@ No C# compile, no Unity map playtest, no native A* runtime log or Profiler evide
 
 
 **Stair entry extraction fix `24ba6037f00907978a4c468ddec626ee7532a02d`:** `MobileNPCTravelMemory.TryFindKnownFloorAccessServer` derives an entry step from the personally recorded pre-rise / pre-descent footsteps, rather than using the arbitrary start of the original completed journey (which might be a room 10m before the staircase). It returns only that actually observed stair suffix. This does not infer any connector or permit reverse travel without prior experience. The motor composes a physically computed path to that observed step plus the verified suffix. Source-only, not tested in Unity. Previous doc `MOBILE_NPC_KNOWN_ACCESS_NAVIGATION_DESIGN.md` now includes this refinement. Portal graphs/multiple stairways and target far beyond exit remain open.
+
+
+## 2026-10-13 — LATEST NAV-ACCESS-01 AFTER INTERRUPTED TURN: CHAINED FIRST-HAND ROUTES
+
+**Begin next round** with `MOBILE_NPC_PENDING_TASKS.md`, this HANDOFF and `MOBILE_NPC_KNOWN_ACCESS_NAVIGATION_DESIGN.md`. All code belongs to feature branch `feature/npc-ai-foundation`; user compiles and tests only in final Unity Dev Build. Never remove pending IDs or claim runtime completion before feedback. Final full AI flow diagram is still deferred until all features are structured.
+
+### State recovered instead of recreated
+
+Upon resuming the interrupted request, GitHub already contained prior source commits for `NAV-ACCESS-01`: `MobileNPCTravelMemory.TryFindKnownFloorAccessServer` selected a personally observed stair *entrance* (derived from real elevation-changing footsteps), and `MobileNPCHumanoidMotor.TryBuildKnownFloorAccessRoute` physically planned an approach (local A* <=5m, optional native async A* out to <=25m), concatenated and verified the learned stair suffix. `MOBILE_NPC_KNOWN_ACCESS_NAVIGATION_DESIGN.md` also already existed. Prior implementation only worked when final upstairs goal lay within 1.9m of the remembered stair exit. **Do not duplicate those implementations.**
+
+### New GitHub commits this resumed round
+
+1. `d40634ff04ba3494be68647d1f050ba3a4c979fa`: extends the *personal* `MobileNPCTravelMemory` access selector to find up to one separate, fully walked **same-floor** continuation from within 2m of a learned stair exit to a new end destination within 1.9m. It checks floor matching, original route evidence and failure confidence, and returns both records. Neither new geometry nor reverse links are inferred.
+2. `3ce89c4b6f0694e9b6396b0aa6a32508c601e72a`: motor composes actual approach path + remembered stair suffix + learned upstairs corridor + final goal, while maintaining brain's full 3D destination. Every stage boundary and segment revalidates real ground, head/body collision, physical native doors and map bounds. Maximum combined approach/stair/corridor waypoint count 104; continuation must have >=3 firsthand points.
+3. `af7681ee710ec2e28ee85a5def864404a3799c52`: clear BOTH learned route references on goal change, no destination, waypoint completion, terrain-fall safety recovery or when a different route is used. Prevent unrelated stale-path penalties.
+4. `8ae284d1439b18150f9c0c4a2ada2c01c74474d8`: retain phase markers (approach, learned stair, observed continuation) for in-progress composed paths. A blocked newly computed approach lowers neither learned record's confidence. A physically blocked actual stair lowers its own confidence; an upstairs corridor failure penalizes only the recorded continuation. Still perform actual movement with CharacterController, never warp.
+5. `602a733ac7b536a0da05e324c5f0bc62bff8069b`: technical design records new capacity and final test matrix.
+6. `20e9115555da27a7d90417faf8c0d4411e851034`: permanent backlog updated; NAV-ACCESS-01 still EM IMPLEMENTAÇÃO.
+
+### Validation limitations
+
+No Unity compilation, no gameplay tests, no profiler measurements. Actual native graph may be missing; long approach still requires genuine A* availability and connected map graph. Only two linked *personally experienced* journey records (stair + same-floor corridor) are accepted, NOT a generalized city/POI portal graph. Other floors, multi-stair concatenation, dynamic reverse direction, unknown rooms and distant endpoints remain pending. Individual route memory is v6, saved for the SAME survivor and erased on death. Other NPCs do not gain it magically; physical speech/radio route sharing remains unimplemented.
+
+**Next engineering focus:** generalized but CPU-bounded graph of observed stair/door transition nodes, navigation to different upstairs target via new valid local/native path, or P0 dialogue UI/ESC bug. Do not mark CORE-04 or NAV-ACCESS-01 resolved until final Dev Build evidence; follow up on any static/C# signature errors.
