@@ -27,7 +27,9 @@ namespace SDG.Unturned
         private static float nextSharedAttempt;
         private readonly Collider[] clearanceBuffer = new Collider[24];
         private readonly RaycastHit[] approachBuffer = new RaycastHit[12];
-        private readonly Collider[] surveyedLadders = new Collider[24];
+        // LADDER_INTERACT includes structures/terrain besides ladder colliders;
+        // provide enough fixed room for cluttered interiors before fail-closed.
+        private readonly Collider[] surveyedLadders = new Collider[128];
         private float nextSurvey;
         private static float nextSharedSurvey;
 
