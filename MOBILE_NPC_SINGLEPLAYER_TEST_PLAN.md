@@ -231,3 +231,27 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 - [ ] Testar 1, 20, 50 e 200 zumbis ativos perto de obstáculos: avaliar chamadas de raycast/probe no Profiler; cada escolha de desvio tem no máximo 4 candidatos e intervalo mínimo de 0,65s, com verificações locais por tick.
 - [ ] Multiplayer: cliente em região fora do bound do zumbi **pode não ter recebido o spawn ID**; o pacote `ReceiveZombieStates` exige região networked e índices conhecidos. Não marcar replicação correta até existir registro/streaming seguro; no teste singleplayer, isso não deve impedir a simulação do servidor.
 - [ ] Anexar Player.log/Console, mapa, posições aproximadas, número de zumbis, nav de origem/destino, tipo de obstáculo, caminho esperado/real e captura do Profiler. **Dev Build é a etapa final do usuário; ainda não foi compilado.**
+
+
+## 19. P0 — Fim a fim do dano de tiros e melee em NPCs móveis (NOVO — não executado)
+
+**Causa a verificar:** `PlayerInputPacket.write` antes emitia `SKIP` para collider móvel sem tipo nativo, então nenhum dano chegava ao servidor. A fonte agora define `MOBILE_NPC` e refaz o raycast autoritativo no servidor.
+
+- [ ] Testar num jogo local (host) NPC hostil/amigável: tiro no torso com arma real reduz HP **uma vez**, cria ferimento numa região válida e informa `[MobileNPCHumanoidVitals] Damage accepted`. Não repetir apenas hitmarker: garantir log de vida real.
+- [ ] Testar impacto na cabeça de NPC de 1,8 m: multiplicador `ELimb.SKULL` e marcador crítico (quando arma permitir); tiro no torso usa base `ELimb.SPINE`; tiros em pernas podem causar fraturas. Não exigir precisão anatômica da capsule única, que precisa de colisores por osso.
+- [ ] Matar NPC com arma de fogo e melee; o mesmo golpe causa `Death transition` **uma vez**, desabilita agente, interrompe movimento/tiro/coleta, habilita ragdoll/fallback e agenda cadáver/reposição atrasada. O NPC morto não intercepta novos disparos nem ganha XP/itens duplicados.
+- [ ] Testar armamento com dano zero/negativo ou munição insuficiente: nenhum dano falso, nenhum sangramento e nenhum hitmarker indevido. Espingarda multi-pellets: cada pellet validado gera seu próprio hit uma única vez; morte não aplica dano adicional.
+- [ ] Testar tiro longo até ~500 m quando arma nativa permite: o novo `MOBILE_NPC` do pacote não descarta automaticamente a distância; o raycast físico e a arma continuam impondo alcance real, desvio/queda e linhas de visão.
+- [ ] Testar parede sólida ou NPC atrás de zumbi/Player/objeto: confirmação do servidor só admite primeiro collider de NPC móvel real, bloqueando tiros forjados ou cobertura atravessada. Ponto client/server com divergência >1,5 m não deve causar dano.
+- [ ] Com jogador usando melee, verificar `PlayerInput` envia tipo `MOBILE_NPC`, distingue hitbox sem classe nativa e valida alvo dentro do alcance da arma. Conferir que lag/collider temporariamente movido não gera falso positivo.
+- [ ] Testar combate de NPC armado contra outro NPC rival: pontaria imperfeita, munição consumida, raycast real, ferimentos por região e atribuição de agressor, sem fogo amigo autorizado por engano.
+- [ ] Testar golpes nativos de zumbis e socos sem arma contra NPC separadamente; o novo tipo `MOBILE_NPC` foi conectado só a `Gun`/`Melee`, e socos continuam pendentes se o pipeline nativo não os suporta.
+- [ ] Regredir acertos nos jogadores/zumbis/animais/objetos, nas armas melee e gun; novo enum foi inserido ao final para preservar números originais. Sem mensagens desconhecidas do NetEnum nem descarte indevido.
+- [ ] Cliente multiplayer só quando `NET-01` for implementado: NPC runtime ainda não é replicado como entidade em cada cliente. Não interpretar a nova mensagem como replicação completa de NPCs.
+- [ ] Rodar câmera em primeira pessoa e terceira pessoa, testar várias munições e mapa/POI diversos; compartilhar `Player.log` e log de dano após a build final, como combinado.
+
+### Regressão de grade A* local corrigida
+
+- [ ] NPC contorna quina de casa: grid de 9×9 células mantém nós válidos próximos às paredes, mas rejeita arestas realmente obstruídas. Não atravessar parede nem caminhar lateralmente sem progresso.
+- [ ] Dois pisos separados por >stepOffset: grafo local não conecta um piso superior ao inferior por aresta impossível. Escada verdadeira depende da malha nativa/nav e de pequenos degraus válidos.
+- [ ] NPC muda de objetivo durante detour: descartar caminho obsoleto, não entrar em oscilação permanente junto ao muro.
