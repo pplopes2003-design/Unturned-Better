@@ -36,6 +36,9 @@ namespace SDG.Unturned
 
 		private void Update()
 		{
+			MobileNPCHumanoidMotor motor = GetComponent<MobileNPCHumanoidMotor>();
+			if (motor != null && motor.IsClimbingLadder)
+				return; // both hands occupied by physical ladder traversal
 			if (!Provider.isServer || brainDriver == null || brainDriver.CurrentState != MobileNPCBrain.State.Pursuing
 				|| brainDriver.IsAmbushPreparing
 				|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat)
