@@ -82,6 +82,7 @@ namespace SDG.Unturned
 		private bool targetIsVisible;
 		private readonly MobileNPCLocomotionPolicy locomotionPolicy = new MobileNPCLocomotionPolicy();
 		private float nextJumpTime;
+		private float nextFootstepNoiseAt;
 		private float standingHeight;
 		private Vector3 standingCenter;
 		private bool physicallyCrouched;
@@ -496,6 +497,16 @@ namespace SDG.Unturned
 				velocity.y = -2.0f;
 			}
 			IsMoving = planarDirection.sqrMagnitude > 0.0001f && (collision & CollisionFlags.Sides) == 0;
+			// Noise is based on actual movement, not merely the desired AI gait.
+			// Crouching suppresses the zombie-alert call; running is louder than walking.
+			// Native zombie perception remains responsible for deciding investigation.
+			if (IsMoving && !isUnderwater && Time.time >= nextFootstepNoiseAt)
+			{
+				float audibleRadius = IsCrouched ? 0f : IsSprinting ? 9f : 3.5f;
+				nextFootstepNoiseAt = Time.time + (IsSprinting ? 0.36f : 0.55f);
+				if (audibleRadius > 0f)
+					ZombieManager.alertZombiesToNoise(transform.position, audibleRadius);
+			}
 			UpdateStuckRecovery(wantedToMove, deltaTime);
 		}
 
