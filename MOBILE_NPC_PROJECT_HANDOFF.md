@@ -1002,3 +1002,6 @@ Existing `MobileNPCHumanoidMotor.TryBuildLocalRoute` casts one local ground poin
 - Next engineering options: external authored stair/door connectors or stairwell spatial portals for global paths, multi-level navigation graph reliability, UI-01 dialogue HUD bug, UI-02 missing NPC melee animation and RAG-01 skeletal joints. Prioritize real user-visible bugs while moving toward final build.
 
 **Final checklist is appended to** `MOBILE_NPC_SINGLEPLAYER_TEST_PLAN.md`, section 25. Update docs and test plan after any further path changes.
+
+
+**Source refinement `077bb7a3cc1e4bdeb338ecfbfbbad21d798963b5`:** the ordinary 9×9 planar fallback is no longer permitted to report a closest lower-floor cell as progress toward a nearby upstairs/downstairs final goal (>1m Y, ≤√30m XZ), where the real multi-height stair planner must prove a connection. The motor counts consecutive failed special vertical plans for a stable tactical target; after 3 it may call `ReportTacticalDestinationUnreachableServer` (only optional SeekCover/Flank) to learn unreachable cover. It NEVER auto-cancels active pursuit on a failure to find stairs in the bounded region. Reset count when the goal moves or a real vertical path is found. Source only, no Unity compile/playtest.
