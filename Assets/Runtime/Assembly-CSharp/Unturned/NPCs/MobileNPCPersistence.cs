@@ -16,7 +16,7 @@ namespace SDG.Unturned
 	/// </summary>
 	internal static class MobileNPCPersistence
 	{
-		private const int CurrentVersion = 5;
+		private const int CurrentVersion = 6;
 		private const float SaveInterval = 30f;
 		private const float DeferredRestoreInterval = 3f;
 		private static float nextSaveTime;
@@ -49,6 +49,10 @@ namespace SDG.Unturned
 			// Individual experience only; not a global group/faction policy.
 			public List<MobileNPCAdaptiveMemory.ExperienceRecord> experience = new List<MobileNPCAdaptiveMemory.ExperienceRecord>();
 			public List<MobileNPCSupplyKnowledge.SiteRecord> supplySites = new List<MobileNPCSupplyKnowledge.SiteRecord>();
+			// Route experience belongs to THIS surviving individual only.
+			// Version 6 is backward-compatible with version 1-5 snapshots.
+			public List<MobileNPCTravelMemory.LearnedRoute> learnedRoutes
+				= new List<MobileNPCTravelMemory.LearnedRoute>();
 		}
 
 		[Serializable]
@@ -355,6 +359,9 @@ namespace SDG.Unturned
 				MobileNPCSupplyKnowledge supplyKnowledge = instance.GetComponent<MobileNPCSupplyKnowledge>();
 				if (supplyKnowledge != null)
 					supplyKnowledge.RestoreSnapshotServer(record.supplySites);
+				MobileNPCTravelMemory travelMemory = instance.GetComponent<MobileNPCTravelMemory>();
+				if (travelMemory != null)
+					travelMemory.RestoreSnapshotServer(record.learnedRoutes);
 			}
 			catch (Exception exception)
 			{
@@ -451,6 +458,9 @@ namespace SDG.Unturned
 				MobileNPCSupplyKnowledge supplyKnowledge = driver.GetComponent<MobileNPCSupplyKnowledge>();
 				if (supplyKnowledge != null)
 					record.supplySites = supplyKnowledge.ExportSnapshotServer();
+				MobileNPCTravelMemory travelMemory = driver.GetComponent<MobileNPCTravelMemory>();
+				if (travelMemory != null)
+					record.learnedRoutes = travelMemory.ExportSnapshotServer();
 
 				save.npcs.Add(record);
 			}
