@@ -773,3 +773,37 @@ Read `Managers/ZombieManager.cs` `ReceiveZombieStates`, `SendZombieStates_Write`
 - No Unity compilation or gameplay tests were executed in this round. Only GitHub source inspection and source changes. User supplies final Dev Build logs later; don't close items automatically.
 
 **Next step:** audit and address authoritative zombie PLAYER/NPC sight and hearing in POIs, investigate movement stalls under external physical fallback, then return to P0 `CORE-02/CORE-03/CORE-04` NPC hitbox, corpse, building corner routes. For network, design client registration preserving home bound/id; do NOT send invalid state packets. Always update BOTH canonical guides and tests after each implementation round.
+
+
+## 2026-10-13 — LATEST P0 NPC MOBILE DAMAGE ROOT CAUSE FIX (NEXT SESSION START HERE)
+
+**Always read** `MOBILE_NPC_PENDING_TASKS.md` + this HANDOFF before new work; update both EVERY round, and tests/design docs if applicable. The user wants compilation and play-testing only at the final stage; subfeatures may be source-near-ready without declaring them resolved. Full AI flow/memory diagram is due after all core modules. **CORE-02/03/04 remain OPEN.**
+
+### Verified root cause of "shoot NPC and nothing happens"
+
+The runtime mobile humanoid is neither vanilla `Player` nor `Zombie`. Its `MobileNPCHitbox` is a custom non-trigger Entity-layer capsule on the template, with `MobileNPCHumanoidVitals` on the parent.
+
+Before this round, `Player/PlayerInput.cs` `PlayerInputPacket.write` categorized hits as native types only. A hit on custom `MobileNPCHitbox` would fall through to `ERaycastInfoType.SKIP`; in listen-host `PlayerInput.sendRaycast` it was also dropped as `null`. Therefore the server-side code in `UseableGun/UseableMelee` never received `info.colliderTransform` for the custom NPC, even though its `ApplyDamage` method existed. **This is a source-traced upstream blocker, NOT a hypothetical health formula issue.**
+
+### Implemented source commits (all on feature/npc-ai-foundation)
+
+- `dd69e0ae9728c7ed0c474274665102b75085bc0c`: `Player/PlayerInput.cs` adds append-only `ERaycastInfoType.MOBILE_NPC` (preserving older native enum values). Packet write/read transports world point + ray direction without fake native spawn ID or serialized runtime transform. Listen-server `sendRaycast` classifies custom NPC collider. On consuming input, server performs `DamageTool.raycast(..., RayMasks.DAMAGE_SERVER, ignorePlayer: player)`, requiring first server hit to be a living MobileNPCHumanoidVitals collider within 1.5m of reported point, then supplies server-resolved `colliderTransform` to the original gun/melee damage adapter. This prevents client inventing hidden targets through walls; original gun/melee range/ammo/falloff checks still apply.
+- `fa4da5641117cb356d2180bb9120278c25c3d802`: apply default native `ELimb.SPINE` for server-verified custom NPC input and bounded ray candidate range (max 750m for firearm / 15m melee), with per-weapon actual limits still in `UseableGun`/`UseableMelee`. Head region is resolved geometrically by NPC vitals, NOT by client-provided limb.
+- `5c338d44abeb414808b1f3fd63bb53a2cd83b6fa`: `MobileNPCHumanoidVitals` `ResolveBodyPartAtWorldPoint` approximates anatomical region based on physically confirmed hit location on upright 1.8m capsule. `ApplyValidatedWeaponImpactServer` invokes `ApplyDamageToPart` once with arm/leg/head/torso, bleeding/fracture probabilities based on final weapon damage and attacker identity. Explicit caveat: one capsule cannot provide bone-precise arms or legs.
+- `ada2d7ab92a94227af9a8f3b058db7398248577a` (`UseableGun.cs`) and `8ef25516e2bd786bf9d122c1fbaf8bdd85d912a0` (`UseableMelee.cs`): connect original damage calculation, actual critical head multiplier and client hitmarker to new vitals impact API; no duplicate flat damage application.
+- `ebe7533c1549babeb10f448e1c1758ac0ae36c14`: `MobileNPCHumanoidRangedCombat` uses same validated body-injury entry point after physically verified gun ray and consumes finite ammo.
+- `083858ff91e0abe9bc2ba838f5a5630a85edbc8e`: `MobileNPCInjurySystem.ApplyHit` delegates to `vitals.ApplyDamageToPart` for unified guards/initialization and prevents setting bleed/splint on dead NPCs.
+- `359e6976b16e5591cf7de077ccc6ac963644602a`: `MobileNPCHumanoidMotor` local 9x9 grid route had a wrong extra candidate-origin spherecast pointing away from start, falsely discarding viable grid nodes beside buildings; removed it because actual graph edges already perform proper collision checks. Now forbid route edges between floors with rises >stepOffset/skin tolerance or drops >1.1m.
+
+### Required tests / state labels
+
+**Static source and GitHub commits only. NO Unity compilation, NO Dev Build testing.** `CORE-02` is OPEN despite a now-connected source damage path. PlayerInput packet compatibility must be checked on host and, later, multiplayer. Normal Player/Zombie hits should regress unchanged because enum value was appended and native payloads left intact. Native armor, XP attribution, correct skeletal ragdoll, per-limb physical collider accuracy and NPC corpse retirement are not proven. `CORE-03` and `CORE-04` remain open.
+
+Test shotgun multiple pellets vs individual hit count; head/torso/leg difference; local host vs remote packet; invalid spoofed point, hit through wall, shot after NPC death; no hitmarker if zero damage. Check message logs; `MobileNPCHumanoidVitals` emits `[Damage accepted]` and `[Death transition]` diagnostic output. Compare against `MobileNPC_SINGLEPLAYER_TEST_PLAN` (exact filename `MOBILE_NPC_SINGLEPLAYER_TEST_PLAN.md`).
+
+### Next safe priorities
+
+1. Audit `MobileNPCPopulationBootstrap` anatomical collider strategy and authoritative project layer masks; improve actual head/torso collider precision if source permits without altering movement collision matrix.
+2. Confirm server raycast / packet protocols for punch/unarmed, firearms, melee, NPC-to-NPC, and zombie-to-NPC. Native PlayerInput `MOBILE_NPC` currently intentionally handles **Gun and Melee only**; Punch remains pending, no fake success.
+3. Continue P0 `CORE-03`: real authored ragdoll prefab / fallback, corpse cleanup, XP/loot without fake `PlayerLife`. Then `CORE-04` complex buildings, pursuit, cover/nav.
+4. Never close tasks before user performs the final Dev Build; update BOTH canonical guides and test plan every engineering round.
