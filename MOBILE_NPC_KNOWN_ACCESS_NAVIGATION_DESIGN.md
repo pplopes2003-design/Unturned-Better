@@ -46,3 +46,10 @@
 - Last-known staircase used to approach an upstairs **region**, then second-stage route from stair exit to a *different* target destination on that floor, with native A* or safe local planner.
 - Per-map building/POI location association, dead-end and damage-risk history, group ingress and tactical fire lane coordination.
 - Native nav graph audit + profiling and, separately, physically planned `NAV-JUMP-01` links/vertical ladders. `CORE-04`, `NAV-ACCESS-01`, `PERF-01` remain open.
+
+
+## Follow-up: observed elevation transition as the actual entry candidate
+
+Source commit `24ba6037f00907978a4c468ddec626ee7532a02d` refines `TryFindKnownFloorAccessServer`: earlier it assumed that the original trip start was the physical staircase entrance, even if the NPC walked through a room/corridor before reaching stairs. Now `FindObservedFloorAccessEntranceIndex` searches **real recorded positions** for the first cumulative elevation transition >=0.65m in the direction of the actually completed upper/lower floor trip; it selects the verified preceding same-floor step as the *known access point*. Only the observed suffix from that point through the personally visited exit is proposed. If the trace lacks an interpretable transition, no staircase portal is inferred. It neither creates a new door nor assumes a reverse link.
+
+**Additional final build test:** first learn a trip starting inside a room 10m before a staircase, walking a corridor then climbing. Move the NPC into a different room closer to the actual stair base. With available native/local navigation it should approach the observed pre-ascent point rather than insist on revisiting the old arbitrary starting room. Confirm it does not pick the wrong floor, skip the first stair tread, or infer a vertical edge from a mere player position upstairs.
