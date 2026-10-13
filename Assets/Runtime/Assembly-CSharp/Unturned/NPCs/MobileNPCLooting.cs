@@ -27,10 +27,10 @@ namespace SDG.Unturned
 		private MobileNPCInventory inventory;
 		private MobileNPCAdaptiveMemory adaptiveMemory;
 		private MobileNPCSupplyKnowledge supplyKnowledge;
-				private ushort targetItemID;
+		private ushort targetItemID;
 		private byte targetItemRounds;
 		private bool isRememberedSupplyTrip;
-		private ushort rememberedMagazineID;
+		private ushort rememberedItemID;
 		private Vector3 rememberedSitePosition;
 		private float rememberedArrivalAt;
 		private float rememberedTripExpiresAt;
@@ -96,11 +96,11 @@ namespace SDG.Unturned
 				{
 					uint attemptedInstanceID = targetInstanceID;
 					bool pickedUp = inventory.TryPickupWorldItemServer(attemptedInstanceID, transform.position, pickupDistance + 0.5f);
-					// A remembered ammunition source requires an ACTUAL successful
-					// world-to-inventory transfer, not merely spotting an item.
+					// Any learned source must be an ACTUAL completed transfer, not
+					// seeing loot through walls or a guaranteed respawn table.
 					if (pickedUp && supplyKnowledge != null && targetItemID != 0)
 						supplyKnowledge.RecordSuccessfulPickupServer(targetItemID, targetItemRounds, targetPosition);
-					if (pickedUp && isRememberedSupplyTrip && targetItemID == rememberedMagazineID)
+					if (pickedUp && isRememberedSupplyTrip && targetItemID == rememberedItemID)
 						CancelRememberedSupplyTripServer(false);
 					if (adaptiveMemory != null)
 						adaptiveMemory.RecordOwnOutcomeServer(MobileNPCAdaptiveMemory.ExperienceKind.LootAccess, targetPosition, pickedUp);
@@ -177,7 +177,7 @@ namespace SDG.Unturned
 			}
 
 			if (bestItem == null && !isRememberedSupplyTrip)
-				TryPlanRememberedMagazineSearchServer();
+				TryPlanRememberedSupplySearchServer();
 
 			if (bestItem != null && driver.TryStartLoot(bestItem.transform.position))
 			{
@@ -312,28 +312,25 @@ namespace SDG.Unturned
 		}
 
 		/// <summary>
-		/// An empty-magazine NPC may revisit a place where it personally found a
-		/// compatible magazine. The place is a hypothesis, not a guaranteed spawn.
+		/// When real survival/equipment needs are unmet, revisit an observed
+		/// site for the useful item type. Location is a hypothesis, not a spawn.
 		/// </summary>
-		private void TryPlanRememberedMagazineSearchServer()
+		private void TryPlanRememberedSupplySearchServer()
 		{
 			if (supplyKnowledge == null || Time.time < nextRememberedSearchAt
 				|| driver == null || driver.Target != null
 				|| driver.CurrentGoal != MobileNPCTactics.Goal.None)
 				return;
 			nextRememberedSearchAt = Time.time + 40f;
-			if (!inventory.TryGetBestGun(out Item gun, out ItemGunAsset asset)
-				|| asset == null || gun.state == null || gun.state.Length <= 10
-				|| gun.state[10] > 8
-				|| inventory.TryFindCompatibleMagazine(asset, out int reserveSlot,
-					out ItemMagazineAsset spareMagazine))
+			MobileNPCHumanoidVitals vitals = GetComponent<MobileNPCHumanoidVitals>();
+			MobileNPCInjurySystem injuries = GetComponent<MobileNPCInjurySystem>();
+			MobileNPCSurvivalNeeds survival = GetComponent<MobileNPCSurvivalNeeds>();
+			if (!supplyKnowledge.TrySuggestNeededSupplySiteServer(inventory,
+				vitals, injuries, survival, transform.position,
+				out Vector3 rememberedPosition, out ushort itemID))
 				return;
 
-			if (!supplyKnowledge.TrySuggestCompatibleMagazineSiteServer(
-				asset, transform.position, out Vector3 rememberedPosition, out ushort magazineID))
-				return;
-			// Resolve the remembered pickup site to actual map ground. No teleport,
-			// no special knowledge of police buildings or guaranteed item spawns.
+			// Validate actual map ground; native pathfinding must still walk to it.
 			if (!MobileNPCSpawnService.TryFindSafeGroundPosition(rememberedPosition,
 				12f, 8f, RayMasks.BLOCK_COLLISION, 38f, out Vector3 reachableGround, out _)
 				|| (reachableGround - rememberedPosition).sqrMagnitude > 100f
@@ -341,14 +338,14 @@ namespace SDG.Unturned
 				return;
 
 			isRememberedSupplyTrip = true;
-			rememberedMagazineID = magazineID;
+			rememberedItemID = itemID;
 			rememberedSitePosition = rememberedPosition;
 			rememberedTripExpiresAt = Time.time + 65f;
 			rememberedArrivalAt = -1f;
-			Debug.Log("[MobileNPCLooting] NPC " + name
-				+ " is checking a previously observed magazine location; id="
-				+ magazineID + ", rememberedPlace=" + rememberedPosition
-				+ " (not a guaranteed drop).", this);
+			Debug.Log("[MobileNPCLooting] " + name
+				+ " checking previously observed supply item=" + itemID
+				+ ", site=" + rememberedPosition
+				+ " (not guaranteed to exist now).", this);
 		}
 
 		private void UpdateRememberedSupplyTripServer()
@@ -367,16 +364,22 @@ namespace SDG.Unturned
 
 			if (rememberedArrivalAt < 0f
 				&& (transform.position - rememberedSitePosition).sqrMagnitude <= 36f)
+			{
 				rememberedArrivalAt = Time.time;
+				// Unlock normal loot acquisition on arrival. Keeping the
+				// Investigate goal would reject TryStartLoot for nearby drops.
+				if (driver.CurrentGoal == MobileNPCTactics.Goal.Investigate)
+					driver.ReportDestinationReached();
+			}
 
 			bool visitedAndChecked = rememberedArrivalAt >= 0f
 				&& Time.time >= rememberedArrivalAt + 5f;
-			bool couldNotReach = Time.time >= rememberedTripExpiresAt;
+			bool couldNotReach = Time.time >= rememberedTripExpiresAt && !hasTarget;
 			if ((visitedAndChecked && !hasTarget) || couldNotReach)
 			{
 				if (supplyKnowledge != null)
 					supplyKnowledge.RecordUnsuccessfulVisitServer(
-						rememberedMagazineID, rememberedSitePosition);
+						rememberedItemID, rememberedSitePosition);
 				CancelRememberedSupplyTripServer(true);
 			}
 		}
@@ -387,7 +390,7 @@ namespace SDG.Unturned
 				return;
 			isRememberedSupplyTrip = false;
 			rememberedArrivalAt = -1f;
-			rememberedMagazineID = 0;
+			rememberedItemID = 0;
 			if (finishInvestigation && driver != null
 				&& driver.CurrentGoal == MobileNPCTactics.Goal.Investigate)
 				driver.ReportDestinationReached();
