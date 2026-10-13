@@ -510,10 +510,17 @@ namespace SDG.Unturned
 			if (!wantsCrouch)
 			{
 				float radius = characterController.radius * 0.9f;
-				Vector3 standingWorldCenter = transform.TransformPoint(standingCenter);
-				float halfSegment = Mathf.Max(0f, standingHeight * 0.5f - radius);
-				Collider[] hits = Physics.OverlapCapsule(standingWorldCenter + Vector3.up * halfSegment,
-					standingWorldCenter - Vector3.up * halfSegment, radius,
+				// Only query the newly occupied head space, not the full capsule:
+				// probing the full capsule includes floor contact and can prevent
+				// standing up forever on ordinary terrain.
+				float currentTop = transform.position.y + characterController.center.y
+					+ characterController.height * 0.5f;
+				float desiredTop = transform.position.y + standingCenter.y + standingHeight * 0.5f;
+				Vector3 lowerHead = new Vector3(transform.position.x,
+					Mathf.Max(currentTop + radius * 0.2f, desiredTop - radius), transform.position.z);
+				Vector3 upperHead = new Vector3(transform.position.x,
+					Mathf.Max(lowerHead.y, desiredTop - radius * 0.2f), transform.position.z);
+				Collider[] hits = Physics.OverlapCapsule(lowerHead, upperHead, radius,
 					RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
 				for (int i = 0; i < hits.Length; ++i)
 				{
