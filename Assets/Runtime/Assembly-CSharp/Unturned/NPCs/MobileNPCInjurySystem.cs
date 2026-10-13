@@ -160,7 +160,7 @@ namespace SDG.Unturned
 			}
 			// Keep the most severe active bleed; a new wound may replace the source
 			// region but cannot downgrade an already-heavy bleed.
-			if (severity >= bleeding)
+			if ((int)severity >= (int)bleeding)
 			{
 				bleeding = severity;
 				bleedingPart = part;
