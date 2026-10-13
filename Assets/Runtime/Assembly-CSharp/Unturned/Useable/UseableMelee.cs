@@ -552,7 +552,7 @@ namespace SDG.Unturned
 					{
 						float mobileNPCDamage = equippedMeleeAsset.zombieOrPlayerDamageMultiplier.multiply(info.limb) * times;
 						mobileNPCVitals.ApplyDamage(Mathf.Max(1f, mobileNPCDamage),
-							info.direction * Mathf.Max(1f, mobileNPCDamage));
+							info.direction * Mathf.Max(1f, mobileNPCDamage), player.transform);
 					}
 				}
 				else if (info.type == ERaycastInfoType.PLAYER)
