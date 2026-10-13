@@ -388,6 +388,9 @@ namespace SDG.Unturned
             directorObject = new GameObject("MobileNPCPopulationDirector_Runtime");
             MobileNPCPopulationDirector director = directorObject.AddComponent<MobileNPCPopulationDirector>();
             directorObject.AddComponent<MobileNPCInteractionController>();
+            // Server-side motion sampling generates audible footstep evidence.
+            // It does not expose the player's live transform to NPC decisions.
+            directorObject.AddComponent<MobileNPCPlayerFootstepSensor>();
             director.Configure(template);
 
             Debug.Log("[MobileNPCPopulationBootstrap] Single-player mobile NPC population initialized for loaded map "
