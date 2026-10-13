@@ -247,3 +247,18 @@ Combined build tests: spawn NPC and verify damaging/killing (accepted hit, death
 - `aef356eb40b518d46203f42fbf48d5459aaaae31`: hostile NPC refusal is shown until dismissed rather than cleared immediately; hostile roles cannot choose trade/alliance through numeric keys.
 - GitHub source reread confirmed `PlayerUI.message` absent and panel/keyboard callbacks present; simple brace balance passes. **Unity compilation and actual HUD/input behavior NOT verified**.
 - Combined build test: approach friendly/neutral NPC, confirm nameplate visible prior to E; open interaction, read options and stock, use number row and numpad, click if mouse cursor usable, ESC to close, repeat; verify native HUD remains visible and ESC still works afterward, including when leaving range or NPC dies. Test hostile refusal, alliance confirmation notice, and trade stock scrolling. If camera culls the text or hotbar selection interferes with dialogue keys, include Player.log and reproduction steps.
+
+
+## Ranged combat / cover / animation round — 2026-10-13
+
+User requested to address dialogue (previous round), then ranged combat, cover and animation interactions, and to report all still-pending items after each development round.
+
+Applied commits:
+- `c43bb0e16aadf3bf31d117580ab5480958cbafe3`, `b88c05b20bbff0670be501371d5885ad162e2c08`, `21400802c1ed2c04c37bf24b0e25417df7e36b79`: NPC gunshots now notify other mobile NPCs through `MobileNPCRegistry.NotifyGunfire`; method has optional `sourceNPC` and excludes that shooter to prevent self-suppression. Original player gunfire call remains compatible.
+- `05ae01162ea4e6de7cb9d5d245a6d2a82a93a798`: `MobileNPCBrainDriver.TryFindNearbyCoverPoint` ignores character collider hits when assessing genuine world cover, and checks for immediate chest-height blockers along a direct path to candidate. This rejects demonstrably inaccessible straight-line candidates; does not constitute full A* reachability proof.
+- `68ddb46b2902d3823f35a203a200fb57b90682c2`: tactical line-of-fire raycast ignores own NPC colliders, selecting closest external hit instead of false occlusion by self.
+- `eac7099384140a2db2404450c46fb0b0784fe654`, `979ed8a3642c2fe35fee54cfb31614f97b184b4a`: `MobileNPCVisualAnimation` subscribes to ranged shot/reload and damage-received events. Plays only clips actually present on the loaded legacy Animation rig, matching shoot/fire/recoil, reload, and hit/flinch/damage/hurt names at runtime. If absent it does not invent a clip; unsubscription on destroy is explicit.
+
+Static verification: re-fetched the five modified NPC source files, confirmed expected content and balanced braces. No Unity C# compile or gameplay run performed. Prior GUI panel and nameplate changes remain source-only until build validation.
+
+**Still pending as of this round:** Unity compile/build; in-game ranged-hit reliability at long distance, fair spread and reload behavior, and real accuracy vs player/NPC/zombies; coverage quality/reachability with A* across buildings and under suppression; availability and quality of actual strike, firearm, reload, hit and death animations on NPC_Client; working mouse focus and ESC/game HUD restoration for the IMGUI interaction panel; interaction nameplate visibility; full death-hitbox/corpse/removal/respawn smoke test; full movement/stairs/corners/investigation test; native XP/kill attribution/network replication not implemented for custom server-local mobile NPCs. Collect Player.log from one combined test build when user is ready.
