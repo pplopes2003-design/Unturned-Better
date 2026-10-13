@@ -227,6 +227,10 @@ namespace SDG.Unturned
 			}
 
 			isDead = true;
+			// Private experience does not survive death or pass to the replacement NPC.
+			MobileNPCAdaptiveMemory adaptiveMemory = GetComponent<MobileNPCAdaptiveMemory>();
+			if (adaptiveMemory != null)
+				adaptiveMemory.ForgetOnDeathServer();
 			if (logDamageDiagnostics)
 			{
 				Debug.Log("[MobileNPCHumanoidVitals] Death transition: npc=" + name
