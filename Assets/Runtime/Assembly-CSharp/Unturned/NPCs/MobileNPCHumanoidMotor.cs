@@ -794,7 +794,9 @@ namespace SDG.Unturned
 				if (!isPlannedJumping && hasDestination && groundedBeforeMove
 					&& !waitingForDoorToOpen && !waitingForLearnedAccess
 					&& Time.time >= nextJumpTime
-					&& injuryMovementMultiplier > 0.5f
+					// Injured legs alter gait speed and invalidate the
+					// precomputed horizontal ballistic distance.
+					&& injuryMovementMultiplier >= 0.95f
 					&& gait != MobileNPCLocomotionPolicy.Gait.Sneak
 					&& !brainDriver.IsListening && !brainDriver.IsAmbushPreparing
 					&& TryBeginPlannedLowJump(jumpRequestedDirection, destination))
@@ -828,7 +830,9 @@ namespace SDG.Unturned
 			// Noise is based on actual movement, not merely the desired AI gait.
 			// Crouching suppresses the zombie-alert call; running is louder than walking.
 			// Native zombie perception remains responsible for deciding investigation.
-			if (IsMoving && !isUnderwater && Time.time >= nextFootstepNoiseAt)
+			if (IsMoving && !isUnderwater && !isPlannedJumping
+				&& (collision & CollisionFlags.Below) != 0
+				&& Time.time >= nextFootstepNoiseAt)
 			{
 				float audibleRadius = IsCrouched ? 0f : IsSprinting ? 9f : 3.5f;
 				nextFootstepNoiseAt = Time.time + (IsSprinting ? 0.36f : 0.55f);
@@ -1699,8 +1703,15 @@ namespace SDG.Unturned
 		/// </summary>
 		private void BeginOrContinueActualJourney(Vector3 requestedGoal)
 		{
-			if (travelMemory == null)
+			// Never begin a "walked" route from an airborne position, nor
+			// re-learn the arc as a ground connector on the next physics tick.
+			if (travelMemory == null || isPlannedJumping
+				|| Time.time < suppressJourneyUntil)
+			{
+				trackingActualJourney = false;
+				actualTravelFootsteps.Clear();
 				return;
+			}
 			if (!trackingActualJourney ||
 				Vector3.Distance(actualTravelGoal, requestedGoal) > 1.2f)
 			{
