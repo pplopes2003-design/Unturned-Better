@@ -972,7 +972,7 @@ namespace SDG.Unturned
 				// Stop early when the preferred destination cell is reached. If it is
 				// blocked or disconnected, keep exploring the reachable component so
 				// the fallback can select its nearest reachable node.
-				if (current == preferredGoal)
+				if (current == preferredGoal && current != start)
 					break;
 
 				int cx = current % RouteGridSide;
