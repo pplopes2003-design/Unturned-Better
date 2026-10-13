@@ -22,6 +22,7 @@ namespace SDG.Unturned
         private MobileNPCHumanoidMotor motor;
         private MobileNPCBrainDriver brain;
         private MobileNPCHumanoidCombat combat;
+        private MobileNPCHumanoidVitals vitals;
         private Animation legacyAnimation;
         private Animator animatorFallback;
         private string idleClip;
@@ -36,9 +37,19 @@ namespace SDG.Unturned
             motor = GetComponent<MobileNPCHumanoidMotor>();
             brain = GetComponent<MobileNPCBrainDriver>();
             combat = GetComponent<MobileNPCHumanoidCombat>();
+            vitals = GetComponent<MobileNPCHumanoidVitals>();
             if (combat != null)
             {
                 combat.AttackStarted += PlayAttackAnimation;
+            }
+            if (vitals != null)
+            {
+                vitals.Died += HandleDied;
+                if (vitals.IsDead)
+                {
+                    enabled = false;
+                    return;
+                }
             }
             legacyAnimation = GetComponentInChildren<Animation>(true);
             if (legacyAnimation != null)
@@ -213,11 +224,22 @@ namespace SDG.Unturned
             clipOwner.CrossFade(clipName, Mathf.Min(crossFadeDuration, 0.08f));
         }
 
+        private void HandleDied()
+        {
+            // Death presentation releases the authored bone rigidbodies. Stop this
+            // locomotion writer so it cannot cross-fade Idle_Stand over the ragdoll.
+            enabled = false;
+        }
+
         private void OnDestroy()
         {
             if (combat != null)
             {
                 combat.AttackStarted -= PlayAttackAnimation;
+            }
+            if (vitals != null)
+            {
+                vitals.Died -= HandleDied;
             }
         }
 
