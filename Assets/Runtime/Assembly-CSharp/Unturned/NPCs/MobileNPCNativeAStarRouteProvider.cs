@@ -68,7 +68,9 @@ namespace SDG.Unturned
 
 			if (routeReady)
 			{
-				if ((goal - requestedGoal).sqrMagnitude <= 9f && completedRoute.Count >= 2)
+				if (MatchesRequestedGoal(goal) && completedRoute.Count >= 2
+					&& Vector3.Distance(start, completedRoute[0]) <= 4f
+					&& Mathf.Abs(start.y - completedRoute[0].y) <= 0.85f)
 				{
 					output.Clear();
 					output.AddRange(completedRoute);
@@ -89,7 +91,7 @@ namespace SDG.Unturned
 					diagnosticStatus = "request-timeout";
 					nextRequestTime = Time.time + 2.5f;
 				}
-				else if ((goal - requestedGoal).sqrMagnitude <= 9f)
+				else if (MatchesRequestedGoal(goal))
 				{
 					return false;
 				}
@@ -147,6 +149,15 @@ namespace SDG.Unturned
 				nextRequestTime = Time.time + 2.5f;
 				return false;
 			}
+		}
+
+		private bool MatchesRequestedGoal(Vector3 goal)
+		{
+			// Two nearby room entrances can be on opposite sides of a wall,
+			// and stacked floors may share the same X/Z coordinates. A loose
+			// 3m radius would consume the wrong asynchronous path.
+			return (goal - requestedGoal).sqrMagnitude <= 2.25f
+				&& Mathf.Abs(goal.y - requestedGoal.y) <= 0.65f;
 		}
 
 		private void EnsureInitialized()
