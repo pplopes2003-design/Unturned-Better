@@ -530,3 +530,5 @@ Status: `NAV-LADDER-LINK-01` **QUASE PRONTA — AGUARDANDO BUILD**; no compilati
 - [ ] Only after the user's runtime approval may scoped `NAV-VAULT-CLAMBER-01` be concluded; parent `CORE-04` remains open if broader navigation or routing still fails. Do not request/demand a dedicated Vault animation.
 
 Related: updated canonical `MOBILE_NPC_VAULT_DESIGN.md`, `MOBILE_NPC_PENDING_TASKS.md`. All checks **UNEXECUTED** until consolidated Unity Dev Build.
+
+**Section 33 correction after user-approved normal jumps (`b526f717`):** low 0.35–0.65m obstacle uses the actual native PlayerMovement JUMP impulse 7 rather than solving an often-too-low value from horizontal travel time. Check takeoff velocity, gravity-based airtime, real landing and bounded horizontal distance. Section 36 supersedes any older three-phase custom clamber scenarios: ordinary Unturned jumps only, optional Parkour-style 25% boost for higher parapets, next hop only after genuine ground contact and cooldown. No dedicated vault clip required.
