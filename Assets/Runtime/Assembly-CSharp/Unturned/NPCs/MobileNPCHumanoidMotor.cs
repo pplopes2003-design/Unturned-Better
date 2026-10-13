@@ -94,6 +94,9 @@ namespace SDG.Unturned
 		private Vector3 roamingDestination;
 		private float nextRoamingDecisionTime;
 		private Vector3 lastStuckCheckPosition;
+		private Vector3 lastTrackedStuckGoal;
+		private Vector3 lastMeaningfulRouteProgressPosition;
+		private bool hasTrackedStuckGoal;
 		private float nextStuckCheckTime;
 		private float nextGroundSafetyCheckTime;
 		private float nextGroundFailureLogTime;
@@ -184,6 +187,8 @@ namespace SDG.Unturned
 			hasRoamingDestination = false;
 			nextRoamingDecisionTime = Time.time + Random.Range(2f, 5f);
 			lastStuckCheckPosition = transform.position;
+			lastMeaningfulRouteProgressPosition = transform.position;
+			hasTrackedStuckGoal = false;
 			nextStuckCheckTime = Time.time + 0.75f;
 			blockedMovementDuration = 0f;
 			useRecoverySteering = false;
@@ -507,12 +512,18 @@ namespace SDG.Unturned
 				}
 			}
 
+			Vector3 positionBeforeMovement = transform.position;
 			CollisionFlags collision = characterController.Move(motion * deltaTime);
 			if ((collision & CollisionFlags.Below) != 0 && velocity.y < 0.0f)
 			{
 				velocity.y = -2.0f;
 			}
-			IsMoving = planarDirection.sqrMagnitude > 0.0001f && (collision & CollisionFlags.Sides) == 0;
+			// A side contact can coexist with genuine slide-along-wall progress.
+			// Use actual planar displacement rather than treating every side
+			// collision as zero movement for animation/footstep decisions.
+			Vector3 planarDisplacement = transform.position - positionBeforeMovement;
+			planarDisplacement.y = 0f;
+			IsMoving = wantedToMove && planarDisplacement.sqrMagnitude > 0.000001f;
 			// Noise is based on actual movement, not merely the desired AI gait.
 			// Crouching suppresses the zombie-alert call; running is louder than walking.
 			// Native zombie perception remains responsible for deciding investigation.
@@ -779,10 +790,49 @@ namespace SDG.Unturned
 
 			float elapsed = Mathf.Max(0.1f, Time.time - (nextStuckCheckTime - 0.75f));
 			nextStuckCheckTime = Time.time + 0.75f;
-			float movedDistance = Vector3.Distance(transform.position, lastStuckCheckPosition);
-			lastStuckCheckPosition = transform.position;
+			Vector3 samplePosition = transform.position;
+			Vector3 previousPosition = lastStuckCheckPosition;
+			float movedDistance = Vector3.Distance(samplePosition, previousPosition);
+			lastStuckCheckPosition = samplePosition;
 
-			if (!wantedToMove || movedDistance >= 0.12f)
+			bool madeMeaningfulProgress = movedDistance >= 0.12f;
+			if (brainDriver != null && brainDriver.HasDestination)
+			{
+				Vector3 currentGoal = brainDriver.Destination;
+				// A newly assigned target must not inherit the previous destination's
+				// stuck counter, otherwise switching from loot to combat can trip it.
+				if (!hasTrackedStuckGoal || PlanarDistanceSquared(currentGoal, lastTrackedStuckGoal) > 9f)
+				{
+					hasTrackedStuckGoal = true;
+					lastTrackedStuckGoal = currentGoal;
+					lastMeaningfulRouteProgressPosition = samplePosition;
+					blockedMovementDuration = 0f;
+					useRecoverySteering = false;
+					return;
+				}
+				lastTrackedStuckGoal = currentGoal;
+				float previousGoalDistance = Mathf.Sqrt(PlanarDistanceSquared(previousPosition, currentGoal));
+				float currentGoalDistance = Mathf.Sqrt(PlanarDistanceSquared(samplePosition, currentGoal));
+				float anchorDistance = Mathf.Sqrt(PlanarDistanceSquared(
+					lastMeaningfulRouteProgressPosition, currentGoal));
+				// Sidestepping a wall may temporarily fail to reduce goal distance.
+				// Accept a substantial net detour only if it has not carried the
+				// NPC significantly farther away from the destination.
+				bool advancingTowardGoal = previousGoalDistance - currentGoalDistance >= 0.12f;
+				bool advancingAroundObstacle =
+					PlanarDistanceSquared(samplePosition, lastMeaningfulRouteProgressPosition) >= 1.44f
+					&& currentGoalDistance <= anchorDistance + 0.6f;
+				madeMeaningfulProgress = advancingTowardGoal || advancingAroundObstacle;
+				if (madeMeaningfulProgress)
+					lastMeaningfulRouteProgressPosition = samplePosition;
+			}
+			else
+			{
+				hasTrackedStuckGoal = false;
+				lastMeaningfulRouteProgressPosition = samplePosition;
+			}
+
+			if (!wantedToMove || madeMeaningfulProgress)
 			{
 				blockedMovementDuration = 0f;
 				useRecoverySteering = false;
