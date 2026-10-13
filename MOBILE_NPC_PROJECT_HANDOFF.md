@@ -352,3 +352,22 @@ User requested the next stage of cautious listening/stealth investigation. Commi
 - Source files re-fetched, key integration confirmed, braces matched. **No Unity compile or gameplay test.**
 
 Outstanding: native player footstep and stance detection refinement; zombie native hearing calibration; full stalking/ambush planning (cover-to-cover movement and concealment), optics/zoom; evaluation of actual crouch/stand, terrain transitions, noise suppression and NPC turn animation; prior death cycle/respawn, navigation, ranged combat, cover, dialogue/HUD, animation clip checks all need combined Unity build and Player.log. Future adaptive learning and per-NPC conversations sharing bounded memories remain planned only.
+
+
+## Stalking and concealed approach — 2026-10-13 (not compiled)
+
+User requested next stage after listening/suspicion: cautious stalking from known clues, hiding behind geometry, ambush posture with high-priority interruption. Changes committed in `feature/npc-ai-foundation`:
+
+- `393d90220b24742255c8731b0fe2eb29797debee`: PlayerKnowledge exposes a confidence- and age-decayed evidence snapshot (last confirmed sight/sound plus uncertainty); no hidden live player transform in the advisor.
+- `e904b1b29d5e1637414232378eabf8fecdc6b1c7`: adds `MobileNPCTactics.Goal.Stalk` and bounded 7s tactical waypoint, disallowing flank/loot override and allowing cover/retreat priorities to preempt.
+- `6305e89233089f7135818c043d0d5f2928456fef`: for hostile NPCs only, BrainDriver evaluates limited candidate positions relative to previously observed player evidence, rejecting unsafe ground, immediately blocked approach or no environmental concealment. Chooses short protected waypoint based on cover geometry, with 5s planning cooldown and variation. Waits briefly at destination. Actual target acquisition still requires visible confirmation; no firing permission is gained from evidence alone.
+- `4690c65f626a0dca613e16b28bc8042d297f9d50`, `5fb85daab11abbda2b2228d2bd06a158666f178d`: policy/motor give Stalk movement sneak/crouch gait.
+- `add2fa258229c74aaab7b9fa434aacf4b297c848`: fixes a hidden-target cheating risk: tactical combat no longer computes flanking from a hidden target's current Transform when target is not confirmed by server perception. The last-known-position cognition owns hidden searches.
+
+Source-only verification: six files re-fetched directly from GitHub and checked brace balance. Still **NO Unity C# compilation, build or gameplay verification**.
+
+Outstanding:
+- Real ambush choreography and targeting with visual confirmation, delayed attack/aim readiness, NPC versus zombie stealth, true waypoint reachability around larger buildings and bounded failure memory.
+- Optics/zoom perception and reliable native stance/footstep/crouch animations (asset lookup).
+- Prior Unity integration smoke tests: damage/death/corpse/respawn, movement/corner/stairs/jumps, NPC/zombie sound reaction, ranged accuracy/cover, UI/HUD/nameplate, animation availability, game log.
+- Future: per-NPC experience/ML-like adaptation, in-world transmission and loss of unsent memories at death; native XP attribution and multiplayer replication not implemented.
