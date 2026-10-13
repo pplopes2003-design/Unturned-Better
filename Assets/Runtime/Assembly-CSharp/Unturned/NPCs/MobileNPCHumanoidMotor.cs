@@ -141,6 +141,8 @@ namespace SDG.Unturned
 		private float nextRoutePlanTime;
 		private float nextLocalRoutePlanTime;
 		private float nextVerticalRoutePlanTime;
+		private int consecutiveVerticalPlanFailures;
+		private Vector3 failedVerticalGoal;
 		private float nextPlannedRouteValidationTime;
 		private float nextRouteCornerShortcutTime;
 		private Vector3 lastRoamingDirection;
@@ -206,6 +208,8 @@ namespace SDG.Unturned
 			nextJumpTime = 0f;
 			nextLocalRoutePlanTime = 0f;
 			nextVerticalRoutePlanTime = 0f;
+			consecutiveVerticalPlanFailures = 0;
+			failedVerticalGoal = Vector3.zero;
 			nextPlannedRouteValidationTime = 0f;
 			nextRouteCornerShortcutTime = 0f;
 			brainDriver.InitializeServer(spawnPosition);
@@ -360,6 +364,20 @@ namespace SDG.Unturned
 					{
 						detourGoalSnapshot = destination;
 						hasDetourWaypoint = false;
+						consecutiveVerticalPlanFailures = 0;
+					}
+					else
+					{
+						// Repeated physically confirmed failures are meaningful for
+						// optional tactical cover only. Do not cancel pursuit simply
+						// because one small stairwell search cannot find an entrance.
+						if ((destination - failedVerticalGoal).sqrMagnitude > 2.25f)
+							consecutiveVerticalPlanFailures = 0;
+						failedVerticalGoal = destination;
+						++consecutiveVerticalPlanFailures;
+						if (consecutiveVerticalPlanFailures >= 3
+							&& brainDriver.ReportTacticalDestinationUnreachableServer(destination))
+							consecutiveVerticalPlanFailures = 0;
 					}
 				}
 				// Detour-style corridor refinement: skip an unnecessary near
@@ -1664,6 +1682,15 @@ namespace SDG.Unturned
 		private bool TryBuildLocalRoute(Vector3 destination,
 			List<Vector3> alternateOutput = null, bool requireExactLocalGoal = false)
 		{
+			// A two-dimensional "nearest reachable" partial route is not
+			// evidence that a destination on a DIFFERENT floor can be reached.
+			// Use the verified vertical connector planner instead for local
+			// upstairs/downstairs goals; ordinary distant horizontal routing
+			// remains useful while approaching a separate stairwell entrance.
+			if (!requireExactLocalGoal
+				&& Mathf.Abs(destination.y - transform.position.y) > 1.0f
+				&& PlanarDistanceSquared(destination, transform.position) <= 30f)
+				return false;
 			if (!requireExactLocalGoal)
 			{
 				if (Time.time < nextLocalRoutePlanTime)
