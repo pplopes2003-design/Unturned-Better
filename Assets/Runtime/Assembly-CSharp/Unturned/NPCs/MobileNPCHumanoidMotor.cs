@@ -31,7 +31,7 @@ namespace SDG.Unturned
 		[SerializeField, Range(0.4f, 1.0f)] private float plannedJumpMaximumObstacleHeight = 0.70f;
 		[SerializeField, Range(0.8f, 2.0f)] private float plannedJumpTravelDistance = 1.35f;
 		[SerializeField, Range(2.5f, 5.5f)] private float plannedJumpHorizontalSpeed = 4.0f;
-		[SerializeField, Range(6f, 12f)] private float plannedJumpVerticalImpulse = 9.5f;
+
 		[SerializeField, Min(0.05f)] private float stoppingDistance = 0.65f;
 		[SerializeField, Min(0.1f)] private float gravity = 20.0f;
 		[SerializeField] private bool runWhenPursuing = true;
@@ -1126,23 +1126,31 @@ namespace SDG.Unturned
 				* (gravity / 9.81f) * 3f;
 			if (acceleration < 0.01f)
 				return false;
-			float duration = travel / plannedJumpHorizontalSpeed;
-			float impulse = (landing.y - transform.position.y
-				+ 0.5f * acceleration * duration * duration) / duration;
-			if (impulse < 7.0f || impulse > plannedJumpVerticalImpulse + 1.2f)
+			// Match the actual native PlayerMovement jump impulse, not an
+			// arbitrary value solved from horizontal travel time. The old
+			// formula often produced <7 and rejected a viable normal jump.
+			const float impulse = 7.0f;
+			float heightChange = landing.y - transform.position.y;
+			float discriminant = impulse * impulse
+				- 2f * acceleration * heightChange;
+			if (discriminant <= 0f)
+				return false;
+			float duration = (impulse + Mathf.Sqrt(discriminant)) / acceleration;
+			if (travel / Mathf.Max(0.1f, plannedJumpHorizontalSpeed) >
+				duration - 0.05f)
 				return false;
 			float apex = impulse * impulse / (2f * acceleration);
-			if (apex < plannedJumpMaximumObstacleHeight + 0.10f || apex > 1.15f)
+			if (apex < plannedJumpMaximumObstacleHeight + 0.10f)
 				return false;
-			// Perform limited swept, full-body samples along the ballistic
-			// trajectory. Reject thin rails and overhead obstructions between
-			// samples, not only collisions at the endpoints.
+			// Perform limited swept full-body samples along the actual
+			// parabolic flight; horizontal travel stops at the real landing
+			// X/Z instead of the NPC continuing to sprint past it in midair.
 			Vector3 previous = transform.position;
-			for (int step = 1; step < 12; ++step)
+			for (int step = 1; step <= 16; ++step)
 			{
-				float t = duration * step / 12f;
-				Vector3 next = transform.position + direction
-					* (plannedJumpHorizontalSpeed * t)
+				float t = duration * step / 17f;
+				float along = Mathf.Min(travel, plannedJumpHorizontalSpeed * t);
+				Vector3 next = transform.position + direction * along
 					+ Vector3.up * (impulse * t - 0.5f * acceleration * t * t);
 				if (!Level.checkSafeIncludingClipVolumes(next)
 					|| !IsPlannedJumpArcClear(previous, next, radius))
