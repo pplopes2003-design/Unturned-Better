@@ -288,9 +288,19 @@ namespace SDG.Unturned
 			try
 			{
 				Type pathType = path.GetType();
-				PropertyInfo errorProperty = pathType.GetProperty("error", BindingFlags.Instance | BindingFlags.Public);
-				if (errorProperty != null && errorProperty.PropertyType == typeof(bool)
-					&& (bool)errorProperty.GetValue(path, null))
+				// ASPFP versions expose Path.error and Path.vectorPath as
+				// public fields, properties, or a mixture. Do not assume both
+				// are properties: that silently discards EVERY successful path
+				// on builds where vectorPath is a field.
+				const BindingFlags memberFlags = BindingFlags.Instance | BindingFlags.Public;
+				PropertyInfo errorProperty = pathType.GetProperty("error", memberFlags);
+				FieldInfo errorField = pathType.GetField("error", memberFlags);
+				bool hasError = errorProperty != null
+					&& errorProperty.PropertyType == typeof(bool)
+					&& (bool)errorProperty.GetValue(path, null);
+				if (!hasError && errorField != null && errorField.FieldType == typeof(bool))
+					hasError = (bool)errorField.GetValue(path);
+				if (hasError)
 				{
 					lastPathFailed = true;
 					diagnosticStatus = "path-error";
@@ -298,10 +308,12 @@ namespace SDG.Unturned
 					return;
 				}
 
-				PropertyInfo vectorPathProperty = pathType.GetProperty("vectorPath", BindingFlags.Instance | BindingFlags.Public);
+				PropertyInfo vectorPathProperty = pathType.GetProperty("vectorPath", memberFlags);
+				FieldInfo vectorPathField = pathType.GetField("vectorPath", memberFlags);
 				IEnumerable points = vectorPathProperty != null
 					? vectorPathProperty.GetValue(path, null) as IEnumerable
-					: null;
+					: vectorPathField != null
+						? vectorPathField.GetValue(path) as IEnumerable : null;
 				if (points == null)
 				{
 					lastPathFailed = true;
@@ -310,15 +322,34 @@ namespace SDG.Unturned
 					return;
 				}
 
+				bool valid = true;
 				foreach (object point in points)
 				{
-					if (point is Vector3 position)
-						completedRoute.Add(position);
+					if (!(point is Vector3 position)
+						|| float.IsNaN(position.x) || float.IsNaN(position.y)
+						|| float.IsNaN(position.z) || float.IsInfinity(position.x)
+						|| float.IsInfinity(position.y) || float.IsInfinity(position.z)
+						|| !Level.checkSafeIncludingClipVolumes(position)
+						|| completedRoute.Count >= 128)
+					{
+						valid = false;
+						break;
+					}
+					completedRoute.Add(position);
 				}
 
-				routeReady = completedRoute.Count >= 2;
+				if (valid && completedRoute.Count >= 2)
+				{
+					Vector3 actualEnd = completedRoute[completedRoute.Count - 1];
+					valid = Vector3.Distance(actualEnd, requestedGoal) <= 2.0f
+						&& Mathf.Abs(actualEnd.y - requestedGoal.y) <= 0.85f;
+				}
+				if (!valid)
+					completedRoute.Clear();
+				routeReady = valid && completedRoute.Count >= 2;
 				lastPathFailed = !routeReady;
-				diagnosticStatus = routeReady ? "route-ready" : "empty-route";
+				diagnosticStatus = routeReady ? "route-ready"
+					: (valid ? "empty-route" : "invalid-or-partial-route");
 				if (lastPathFailed)
 					nextRequestTime = Time.time + 2.5f;
 			}
