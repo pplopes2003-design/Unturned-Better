@@ -84,3 +84,16 @@ Commits de implementação: `1a41e003`, `564ebfc1`, `a94ca7ad`, `f6b4583f`, `a65
 ### LEARN-05 update — 2026-10-13
 
 `LEARN-05` remains **active** and is now in `EM IMPLEMENTAÇÃO (cover access; general navigation incomplete)`. Commits `1f098573` and `caf31416`: `MobileNPCBrainDriver` rewards only actual reported arrival at a cover goal, penalizes only expiry of that destination, and modestly deprioritizes subsequent already-validated cover waypoints in sectors with prior failures. This is **not** a complete route-learning/navigation system. Unity compile/runtime verification deferred as requested. Do not remove the item.
+
+
+## Histórico — 2026-10-13, rodada P0 de dano, recuperação de navegação e ε-greedy
+
+**Nenhum ID encerrado.** O usuário fará a compilação e os testes integrados ao fim do desenvolvimento.
+
+- **CORE-02:** `b4ab966c39a43c20c7c2f51f2c15d49556aca45d` (`UseableGun.cs`) e `6d673383ae00055c84a25cc49cc4f4e12fe530e4` (`UseableMelee.cs`) rejeitam dano zero/negativo/não finito na ramificação de NPC móvel em vez de convertê-lo em um mínimo artificial de 1 HP. Armas com dano positivo preservam seu cálculo e origem. Isso não valida hitbox, tipo de raio, hits corporais ou morte.
+- **CORE-04 / AI-03:** `96eab81bc9c0bf6aa870ec99fba80cea2d4e7aea` (`MobileNPCHumanoidMotor.cs`) define `IsMoving` por deslocamento físico planar em vez de apenas `CollisionFlags.Sides`, e melhora a detecção de stuck por progresso em direção ao objetivo ou desvio substancial coerente. Pequenas oscilações junto a paredes não devem redefinir a tentativa como sucesso. Faltam testes de quina, meio-fio, rota dinâmica e terreno.
+- **LEARN-02 / AI-03:** `e0d5d944c2c11b684c805e2814b8070cf0f9b3cf` (`MobileNPCBrainDriver.cs`) aplica **ε-greedy (ε = 0,12)** à escolha entre até 10 candidatas de cobertura com solo, obstrução do atirador e corredor local já verificados. O NPC geralmente escolhe a melhor nota ajustada por experiência pessoal (`CoverAccess`) e distância, mas ocasionalmente explora outra candidata admissível. Amostragem reservatório evita listas adicionais. **Não** equivale a rede neural, A* completo, aprendizado de sobrevivência sob fogo ou garantia de caminho até a cobertura.
+
+**Estado de verificação:** commits remotos e inspeção de código; **não compilado**, **não executado**, **não testado no jogo**. Permanecem todas as demais pendências, principalmente `ZMB-01` perseguição dos zumbis entre regiões/POIs, rádio físico e interceptação `COM-02`, aprendizado de táticas contra tipos de inimigo `LEARN-01/05`, diálogo e animações.
+
+**Decisão de algoritmo:** sem biblioteca externa obrigatória. Usar inicialmente política ε-greedy/bandido contextual pequeno em C# com recompensas de consequências observadas; técnicas alternativas (UCB/Thompson, Q-learning ou rede neural) só mediante avaliação de desempenho/benefício, dados e integração com escolhas reais. Regras físicas e de facção continuam determinísticas.
