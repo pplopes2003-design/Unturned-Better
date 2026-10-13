@@ -657,3 +657,32 @@ No external ML runtime/library is required. Start with auditable, tiny online co
 - Replace/extend current NPC death with a native-compatible, tested lifecycle only after source trace and game tests. Do not attach fake `Player`/`Zombie` APIs.
 - When moving into next P0 slice, investigate native zombie streaming/pursuit boundary and faction combat under real map constraints; `Zombie.cs`/`ZombieManager.cs` standard repository paths have not been located in this project and must not be guessed.
 - After work, update the permanent backlog and handoff each time; move a task to completed ONLY with Unity compile and real runtime evidence.
+
+
+## 2026-10-13 — LATEST HANDOFF: learned supply sources (Cobra example), and cross-POI zombie gate
+
+**Mandatory:** read this handoff plus `MOBILE_NPC_PENDING_TASKS.md` first each new conversation; update BOTH after every round. New statuses: a narrow fully wired source feature can be `QUASE PRONTA — AGUARDANDO BUILD`, without representing Unity compilation/gameplay success. After the user's final Dev Build feedback, close only if truly working; otherwise return to `EM IMPLEMENTAÇÃO` with test logs. User will compile/build at END; do not repeatedly request builds. Full requested NPC AI architecture diagram is due only after the major systems are structured.
+
+### New source commits — verified via GitHub
+
+- `3581bc40eac89d3f0bd779a83402fc430fa7fea2` — NEW `Assets/Runtime/Assembly-CSharp/Unturned/NPCs/MobileNPCSupplyKnowledge.cs`: individual bounded memory of up to 32 actual **magazine** pickup locations, successes/failed visits, reliability-weighted site selection for currently owned gun. Compatibility uses native `ItemGunAsset.magazineCalibers` and `ItemMagazineAsset.CalibersContainAnyOfIds`; no invented Cobra ID, caliber or spawn points. One witnessed pickup is a hypothesis, not guaranteed respawning loot.
+- `f17d4077cc2c929da7490d2d79466003f890d606` — attach per-individual knowledge to `MobileNPCPopulationBootstrap`.
+- `316e4075e0639d386baaf015421fdf728d0ba8e1` — wipe supply location memory on `MobileNPCHumanoidVitals.DieServer`, preserving only already told lessons in living recipients.
+- `a19329014e627c65980d51edfffa476452f9f3a6` — `MobileNPCPersistence` new version **v4**; serializes/deserializes up to 32 supply records per living individual, old v1/v2/v3 accepted (missing field = empty sites).
+- `292a8cf7feca709c26701c6d488642cffcda9ee9`, `8d19ddddc00d14553b295dc1361b364f8f9f921e`, `2bf1b3fd4906a5d1bf26246ca17f6ec7865c42ac`: bounded `Investigate` tactical destination for remembering supply spot, only when ordinary decision brain idle and no combat priority.
+- `b176e9f1dd83af4c88b43ee6efbf368e442dc835`, `d510116264787603b62dc2d4a0ea3134e7156d35`, `73fbe1ce46792378a9e19179641afa22ba50174b`: `MobileNPCLooting` prefers **genuinely compatible magazines** when low ammo; successful world transfer records specific magazine item ID, amount and pickup position; a no-spare low-ammo NPC can follow grounded remembered site within 240m, scan real loot, decrease confidence after unproductive visits, cancel safely on combat/no inventory, with 40s planning cooldown. Magazine with **zero rounds** is NOT treated as evidence of ammunition source.
+- `e2b6f099c7c840f581f27c99af33e9471f9b6837`: `MobileNPCGroupMember` can pass an observation to an actually audible same-group ally (distance/wall checks already existing); weaker indirect evidence is retained by the survivor even if source dies. No radio transport, AI speech audio or subtitles yet.
+- `07970a63f52f1ff1c855a7d60c630d27af112c66`: fix `MobileNPCLooting` still logging 0 world item ID after `ClearTarget`; now uses captured `attemptedInstanceID`. Previously reported fix had missed the actual log expression.
+- `66caf131d595011b582571252376b0a78bc49a4e`: `Zombies/Zombie.cs` pursuer no longer calls `leave(true)` merely because the pursued player has `player.movement.nav == 255` (outside native navigation), preserving unreachable-swimming escape. Native code confirmed under `Assets/Runtime/Assembly-CSharp/Unturned/Zombies/Zombie.cs`, `Managers/ZombieManager.cs`, `Managers/ZombieRegion.cs`. Real cross-bound A* viability, desync, navigation graph extension and performance remain open.
+
+### Critical distinction: what the Cobra example does and does not do
+
+**Now wired as source:** if NPC owns a native gun (e.g. Cobra) and physically picks up a magazine with rounds, it can learn the *actual pickup location*. If gun state has <=8 rounds and no compatible spare is owned, it looks through personally observed magazine sites, filters by NATIVE magazine caliber compatibility with gun, ranks confidence/distance and attempts a physically grounded destination; upon arrival it still needs a real item. Companions only acquire a lower-confidence site through validated nearby conversation; knowledge dies with its owner if unsaid.
+
+**NOT implemented:** semantic categories of police stations / gun shops / hospitals, global unseen loot databases, crafting loose rounds into magazines, ammo from thin air, learning a hidden item's exact spawn, learning magazine/caliber ID by empirical weapon tests rather than reading native weapon compatibility data, or learning navigation across missing A* graphs. Track this as LEARN-07.
+
+### New status discipline and next work
+
+`LEARN-06` scoped v1 is **QUASE PRONTA — AGUARDANDO BUILD**. This means source-wired, pending final build feedback, NOT tested or closed. `LEARN-07` is NOT INVESTIGATED. `ZMB-01` is IN IMPLEMENTATION; removing the nav=255 cutoff is not proof of full cross-POI pursuit. More CORE-02/03/04 and UI/radio also remain open.
+
+Next recommended P0 work: inspect `Zombie.tick`/native A* route failure and how global zombie ticking handles targets outside loaded navigation mesh; investigate safe bounded fallback with no teleport, no bogus target positions; then re-check mobile NPC hitboxes, death and pathing. Update `MOBILE_NPC_PENDING_TASKS.md` and this handoff after each round, preserving IDs and all tests.
