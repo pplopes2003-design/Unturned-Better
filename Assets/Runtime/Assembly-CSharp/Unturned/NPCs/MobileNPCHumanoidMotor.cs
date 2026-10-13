@@ -1387,7 +1387,8 @@ namespace SDG.Unturned
 					if (Mathf.Abs(resolved.y - floorY) > maxFloorDelta)
 						continue;
 					if (index != RouteGridCenter * RouteGridSide + RouteGridCenter
-						&& IsRouteNodeOccupied(resolved, routeRadius))
+						&& IsRouteNodeOccupied(resolved, routeRadius)
+						&& !IsOnlyUnlockedDoorOccupyingRouteNodeServer(resolved, routeRadius))
 						continue;
 
 					// Node occupancy is already checked above; real traversability
@@ -1657,6 +1658,19 @@ namespace SDG.Unturned
 				return true;
 			}
 			return false;
+		}
+
+		private bool IsOnlyUnlockedDoorOccupyingRouteNodeServer(
+			Vector3 groundPosition, float radius)
+		{
+			if (doorNavigation == null)
+				return false;
+			float height = Mathf.Max(radius * 2f, characterController.height);
+			Vector3 center = groundPosition + Vector3.up * (height * 0.5f + 0.10f);
+			float halfSegment = Mathf.Max(0f, height * 0.5f - radius);
+			return doorNavigation.IsOnlyUnlockedDoorOccupyingNodeServer(
+				center - Vector3.up * halfSegment,
+				center + Vector3.up * halfSegment, radius, obstacleMask);
 		}
 
 		private bool IsRouteNodeOccupied(Vector3 groundPosition, float radius)
