@@ -1005,3 +1005,32 @@ Existing `MobileNPCHumanoidMotor.TryBuildLocalRoute` casts one local ground poin
 
 
 **Source refinement `077bb7a3cc1e4bdeb338ecfbfbbad21d798963b5`:** the ordinary 9×9 planar fallback is no longer permitted to report a closest lower-floor cell as progress toward a nearby upstairs/downstairs final goal (>1m Y, ≤√30m XZ), where the real multi-height stair planner must prove a connection. The motor counts consecutive failed special vertical plans for a stable tactical target; after 3 it may call `ReportTacticalDestinationUnreachableServer` (only optional SeekCover/Flank) to learn unreachable cover. It NEVER auto-cancels active pursuit on a failure to find stairs in the bounded region. Reset count when the goal moves or a real vertical path is found. Source only, no Unity compile/playtest.
+
+
+## 2026-10-13 — LATEST IMPLEMENTATION: FIRST-HAND LEARNED ROUTES / PRIVATE SAVE v6
+
+**READ FIRST next round:** canonical `MOBILE_NPC_PENDING_TASKS.md`, this HANDOFF and new `MOBILE_NPC_ROUTE_LEARNING_DESIGN.md`. Work on `feature/npc-ai-foundation`. User compiles/tests Dev Build **ONLY AT END**. Never mark task fully resolved before feedback, never delete task IDs. Maintain the full AI diagram request for the end.
+
+### Clarify previous vertical-navigation claims to user
+
+Existing `TryBuildNearbyVerticalRoute` is a short two-floor 9×9×2 A* that recognizes actual floors, walkable stair treads and ramps with physical ground and capsule validation. `MobileNPCHumanoidMotor.ShouldJumpOverLowObstacle` separately supports a REACTIVE real low obstacle hop/landing check, not a **planned A* jump edge**. Vertical ladders, vaulting buildings, jumping gaps to upper platforms, off-mesh jump planning and matching climb animations are NOT implemented. New backlog `NAV-JUMP-01` tracks them; `NAV-ACCESS-01` tracks discovering/connecting distant stair entrances from another room.
+
+### Real source changes and actual limitations
+
+- `85f98dcd493e5472c32560e0d38779c60fd59d5d`: `MobileNPCTravelMemory.cs` stores max 8 personally traversed successful route records with max 36 physical positions each, private start/goal XYZ, success/failure counters; rejects invalid coordinates, >2.6m gaps and trips <3.5m. Route candidates matched only near previously known start (3m) and goal (2m), 3D elevation matched. No shared faction path cache or imported AI model.
+- `60a2a9ce5b94e0e3e7de58d91b721e1d9e8147ba`: runtime prefab adds travel memory.
+- `c0e284666779793cfada88758ab777cdf4f69351`: `DieServer` discards private route memory like other knowledge, so replacement spawn does not inherit predecessor's routes.
+- `fbdc7b67384cea8416e2546f5bd0ceae2c7e8e4d` + `64a3ed6ec3fc71e0693281d5081fb59a4172894b`: `MobileNPCHumanoidMotor` records actual displacement AFTER native `CharacterController.Move`, only commits an observation after final actual 3D destination reached (never speculative A* waypoint). Rejects large unsampled motion or unfinished, overlong route. Before native/local A*, tries matching route with max frequency 1/4s while route-less, verifies EVERY segment against current ground/physical collisions/doors and validates final goal. Stale route retry failure lowers confidence, three failures blacklists until re-learning. Does not reuse old route during visible enemy tactical cover/retreat. Movement always remains physically executed.
+- `701a204b91ad0bca8cd3f6f8f1256b6a80ab1641`: `MobileNPCPersistence` current version 6 with per-living-NPC `learnedRoutes`; reading snapshots v1–v5 stays valid and those default to empty new memory. Each NPC only restores its own record, never shares automatically.
+- `8f93c27ade1dbca17d5e0e3da7f4d8ee9f23a724`: detailed design `MOBILE_NPC_ROUTE_LEARNING_DESIGN.md` with limitations, required future portal-graph and jump-link actions, tests and CPU bounds.
+- `4b383f08c69c32e89a964632a4dc46968168172c`: backlog now contains `LEARN-ROUTE-01` scoped near-ready for learned/replayed physically validated same-start/end journeys; `NAV-JUMP-01` not implemented; `NAV-ACCESS-01` still lacks spatial portal discovery; `LEARN-05` and global CORE-04 still open. SAVE-01 v6 updated.
+
+### Validity/performance
+
+This is **episodic route cache / first-hand outcome-based memory**, distinct from contextual bandit tactical decision learning. No external ML package is required, and no path is considered successful until agent truly traverses it. Route memory is per individual and persisted only while alive; detailed geometry is NOT automatically transmitted over voice/radio (LEARN-03 remains incomplete). Revalidating up to 36 steps still costs physics calls; CPU savings versus a new native/local A* are **hypotheses**, not benchmarked. Reusing only near matching start/goal does not let an NPC discover staircase 30m away; requires `NAV-ACCESS-01` portal access graph with observed entrances/exits, global physical routing and per-map consistency.
+
+No Unity compilation or gameplay test performed; static GitHub source structure confirmed only. Final tests added to `MOBILE_NPC_SINGLEPLAYER_TEST_PLAN.md`, section 26.
+
+### Next priorities
+
+Continue `NAV-ACCESS-01`: create safe map-scoped stair/door portal/entrance graph from actual confirmed traversals (do NOT infer connectors from mere stacked floors), support goal across rooms with real path to remembered portal. Or `NAV-JUMP-01` with physics-verified landing and native animation. Note `UI-01` nameplate/dialogue/ESC visible regression still pending and `RAG-01` joint ragdoll unresolved. The full diagram remains an end-of-project deliverable.
