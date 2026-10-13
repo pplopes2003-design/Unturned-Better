@@ -3,62 +3,72 @@ using UnityEngine;
 namespace SDG.Unturned
 {
     /// <summary>
-    /// Server-owned, collision-driven clamber over ONE low static parapet.
-    /// This is not a shortcut across a building, automatic vault animation,
-    /// inferred roof access, or a teleport. The motor alone calls Move.
+    /// Bounded, server-side PREFLIGHT for jumping across a low parapet.
+    /// The NPC motor uses ordinary gravity and CharacterController.Move, just
+    /// like a normal Unturned jump. No controlled Rise/Across/Land ascent,
+    /// animation dependency, transform warp, or hovering over an obstacle.
     /// </summary>
-    [RequireComponent(typeof(CharacterController))]
     [DisallowMultipleComponent]
+    [RequireComponent(typeof(CharacterController))]
     public sealed class MobileNPCVaultTraversal : MonoBehaviour
     {
-        private enum Phase { None, Rise, Across, Land }
-        private Phase phase;
-        private CharacterController controller;
-        private Vector3 direction;
-        private Vector3 landing;
-        private Vector3 goalSnapshot;
-        private float platformTop;
-        private float startedAt;
-        private float lastProgressAt;
-        private float cooldownUntil;
-        private static float sharedProbeUntil;
-        private readonly RaycastHit[] hitBuffer = new RaycastHit[20];
-        private readonly Collider[] overlapBuffer = new Collider[20];
+        public struct JumpPlan
+        {
+            public Vector3 Direction;
+            public Vector3 Landing;
+            public float Impulse;
+            public float HorizontalSpeed;
+            public float ForwardDelay;
+            public float TravelDistance;
+            public float MaximumDuration;
+        }
 
-        public bool IsTraversing => phase != Phase.None;
-        public bool IsClambering => phase == Phase.Rise || phase == Phase.Across;
+        // PlayerMovement uses JUMP=7 with up to a 25% Parkour skill bonus.
+        // No player skill is granted to the NPC; this defines an upper bound
+        // for a physically achievable Unturned-style optional higher hop.
+        private const float NativeJumpImpulse = 7f;
+        private const float ParkourJumpImpulse = 8.75f;
+        private const float NativeRunSpeed = 4.5f;
+        private const int MaxArcSamples = 24;
+        private static float nextSharedProbeTime;
+
+        private readonly RaycastHit[] arcHits = new RaycastHit[24];
+        private readonly Collider[] clearanceHits = new Collider[24];
+        private CharacterController controller;
+        private float nextIndividualProbeTime;
 
         private void Awake()
         {
             controller = GetComponent<CharacterController>();
         }
 
-        public bool TryStartServer(Vector3 goal, Vector3 desired,
-            LayerMask groundMask, float slopeLimit, int obstacleMask)
+        public bool TryPlanJumpServer(Vector3 goal, Vector3 desired,
+            LayerMask groundMask, float maxSlope, int obstacleMask,
+            float gravityAcceleration, out JumpPlan plan)
         {
-            if (!Provider.isServer || IsTraversing || controller == null
-                || !controller.enabled || Time.time < cooldownUntil
-                || Time.time < sharedProbeUntil
-                || Mathf.Abs(goal.y - transform.position.y) > 0.7f)
+            plan = default(JumpPlan);
+            if (!Provider.isServer || controller == null || !controller.enabled
+                || Time.time < nextIndividualProbeTime
+                || Time.time < nextSharedProbeTime
+                || gravityAcceleration < 9f
+                || Mathf.Abs(goal.y - transform.position.y) > 0.65f)
                 return false;
 
-            // Avoid per-frame expensive multi-cast checks in crowds.
-            cooldownUntil = Time.time + 1.0f;
-            sharedProbeUntil = Time.time + 0.12f;
+            // One expensive geometric proof globally per ~0.12 sec, one
+            // per survivor per 0.9 sec. Normal movement is never throttled.
+            nextIndividualProbeTime = Time.time + 0.9f;
+            nextSharedProbeTime = Time.time + 0.12f;
+
             desired.y = 0f;
-            if (desired.sqrMagnitude < 0.9f)
+            if (desired.sqrMagnitude < 0.5f)
                 return false;
-            Vector3 forward = desired.normalized;
-            Vector3 flatGoal = goal - transform.position;
-            flatGoal.y = 0f;
-            if (Vector3.Dot(flatGoal, forward) < 2.0f)
-                return false;
-
+            Vector3 direction = desired.normalized;
             Vector3 root = transform.position;
-            Vector3 frontRay = root + Vector3.up * 0.48f;
-            if (!Physics.Raycast(frontRay, forward, out RaycastHit wall,
+
+            Vector3 wallProbe = root + Vector3.up * 0.48f;
+            if (!Physics.Raycast(wallProbe, direction, out RaycastHit wall,
                 0.95f, obstacleMask, QueryTriggerInteraction.Ignore)
-                || wall.collider == null
+                || wall.collider == null || IsSelf(wall.collider)
                 || wall.collider.attachedRigidbody != null
                 || wall.collider.GetComponentInParent<Player>() != null
                 || wall.collider.GetComponentInParent<Zombie>() != null
@@ -67,157 +77,130 @@ namespace SDG.Unturned
                 || wall.collider.GetComponentInParent<InteractableDoor>() != null)
                 return false;
 
-            // Confirm a real horizontal obstacle TOP, not an arbitrary height
-            // assigned to a wall or an object whose actual bounds are tall.
-            Vector3 topProbe = wall.point + forward * 0.10f + Vector3.up * 1.75f;
-            if (!Physics.Raycast(topProbe, Vector3.down, out RaycastHit top,
-                1.95f, obstacleMask, QueryTriggerInteraction.Ignore)
+            // Only a real short, horizontal top. The old clamber artificially
+            // raised the capsule up to 1.1m, even when the player jump could
+            // not actually reach that height. Never do that.
+            Vector3 topOrigin = wall.point + direction * 0.10f + Vector3.up * 1.65f;
+            if (!Physics.Raycast(topOrigin, Vector3.down, out RaycastHit top,
+                1.9f, obstacleMask, QueryTriggerInteraction.Ignore)
                 || top.collider != wall.collider
                 || Vector3.Dot(top.normal, Vector3.up) < 0.84f)
                 return false;
-            float obstacleHeight = top.point.y - root.y;
-            if (obstacleHeight < 0.70f || obstacleHeight > 1.10f)
+            float wallHeight = top.point.y - root.y;
+            if (wallHeight < 0.65f || wallHeight > 1.02f)
                 return false;
 
-            Vector3 exitProbe = root + forward * 1.85f;
-            if (!MobileNPCSpawnService.TryFindSafeGroundPosition(exitProbe,
-                1.3f, 1.5f, groundMask, slopeLimit,
-                out Vector3 realLanding, out _)
-                || Mathf.Abs(realLanding.y - root.y) > 0.22f
-                || !Level.checkSafeIncludingClipVolumes(realLanding))
+            // Both "regular" and higher Parkour-style leaps are bounded by
+            // real Unturned PlayerMovement constants, not arbitrary levitation.
+            float impulse = wallHeight < 0.70f
+                ? NativeJumpImpulse : ParkourJumpImpulse;
+            float apex = impulse * impulse / (2f * gravityAcceleration);
+            float clearanceHeight = wallHeight + 0.13f;
+            if (apex < clearanceHeight + 0.07f)
                 return false;
 
-            float radius = Mathf.Clamp(controller.radius * 0.78f, 0.16f, 0.32f);
-            float liftedY = top.point.y + 0.16f;
-            Vector3 lifted = new Vector3(root.x, liftedY, root.z);
-            Vector3 over = new Vector3(realLanding.x, liftedY, realLanding.z);
-
-            if (!IsCapsuleClearAt(lifted, radius, obstacleMask)
-                || !IsCapsuleClearAt(realLanding, radius, obstacleMask)
-                || !IsCapsuleSweepClear(root, lifted, radius, obstacleMask)
-                || !IsCapsuleSweepClear(lifted, over, radius, obstacleMask))
+            float travelDistance = 1.65f;
+            Vector3 landingProbe = root + direction * travelDistance;
+            if (!MobileNPCSpawnService.TryFindSafeGroundPosition(landingProbe,
+                1.25f, 1.6f, groundMask, maxSlope, out Vector3 landing, out _)
+                || Mathf.Abs(landing.y - root.y) > 0.22f
+                || !Level.checkSafeIncludingClipVolumes(landing))
+                return false;
+            Vector3 flatGoal = goal - root;
+            flatGoal.y = 0f;
+            if (Vector3.Dot(flatGoal, direction) < travelDistance + 0.15f)
                 return false;
 
-            direction = forward;
-            landing = realLanding;
-            goalSnapshot = goal;
-            platformTop = liftedY;
-            startedAt = Time.time;
-            lastProgressAt = Time.time;
-            phase = Phase.Rise;
+            float relativeHeight = landing.y - root.y;
+            float discriminant = impulse * impulse -
+                2f * gravityAcceleration * relativeHeight;
+            if (discriminant <= 0f)
+                return false;
+            float duration = (impulse + Mathf.Sqrt(discriminant))
+                / gravityAcceleration;
+
+            // Hold forward motion until the body is high enough to clear
+            // the obstruction, then move at standard running speed.
+            float riseDiscriminant = impulse * impulse -
+                2f * gravityAcceleration * clearanceHeight;
+            if (riseDiscriminant <= 0f)
+                return false;
+            float forwardDelay = (impulse - Mathf.Sqrt(riseDiscriminant))
+                / gravityAcceleration;
+            float speed = NativeRunSpeed;
+            if (forwardDelay + travelDistance / speed > duration - 0.055f)
+                return false;
+
+            float radius = Mathf.Clamp(controller.radius * 0.78f, 0.15f, 0.29f);
+            if (!CapsuleClearAt(landing, radius, obstacleMask))
+                return false;
+
+            // Sample real ballistic positions and sweep between samples.
+            // Any hit other than our own collider rejects the maneuver.
+            Vector3 previous = root;
+            for (int i = 1; i <= MaxArcSamples; ++i)
+            {
+                float t = duration * i / (MaxArcSamples + 1f);
+                float along = Mathf.Min(travelDistance,
+                    Mathf.Max(0f, t - forwardDelay) * speed);
+                Vector3 point = root + direction * along
+                    + Vector3.up * (impulse * t
+                        - 0.5f * gravityAcceleration * t * t);
+                if (!Level.checkSafeIncludingClipVolumes(point)
+                    || !CapsuleSweepClear(previous, point, radius, obstacleMask))
+                    return false;
+                previous = point;
+            }
+
+            plan.Direction = direction;
+            plan.Landing = landing;
+            plan.Impulse = impulse;
+            plan.HorizontalSpeed = speed;
+            plan.ForwardDelay = forwardDelay;
+            plan.TravelDistance = travelDistance;
+            plan.MaximumDuration = duration + 0.20f;
             return true;
         }
 
-        private bool IsCapsuleClearAt(Vector3 position, float radius, int mask)
+        private bool CapsuleClearAt(Vector3 origin, float radius, int mask)
         {
             float height = Mathf.Max(controller.height, radius * 2.2f);
-            Vector3 bottom = position + Vector3.up * (radius + 0.12f);
-            Vector3 top = position + Vector3.up * (height - radius + 0.08f);
+            Vector3 bottom = origin + Vector3.up * (radius + 0.12f);
+            Vector3 top = origin + Vector3.up * (height - radius + 0.08f);
             int count = Physics.OverlapCapsuleNonAlloc(bottom, top, radius,
-                overlapBuffer, mask, QueryTriggerInteraction.Ignore);
-            if (count >= overlapBuffer.Length)
+                clearanceHits, mask, QueryTriggerInteraction.Ignore);
+            if (count >= clearanceHits.Length)
                 return false;
             for (int i = 0; i < count; ++i)
-                if (overlapBuffer[i] != null && !IsOwn(overlapBuffer[i]))
+                if (clearanceHits[i] != null && !IsSelf(clearanceHits[i]))
                     return false;
             return true;
         }
 
-        private bool IsCapsuleSweepClear(Vector3 from, Vector3 to, float radius, int mask)
+        private bool CapsuleSweepClear(Vector3 from, Vector3 to,
+            float radius, int mask)
         {
-            Vector3 travel = to - from;
-            if (travel.sqrMagnitude < 0.0001f)
+            Vector3 movement = to - from;
+            if (movement.sqrMagnitude <= 0.000001f)
                 return true;
             float height = Mathf.Max(controller.height, radius * 2.2f);
             Vector3 bottom = from + Vector3.up * (radius + 0.12f);
             Vector3 top = from + Vector3.up * (height - radius + 0.08f);
             int count = Physics.CapsuleCastNonAlloc(bottom, top, radius,
-                travel.normalized, hitBuffer, travel.magnitude,
-                mask, QueryTriggerInteraction.Ignore);
-            if (count >= hitBuffer.Length)
+                movement.normalized, arcHits, movement.magnitude, mask,
+                QueryTriggerInteraction.Ignore);
+            if (count >= arcHits.Length)
                 return false;
             for (int i = 0; i < count; ++i)
-                if (hitBuffer[i].collider != null && !IsOwn(hitBuffer[i].collider))
+                if (arcHits[i].collider != null && !IsSelf(arcHits[i].collider))
                     return false;
             return true;
         }
 
-        private bool IsOwn(Collider collider)
+        private bool IsSelf(Collider candidate)
         {
-            return collider.transform == transform ||
-                collider.transform.IsChildOf(transform);
-        }
-
-        /// <summary>
-        /// Returns velocity to be passed to CharacterController.Move by motor.
-        /// Gravity is restored for final landing. No root-position writes.
-        /// </summary>
-        public Vector3 GetMotionServer(Vector3 goal, out bool applyGravity)
-        {
-            applyGravity = true;
-            if (!Provider.isServer || !IsTraversing)
-                return Vector3.zero;
-            if (!controller.enabled || (goal - goalSnapshot).sqrMagnitude > 2.25f
-                || Time.time - startedAt > 3.8f)
-            {
-                AbortServer();
-                return Vector3.zero;
-            }
-
-            if (phase == Phase.Rise)
-            {
-                applyGravity = false;
-                if (transform.position.y < platformTop - 0.08f)
-                    return Vector3.up * 1.9f;
-                phase = Phase.Across;
-            }
-            if (phase == Phase.Across)
-            {
-                applyGravity = false;
-                Vector3 flat = landing - transform.position;
-                flat.y = 0f;
-                if (flat.magnitude > 0.40f)
-                    return direction * 1.75f
-                        + Vector3.up * Mathf.Clamp((platformTop - transform.position.y) * 3f,
-                            -0.40f, 0.40f);
-                phase = Phase.Land;
-            }
-            if (phase == Phase.Land)
-            {
-                Vector3 flat = landing - transform.position;
-                flat.y = 0f;
-                if (controller.isGrounded && flat.sqrMagnitude < 0.36f
-                    && Mathf.Abs(transform.position.y - landing.y) < 0.42f)
-                {
-                    ResetServer();
-                    return Vector3.zero;
-                }
-                return flat.sqrMagnitude < 0.03f ? Vector3.zero
-                    : flat.normalized * Mathf.Min(flat.magnitude * 2f, 1.1f);
-            }
-            return Vector3.zero;
-        }
-
-        public void AfterMoveServer(Vector3 before)
-        {
-            if (!IsTraversing)
-                return;
-            if (Vector3.Distance(before, transform.position) > 0.012f)
-                lastProgressAt = Time.time;
-            if (Time.time - lastProgressAt > 0.55f)
-                AbortServer();
-        }
-
-        public void AbortServer()
-        {
-            ResetServer();
-            cooldownUntil = Time.time + 4.0f;
-        }
-
-        public void ResetServer()
-        {
-            phase = Phase.None;
-            cooldownUntil = Mathf.Max(cooldownUntil, Time.time + 1.0f);
+            return candidate.transform == transform ||
+                candidate.transform.IsChildOf(transform);
         }
     }
 }
