@@ -878,3 +878,36 @@ Checked `Assets/Resources/Characters/NPC_Client.prefab` YAML in the current feat
 ### Next implementation
 
 Continue P0 `CORE-04` pathfinding in houses and corner detours, `RAG-01` authored bone-based rig/joints if genuine asset support, or tackle UI-01 dialogue HUD/ESC critical regression. Prioritize the user's original visible bugs. Persist changes and tests across conversations; never assume editor compilation.
+
+
+## 2026-10-13 — LATEST P0 CORE-04: BUILDING-CORNER / NAVIGATION STUCK FIXES
+
+**Read FIRST in every continued chat:** `MOBILE_NPC_PENDING_TASKS.md` (canonical retained-ID backlog), this handoff, and `MOBILE_NPC_NAVIGATION_RECOVERY_DESIGN.md` for motor/brain navigation. Commit to branch `feature/npc-ai-foundation`, NOT main. User compiles/tests the Dev Build **only at end**; do not repeatedly ask. Source-only subfeatures may be "QUASE PRONTA — AGUARDANDO BUILD" but CORE-04 as a whole stays **EM IMPLEMENTAÇÃO**. Full AI diagram comes after large subsystems.
+
+### Causal findings in live branch source (no runtime testing)
+
+- `MobileNPCHumanoidMotor.Update` acknowledged arrival at `movementDestination` (intermediate A* or detour waypoint) with `brainDriver.ReportDestinationReached()`, wrongly marking tactical COVER/LOOT/INVESTIGATE complete before actual destination! New code acknowledges only if final `destination` is truly within `stoppingDistance` horizontally **and** within a realistic Y stepping limit.
+- The native A* early request and local 9×9 grid A* shared `nextRoutePlanTime`. Because native requests run before encountering walls, local fallback was often throttled by the wrong timer and fell back to a jittery sidestep. Distinct `nextLocalRoutePlanTime` now unlocks physically validated local paths independent of pending native requests.
+- Local route recovery occasionally replaced a validated grounded end-cell with an *unvalidated* projected `localGoal`, potentially inside the very building the NPC was trying to skirt. Eliminated substitution.
+- Stuck scoring demanded forward movement toward distant final target, misclassifying needed sideways movement around building walls as failure. Evaluate actual displacement closer to the current route/detour waypoint, maintain one side for >=4s before rotating again.
+- Planar-only waypoint arrival could skip steps on a different building floor; added Y agreement. `IsRouteNodeOccupied` overlap capsule started exactly on ground and could mark cells falsely blocked by touching terrain; offset +0.10m.
+- Planned route obstacle recheck formerly each frame; limit to >=0.3s between checks and avoid invalidating working door routes when blockers are ONLY transient people/zombies/NPCs. Still invalidate fixed walls/vehicles.
+- Optional tactical point (SeekCover or Flank) proven repeatedly physically unreachable: motor reports after 4 stuck recovery events; brain records individual negative cover-access outcome, suppresses that 3m local position for 14s, and cancels ONLY that optional point. Does NOT erase active pursuit, invent cover or grant pathfinding knowledge.
+
+### Actual commits
+
+1. `320db52b602caed67e4433121394f3fcaf24c9b3` — final brain destination vs intermediate route waypoint and independent native/local cooldowns.
+2. `9fb964973f728bf8c44f3ce90fc01c9e630f305b` — grounded route endpoint preservation and bounded route revalidation.
+3. `136a581290fea08add61c080f4af961d4a1f88e2` — waypoint-relative stuck progress and side commitment.
+4. `dabc9f0777c4b8b448f74536bfedffb87d013239` — vertical waypoint arrival and ground-contact-safe occupancy capsule.
+5. `7a718aa67a96f7de6d924739dc2c9e9e6feee624` — temporary actor crowding doesn't tear down static path; walls/doors still do.
+6. `43247204664f8a7e02beeb6866795d15c360b2f3` — `MobileNPCBrainDriver.ReportTacticalDestinationUnreachableServer` learns failed personal cover and suppresses immediate same-place selection.
+7. `ff857bc2a03fdb08694cad6315b6d450dc140307` — `MobileNPCHumanoidMotor.UpdateStuckRecovery` escalates after four failures of only optional tactics.
+8. `58a29b9deefe43b5a57536bb94f67db4b3ce710e` — `MOBILE_NPC_NAVIGATION_RECOVERY_DESIGN.md` created.
+9. `4f9d4cb6693abe5855ff7ec89fc5e2a7200421d6` — canonical backlog updated; CORE-04 still EM IMPLEMENTAÇÃO.
+
+### Risks and later work
+
+These source changes were NOT compiled or tested in a real Unturned map. Local search remains 9×9 grid cells at 1.25m pitch, so does not guarantee a path around an entire house; native `MobileNPCNativeAStarRouteProvider` uses reflection and only works if the commercial ASPFP backend is active. The full SDK does not guarantee baked graph connectivity across all levels. Navmesh stitching, actual door use/open/close, ladders/stairs, cover verification under real fire, climbing and swimming still P0/P1 work. `LEARN-05` individual contextual route learning beyond simple cover access remains incomplete.
+
+Next recommend: inspect and correct `UI-01` critical dialogue HUD/ESC broken since previous Dev Build OR continue `CORE-04` safe doorway/stairs handling and actual route success memory. Keep action in GitHub, update BOTH docs and tests each round, final Unity build at end only.
