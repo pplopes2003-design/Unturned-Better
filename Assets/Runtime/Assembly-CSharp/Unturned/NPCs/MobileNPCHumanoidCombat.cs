@@ -37,6 +37,7 @@ namespace SDG.Unturned
 		private void Update()
 		{
 			if (!Provider.isServer || brainDriver == null || brainDriver.CurrentState != MobileNPCBrain.State.Pursuing
+				|| brainDriver.IsAmbushPreparing
 				|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat)
 			{
 				return;
