@@ -88,8 +88,9 @@ namespace SDG.Unturned
 		private MobileNPCDoorNavigation doorNavigation;
 		private MobileNPCLadderTraversal ladderTraversal;
 		private MobileNPCVaultTraversal vaultTraversal;
-		public bool IsVaultTraversing => vaultTraversal != null && vaultTraversal.IsTraversing;
-		public bool IsClambering => vaultTraversal != null && vaultTraversal.IsClambering;
+		// Vault means an Unturned-style jump over a parapet, never a
+		// separate levitating clamber or dedicated climb animation.
+		public bool IsVaultTraversing => isPlannedJumping && plannedJumpUsesVaultPlan;
 		// A directed physical approach to a native Ladder collider, never
 		// a synthetic vertical edge in the ordinary walking grid.
 		private bool hasPlannedLadderApproach;
@@ -112,6 +113,12 @@ namespace SDG.Unturned
 		private Vector3 plannedJumpDirection;
 		private Vector3 plannedJumpDestinationSnapshot;
 		private float plannedJumpStartedAt;
+		private Vector3 plannedJumpStartPosition;
+		private float plannedJumpActualHorizontalSpeed;
+		private float plannedJumpHorizontalDelay;
+		private float plannedJumpForwardDistance;
+		private float plannedJumpMaximumDuration = 1.1f;
+		private bool plannedJumpUsesVaultPlan;
 		private float suppressJourneyUntil;
 		private float nextPlannedJumpProbeTime;
 		private static float nextSharedPlannedJumpProbeSlot;
@@ -279,8 +286,7 @@ namespace SDG.Unturned
 			isPlannedJumping = false;
 			if (ladderTraversal != null)
 				ladderTraversal.ResetTraversal();
-			if (vaultTraversal != null)
-				vaultTraversal.ResetServer();
+			plannedJumpUsesVaultPlan = false;
 			plannedJumpLanding = Vector3.zero;
 			plannedJumpDirection = Vector3.zero;
 			plannedJumpDestinationSnapshot = Vector3.zero;
@@ -407,7 +413,7 @@ namespace SDG.Unturned
 			bool hasDestination = hasBrainDestination || hasRoamingDestination;
 			Vector3 destination = hasBrainDestination ? brainDriver.Destination : roamingDestination;
 			if (hasDestination && !isUnderwater && !isPlannedJumping
-				&& !IsVaultTraversing && !physicallyCrouched
+				&& !physicallyCrouched
 				&& (injurySystem == null || injurySystem.MovementMultiplier > 0.5f)
 				&& ladderTraversal != null && !ladderTraversal.IsTraversing
 				&& Mathf.Abs(destination.y - transform.position.y) >= 1.4f
@@ -434,8 +440,6 @@ namespace SDG.Unturned
 				hasPlannedLadderApproach = false;
 				if (ladderTraversal != null && ladderTraversal.IsTraversing)
 					ladderTraversal.AbortServer();
-				if (vaultTraversal != null && vaultTraversal.IsTraversing)
-					vaultTraversal.AbortServer();
 				trackingActualJourney = false;
 				actualTravelFootsteps.Clear();
 				activeRememberedRouteIndex = -1;
@@ -453,7 +457,7 @@ namespace SDG.Unturned
 				hasDetourWaypoint = false;
 				useRecoverySteering = false;
 			}
-			if (hasDestination && !IsTraversingLadder && !IsVaultTraversing)
+			if (hasDestination && !IsTraversingLadder)
 			{
 				BeginOrContinueActualJourney(destination);
 				// Keep a planned route while its goal remains stable. The previous condition
@@ -799,7 +803,6 @@ namespace SDG.Unturned
 			};
 			MobileNPCLocomotionPolicy.Gait gait = locomotionPolicy.Decide(context, Time.time);
 			UpdateCrouchStance(!isPlannedJumping && !IsTraversingLadder
-				&& !IsVaultTraversing
 				&& (gait == MobileNPCLocomotionPolicy.Gait.Sneak
 					|| brainDriver.IsListening || brainDriver.IsAmbushPreparing)
 				&& !isUnderwater);
@@ -815,8 +818,6 @@ namespace SDG.Unturned
 			{
 				if (IsTraversingLadder)
 					ladderTraversal.AbortServer();
-				if (IsVaultTraversing)
-					vaultTraversal.AbortServer();
 				// Entering water aborts the ground-only ballistic action.
 				// Swimming remains owned by the existing native water physics.
 				if (isPlannedJumping)
@@ -854,7 +855,7 @@ namespace SDG.Unturned
 				// executes the actual gravity-driven trajectory.
 				if (isPlannedJumping && (!hasDestination
 					|| (destination - plannedJumpDestinationSnapshot).sqrMagnitude > 4f
-					|| Time.time - plannedJumpStartedAt > 1.1f))
+					|| Time.time - plannedJumpStartedAt > plannedJumpMaximumDuration))
 				{
 					isPlannedJumping = false;
 					suppressJourneyUntil = Time.time + 0.3f;
@@ -869,8 +870,6 @@ namespace SDG.Unturned
 					if (!actuallyLanded)
 						RememberLocalNavigationDeadEnd(transform.position, destination);
 				}
-				// Higher parapets require a distinct three-phase clamber;
-				// never disguise this as the low-obstacle ballistic jump.
 				if (!isPlannedJumping && !IsTraversingLadder
 					&& !IsVaultTraversing && vaultTraversal != null
 					&& hasDestination && groundedBeforeMove
@@ -900,7 +899,7 @@ namespace SDG.Unturned
 					wantedToMove = true;
 				}
 				if (!isPlannedJumping && !IsTraversingLadder
-					&& !IsVaultTraversing && hasDestination && groundedBeforeMove
+					&& hasDestination && groundedBeforeMove
 					&& !waitingForDoorToOpen && !waitingForLearnedAccess
 					&& !waitingForLadderApproach
 					&& Time.time >= nextJumpTime
@@ -914,17 +913,26 @@ namespace SDG.Unturned
 					&& !(targetIsVisible && (brainDriver.CurrentGoal
 							== MobileNPCTactics.Goal.SeekCover
 						|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat))
-					&& TryBeginPlannedLowJump(jumpRequestedDirection, destination))
+					&& (TryBeginPlannedLowJump(jumpRequestedDirection, destination)
+						|| TryBeginVaultJump(jumpRequestedDirection, destination)))
 				{
 					wantedToMove = true;
 				}
 				if (isPlannedJumping)
 				{
-					// Deliberately bypass wall-follow and local replanning
-					// during the short already-verified airborne connection.
+					// Both a normal hop and a higher wall jump use the same
+					// native gravity and controller collision. No floating
+					// vertical "clamber"; the higher jump briefly delays
+					// forward motion until its feet clear the wall top.
+					float elapsed = Time.time - plannedJumpStartedAt;
+					float traveled = Vector3.Dot(transform.position -
+						plannedJumpStartPosition, plannedJumpDirection);
+					float horizontalSpeed = elapsed >= plannedJumpHorizontalDelay
+						&& traveled < plannedJumpForwardDistance - 0.07f
+						? plannedJumpActualHorizontalSpeed : 0f;
 					planarDirection = plannedJumpDirection;
-					motion.x = plannedJumpDirection.x * plannedJumpHorizontalSpeed;
-					motion.z = plannedJumpDirection.z * plannedJumpHorizontalSpeed;
+					motion.x = plannedJumpDirection.x * horizontalSpeed;
+					motion.z = plannedJumpDirection.z * horizontalSpeed;
 					motion.y = velocity.y;
 					wantedToMove = true;
 				}
@@ -950,30 +958,8 @@ namespace SDG.Unturned
 				}
 				wantedToMove = motion.sqrMagnitude > 0.0001f;
 			}
-			bool vaultMovingThisFrame = hasDestination && !isUnderwater
-				&& IsVaultTraversing;
-			if (vaultMovingThisFrame)
-			{
-				bool applyGravity;
-				motion = vaultTraversal.GetMotionServer(destination, out applyGravity);
-				if (!applyGravity)
-				{
-					velocity.y = 0f;
-				}
-				else
-				{
-					motion.y = velocity.y;
-				}
-				wantedToMove = motion.sqrMagnitude > 0.0001f;
-			}
 			Vector3 positionBeforeMovement = transform.position;
 			CollisionFlags collision = characterController.Move(motion * deltaTime);
-			if (vaultMovingThisFrame)
-			{
-				vaultTraversal.AfterMoveServer(positionBeforeMovement);
-				if (!IsVaultTraversing)
-					suppressJourneyUntil = Time.time + 0.35f;
-			}
 			if (ladderMovingThisFrame)
 				ladderTraversal.AfterMoveServer(positionBeforeMovement, collision);
 			if ((collision & CollisionFlags.Below) != 0 && velocity.y < 0.0f)
@@ -1002,7 +988,7 @@ namespace SDG.Unturned
 			// Crouching suppresses the zombie-alert call; running is louder than walking.
 			// Native zombie perception remains responsible for deciding investigation.
 			if (IsMoving && !isUnderwater && !isPlannedJumping
-				&& !ladderMovingThisFrame && !vaultMovingThisFrame
+				&& !ladderMovingThisFrame
 				&& (collision & CollisionFlags.Below) != 0
 				&& Time.time >= nextFootstepNoiseAt)
 			{
@@ -1013,7 +999,7 @@ namespace SDG.Unturned
 			}
 			RecordActualMovementAndJourneyOutcome(hasDestination, destination, isUnderwater);
 			UpdateStuckRecovery(!ladderMovingThisFrame
-				&& !vaultMovingThisFrame && wantedToMove, deltaTime);
+				&& wantedToMove, deltaTime);
 		}
 
 		/// <summary>
@@ -1168,6 +1154,12 @@ namespace SDG.Unturned
 			plannedJumpLanding = landing;
 			plannedJumpDirection = direction;
 			plannedJumpDestinationSnapshot = currentGoal;
+			plannedJumpStartPosition = transform.position;
+			plannedJumpActualHorizontalSpeed = plannedJumpHorizontalSpeed;
+			plannedJumpHorizontalDelay = 0f;
+			plannedJumpForwardDistance = travel;
+			plannedJumpMaximumDuration = Mathf.Max(1.1f, duration + 0.25f);
+			plannedJumpUsesVaultPlan = false;
 			plannedJumpStartedAt = Time.time;
 			isPlannedJumping = true;
 			velocity.y = impulse;
@@ -1177,6 +1169,53 @@ namespace SDG.Unturned
 			trackingActualJourney = false;
 			actualTravelFootsteps.Clear();
 			suppressJourneyUntil = Time.time + duration + 0.3f;
+			return true;
+		}
+
+		/// <summary>
+		/// Physics-only Unturned-style higher jump over a VERIFIED low parapet.
+		/// No dedicated Vault animation, script-driven ascent, or teleport.
+		/// Another jump can occur only after real ground contact and cooldown.
+		/// </summary>
+		private bool TryBeginVaultJump(Vector3 desired, Vector3 currentGoal)
+		{
+			if (vaultTraversal == null || physicallyCrouched || isPlannedJumping
+				|| Time.time < nextJumpTime || Physics.gravity.y >= -1f)
+				return false;
+			float acceleration = Mathf.Abs(Physics.gravity.y)
+				* (gravity / 9.81f) * 3f;
+			if (!vaultTraversal.TryPlanJumpServer(currentGoal, desired,
+				roamingGroundMask, roamingMaximumSlope, obstacleMask,
+				acceleration, out MobileNPCVaultTraversal.JumpPlan plan))
+				return false;
+
+			plannedJumpLanding = plan.Landing;
+			plannedJumpDirection = plan.Direction;
+			plannedJumpDestinationSnapshot = currentGoal;
+			plannedJumpStartPosition = transform.position;
+			plannedJumpStartedAt = Time.time;
+			plannedJumpActualHorizontalSpeed = plan.HorizontalSpeed;
+			plannedJumpHorizontalDelay = plan.ForwardDelay;
+			plannedJumpForwardDistance = plan.TravelDistance;
+			plannedJumpMaximumDuration = plan.MaximumDuration;
+			plannedJumpUsesVaultPlan = true;
+			isPlannedJumping = true;
+			velocity.y = plan.Impulse;
+			nextJumpTime = Time.time + Mathf.Max(0.8f, jumpCooldown);
+
+			// Do not write an airborne traversal as a walkable floor edge.
+			routeWaypoints.Clear();
+			routeWaypointIndex = 0;
+			hasDetourWaypoint = false;
+			hasPendingKnownAccessPath = false;
+			hasPlannedLadderApproach = false;
+			activeRememberedRouteIndex = -1;
+			activeContinuationRouteIndex = -1;
+			activeAccessRouteIds.Clear();
+			activeAccessWaypointStarts.Clear();
+			trackingActualJourney = false;
+			actualTravelFootsteps.Clear();
+			suppressJourneyUntil = Time.time + plan.MaximumDuration + 0.3f;
 			return true;
 		}
 
@@ -1262,7 +1301,7 @@ namespace SDG.Unturned
 		private void RecoverFromUnexpectedFall()
 		{
 			if (!Provider.isServer || characterController == null || !characterController.enabled
-				|| IsTraversingLadder || IsVaultTraversing
+				|| IsTraversingLadder
 				|| float.IsNaN(transform.position.y) || float.IsInfinity(transform.position.y))
 			{
 				return;
@@ -1883,8 +1922,7 @@ namespace SDG.Unturned
 			// Never begin a "walked" route from an airborne position, nor
 			// re-learn the arc as a ground connector on the next physics tick.
 			if (travelMemory == null || isPlannedJumping
-				|| IsTraversingLadder || IsVaultTraversing
-				|| Time.time < suppressJourneyUntil)
+				|| IsTraversingLadder || Time.time < suppressJourneyUntil)
 			{
 				trackingActualJourney = false;
 				actualTravelFootsteps.Clear();
@@ -1911,7 +1949,7 @@ namespace SDG.Unturned
 		{
 			if (!hasDestination || !trackingActualJourney || isUnderwater
 				|| isPlannedJumping || IsTraversingLadder
-				|| IsVaultTraversing || Time.time < suppressJourneyUntil
+				|| Time.time < suppressJourneyUntil
 				|| travelMemory == null || actualJourneyExceededLimit)
 				return;
 			Vector3 actual = transform.position;
