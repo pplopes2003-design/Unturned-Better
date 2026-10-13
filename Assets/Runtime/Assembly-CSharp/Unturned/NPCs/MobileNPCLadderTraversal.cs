@@ -69,9 +69,20 @@ namespace SDG.Unturned
             for (int i = 0; i < 8; ++i)
             {
                 Vector3 direction = Quaternion.AngleAxis(i * 45f, Vector3.up) * baseDirection;
-                Vector3 origin = transform.position + Vector3.up * 0.8f;
-                if (!Physics.Raycast(origin, direction, out RaycastHit hit,
-                    1.7f, RayMasks.LADDER_INTERACT, QueryTriggerInteraction.Collide)
+                // Descending from an upper lip can put the player's
+                // 0.8m eye origin above the ladder collider. Probe lower too.
+                Vector3 origin = transform.position + Vector3.up * 0.55f;
+                bool foundHit = Physics.Raycast(origin, direction,
+                    out RaycastHit hit, 1.7f, RayMasks.LADDER_INTERACT,
+                    QueryTriggerInteraction.Collide);
+                if (!foundHit)
+                {
+                    origin = transform.position - Vector3.up * 0.22f;
+                    foundHit = Physics.Raycast(origin, direction,
+                        out hit, 1.7f, RayMasks.LADDER_INTERACT,
+                        QueryTriggerInteraction.Collide);
+                }
+                if (!foundHit
                     || hit.collider == null || !hit.collider.CompareTag("Ladder")
                     || Mathf.Abs(Vector3.Dot(hit.normal, hit.collider.transform.up)) <= 0.9f
                     || Mathf.Abs(Vector3.Dot(Vector3.up, hit.collider.transform.up)) > 0.1f)
@@ -216,7 +227,8 @@ namespace SDG.Unturned
         {
             if (!Provider.isServer || phase == Phase.None)
                 return Vector3.zero;
-            if (ladder == null || !ladder.CompareTag("Ladder")
+            if (ladder == null || !ladder.enabled
+                || !ladder.gameObject.activeInHierarchy || !ladder.CompareTag("Ladder")
                 || !controller.enabled || (goal - requestedGoal).sqrMagnitude > 4f
                 || Time.time - started > 9f)
             {
@@ -245,7 +257,10 @@ namespace SDG.Unturned
             {
                 // Reaching the top/bottom ends contact with the ladder; begin
                 // the physically checked exit BEFORE probing rung contact.
-                if (Mathf.Abs(transform.position.y - exit.y) <= 0.55f)
+                float ladderEndY = directionY > 0f
+                    ? ladder.bounds.max.y : ladder.bounds.min.y;
+                if (Mathf.Abs(transform.position.y - exit.y) <= 0.55f
+                    || Mathf.Abs(transform.position.y - ladderEndY) <= 0.42f)
                     phase = Phase.Exit;
             }
 
@@ -274,7 +289,11 @@ namespace SDG.Unturned
                 Vector3 offset = exit - transform.position;
                 float vertical = Mathf.Clamp(offset.y * 2f, -0.9f, 0.9f);
                 offset.y = 0f;
-                if (offset.sqrMagnitude < 0.16f && Mathf.Abs(exit.y - transform.position.y) < 0.50f)
+                // A path end is not a landing until the real controller
+                // reports floor contact; never acknowledge a mid-air arrival.
+                if (offset.sqrMagnitude < 0.16f
+                    && Mathf.Abs(exit.y - transform.position.y) < 0.50f
+                    && controller.isGrounded)
                 {
                     ResetTraversal();
                     return Vector3.zero;
