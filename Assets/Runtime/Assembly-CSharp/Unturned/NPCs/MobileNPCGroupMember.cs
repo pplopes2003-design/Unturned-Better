@@ -42,6 +42,13 @@ namespace SDG.Unturned
 		private bool initialized;
 		private bool leftGroup;
 		private float nextContactBroadcastAt;
+		public enum SquadRole { None, Covering, Advancing }
+		private SquadRole squadRole;
+		private float squadRoleUntil;
+		private float pendingAdvanceAt;
+		private Vector3 pendingAdvanceClue;
+		public SquadRole CurrentSquadRole => Provider.isServer && !leftGroup
+			&& Time.time < squadRoleUntil ? squadRole : SquadRole.None;
 		private const float ContactVoiceRange = 35f;
 		private const float ContactBroadcastCooldown = 4f;
 
@@ -63,6 +70,19 @@ namespace SDG.Unturned
 			vitals = GetComponent<MobileNPCHumanoidVitals>();
 			motor = GetComponent<MobileNPCHumanoidMotor>();
 			disposition = GetComponent<MobileNPCHumanoidDisposition>();
+		}
+
+		private void Update()
+		{
+			if (!Provider.isServer || CurrentSquadRole != SquadRole.Advancing
+				|| pendingAdvanceAt <= 0f || Time.time < pendingAdvanceAt)
+				return;
+			pendingAdvanceAt = 0f;
+			if (vitals != null && vitals.IsDead)
+				return;
+			MobileNPCBrainDriver brain = GetComponent<MobileNPCBrainDriver>();
+			if (brain != null)
+				brain.TryStartSquadAdvance(pendingAdvanceClue);
 		}
 
 		/// <summary>Assigns this newly spawned individual to the nearest living group, or creates one.</summary>
@@ -139,6 +159,12 @@ namespace SDG.Unturned
 				return;
 
 			nextContactBroadcastAt = Time.time + ContactBroadcastCooldown;
+			MobileNPCHumanoidRangedCombat ownWeapon = GetComponent<MobileNPCHumanoidRangedCombat>();
+			bool canCover = ownWeapon != null && ownWeapon.SelectedGunAsset != null
+				&& ownWeapon.RoundsRemaining > 0 && !ownWeapon.IsReloading;
+			MobileNPCGroupMember advancingAlly = null;
+			Vector3 advancingClue = Vector3.zero;
+			float nearestAdvanceDistance = float.PositiveInfinity;
 			foreach (MobileNPCGroupMember ally in group.Members)
 			{
 				if (ally == null || ally == this || !ally.initialized || ally.leftGroup
@@ -157,6 +183,28 @@ namespace SDG.Unturned
 				Vector2 error = Random.insideUnitCircle * Random.Range(1.5f, 4.5f);
 				Vector3 clue = observedPosition + new Vector3(error.x, 0f, error.y);
 				allyBrain.ReportGroupPlayerContactClue(clue, 0.6f);
+
+				// One shooter can cover one cautious advancement. This stage
+				// assigns roles only; genuine suppression fire requires its
+				// own line-of-fire, ammunition and ally safety implementation.
+				if (!canCover || ally.CurrentSquadRole != SquadRole.None
+					|| allyBrain.CurrentState != MobileNPCBrain.State.Investigating
+					|| toAlly.sqrMagnitude >= nearestAdvanceDistance)
+					continue;
+				nearestAdvanceDistance = toAlly.sqrMagnitude;
+				advancingAlly = ally;
+				advancingClue = clue;
+			}
+			if (canCover && advancingAlly != null)
+			{
+				squadRole = SquadRole.Covering;
+				squadRoleUntil = Time.time + 7f;
+				advancingAlly.squadRole = SquadRole.Advancing;
+				advancingAlly.squadRoleUntil = Time.time + 7f;
+				advancingAlly.pendingAdvanceClue = advancingClue;
+				// Wait for the listener to finish checking the sound before
+				// requesting a short covered movement.
+				advancingAlly.pendingAdvanceAt = Time.time + 1.25f;
 			}
 		}
 
@@ -232,6 +280,7 @@ namespace SDG.Unturned
 
 		private void OnDied()
 		{
+			ClearSquadRole();
 			LeaveGroupServer();
 		}
 
@@ -286,6 +335,7 @@ namespace SDG.Unturned
 
 		private void RemoveFromCurrentGroupServer(bool permanently)
 		{
+			ClearSquadRole();
 			if (permanently)
 				leftGroup = true;
 
@@ -312,6 +362,13 @@ namespace SDG.Unturned
 				}
 			}
 			GroupId = 0;
+		}
+
+		private void ClearSquadRole()
+		{
+			squadRole = SquadRole.None;
+			squadRoleUntil = 0f;
+			pendingAdvanceAt = 0f;
 		}
 
 		/// <summary>Shares construction progress so a successor leader does not restart the pattern.</summary>
