@@ -82,15 +82,19 @@ namespace SDG.Unturned
                 TrySpawnNPCNearPlayer(MobileNPCSettings.DefaultRole, true);
             }
 
-            CleanupDeadBodies();
+            // Only the server owns corpses, respawn reservations, and persistence.
+            if (!Provider.isServer)
+                return;
+
             int populationLimit = Mathf.Clamp(MobileNPCSettings.MaximumAlive, 1, 40);
             MobileNPCPersistence.TickServer(mobileNpcPrefab, populationLimit);
             MobileNPCAirdropContest.TickServer();
 
-            // Restored NPCs and any instances created by another authorized spawn path
-            // must also enter lifecycle tracking so deaths get cleanup and replacement timers.
+            // Track restored/externally spawned actors before processing deaths, so a
+            // newly discovered corpse receives its replacement reservation this frame.
             MobileNPCRegistry.CopyActiveDrivers(activeDrivers);
             TrackUntrackedActiveNPCs();
+            CleanupDeadBodies();
 
             if (!populationEnabled || !MobileNPCSettings.Enabled || !Provider.isServer || mobileNpcPrefab == null || Time.time < nextSpawnTime)
             {
