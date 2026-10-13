@@ -39,3 +39,13 @@ Source commits: `b92feff1` (state), `a1892748` (preflight trajectory), `04ccd8b0
 ## Additional safety audit — 2026-10-13
 
 Commit `489ed7641dad85a9edda9255f05f13e334952900` explicitly rejects `InteractableVehicle` colliders as jump candidates, suppresses discretionary hops while taking visible-fire SeekCover/Retreat decisions, and removes obsolete `jumpImpulse` tuning left over from the reactive hop. Test close parked vehicles and defensive-combat scenarios in the final Dev Build. This is code-only, not real playtest proof.
+
+## 2026-10-13 — Updated rule: Unturned's own jumping replaces any special Vault clamber
+
+The user chose **ordinary Unturned-like jump(s)**, not a dedicated Vault animation. The earlier three-phase `Rise/Across/Land` scripted capsule movement was removed. Refer to the freshly **replaced** `MOBILE_NPC_VAULT_DESIGN.md` for authoritative rules; any earlier description treating a bespoke Vault pose as required is obsolete.
+
+`MobileNPCVaultTraversal.TryPlanJumpServer` now only *proposes a physically checked ballistic jump* over a genuine same-floor parapet. It uses `PlayerMovement` native impulse **7**, optional maximum **8.75** (25% Parkour precedent), and the motor's actual gravity. It never moves or warps a Transform. `MobileNPCHumanoidMotor.TryBeginVaultJump` starts the same shared physics jump state as the standard low hop, with a brief forward delay when needed to clear a real wall top. One jump -> true ground landing -> bounded cooldown -> another genuinely preflighted jump can occur. Real `Ladder` alone uses `Move_Climb` / `Idle_Climb`; jumps keep any available real Jump/Leap clip or ordinary running pose. No animation file generated or invented.
+
+**Critical normal-jump correction:** commit `b526f717` repairs the earlier low hop which computed its impulse from horizontal travel time and could yield less than Unturned's 7. It now uses exactly native JUMP=7, computes the parabolic airtime from physics, bounds horizontal travel to the grounded landing and samples the collision-checked arc. No Unity compilation or runtime test has been performed for this fix. Scoped standard low hop and parapet hop remain QUASE PRONTA — AGUARDANDO BUILD only; user feedback can close or reopen.
+
+Source: `6d3e969f`, `92b6b7c8`, `a53bda29`, `9c383849`, `b526f717`.
