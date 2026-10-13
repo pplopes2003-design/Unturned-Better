@@ -371,3 +371,28 @@ Outstanding:
 - Optics/zoom perception and reliable native stance/footstep/crouch animations (asset lookup).
 - Prior Unity integration smoke tests: damage/death/corpse/respawn, movement/corner/stairs/jumps, NPC/zombie sound reaction, ranged accuracy/cover, UI/HUD/nameplate, animation availability, game log.
 - Future: per-NPC experience/ML-like adaptation, in-world transmission and loss of unsent memories at death; native XP attribution and multiplayer replication not implemented.
+
+
+## Ambush combat readiness + future group combat roadmap — 2026-10-13
+
+User requested next stage of stealth and explicitly added three deferred features. They also requested a **complete architecture diagram only after every AI subsystem is designed and structured**, not an incomplete premature diagram. At the end of EACH round, explicitly enumerate all remaining work.
+
+Implemented source-only ambush readiness (Unity untested):
+- `8799ed323c3eb491d32a5cebb49f2dfd59354c11`: `MobileNPCBrainDriver` arms a limited ambush opportunity following a completed `Stalk` waypoint (5s) or visual detection during stalking (2s), but NEVER acquires a target from memory alone. Only visually confirmed targets at 2–18m trigger a one-shot randomized 0.45–0.85s readiness interval. Threat gunfire or damage cancels it. No guaranteed hit bonus/damage multiplier is invented.
+- `348b617a6e0450468248337017ae8c8eb0e17869`: ranged attacks hold fire during readiness.
+- `84e3caf014542b936962eb25994cf4a196e65cae`: melee attacks likewise wait until readiness ends.
+- `dc0ae06069847f9de7538afb9ec8aada828d9ff9`, `a135698ed0536c1f1407fb72f692e61b13d55acd`: motor holds position and crouches while preparing, without destroying the target.
+- Re-fetched all four touched C# files and verified expected lines/braces. **No Unity compiler or runtime test conducted**. This is an initial ambush *readiness/decision* layer, not a complete stealth-kill, grenade, suppression or tactics system.
+
+### User-specified deferred combat features (keep all on roadmap)
+1. **Frag grenades:** when a player is hidden behind cover, NPCs assess whether a grenade is preferable to shooting. Check actual grenade inventory, trajectory, collision/bounce, explosion radius/line-of-sight, timing and throw skill, and **hard-reject** throws that would threaten friendly NPCs or the thrower. Grenades aren't infinite, should not give perfect target positions, and the NPC should consider stale evidence, not psychic player coordinates.
+2. **Smoke grenades:** create genuine obscuration for threat LOS/aim and hide friendly advance, revive/heal, retreat or reposition. Must validate engine smoke effect; no merely decorative effect that leaves AI omniscient.
+3. **Group suppression/covering fire:** coordinate faction allies via orders/temporary squad roles and target/sector evidence. One fires suppressively while another advances, with real ammunition costs, reload handling, safe firing sectors and friendly-fire limits. Player must be able to counter.
+4. **Heal allies during active combat:** choose a living wounded ally, triage urgency and reachable protected route; assign a medic, check real medical supplies, move to wounded teammate, use healing with animation/timing; suppressing partners or smoke may secure procedure. Do not revive dead NPCs or give infinite healing.
+5. **Full AI architecture diagram:** produce after stealth, tactical squad behavior, memory/comms, sensory model and all other core AI subsystems are appropriately structured; clearly distinguish implemented/tested and planned elements.
+
+### Remaining previously reported blockers
+- Unity Dev Build compile and runtime verification across all code changes; user currently cannot run it.
+- Death/hitbox/ragdoll/despawn/replacement, navigation/corners/curbs/jump/crouch, sound stimuli, A* cover routes, long-range shots/reload, animations (melee/ranged/reload/flinch/death), dialogue/HUD/nameplate.
+- Ambush against zombies as a deliberate stalk target, variable wait/attack timing based on observation, safe melee/ranged choice, full stealth disengagement, and optic magnification still not fully implemented.
+- Adaptive knowledge/ML and in-world ally information passing on future phase; native kill XP credit and multiplayer replication not implemented.
