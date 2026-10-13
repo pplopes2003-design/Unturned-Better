@@ -52,6 +52,7 @@ namespace SDG.Unturned
             if (vitals != null)
             {
                 vitals.Died += HandleDied;
+                vitals.DamageReceived += HandleDamageReceived;
                 if (vitals.IsDead)
                 {
                     enabled = false;
@@ -231,6 +232,14 @@ namespace SDG.Unturned
             clipOwner.CrossFade(clipName, Mathf.Min(crossFadeDuration, 0.08f));
         }
 
+        private void HandleDamageReceived(Transform attacker, float amount)
+        {
+            if (vitals == null || vitals.IsDead || amount <= 0f)
+                return;
+            // Only use an actual hit-reaction clip installed on this prefab.
+            TryPlayActionClip("Hit", "Flinch", "Damage", "Hurt");
+        }
+
         private void HandleShotFired()
         {
             // Only play clips verified present on this runtime Animation rig.
@@ -296,6 +305,7 @@ namespace SDG.Unturned
             if (vitals != null)
             {
                 vitals.Died -= HandleDied;
+                vitals.DamageReceived -= HandleDamageReceived;
             }
             if (rangedCombat != null)
             {
