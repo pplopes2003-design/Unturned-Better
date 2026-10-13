@@ -403,7 +403,7 @@ namespace SDG.Unturned
 
 			// A suspicious footstep can suspend walking briefly while the survivor
 			// listens. A confirmed threat or retreat pre-empts this immediately.
-			if (brainDriver.IsListening)
+			if (brainDriver.IsListening || brainDriver.IsAmbushPreparing)
 				planarDirection = Vector3.zero;
 
 			bool wantedToMove = planarDirection.sqrMagnitude > 0.0001f;
