@@ -87,6 +87,14 @@ namespace SDG.Unturned
 		private MobileNPCInjurySystem injurySystem;
 		private MobileNPCDoorNavigation doorNavigation;
 		private MobileNPCLadderTraversal ladderTraversal;
+		// A directed physical approach to a native Ladder collider, never
+		// a synthetic vertical edge in the ordinary walking grid.
+		private bool hasPlannedLadderApproach;
+		private Vector3 plannedLadderEntrance;
+		private Vector3 plannedLadderGoal;
+		private float plannedLadderExpiry;
+		private float nextLadderApproachPlanTime;
+		private readonly List<Vector3> ladderApproachScratch = new List<Vector3>(128);
 		private MobileNPCTravelMemory travelMemory;
 		private MobileNPCNativeAStarRouteProvider nativeAStarRouteProvider;
 		private Vector3 spawnPosition;
@@ -2207,6 +2215,121 @@ namespace SDG.Unturned
 			learnedStairStartWaypointIndex = -1;
 			learnedContinuationStartWaypointIndex = -1;
 			nextPlannedRouteValidationTime = 0f;
+			return true;
+		}
+
+		/// <summary>
+		/// Assemble an actual A* walking path to the ENTRY of a native Ladder.
+		/// The off-mesh change of floor remains exclusively owned by
+		/// MobileNPCLadderTraversal after direct tag/contact revalidation.
+		/// No pathfinding graph edge is added across the building wall.
+		/// </summary>
+		private bool TryBuildPhysicalLadderApproach(Vector3 goal,
+			out bool waitingForNativeLadderPath)
+		{
+			waitingForNativeLadderPath = false;
+			if (!Provider.isServer || ladderTraversal == null
+				|| IsTraversingLadder || isPlannedJumping
+				|| characterController == null || !characterController.enabled
+				|| routeWaypoints.Count != 0 || hasDetourWaypoint
+				|| physicallyCrouched
+				|| (injurySystem != null && injurySystem.MovementMultiplier <= 0.5f)
+				|| Mathf.Abs(goal.y - transform.position.y) < 1.4f)
+				return false;
+			if (hasPlannedLadderApproach
+				&& ((goal - plannedLadderGoal).sqrMagnitude > 2.25f
+					|| Time.time > plannedLadderExpiry))
+				hasPlannedLadderApproach = false;
+			if (Time.time < nextLadderApproachPlanTime)
+			{
+				waitingForNativeLadderPath = hasPlannedLadderApproach;
+				return false;
+			}
+
+			if (!hasPlannedLadderApproach)
+			{
+				if (!ladderTraversal.TryFindApproachServer(goal,
+					roamingGroundMask, roamingMaximumSlope, out plannedLadderEntrance))
+					return false;
+				hasPlannedLadderApproach = true;
+				plannedLadderGoal = goal;
+				plannedLadderExpiry = Time.time + 10f;
+			}
+
+			float distance = Vector3.Distance(transform.position, plannedLadderEntrance);
+			if (distance < 1.9f)
+			{
+				// Near enough for the *real* short-range ladder detector to
+				// make the decision on the next update. Hold other planners
+				// briefly, without pretending the floor transition happened.
+				waitingForNativeLadderPath = true;
+				nextLadderApproachPlanTime = Time.time + 0.4f;
+				return false;
+			}
+			ladderApproachScratch.Clear();
+			if (distance <= RouteGridCenter * RouteGridCellSize)
+			{
+				if (!TryBuildLocalRoute(plannedLadderEntrance,
+					ladderApproachScratch, true))
+				{
+					hasPlannedLadderApproach = false;
+					nextLadderApproachPlanTime = Time.time + 4f;
+					return false;
+				}
+			}
+			else
+			{
+				if (nativeAStarRouteProvider == null
+					|| !nativeAStarRouteProvider.IsAvailable)
+				{
+					hasPlannedLadderApproach = false;
+					nextLadderApproachPlanTime = Time.time + 4f;
+					return false;
+				}
+				if (!nativeAStarRouteProvider.TryGetRoute(transform.position,
+					plannedLadderEntrance, ladderApproachScratch))
+				{
+					waitingForNativeLadderPath = nativeAStarRouteProvider.IsRequestPending;
+					nextLadderApproachPlanTime = Time.time + 0.45f;
+					if (!waitingForNativeLadderPath)
+					{
+						hasPlannedLadderApproach = false;
+						nextLadderApproachPlanTime = Time.time + 4f;
+					}
+					return false;
+				}
+			}
+			if (ladderApproachScratch.Count == 0 || ladderApproachScratch.Count > 128)
+			{
+				hasPlannedLadderApproach = false;
+				nextLadderApproachPlanTime = Time.time + 4f;
+				return false;
+			}
+			Vector3 pathEnd = ladderApproachScratch[ladderApproachScratch.Count - 1];
+			float connector = Vector3.Distance(pathEnd, plannedLadderEntrance);
+			if (connector > 1.25f
+				|| Mathf.Abs(pathEnd.y - plannedLadderEntrance.y) > 0.35f
+				|| (connector > 0.2f
+					&& !IsActuallyWalkableStairConnection(pathEnd,
+						plannedLadderEntrance,
+						Mathf.Max(0.08f, characterController.radius * 0.75f))))
+			{
+				hasPlannedLadderApproach = false;
+				nextLadderApproachPlanTime = Time.time + 4f;
+				return false;
+			}
+			routeWaypoints.Clear();
+			for (int i = 0; i < ladderApproachScratch.Count; ++i)
+				if (Vector3.Distance(transform.position, ladderApproachScratch[i]) > 0.45f)
+					routeWaypoints.Add(ladderApproachScratch[i]);
+			if (routeWaypoints.Count == 0
+				|| Vector3.Distance(routeWaypoints[routeWaypoints.Count - 1],
+					plannedLadderEntrance) > 0.20f)
+				routeWaypoints.Add(plannedLadderEntrance);
+			routeWaypointIndex = 0;
+			detourGoalSnapshot = goal;
+			nextPlannedRouteValidationTime = 0f;
+			nextLadderApproachPlanTime = Time.time + 0.9f;
 			return true;
 		}
 
