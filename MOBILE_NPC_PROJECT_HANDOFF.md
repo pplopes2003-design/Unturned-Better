@@ -807,3 +807,8 @@ Test shotgun multiple pellets vs individual hit count; head/torso/leg difference
 2. Confirm server raycast / packet protocols for punch/unarmed, firearms, melee, NPC-to-NPC, and zombie-to-NPC. Native PlayerInput `MOBILE_NPC` currently intentionally handles **Gun and Melee only**; Punch remains pending, no fake success.
 3. Continue P0 `CORE-03`: real authored ragdoll prefab / fallback, corpse cleanup, XP/loot without fake `PlayerLife`. Then `CORE-04` complex buildings, pursuit, cover/nav.
 4. Never close tasks before user performs the final Dev Build; update BOTH canonical guides and test plan every engineering round.
+
+
+### Additional mobile hit packet compatibility — 2026-10-13
+
+Commit `59714ab8d05dcb606834294069c78b03c06554ec` extends `PlayerInputPacket.write` mobile NPC detection to choose `info.collider.transform` when available or `info.transform` otherwise. Some `DamageTool.raycast` paths can provide the transform without a separately retained Collider. The server **still** requires a new physical raycast and a real living NPC collider; this fallback is not an authorization bypass. Re-fetched modified sources via GitHub and checked required symbols and balanced braces, **NOT compiled**. Continue CORE-02/CORE-03/CORE-04 and repeat full Dev Build gun/melee/headshot checks at user-requested final testing stage.
