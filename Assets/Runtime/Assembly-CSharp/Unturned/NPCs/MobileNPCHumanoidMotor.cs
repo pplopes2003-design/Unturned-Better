@@ -746,6 +746,13 @@ namespace SDG.Unturned
 			bool groundedBeforeMove = !isUnderwater && IsGroundedUsingPlayerProbe();
 			if (isUnderwater)
 			{
+				// Entering water aborts the ground-only ballistic action.
+				// Swimming remains owned by the existing native water physics.
+				if (isPlannedJumping)
+				{
+					isPlannedJumping = false;
+					suppressJourneyUntil = Time.time + 0.3f;
+				}
 				// Simple buoyant locomotion: hold the root just below the water surface,
 				// rather than applying ground gravity while the capsule is submerged.
 				// Horizontal movement still follows the current AI destination and collision.
@@ -826,6 +833,18 @@ namespace SDG.Unturned
 			// collision as zero movement for animation/footstep decisions.
 			Vector3 planarDisplacement = transform.position - positionBeforeMovement;
 			planarDisplacement.y = 0f;
+			// Unexpected airborne side contact means the real controller could
+			// not execute the predicted off-mesh move. Stop horizontal steering,
+			// keep native gravity and learn a temporary failed approach; never
+			// push through the wall or declare the landing completed.
+			if (isPlannedJumping && (collision & CollisionFlags.Sides) != 0
+				&& Time.time - plannedJumpStartedAt > 0.07f
+				&& planarDisplacement.sqrMagnitude < 0.0004f)
+			{
+				isPlannedJumping = false;
+				suppressJourneyUntil = Time.time + 0.3f;
+				RememberLocalNavigationDeadEnd(transform.position, destination);
+			}
 			IsMoving = wantedToMove && planarDisplacement.sqrMagnitude > 0.000001f;
 			// Noise is based on actual movement, not merely the desired AI gait.
 			// Crouching suppresses the zombie-alert call; running is louder than walking.
@@ -960,6 +979,8 @@ namespace SDG.Unturned
 			if (Vector3.Dot(desiredFlat, direction) < travel + 0.10f)
 				return false;
 
+			if (Physics.gravity.y >= -1f)
+				return false;
 			float acceleration = Mathf.Abs(Physics.gravity.y)
 				* (gravity / 9.81f) * 3f;
 			if (acceleration < 0.01f)
