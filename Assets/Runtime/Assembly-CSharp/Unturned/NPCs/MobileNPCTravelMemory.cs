@@ -338,18 +338,35 @@ namespace SDG.Unturned
                     || route.footsteps.Count < 3 || route.footsteps.Count > MaxFootsteps
                     || !Valid(route.start) || !Valid(route.destination))
                     continue;
+                // A save is untrusted historical geometry. Apply the same
+                // invariants as first-hand observation before it can become a
+                // candidate for stair/room access after loading.
+                if (Vector3.Distance(route.start, route.footsteps[0]) > 0.35f
+                    || Vector3.Distance(route.destination,
+                        route.footsteps[route.footsteps.Count - 1]) > 2f)
+                    continue;
                 bool valid = true;
+                float walked = 0f;
                 for (int j = 0; j < route.footsteps.Count; ++j)
                 {
-                    if (!Valid(route.footsteps[j])
-                        || (j > 0 && Vector3.Distance(route.footsteps[j - 1],
-                            route.footsteps[j]) > 2.6f))
+                    if (!Valid(route.footsteps[j]))
                     {
                         valid = false;
                         break;
                     }
+                    if (j > 0)
+                    {
+                        float step = Vector3.Distance(route.footsteps[j - 1],
+                            route.footsteps[j]);
+                        if (step < 0.01f || step > 2.6f)
+                        {
+                            valid = false;
+                            break;
+                        }
+                        walked += step;
+                    }
                 }
-                if (valid)
+                if (valid && walked >= 3.5f && walked <= 80f)
                     routes.Add(Copy(route));
             }
         }
