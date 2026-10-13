@@ -437,6 +437,39 @@ namespace SDG.Unturned
 			PublishDecisionIfChanged();
 		}
 
+		// Navigation failures are learned per actor, never broadcast as magical
+		// global path knowledge. Avoid reselecting the exact failed cover point
+		// until the player/NPC had time to change the local situation.
+		private Vector3 recentlyUnreachableCover;
+		private float recentlyUnreachableCoverUntil;
+
+		/// <summary>
+		/// Called only after the motor has genuinely failed several physical
+		/// route attempts for the SAME tactical destination. This does not
+		/// terminate a live pursuit or invent another reachable route.
+		/// </summary>
+		public bool ReportTacticalDestinationUnreachableServer(Vector3 failedPoint)
+		{
+			if (!CanAcceptServerInput || tactics == null || !tactics.HasTacticalDestination
+				|| (tactics.CurrentGoal != MobileNPCTactics.Goal.SeekCover
+					&& tactics.CurrentGoal != MobileNPCTactics.Goal.Flank)
+				|| (tactics.TacticalDestination - failedPoint).sqrMagnitude > 4f)
+				return false;
+			if (tactics.CurrentGoal == MobileNPCTactics.Goal.SeekCover)
+			{
+				MobileNPCAdaptiveMemory memory = GetComponent<MobileNPCAdaptiveMemory>();
+				if (memory != null)
+					memory.RecordOwnOutcomeServer(
+						MobileNPCAdaptiveMemory.ExperienceKind.CoverAccess,
+						tactics.TacticalDestination, false);
+			}
+			recentlyUnreachableCover = tactics.TacticalDestination;
+			recentlyUnreachableCoverUntil = Time.time + 14f;
+			tactics.ClearGoal();
+			PublishDecisionIfChanged();
+			return true;
+		}
+
 		private Vector3? TryFindNearbyCoverPoint(Vector3 threatPosition)
 		{
 			Vector3 away = transform.position - threatPosition;
@@ -467,6 +500,9 @@ namespace SDG.Unturned
 					Vector3 rawCandidate = transform.position + direction * distances[d];
 					if (!MobileNPCSpawnService.TryFindSafeGroundPosition(rawCandidate, 12f, 8f, ~0, 38f,
 						out Vector3 candidate, out _))
+						continue;
+					if (Time.time < recentlyUnreachableCoverUntil
+						&& (candidate - recentlyUnreachableCover).sqrMagnitude < 9f)
 						continue;
 
 					Vector3 rayOrigin = threatPosition + Vector3.up * 1.4f;
