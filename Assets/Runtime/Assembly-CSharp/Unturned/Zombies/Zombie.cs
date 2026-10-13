@@ -1175,6 +1175,7 @@ namespace SDG.Unturned
 				lastHunted = Time.time;
 				lastStuck = Time.time;
 				stuckSearchTimer = 0.0f;
+				ResetOffNavigationDetour();
 
 				player = newPlayer;
 				target.position = player.transform.position;
@@ -1304,6 +1305,7 @@ namespace SDG.Unturned
 			isReturningToSpawn = false;
 			investigationWandersRemaining = 0;
 			mobileNPCTarget = newTarget;
+			ResetOffNavigationDetour();
 			// The zombie has already confirmed line of sight to this NPC. Feed that
 			// validated threat back to the NPC brain so differing collider/raycast setups
 			// cannot leave the NPC idle while a zombie is actively hunting it.
@@ -1601,6 +1603,7 @@ namespace SDG.Unturned
 
 			lastStuck = Time.time;
 			stuckSearchTimer = 0.0f;
+			ResetOffNavigationDetour();
 
 			if (player != null)
 			{
@@ -2033,6 +2036,7 @@ namespace SDG.Unturned
 			lastStun = Time.time;
 			lastStuck = Time.time;
 			stuckSearchTimer = 0.0f;
+			ResetOffNavigationDetour();
 
 			cameFrom = transform.position;
 			isPulled = false;
@@ -3237,14 +3241,26 @@ namespace SDG.Unturned
 			{
 				// Never chase a freshly moved/teleported target along a stale detour.
 				if ((destination - offNavDetourTargetAtSelection).sqrMagnitude > 36f)
+				{
 					offNavDetourUntil = 0f;
+					offNavStallCount = 0;
+					offNavNextDetourScanAt = 0f;
+				}
 
 				Vector3 towardsWaypoint = offNavDetourWaypoint - transform.position;
 				towardsWaypoint.y = 0f;
 				if (Time.time >= offNavDetourUntil || towardsWaypoint.sqrMagnitude < 0.81f)
 				{
 					offNavDetourUntil = 0f;
-					if (Time.time < offNavNextDetourScanAt || offNavStallCount >= 3
+					// Three failed detours trigger a six-second fallback to
+					// native routing; afterward geometry may be reconsidered.
+					if (offNavStallCount >= 3)
+					{
+						if (Time.time < offNavNextDetourScanAt)
+							return false;
+						offNavStallCount = 0;
+					}
+					if (Time.time < offNavNextDetourScanAt
 						|| !TryChooseNearbyOffNavDetour(destination, heading))
 						return false;
 					towardsWaypoint = offNavDetourWaypoint - transform.position;
@@ -3287,6 +3303,8 @@ namespace SDG.Unturned
 				{
 					offNavDetourUntil = 0f;
 					offNavStallCount = Mathf.Min(3, offNavStallCount + 1);
+					if (offNavStallCount == 3)
+						offNavNextDetourScanAt = Time.time + 6f;
 				}
 				else if ((flags & CollisionFlags.Sides) == 0)
 				{
@@ -3335,6 +3353,17 @@ namespace SDG.Unturned
 			offNavLastProgressPosition = transform.position;
 			offNavNextProgressCheckAt = Time.time + 0.8f;
 			return true;
+		}
+
+		private void ResetOffNavigationDetour()
+		{
+			offNavDetourWaypoint = Vector3.zero;
+			offNavDetourTargetAtSelection = Vector3.zero;
+			offNavLastProgressPosition = transform.position;
+			offNavDetourUntil = 0f;
+			offNavNextDetourScanAt = 0f;
+			offNavNextProgressCheckAt = 0f;
+			offNavStallCount = 0;
 		}
 
 		private bool HasOpenOffNavApproach(Vector3 heading, float distance)
