@@ -275,6 +275,7 @@ namespace SDG.Unturned
 			foreach (MobileNPCGroupMember ally in group.Members)
 			{
 				if (ally == null || ally == this || !ally.initialized || ally.leftGroup
+					|| ally.GroupId != GroupId
 					|| ally.vitals != null && ally.vitals.IsDead)
 					continue;
 				MobileNPCBrainDriver allyBrain = ally.GetComponent<MobileNPCBrainDriver>();
