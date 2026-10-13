@@ -16,7 +16,7 @@ namespace SDG.Unturned
 	/// </summary>
 	internal static class MobileNPCPersistence
 	{
-		private const int CurrentVersion = 2;
+		private const int CurrentVersion = 3;
 		private const float SaveInterval = 30f;
 		private const float DeferredRestoreInterval = 3f;
 		private static float nextSaveTime;
@@ -46,6 +46,8 @@ namespace SDG.Unturned
 			public bool hasSettlement;
 			public float ax, ay, az;
 			public List<ItemRecord> items = new List<ItemRecord>();
+			// Individual experience only; not a global group/faction policy.
+			public List<MobileNPCAdaptiveMemory.ExperienceRecord> experience = new List<MobileNPCAdaptiveMemory.ExperienceRecord>();
 		}
 
 		[Serializable]
@@ -343,6 +345,12 @@ namespace SDG.Unturned
 							throw new InvalidOperationException("Saved inventory exceeds capacity or contains an item that cannot be restored.");
 					}
 				}
+
+				// Restores only this saved survivor's learned evidence. A freshly
+				// generated replacement never inherits a dead NPC's experience.
+				MobileNPCAdaptiveMemory adaptiveMemory = instance.GetComponent<MobileNPCAdaptiveMemory>();
+				if (adaptiveMemory != null)
+					adaptiveMemory.RestoreSnapshotServer(record.experience);
 			}
 			catch (Exception exception)
 			{
@@ -432,6 +440,10 @@ namespace SDG.Unturned
 						});
 					}
 				}
+
+				MobileNPCAdaptiveMemory adaptiveMemory = driver.GetComponent<MobileNPCAdaptiveMemory>();
+				if (adaptiveMemory != null)
+					record.experience = adaptiveMemory.ExportSnapshotServer();
 
 				save.npcs.Add(record);
 			}
