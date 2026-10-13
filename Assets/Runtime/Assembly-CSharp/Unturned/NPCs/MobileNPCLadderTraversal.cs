@@ -24,9 +24,9 @@ namespace SDG.Unturned
         private float nextAttempt;
         private float nextContactProbe;
         private float lastProgress;
-        private float lastY;
         private static float nextSharedAttempt;
         private readonly Collider[] clearanceBuffer = new Collider[24];
+        private readonly RaycastHit[] approachBuffer = new RaycastHit[12];
 
         public bool IsTraversing => phase != Phase.None;
         public bool IsClimbing => phase == Phase.Climb || phase == Phase.Exit;
@@ -119,8 +119,10 @@ namespace SDG.Unturned
                 if (!FindRealExit(bounds, anchor, outward, sign,
                     goal, groundMask, maximumSlope, out Vector3 exitPoint))
                     continue;
-                if (Physics.Linecast(origin, hit.point, RayMasks.BLOCK_LADDER,
-                    QueryTriggerInteraction.Ignore))
+                Vector3 eyeAtEntry = anchor
+                    + Vector3.up * Mathf.Min(1.0f, controller.height * 0.6f);
+                if (Physics.Linecast(hit.point, eyeAtEntry,
+                    RayMasks.BLOCK_STANCE, QueryTriggerInteraction.Ignore))
                     continue;
                 float score = Vector3.Distance(transform.position, anchor)
                     + Vector3.Distance(goal, exitPoint) * 0.4f;
@@ -144,7 +146,6 @@ namespace SDG.Unturned
             requestedGoal = goal;
             started = Time.time;
             lastProgress = started;
-            lastY = transform.position.y;
             nextContactProbe = 0f;
             phase = Phase.Approach;
             return true;
@@ -157,19 +158,23 @@ namespace SDG.Unturned
             float length = displacement.magnitude;
             if (length < 0.10f)
                 return true;
+            Vector3 midway = (from + to) * 0.5f;
+            if (!MobileNPCSpawnService.TryFindSafeGroundPosition(midway,
+                0.7f, 0.7f, ~0, 45f, out Vector3 middleGround, out _)
+                || Mathf.Abs(middleGround.y - midway.y) > 0.35f)
+                return false;
             float radius = Mathf.Max(0.12f, controller.radius * 0.75f);
             Vector3 a = from + Vector3.up * (radius + 0.12f);
             Vector3 b = from + Vector3.up * (controller.height - radius + 0.08f);
-            RaycastHit[] hits = new RaycastHit[12];
             int count = Physics.CapsuleCastNonAlloc(a, b, radius,
-                displacement / length, hits, length,
+                displacement / length, approachBuffer, length,
                 RayMasks.BLOCK_LADDER, QueryTriggerInteraction.Ignore);
-            if (count >= hits.Length)
+            if (count >= approachBuffer.Length)
                 return false;
             for (int i = 0; i < count; ++i)
-                if (hits[i].collider != null
-                    && hits[i].collider.transform != transform
-                    && !hits[i].collider.transform.IsChildOf(transform))
+                if (approachBuffer[i].collider != null
+                    && approachBuffer[i].collider.transform != transform
+                    && !approachBuffer[i].collider.transform.IsChildOf(transform))
                     return false;
             return true;
         }
@@ -244,8 +249,7 @@ namespace SDG.Unturned
                 {
                     phase = Phase.Climb;
                     lastProgress = Time.time;
-                    lastY = transform.position.y;
-                }
+                        }
                 else
                 {
                     return horizontal.normalized * Mathf.Min(1.4f,
@@ -312,8 +316,7 @@ namespace SDG.Unturned
             if (Vector3.Distance(transform.position, before) >= 0.009f)
             {
                 lastProgress = Time.time;
-                lastY = transform.position.y;
-            }
+                }
             else if (Time.time - lastProgress > 0.75f)
                 AbortServer();
             if (phase == Phase.Exit
