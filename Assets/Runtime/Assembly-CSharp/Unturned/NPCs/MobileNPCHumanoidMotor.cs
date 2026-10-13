@@ -281,8 +281,10 @@ namespace SDG.Unturned
 						hasDetourWaypoint = false;
 					}
 				}
+				// Waypoint arrival is planar: the physics controller handles minor
+				// elevation differences independently (stairs, curbs, uneven ground).
 				if (routeWaypointIndex < routeWaypoints.Count
-					&& (transform.position - routeWaypoints[routeWaypointIndex]).sqrMagnitude <= 1.0f)
+					&& PlanarDistanceSquared(transform.position, routeWaypoints[routeWaypointIndex]) <= 1.0f)
 				{
 					++routeWaypointIndex;
 					if (routeWaypointIndex >= routeWaypoints.Count)
@@ -292,6 +294,13 @@ namespace SDG.Unturned
 						hasDetourWaypoint = false;
 						nextDetourAttemptTime = Time.time + 0.35f;
 					}
+				}
+				// A single-hop detour is not the goal. Once reached, stop steering
+				// toward the old corner and resume the original destination.
+				if (hasDetourWaypoint && PlanarDistanceSquared(transform.position, detourWaypoint) <= 0.8f * 0.8f)
+				{
+					hasDetourWaypoint = false;
+					nextDetourAttemptTime = Time.time + 0.3f;
 				}
 				Vector3 movementDestination = routeWaypointIndex < routeWaypoints.Count
 					? routeWaypoints[routeWaypointIndex]
@@ -764,17 +773,30 @@ namespace SDG.Unturned
 			return bestDirection;
 		}
 
+		private static float PlanarDistanceSquared(Vector3 a, Vector3 b)
+		{
+			float dx = a.x - b.x;
+			float dz = a.z - b.z;
+			return dx * dx + dz * dz;
+		}
+
 		private bool HasWalkableGroundAhead(Vector3 direction)
 		{
 			direction.y = 0f;
 			if (direction.sqrMagnitude < 0.0001f)
 				return false;
 			direction.Normalize();
-			Vector3 candidate = transform.position + direction * Mathf.Clamp(obstacleProbeDistance + 0.6f, 1.5f, 3.0f);
+			// Check the next actual walking stride, not a point several metres
+			// ahead: the old long probe rejected otherwise traversable curbs.
+			Vector3 candidate = transform.position + direction * Mathf.Clamp(obstacleProbeDistance * 0.65f, 0.65f, 1.25f);
 			if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, 5f, 3.5f,
 				roamingGroundMask, Mathf.Clamp(roamingMaximumSlope, 35f, 48f), out Vector3 ground, out _))
 				return false;
-			return Mathf.Abs(ground.y - transform.position.y) <= 2.25f;
+			float rise = ground.y - transform.position.y;
+			// Ordinary CharacterController stepOffset can climb small curbs,
+			// but tall ledges should still require a planned route.
+			return rise <= Mathf.Max(0.35f, characterController.stepOffset + characterController.skinWidth + 0.1f)
+				&& rise >= -1.1f;
 		}
 
 		private Vector3 ApplyLocalObstacleAvoidance(Vector3 desiredDirection)
