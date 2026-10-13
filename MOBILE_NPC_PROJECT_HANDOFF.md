@@ -396,3 +396,22 @@ Implemented source-only ambush readiness (Unity untested):
 - Death/hitbox/ragdoll/despawn/replacement, navigation/corners/curbs/jump/crouch, sound stimuli, A* cover routes, long-range shots/reload, animations (melee/ranged/reload/flinch/death), dialogue/HUD/nameplate.
 - Ambush against zombies as a deliberate stalk target, variable wait/attack timing based on observation, safe melee/ranged choice, full stealth disengagement, and optic magnification still not fully implemented.
 - Adaptive knowledge/ML and in-world ally information passing on future phase; native kill XP credit and multiplayer replication not implemented.
+
+
+## Ambush tactical choice round — 2026-10-13
+
+New user request: proceed to next stage and explicitly add **faction and group system validation** to outstanding tasks.
+
+Source changes:
+- `d6aaaa0bcd65a3f0091d826d4d6d496dfb2ce7b4` BrainDriver adds a bounded `AmbushMethod` decision: for a freshly visual-confirmed enemy after stalking, usable gun with available rounds and >6m favors ranged; a target <=6m favors close assault; otherwise abandon ambush and let normal pursuit handle it. 0.45–0.85s readiness remains. Method expires in <=4s; gunfire/damage interrupts, and the pre-existing visibility gate still prevents firing at hidden memory targets. This does NOT guarantee stealth kill, synchronized execution or zombie-specific stalking.
+- `ce1effe69cf3bf9b456fbf86b3dd68ef80a91255` ranged combat respects a time-limited close-assault choice instead of shooting immediately, while ordinary melee handler can operate when in actual validated hit range.
+
+**Mandatory upcoming faction/group validation checklist** (source and in-game):
+- Confirm faction-to-role mapping and hostility matrix (Raiders vs Traders/Survivors/Military; neutrality of Scavengers; Survivor/Military neutral), including role/faction changes, contracts, and AI target filters; avoid friendly fire across faction members.
+- Confirm groups spawn/recruit up to max 4 within join radius, do not accidentally combine distinct factions, and promote surviving leader when leader dies.
+- Confirm every NPC death removes its membership and group removal only when all members die; delayed population replacement rejoins surviving original group when valid, or forms new group otherwise; validate persistence across save/load and map changes.
+- Validate group anchor, settlement/base ownership and rally return behavior; hostile/friendly group combat responses, faction relations after alliance, and NPC/zombie engagement priority.
+- Check logs for group IDs, factions, leaders, corpses, replacements, and despawn. Do not assert tests passed until the Dev Build + Player.log confirms.
+- Group tactics future: frag/smoke with actual friendly safety/obscuration; coordinated suppression/advance; medical triage/healing under cover, all still NOT implemented.
+
+Other outstanding: build/compilation; damage/death/corpse/respawn; navigation (corners, stairs, jumping, A* reachability), player/zombie hearing, firefight/reload, dialogue/HUD/nameplate and available animation clips; zombie-specific stalking/ambush, optics, machine learning/social memory; native XP/kill credit, replication. User requests complete AI diagram only when ALL core modules structured, not at this interim stage.
