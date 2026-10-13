@@ -1017,7 +1017,7 @@ namespace SDG.Unturned
 					if (float.IsNaN(sqrDistance) || float.IsInfinity(sqrDistance)
 						|| sqrDistance < 0.0025f || sqrDistance > 562500f
 						|| (usage == ERaycastInfoUsage.Melee && sqrDistance > 225f)
-						|| (usage == ERaycastInfoUsage.Punch && sqrDistance > 5.0625f))
+						|| (usage == ERaycastInfoUsage.Punch && sqrDistance > 4.0f))
 						return null;
 					float distance = Mathf.Sqrt(sqrDistance);
 					Vector3 direction = delta / distance;
@@ -1030,7 +1030,8 @@ namespace SDG.Unturned
 							return null;
 					}
 					RaycastInfo confirmation = DamageTool.raycast(
-						new Ray(origin, direction), distance + 0.75f,
+						new Ray(origin, direction),
+						usage == ERaycastInfoUsage.Punch ? 1.95f : distance + 0.75f,
 						RayMasks.DAMAGE_SERVER, ignorePlayer: player);
 					Collider confirmedCollider = confirmation != null ? confirmation.collider : null;
 					MobileNPCHumanoidVitals confirmedVitals = confirmedCollider != null
@@ -1185,8 +1186,8 @@ namespace SDG.Unturned
 				{
 					input.type = ERaycastInfoType.VEHICLE;
 				}
-				else if (input.colliderTransform != null
-					&& input.colliderTransform.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
+				else if ((input.colliderTransform != null ? input.colliderTransform : input.transform) is Transform npcCollider
+					&& npcCollider.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
 				{
 					input.type = ERaycastInfoType.MOBILE_NPC;
 				}
