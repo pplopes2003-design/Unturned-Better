@@ -177,21 +177,61 @@ namespace SDG.Unturned
 					if (rayOffset.sqrMagnitude < 0.1f)
 						continue;
 
-					if (Physics.Raycast(rayOrigin, rayOffset.normalized, out RaycastHit hit,
-						rayOffset.magnitude, ~0, QueryTriggerInteraction.Ignore))
+					// The shooter-to-cover ray may first hit the shooter's own
+					// collider. Inspect the full segment and accept only actual world
+					// geometry, not either participant's body.
+					RaycastHit[] hits = Physics.RaycastAll(rayOrigin, rayOffset.normalized,
+						rayOffset.magnitude, ~0, QueryTriggerInteraction.Ignore);
+					bool protectedByWorld = false;
+					for (int h = 0; h < hits.Length; ++h)
 					{
-						Player hitPlayer = hit.transform.GetComponent<Player>();
-						if (hitPlayer == null)
-							hitPlayer = hit.transform.GetComponentInParent<Player>();
-
-						// Ignore terrain/floor intersections and hits at the candidate endpoint:
-						// usable cover should be a substantial, roughly vertical obstruction.
-						bool substantialObstruction = hit.distance < rayOffset.magnitude - 0.75f
-							&& Vector3.Angle(hit.normal, Vector3.up) > 50f;
-						if (hitPlayer == null && substantialObstruction
-							&& (candidate - transform.position).sqrMagnitude > 1f)
-							return candidate;
+						Collider obstruction = hits[h].collider;
+						if (obstruction == null || obstruction.transform == transform
+							|| obstruction.transform.IsChildOf(transform))
+							continue;
+						if (obstruction.GetComponentInParent<Player>() != null
+							|| obstruction.GetComponentInParent<MobileNPCHumanoidVitals>() != null
+							|| obstruction.GetComponentInParent<Zombie>() != null)
+							continue;
+						if (hits[h].distance < rayOffset.magnitude - 0.75f
+							&& Vector3.Angle(hits[h].normal, Vector3.up) > 50f)
+						{
+							protectedByWorld = true;
+							break;
+						}
 					}
+					if (!protectedByWorld || (candidate - transform.position).sqrMagnitude <= 1f)
+						continue;
+
+					// A covered point is useless if a wall blocks the route to it.
+					// Check a chest-height corridor; the motor still performs actual
+					// navigation and local obstacle avoidance during movement.
+					Vector3 approach = candidate - transform.position;
+					approach.y = 0f;
+					if (approach.sqrMagnitude < 0.5f)
+						continue;
+					Vector3 routeOrigin = transform.position + Vector3.up * 1f;
+					RaycastHit[] approachHits = Physics.SphereCastAll(routeOrigin, 0.25f,
+						approach.normalized, approach.magnitude, ~0, QueryTriggerInteraction.Ignore);
+					bool blockedApproach = false;
+					for (int h = 0; h < approachHits.Length; ++h)
+					{
+						Collider obstruction = approachHits[h].collider;
+						if (obstruction == null || obstruction.transform == transform
+							|| obstruction.transform.IsChildOf(transform))
+							continue;
+						if (obstruction.GetComponentInParent<Player>() != null
+							|| obstruction.GetComponentInParent<MobileNPCHumanoidVitals>() != null
+							|| obstruction.GetComponentInParent<Zombie>() != null)
+							continue;
+						if (approachHits[h].distance < approach.magnitude - 0.5f)
+						{
+							blockedApproach = true;
+							break;
+						}
+					}
+					if (!blockedApproach)
+						return candidate;
 				}
 			}
 			return null;
