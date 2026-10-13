@@ -42,7 +42,7 @@
 | LEARN-02 | P1 | Aprendizado online (contextual bandit/recompensa incremental, ou ML viável), exploração, esquecimento/validade | EM IMPLEMENTAÇÃO (feedback incremental e decisões limitadas; aprendizado tático pendente) | Evidência sucesso/fracasso altera escolha de tática em contexto comparável; sem exploit |
 | LEARN-03 | P1 | Transmissão de ensinamentos **somente por voz local ou rádio físico**; confiabilidade, rumor, consentimento | EM IMPLEMENTAÇÃO (fala local simulada; rádio/áudio/UI pendentes) | Membro ausente não sabe; com contato pode aprender, com erro/incerteza; sem facção-telepatia |
 | LEARN-04 | P1 | Morte apaga conhecimento privado não compartilhado; sobreviventes guardam apenas o que ouviram; persistência individual | IMPLEMENTADA / NÃO COMPILADA (parcial; identidade e fila de conversas pendentes) | Morte antes de contar apaga; depois de contar sobrevivente lembra; substituto nasce novo |
-| LEARN-05 | P2 | Aprender rotas/obstáculos, cobertura válida, comportamento contra diferentes tipos de zumbi/jogador | NÃO INVESTIGADA | Cache por mapa/local e validação de mudanças; bloqueios não viram caminho perfeito |
+| LEARN-05 | P2 | Aprender rotas/obstáculos, cobertura válida, comportamento contra diferentes tipos de zumbi/jogador | EM IMPLEMENTAÇÃO (acesso à cobertura; aprendizado de rotas completo pendente) | Cache por mapa/local e validação de mudanças; bloqueios não viram caminho perfeito |
 | DOC-01 | P0 | **Atualizar sempre** este registro, HANDOFF, designs/testes e links de commits em cada rodada | EM VALIDAÇÃO (processo contínuo) | Histórico nunca perde itens; cada etapa registrou seu status |
 | DOC-02 | P2 | Diagrama completo da IA/árvore de decisão e fluxo de memória/comunicação ao final de todos os módulos | NÃO INVESTIGADA | Diagrama fiel ao que existe, distinguindo implementado/testado/proposto |
 
@@ -79,3 +79,8 @@ Arquivos: `MobileNPCAdaptiveMemory.cs`, `MobileNPCPopulationBootstrap.cs`, `Mobi
 Commits de implementação: `1a41e003`, `564ebfc1`, `a94ca7ad`, `f6b4583f`, `a657faad`, `a576d920`, `f2eac633`, `18297285`. Documento técnico: `MOBILE_NPC_ADAPTIVE_LEARNING_DESIGN.md` commit `c1efbe55`.
 
 **Critério de verdade:** código revisado estruturalmente via GitHub, mas NÃO compilado, NÃO testado em Dev Build e NÃO runtime-verificado. Aprender estratégias de cobertura/emboscada, planos contra tipos de zumbis, caminhos bem-sucedidos, ML sofisticado, voz audível, fila/persistência de lições não contadas, identidade individual persistente e compartilhamento via rádio nativo **seguem pendentes**. O usuário fará compilação/testes ao final da implementação. Atualizar ambos este guia e HANDOFF em toda rodada.
+
+
+### LEARN-05 update — 2026-10-13
+
+`LEARN-05` remains **active** and is now in `EM IMPLEMENTAÇÃO (cover access; general navigation incomplete)`. Commits `1f098573` and `caf31416`: `MobileNPCBrainDriver` rewards only actual reported arrival at a cover goal, penalizes only expiry of that destination, and modestly deprioritizes subsequent already-validated cover waypoints in sectors with prior failures. This is **not** a complete route-learning/navigation system. Unity compile/runtime verification deferred as requested. Do not remove the item.
