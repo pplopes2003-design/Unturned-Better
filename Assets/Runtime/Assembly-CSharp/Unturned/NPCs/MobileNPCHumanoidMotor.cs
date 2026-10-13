@@ -87,6 +87,9 @@ namespace SDG.Unturned
 		private MobileNPCInjurySystem injurySystem;
 		private MobileNPCDoorNavigation doorNavigation;
 		private MobileNPCLadderTraversal ladderTraversal;
+		private MobileNPCVaultTraversal vaultTraversal;
+		public bool IsVaultTraversing => vaultTraversal != null && vaultTraversal.IsTraversing;
+		public bool IsClambering => vaultTraversal != null && vaultTraversal.IsClambering;
 		// A directed physical approach to a native Ladder collider, never
 		// a synthetic vertical edge in the ordinary walking grid.
 		private bool hasPlannedLadderApproach;
@@ -276,6 +279,8 @@ namespace SDG.Unturned
 			isPlannedJumping = false;
 			if (ladderTraversal != null)
 				ladderTraversal.ResetTraversal();
+			if (vaultTraversal != null)
+				vaultTraversal.ResetServer();
 			plannedJumpLanding = Vector3.zero;
 			plannedJumpDirection = Vector3.zero;
 			plannedJumpDestinationSnapshot = Vector3.zero;
@@ -324,6 +329,9 @@ namespace SDG.Unturned
 			ladderTraversal = GetComponent<MobileNPCLadderTraversal>();
 			if (ladderTraversal == null)
 				ladderTraversal = gameObject.AddComponent<MobileNPCLadderTraversal>();
+			vaultTraversal = GetComponent<MobileNPCVaultTraversal>();
+			if (vaultTraversal == null)
+				vaultTraversal = gameObject.AddComponent<MobileNPCVaultTraversal>();
 			travelMemory = GetComponent<MobileNPCTravelMemory>();
 			nativeAStarRouteProvider = GetComponent<MobileNPCNativeAStarRouteProvider>();
 			if (nativeAStarRouteProvider == null)
@@ -399,7 +407,7 @@ namespace SDG.Unturned
 			bool hasDestination = hasBrainDestination || hasRoamingDestination;
 			Vector3 destination = hasBrainDestination ? brainDriver.Destination : roamingDestination;
 			if (hasDestination && !isUnderwater && !isPlannedJumping
-				&& !physicallyCrouched
+				&& !IsVaultTraversing && !physicallyCrouched
 				&& (injurySystem == null || injurySystem.MovementMultiplier > 0.5f)
 				&& ladderTraversal != null && !ladderTraversal.IsTraversing
 				&& Mathf.Abs(destination.y - transform.position.y) >= 1.4f
@@ -426,6 +434,8 @@ namespace SDG.Unturned
 				hasPlannedLadderApproach = false;
 				if (ladderTraversal != null && ladderTraversal.IsTraversing)
 					ladderTraversal.AbortServer();
+				if (vaultTraversal != null && vaultTraversal.IsTraversing)
+					vaultTraversal.AbortServer();
 				trackingActualJourney = false;
 				actualTravelFootsteps.Clear();
 				activeRememberedRouteIndex = -1;
@@ -443,7 +453,7 @@ namespace SDG.Unturned
 				hasDetourWaypoint = false;
 				useRecoverySteering = false;
 			}
-			if (hasDestination && !IsTraversingLadder)
+			if (hasDestination && !IsTraversingLadder && !IsVaultTraversing)
 			{
 				BeginOrContinueActualJourney(destination);
 				// Keep a planned route while its goal remains stable. The previous condition
@@ -785,6 +795,7 @@ namespace SDG.Unturned
 			};
 			MobileNPCLocomotionPolicy.Gait gait = locomotionPolicy.Decide(context, Time.time);
 			UpdateCrouchStance(!isPlannedJumping && !IsTraversingLadder
+				&& !IsVaultTraversing
 				&& (gait == MobileNPCLocomotionPolicy.Gait.Sneak
 					|| brainDriver.IsListening || brainDriver.IsAmbushPreparing)
 				&& !isUnderwater);
@@ -800,6 +811,8 @@ namespace SDG.Unturned
 			{
 				if (IsTraversingLadder)
 					ladderTraversal.AbortServer();
+				if (IsVaultTraversing)
+					vaultTraversal.AbortServer();
 				// Entering water aborts the ground-only ballistic action.
 				// Swimming remains owned by the existing native water physics.
 				if (isPlannedJumping)
@@ -853,7 +866,7 @@ namespace SDG.Unturned
 						RememberLocalNavigationDeadEnd(transform.position, destination);
 				}
 				if (!isPlannedJumping && !IsTraversingLadder
-					&& hasDestination && groundedBeforeMove
+					&& !IsVaultTraversing && hasDestination && groundedBeforeMove
 					&& !waitingForDoorToOpen && !waitingForLearnedAccess
 					&& !waitingForLadderApproach
 					&& Time.time >= nextJumpTime
@@ -1192,7 +1205,7 @@ namespace SDG.Unturned
 		private void RecoverFromUnexpectedFall()
 		{
 			if (!Provider.isServer || characterController == null || !characterController.enabled
-				|| IsTraversingLadder
+				|| IsTraversingLadder || IsVaultTraversing
 				|| float.IsNaN(transform.position.y) || float.IsInfinity(transform.position.y))
 			{
 				return;
@@ -1813,7 +1826,8 @@ namespace SDG.Unturned
 			// Never begin a "walked" route from an airborne position, nor
 			// re-learn the arc as a ground connector on the next physics tick.
 			if (travelMemory == null || isPlannedJumping
-				|| IsTraversingLadder || Time.time < suppressJourneyUntil)
+				|| IsTraversingLadder || IsVaultTraversing
+				|| Time.time < suppressJourneyUntil)
 			{
 				trackingActualJourney = false;
 				actualTravelFootsteps.Clear();
@@ -1840,7 +1854,7 @@ namespace SDG.Unturned
 		{
 			if (!hasDestination || !trackingActualJourney || isUnderwater
 				|| isPlannedJumping || IsTraversingLadder
-				|| Time.time < suppressJourneyUntil
+				|| IsVaultTraversing || Time.time < suppressJourneyUntil
 				|| travelMemory == null || actualJourneyExceededLimit)
 				return;
 			Vector3 actual = transform.position;
@@ -2246,7 +2260,7 @@ namespace SDG.Unturned
 		{
 			waitingForNativeLadderPath = false;
 			if (!Provider.isServer || ladderTraversal == null
-				|| IsTraversingLadder || isPlannedJumping
+				|| IsTraversingLadder || IsVaultTraversing || isPlannedJumping
 				|| characterController == null || !characterController.enabled
 				|| routeWaypoints.Count != 0 || hasDetourWaypoint
 				|| physicallyCrouched
