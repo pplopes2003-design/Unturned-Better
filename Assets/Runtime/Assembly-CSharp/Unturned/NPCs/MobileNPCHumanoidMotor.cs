@@ -1728,7 +1728,21 @@ namespace SDG.Unturned
 				Mathf.Max(0.05f, characterController.radius * 0.9f));
 			learnedAccessApproach.Clear();
 			float entranceDistance = Vector3.Distance(transform.position, entrance);
-			if (entranceDistance <= 5.0f)
+			if (entranceDistance <= 0.8f)
+			{
+				// Already standing at an observed entry. A* can report no route
+				// when start and goal occupy the same cell. Verify the very
+				// short physical connector instead of forgetting this access.
+				if (entranceDistance > 0.2f
+					&& !IsActuallyWalkableStairConnection(
+						transform.position, entrance, radius))
+				{
+					knownAccessEntryRetryUntil[entryRouteIndex] = Time.time + 5f;
+					return false;
+				}
+				learnedAccessApproach.Add(entrance);
+			}
+			else if (entranceDistance <= 5.0f)
 			{
 				if (!TryBuildLocalRoute(entrance, learnedAccessApproach, true))
 				{
