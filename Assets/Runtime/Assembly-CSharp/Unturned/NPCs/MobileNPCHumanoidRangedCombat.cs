@@ -77,6 +77,11 @@ namespace SDG.Unturned
 			selectedGunInstanceID = 0;
 			selectedGunHasCompatibleMagazine = false;
 			shotsRemainingInBurst = RollBurstSize();
+
+			// Add tactical movement only when the ranged-combat component is present.
+			// This keeps unarmed/melee NPC prefabs unaffected.
+			if (GetComponent<MobileNPCTacticalCombatBehavior>() == null)
+				gameObject.AddComponent<MobileNPCTacticalCombatBehavior>();
 		}
 
 		private void Update()
