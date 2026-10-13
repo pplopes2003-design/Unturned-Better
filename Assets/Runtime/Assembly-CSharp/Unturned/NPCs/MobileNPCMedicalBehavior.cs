@@ -19,13 +19,12 @@ namespace SDG.Unturned
 	public sealed class MobileNPCMedicalBehavior : MonoBehaviour
 	{
 		[Header("Native item IDs configured per prefab")]
-		[SerializeField] private ushort[] bandageItemIDs = new ushort[0];
-		[SerializeField] private ushort[] splintItemIDs = new ushort[0];
+		[SerializeField] private ushort[] bandageItemIDs = { 393, 95, 394 }; // Native Rag, Bandage, Dressing IDs.
+		[SerializeField] private ushort[] splintItemIDs = { 96 }; // Native Splint ID.
 
 		[Header("Treatment decisions")]
 		[SerializeField, Min(0.2f)] private float decisionInterval = 1f;
 		[SerializeField, Min(0f)] private float minimumHealthToTreatUnderFire = 20f;
-		[SerializeField, Min(0f)] private float bandageHealAmount = 8f;
 
 		private MobileNPCInjurySystem injuries;
 		private MobileNPCHumanoidVitals vitals;
@@ -79,14 +78,14 @@ namespace SDG.Unturned
 			// Stop ongoing blood loss first. Do not consume a random item of the
 			// generic MEDICAL category: the configured ID must represent a bandage.
 			if (injuries.CurrentBleeding != MobileNPCInjurySystem.BleedingSeverity.None
-				&& TryConsumeConfiguredItem(bandageItemIDs))
+				&& TryConsumeConfiguredItem(bandageItemIDs, out ushort bandageID))
 			{
-				injuries.ApplyBandageServer(bandageHealAmount);
+				injuries.ApplyBandageServer(GetNativeBandageHealAmount(bandageID));
 				return;
 			}
 
 			// A splint treats a fracture but intentionally does not refill limb condition.
-			if (injuries.HasFracturedLeg && TryConsumeConfiguredItem(splintItemIDs))
+			if (injuries.HasFracturedLeg && TryConsumeConfiguredItem(splintItemIDs, out _))
 			{
 				MobileNPCInjurySystem.BodyPart leg = injuries.LeftLeg.IsFractured
 					? MobileNPCInjurySystem.BodyPart.LeftLeg
@@ -122,8 +121,21 @@ namespace SDG.Unturned
 			return false;
 		}
 
-		private bool TryConsumeConfiguredItem(ushort[] itemIDs)
+		private static float GetNativeBandageHealAmount(ushort itemID)
 		{
+			// Match the approximate vanilla healing values (percent of 100-health NPC).
+			switch (itemID)
+			{
+				case 393: return 5f;  // Rag
+				case 95: return 15f;  // Bandage
+				case 394: return 35f; // Dressing
+				default: return 0f;
+			}
+		}
+
+		private bool TryConsumeConfiguredItem(ushort[] itemIDs, out ushort consumedID)
+		{
+			consumedID = 0;
 			if (!Provider.isServer || itemIDs == null || itemIDs.Length == 0)
 				return false;
 			for (int slot = 0; slot < inventory.UsedSlots; ++slot)
@@ -139,8 +151,11 @@ namespace SDG.Unturned
 						break;
 					}
 				}
-				if (match && inventory.TryTakeItemServer(slot, out _))
+				if (match && inventory.TryTakeItemServer(slot, out Item consumed))
+				{
+					consumedID = consumed != null ? consumed.id : item.id;
 					return true;
+				}
 			}
 			return false;
 		}
