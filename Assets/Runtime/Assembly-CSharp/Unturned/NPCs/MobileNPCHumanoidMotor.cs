@@ -25,6 +25,7 @@ namespace SDG.Unturned
 		[SerializeField, Min(0.1f)] private float runSpeed = 4.0f;
 		[SerializeField, Min(0.1f)] private float turnSpeed = 540.0f;
 		[SerializeField, Min(0.1f)] private float sneakSpeed = 1.15f;
+		[SerializeField, Range(0.5f, 1f)] private float crouchedHeightFraction = 0.67f;
 		[SerializeField, Min(0.1f)] private float jumpImpulse = 4.6f;
 		[SerializeField, Min(0.5f)] private float jumpCooldown = 2.5f;
 		[SerializeField, Min(0.05f)] private float stoppingDistance = 0.65f;
@@ -81,6 +82,10 @@ namespace SDG.Unturned
 		private bool targetIsVisible;
 		private readonly MobileNPCLocomotionPolicy locomotionPolicy = new MobileNPCLocomotionPolicy();
 		private float nextJumpTime;
+		private float standingHeight;
+		private Vector3 standingCenter;
+		private bool physicallyCrouched;
+		public bool IsCrouched => physicallyCrouched;
 		public MobileNPCLocomotionPolicy.Gait CurrentGait => locomotionPolicy.CurrentGait;
 		public bool IsSneaking => CurrentGait == MobileNPCLocomotionPolicy.Gait.Sneak;
 		public bool IsSprinting => CurrentGait == MobileNPCLocomotionPolicy.Gait.Sprint;
@@ -169,6 +174,9 @@ namespace SDG.Unturned
 
 			spawnPosition = transform.position;
 			velocity = Vector3.zero;
+			standingHeight = characterController.height;
+			standingCenter = characterController.center;
+			physicallyCrouched = false;
 			locomotionPolicy.Reset();
 			nextJumpTime = 0f;
 			brainDriver.InitializeServer(spawnPosition);
@@ -433,6 +441,7 @@ namespace SDG.Unturned
 				DestinationDistance = hasDestination ? Vector3.Distance(destination, transform.position) : 0f
 			};
 			MobileNPCLocomotionPolicy.Gait gait = locomotionPolicy.Decide(context, Time.time);
+			UpdateCrouchStance(gait == MobileNPCLocomotionPolicy.Gait.Sneak && !isUnderwater);
 			float speed = gait == MobileNPCLocomotionPolicy.Gait.Sprint && runWhenPursuing
 				? runSpeed : gait == MobileNPCLocomotionPolicy.Gait.Sneak ? sneakSpeed : walkSpeed;
 			speed *= injuryMovementMultiplier;
@@ -488,6 +497,38 @@ namespace SDG.Unturned
 			}
 			IsMoving = planarDirection.sqrMagnitude > 0.0001f && (collision & CollisionFlags.Sides) == 0;
 			UpdateStuckRecovery(wantedToMove, deltaTime);
+		}
+
+		/// <summary>
+		/// Switch the actual capsule to a crouched stance (not just animation).
+		/// A clearance test prevents standing up through a low ceiling.
+		/// </summary>
+		private void UpdateCrouchStance(bool wantsCrouch)
+		{
+			if (characterController == null || standingHeight <= 0f || wantsCrouch == physicallyCrouched)
+				return;
+			if (!wantsCrouch)
+			{
+				float radius = characterController.radius * 0.9f;
+				Vector3 standingWorldCenter = transform.TransformPoint(standingCenter);
+				float halfSegment = Mathf.Max(0f, standingHeight * 0.5f - radius);
+				Collider[] hits = Physics.OverlapCapsule(standingWorldCenter + Vector3.up * halfSegment,
+					standingWorldCenter - Vector3.up * halfSegment, radius,
+					RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+				for (int i = 0; i < hits.Length; ++i)
+				{
+					if (!IsOwnCollider(hits[i]))
+						return;
+				}
+			}
+
+			float newHeight = wantsCrouch
+				? Mathf.Max(characterController.radius * 2.2f, standingHeight * crouchedHeightFraction)
+				: standingHeight;
+			// Preserve the same foot position while reducing controller height.
+			characterController.height = newHeight;
+			characterController.center = standingCenter - Vector3.up * (standingHeight - newHeight) * 0.5f;
+			physicallyCrouched = wantsCrouch;
 		}
 
 		/// <summary>
