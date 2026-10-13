@@ -458,7 +458,7 @@ namespace SDG.Unturned
 			};
 			MobileNPCLocomotionPolicy.Gait gait = locomotionPolicy.Decide(context, Time.time);
 			UpdateCrouchStance((gait == MobileNPCLocomotionPolicy.Gait.Sneak
-				|| brainDriver.IsListening) && !isUnderwater);
+				|| brainDriver.IsListening || brainDriver.IsAmbushPreparing) && !isUnderwater);
 			float speed = gait == MobileNPCLocomotionPolicy.Gait.Sprint && runWhenPursuing
 				? runSpeed : gait == MobileNPCLocomotionPolicy.Gait.Sneak ? sneakSpeed : walkSpeed;
 			speed *= injuryMovementMultiplier;
