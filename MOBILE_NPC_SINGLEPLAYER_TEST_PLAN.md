@@ -501,3 +501,5 @@ NAV-JUMP-01 follow-up (commit `489ed764`): park a vehicle low in front of NPC an
 See `MOBILE_NPC_NATIVE_LADDER_DESIGN.md`, native `InteractableLadder.cs`, `PlayerStance.cs` and `PlayerMovement.cs`. None of these tests has been executed.
 
 NAV-LADDER-NEAR-01 additional safety (`0aefbef9`): try to start climbing while physically crouched beneath a low ceiling or with severe leg injuries (MovementMultiplier <=0.5). It must reject initiation rather than crossing the ladder attachment in an invalid stance; test again after medically recovering/standing if headroom permits.
+
+NAV-LADDER-NEAR-01 (`420b27ac`): approach a tagged ladder from a slight downhill slope/step; verify normal player-like gravity and floor collision during Approach, then controlled vertical climb only after reaching the verified ladder surface. No horizontal air-walking.
