@@ -75,6 +75,13 @@ namespace SDG.Unturned
 			if (!injuries.NeedsMedicalAttention || !CanSafelyTreat())
 				return;
 
+			// An injured survivor with no wound dressing can salvage real carried
+			// resources using safe native recipes. The inventory validates input
+			// ownership and NEVER treats every garment as a free bandage.
+			if (injuries.CurrentBleeding != MobileNPCInjurySystem.BleedingSeverity.None
+				&& !HasConfiguredItem(bandageItemIDs))
+				inventory.TryCraftNativeWoundDressingServer();
+
 			// Stop ongoing blood loss first. Do not consume a random item of the
 			// generic MEDICAL category: the configured ID must represent a bandage.
 			if (injuries.CurrentBleeding != MobileNPCInjurySystem.BleedingSeverity.None
