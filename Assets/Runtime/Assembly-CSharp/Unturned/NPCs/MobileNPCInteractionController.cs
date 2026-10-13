@@ -190,7 +190,10 @@ namespace SDG.Unturned
 
 			float buttonY = panel.yMax - 50f;
 			int count = state == MenuState.TradeStock ? 9 : state == MenuState.Main || state == MenuState.ChooseTradePayment ? 3 : 2;
-			float buttonWidth = Mathf.Min(54f, (panel.width - 104f) / count);
+			// Reserve space for Close so stock slots 7-9 are never covered.
+			// Previously nine 54px buttons extended underneath the Close button.
+			float optionsWidth = Mathf.Max(0f, panel.width - 116f);
+			float buttonWidth = Mathf.Min(54f, (optionsWidth - 4f * (count - 1)) / count);
 			for (int option = 1; option <= count; ++option)
 			{
 				if (GUI.Button(new Rect(panel.x + 16f + (option - 1) * (buttonWidth + 4f),
