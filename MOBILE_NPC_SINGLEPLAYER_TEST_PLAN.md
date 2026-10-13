@@ -325,3 +325,18 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 - [ ] Moving zombies or 4 NPC allies momentarily block a doorway: do not trash a valid global route or walk through living people, no precision perfect navigation; use bounded local collision.
 - [ ] Compare outdoors/indoors on at least two maps (stock + custom) with ASPFP optional backend present/absent. Stairs, opening a door, breaching obstacles, multiple rooms, congestion and full global integration remain open under CORE-04.
 - [ ] Retain CORE-04 EM IMPLEMENTAÇÃO, AI-03/LEARN-05/PERF-01 open until user's final Dev Build/Player.log plus measured physical behavior; record any collision masks, compile errors or frame-rate regressions.
+
+
+## 24. P0 CORE-04 / NAV-DOOR-01 — genuine physical doors (only in final Dev Build)
+
+- [ ] NPC physically outside a house wants destination behind **native InteractableDoor barricade** registered in `BarricadeManager`; door is unlocked and closed. Motor must compute a route across the doorway (A* cell and edge), approach door, call `ServerSetDoorOpen`, wait until hinge/barrier collider really clears, and cross via CharacterController; never teleport/disable collision manually.
+- [ ] Same doorway **locked**: `IsLockedForMobileNPCNavigation` must block opening EVEN on singleplayer host, despite native player `checkToggle` bypass. No owner/steam group spoofing; no silent unlock.
+- [ ] Wall or locked barricade physically closer than unlocked door: first collision is a wall, never opens door from behind wall; local grid does not accept cell/edge if it overlaps another solid object in addition to the door.
+- [ ] Animated door recently opened/closed by player: respect `isOpenable` 0.75s debounce and no repeat network spam; keep path during <=1.25s hinge motion, but fall back to route replan if collision never actually clears.
+- [ ] Two/four NPCs at same doorway: only actual first NPC or whichever arrives first needs to open; others observe the synchronized state and wait rather than oscillate or cause repeated toggle actions. Zombies/players temporarily crowding door do not make it an imaginary open wall.
+- [ ] Doors placed on vehicle, unregistered prefab outside BarricadeRegion, a door blocked by extra structure, door at clip/map edge, custom-map doors: no false opening, crash, passage or magical collision removal. Future types remain CORE-04.
+- [ ] With no path through the door because it's locked, NPC can still seek an alternate valid route/cover if one exists. Do not get stuck indefinitely vibrating; report genuinely unreachable cover for tactical goals.
+- [ ] Player returns to close door mid-pursuit: NPC must re-check physical collision and decide to reopen if unlocked/nearby, rather than follow cached path through closed collider.
+- [ ] Upstairs target behind closed unlocked doorway: opening door is not equivalent to linking floors; require actual staircase graph. If target remains inaccessible, document under CORE-04.
+- [ ] 1, 4, 20 and 40 NPCs, in stock/custom maps: Unity Profiler physics casts/CPU, no excessive open requests; check original vanilla Player door interactions and reliable state replication unchanged.
+- [ ] `Player.log`, map, native asset door type, owner/group/locked flag and obstacle geometry supplied by user ONLY at final build; then mark `NAV-DOOR-01` resolved or return to implementation. CORE-04 stays open until all navigation scenarios pass.
