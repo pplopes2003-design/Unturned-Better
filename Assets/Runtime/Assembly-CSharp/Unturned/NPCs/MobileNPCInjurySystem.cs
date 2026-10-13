@@ -136,11 +136,11 @@ namespace SDG.Unturned
 				|| float.IsNaN(damage) || float.IsInfinity(damage) || damage <= 0f)
 				return false;
 
-			if (!ApplyInjuryEffectsServer(part, damage, causeBleeding, causeFracture, severity))
-				return false;
-			// Report the authoritative health result instead of claiming success when
-			// the vitals component rejected the hit (e.g. death during a callback).
-			return vitals.ApplyDamage(damage);
+			// Delegate the entire authoritative hit to the vitals entry point.
+			// Previously this method modified limb state and then applied health
+			// separately, bypassing the shared initialization / death guard.
+			return vitals.ApplyDamageToPart(damage, part, causeBleeding,
+				causeFracture, severity, Vector3.zero);
 		}
 
 		/// <summary>
@@ -166,7 +166,7 @@ namespace SDG.Unturned
 
 		public void SetBleedingServer(BleedingSeverity severity, BodyPart part)
 		{
-			if (!Provider.isServer || !IsValidPart(part))
+			if (!Provider.isServer || vitals == null || vitals.IsDead || !IsValidPart(part))
 				return;
 			if (severity == BleedingSeverity.None)
 			{
@@ -207,7 +207,8 @@ namespace SDG.Unturned
 		/// <summary>A splint treats one leg fracture; it does not instantly restore tissue condition.</summary>
 		public bool ApplySplintServer(BodyPart leg)
 		{
-			if (!Provider.isServer || (leg != BodyPart.LeftLeg && leg != BodyPart.RightLeg))
+			if (!Provider.isServer || vitals == null || vitals.IsDead
+				|| (leg != BodyPart.LeftLeg && leg != BodyPart.RightLeg))
 				return false;
 			PartState state = GetPartState(leg);
 			if (!state.IsFractured)
