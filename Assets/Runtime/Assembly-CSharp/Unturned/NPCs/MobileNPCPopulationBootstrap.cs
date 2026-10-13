@@ -350,7 +350,7 @@ namespace SDG.Unturned
             int preservedVisualBehaviourCount = 0;
             for (int i = 0; i < legacyBehaviours.Length; ++i)
             {
-                MonoBehaviour behaviour = legacyBehaviours[i];
+                Behaviour behaviour = legacyBehaviours[i];
                 if (behaviour == null)
                 {
                     continue;
