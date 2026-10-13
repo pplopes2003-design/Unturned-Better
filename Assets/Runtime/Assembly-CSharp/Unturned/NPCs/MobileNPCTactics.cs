@@ -20,7 +20,8 @@ namespace SDG.Unturned
 			Pursue,
 			SeekCover,
 			Retreat,
-			Loot
+			Loot,
+			Flank
 		}
 
 		private const float LowHealthThreshold = 0.30f;
@@ -140,6 +141,19 @@ namespace SDG.Unturned
 			tacticalDestination = itemPosition;
 			hasTacticalDestination = true;
 			goalDeadline = now + LootDuration;
+			return true;
+		}
+
+		/// <summary>Starts a time-bounded flank to a host-validated alternate firing position.</summary>
+		public bool TryStartFlank(Vector3 validatedPosition, float now)
+		{
+			if (currentGoal == Goal.Retreat || currentGoal == Goal.SeekCover)
+				return false;
+
+			currentGoal = Goal.Flank;
+			tacticalDestination = validatedPosition;
+			hasTacticalDestination = true;
+			goalDeadline = now + 8.0f;
 			return true;
 		}
 
