@@ -262,3 +262,32 @@ Applied commits:
 Static verification: re-fetched the five modified NPC source files, confirmed expected content and balanced braces. No Unity C# compile or gameplay run performed. Prior GUI panel and nameplate changes remain source-only until build validation.
 
 **Still pending as of this round:** Unity compile/build; in-game ranged-hit reliability at long distance, fair spread and reload behavior, and real accuracy vs player/NPC/zombies; coverage quality/reachability with A* across buildings and under suppression; availability and quality of actual strike, firearm, reload, hit and death animations on NPC_Client; working mouse focus and ESC/game HUD restoration for the IMGUI interaction panel; interaction nameplate visibility; full death-hitbox/corpse/removal/respawn smoke test; full movement/stairs/corners/investigation test; native XP/kill attribution/network replication not implemented for custom server-local mobile NPCs. Collect Player.log from one combined test build when user is ready.
+
+
+## Consolidation before stealth — 2026-10-13
+
+Consolidation commits:
+- `c7392b082eda842074da7ab748e195b231379b7a`: keep an existing cover/retreat destination for a short, 2.5-second defensive planning window under repetitive nearby gunfire; replan for threats displaced by >10m. This preserves suppression and noise stimulus while reducing thrashing between cover goals.
+- `9d6067905436a0e6e77dc41cb29479bec2ea9367`: one `IsSessionValid()` guard is shared by the dialogue Update, IMGUI and keyboard/click action handler, preventing purchases/alliance actions after the NPC dies, player dies, or player leaves interaction range.
+- `c963a7dde5f030d58448d53f77a21990ad8c996f`: death stops remaining tactical-combat, escort, medical behavior and injury ticking, in addition to earlier AI/movement/combat shutdown.
+
+These three files were re-read from the working branch and have matching opening/closing brace counts. Source check is NOT a Unity compilation or runtime test.
+
+### Next-phase design request: stalking / stealth (DO NOT implement before current fixes are validated)
+
+User requested intelligent optional NPC stealth **after consolidation**, including:
+1. NPC may crouch and move quietly to bypass a zombie without alerting it.
+2. NPC may stalk and ambush hostile zombies or player when tactically sensible, rather than always firing instantly.
+3. On hearing player's footsteps, NPC may stop moving/crouch, suppress its own footsteps, listen and infer player's last-known location before pursuing or ambushing.
+4. Build stealth as a decision-tree/utility substate coordinated with existing perception, suspicion, sound, target memory, faction hostility and tactical movement; not omniscient detection or teleporting.
+5. Check the native game's crouch/stance animation clips and audio/footstep APIs before coding. Include bounded search/investigation, detection exposure, abort rules and fair player counterplay. Avoid cheating NPC senses and keep CPU bounded.
+
+### Still pending before feature expansion
+
+- No Dev Build or Unity compile on latest code. User will test all systems in one build later.
+- Death: reliable firearm/melee raycast, actual ragdoll/fallback and corpse removal, respawn timing.
+- Navigation: around building corners, curb/stairs, A* reachability of defensive positions, noise investigation.
+- Ranged combat: weapon accuracy, long-distance range, ammunition/reload, line-of-fire safety against all target types.
+- UI: IMGUI panel actual focus/mouse click behavior under locked cursor, keyboard input and ESC/HUD behavior; nameplate visibility.
+- Animation: available strike/recoil/reload/flinch clips on NPC_Client, visual sync with shots/hits, animation quality.
+- Longer-term: native kill XP/credit and network replication of custom mobile entities.
