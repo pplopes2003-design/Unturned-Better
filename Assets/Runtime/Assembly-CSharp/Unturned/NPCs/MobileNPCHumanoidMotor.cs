@@ -899,6 +899,7 @@ namespace SDG.Unturned
 			// Crouching suppresses the zombie-alert call; running is louder than walking.
 			// Native zombie perception remains responsible for deciding investigation.
 			if (IsMoving && !isUnderwater && !isPlannedJumping
+				&& !ladderMovingThisFrame
 				&& (collision & CollisionFlags.Below) != 0
 				&& Time.time >= nextFootstepNoiseAt)
 			{
