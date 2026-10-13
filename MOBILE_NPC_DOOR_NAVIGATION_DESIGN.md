@@ -47,3 +47,6 @@ CRITICAL SECURITY DISTINCTION: native `InteractableDoor.checkToggle(...)` has a 
 ## Related work still open
 
 `CORE-04`: multi-storey stairs and elevator/ladder links, indoor waypoint planning beyond 9x9 cells, map navigation graph connectivity, doorways blocked by placed barricades, native authored POI doors, group ingress choreography, dynamic replan. `AI-03`: cover, suppression, flanking and entry risk. `PERF-01`: stress performance. `RAG-01` and UI/dialogue tasks remain separate. Do not close or delete these from the canonical backlog before compile and actual gameplay feedback.
+
+
+**Additional safety audit:** `775fb0aa0bcfefd90c44e3dff08d5325c2245e41` also requires valid native BarricadeRegion + BarricadeDrop registration in both side-effect-free A* *edge* and *node* classifiers, not just at the moment of opening. Without registration a stray/stale prefab door cannot be included as an imaginary passable corridor. Still uncompiled and not runtime-tested.
