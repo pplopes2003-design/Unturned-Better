@@ -31,6 +31,9 @@ namespace SDG.Unturned
 		private CharacterController characterController;
 		private bool initialized;
 		private bool isDead;
+		// Reserve lethal transition before publishing callbacks, which might themselves
+		// attempt healing or damage. Only the original lethal hit can finalize death.
+		private bool lethalTransitionReserved;
 
 		public event System.Action<float, float> HealthChanged;
 		/// <summary>Raised after validated server damage; attacker may be null for environmental damage.</summary>
@@ -70,7 +73,7 @@ namespace SDG.Unturned
 		{
 			// Initialization may be requested by both spawn adapters and Unity Start.
 			// Re-entering must never heal or resurrect an already damaged/dead NPC.
-			if (!Provider.isServer || initialized || isDead)
+			if (!Provider.isServer || initialized || isDead || lethalTransitionReserved)
 			{
 				return;
 			}
@@ -78,6 +81,7 @@ namespace SDG.Unturned
 			maximumHealth = Mathf.Max(1.0f, maximumHealth);
 			CurrentHealth = maximumHealth;
 			isDead = false;
+			lethalTransitionReserved = false;
 			initialized = true;
 			// Ensure mobile humanoids receive the optional server-side medical behavior.
 			// RequireComponent on that behavior adds the NPC inventory if the prefab omitted it.
@@ -120,7 +124,7 @@ namespace SDG.Unturned
 			bool causeBleeding, bool causeFracture, MobileNPCInjurySystem.BleedingSeverity severity,
 			Vector3 hitImpulse, Transform attacker)
 		{
-			if (!Provider.isServer || isDead || float.IsNaN(damage) || float.IsInfinity(damage) || damage <= 0f
+			if (!Provider.isServer || isDead || lethalTransitionReserved || float.IsNaN(damage) || float.IsInfinity(damage) || damage <= 0f
 				|| !IsFinite(hitImpulse.x) || !IsFinite(hitImpulse.y) || !IsFinite(hitImpulse.z)
 				|| injurySystem == null)
 				return false;
@@ -129,7 +133,7 @@ namespace SDG.Unturned
 			// cannot create limb effects while the health state is still uninitialized.
 			if (!initialized)
 				InitializeServer();
-			if (!initialized || isDead)
+			if (!initialized || isDead || lethalTransitionReserved)
 				return false;
 
 			if (!injurySystem.ApplyInjuryEffectsServer(bodyPart, damage, causeBleeding, causeFracture, severity))
@@ -152,7 +156,7 @@ namespace SDG.Unturned
 		/// </summary>
 		public bool ApplyDamage(float damage, Vector3 hitImpulse, Transform attacker)
 		{
-			if (!Provider.isServer || isDead || float.IsNaN(damage) || float.IsInfinity(damage) || damage <= 0.0f
+			if (!Provider.isServer || isDead || lethalTransitionReserved || float.IsNaN(damage) || float.IsInfinity(damage) || damage <= 0.0f
 				|| !IsFinite(hitImpulse.x) || !IsFinite(hitImpulse.y) || !IsFinite(hitImpulse.z))
 			{
 				return false;
@@ -164,7 +168,7 @@ namespace SDG.Unturned
 			{
 				InitializeServer();
 			}
-			if (!initialized || isDead)
+			if (!initialized || isDead || lethalTransitionReserved)
 			{
 				return false;
 			}
@@ -174,6 +178,12 @@ namespace SDG.Unturned
 			LastAttacker = attacker;
 			LastDamageTime = Time.time;
 			CurrentHealth = Mathf.Max(0.0f, CurrentHealth - damage);
+			// Reserve a lethal transition *before* DamageReceived/HealthChanged handlers
+			// run. Without this, a listener could reenter ApplyDamage/Heal or change
+			// the zero-health state before DieServer executes, causing duplicated or
+			// missing death handling and incorrect last-hit attribution.
+			if (CurrentHealth <= 0.0f)
+				lethalTransitionReserved = true;
 			if (logDamageDiagnostics)
 			{
 				string attackerName = attacker != null ? attacker.name : "<environment>";
@@ -197,7 +207,7 @@ namespace SDG.Unturned
 		/// <summary>Restore health from a validated server-side healing action.</summary>
 		public bool Heal(float amount)
 		{
-			if (!Provider.isServer || !initialized || isDead || float.IsNaN(amount) || float.IsInfinity(amount) || amount <= 0.0f)
+			if (!Provider.isServer || !initialized || isDead || lethalTransitionReserved || float.IsNaN(amount) || float.IsInfinity(amount) || amount <= 0.0f)
 			{
 				return false;
 			}
@@ -227,6 +237,7 @@ namespace SDG.Unturned
 			}
 
 			isDead = true;
+			lethalTransitionReserved = true;
 			// Private experience does not survive death or pass to the replacement NPC.
 			MobileNPCAdaptiveMemory adaptiveMemory = GetComponent<MobileNPCAdaptiveMemory>();
 			if (adaptiveMemory != null)
