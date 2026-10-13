@@ -617,3 +617,23 @@ This is the **first connected real feedback slice**, not completed long-term AI 
 - `caf314160cef9e46a32e2e7bc5b3303ad1964b47`: `MobileNPCBrainDriver` records cover waypoint arrival vs. expired cover goal as outcome. Cover candidate testing still checks map geometry and short approach corridor; repeated learned failures can postpone a candidate, but first geometry-safe fallback remains when no others work.
 - Source/commit only; NOT compiled, NOT run in-game. This measures waypoint access, **not** cover's effectiveness against bullets or full A* route correctness.
 - Canonical backlog `MOBILE_NPC_PENDING_TASKS.md` LEARN-05 remains active. User will perform compiled Dev Build and tests at end. Continue adding outcome-aware tactical learning, then physical radios, zombie cross-region pursuit, nav, interactions, etc., and update this handoff and backlog every round.
+
+
+## 2026-10-13 — PRIORITY P0: zero-damage safety + meaningful navigation progress + exploratory cover policy
+
+Always read `MOBILE_NPC_PENDING_TASKS.md` FIRST; never delete tasks until compiled and runtime-verified. The user defers compiling/build testing to the end. Continue committing meaningful source slices and ALWAYS update the permanent backlog + this handoff each round; update related test/design docs. Full AI diagram is requested only after main modules are structured.
+
+### Actual commits and source changes
+- `b4ab966c39a43c20c7c2f51f2c15d49556aca45d` — `Assets/Runtime/Assembly-CSharp/Unturned/Useable/UseableGun.cs`: the custom NPC branch now only applies **finite positive** computed weapon damage. Previously `Mathf.Max(1f, mobileNPCDamage)` dealt 1 HP even for a zero multiplier.
+- `6d673383ae00055c84a25cc49cc4f4e12fe530e4` — `UseableMelee.cs`: same fix for player melee vs. mobile NPC.
+- `96eab81bc9c0bf6aa870ec99fba80cea2d4e7aea` — `MobileNPCHumanoidMotor.cs`: locomotion `IsMoving` now follows actual planar position delta instead of treating any side contact as no movement; stuck recovery checks net progress toward a still-valid goal or substantial non-diverging sidestep, while resetting when goal changes. The old threshold accepted any >0.12m motion (including useless side-to-side oscillation) as recovery.
+- `e0d5d944c2c11b684c805e2814b8070cf0f9b3cf` — `MobileNPCBrainDriver.cs`: bounded contextual **epsilon-greedy** (12% exploration) chooses among up to 10 genuinely ground/LOS/approach-validated cover candidates. Uses existing `MobileNPCAdaptiveMemory.GetCoverAccessAdjustment` (personal previous arrival/time-out feedback). An exploratory candidate is sampled without extra List allocations. This is not a substitute for navigation, target detection, ammo or combat authorization.
+
+### Algorithm decision for user question
+No external ML runtime/library is required. Start with auditable, tiny online contextual bandit implemented in C#: exploit learned evidence most of the time, explore a viable alternative occasionally, update from **completed outcomes** and save only living individual experiences. `GetShotCadenceMultiplier` is bounded evidence-smoothed pacing (not Q-learning), loot/cover policy makes small context adjustments. Future higher-level tactics may use UCB or Thompson sampling after real reward signals exist; do not describe neural network training as implemented.
+
+### Current limits / next priorities
+- All changes are **source committed**, not Unity-compiled, not Dev Build-tested, not runtime-verified. Client hitmarker may still be inaccurate when weapon damage is zero, and hit region/headshot mapping, proper native death/XP/loot, ragdoll physics and zombie pursuit outside POIs remain unverified.
+- Stuck detection is not full pathfinding; moving through doors/around buildings still depends on native A* and local route fallback. A moving player target can shift its goal; future tests must check false-positive stuck recoveries.
+- Contextual epsilon-greedy cover selection requires a valid sensory threat and short unobstructed local approach; higher quality A* reachability and measured bullet protection are future tasks. Sample 10 candidates max to bound physics work.
+- Continue CORE-02/03/04 and ZMB-01 next, then faction coordination, real radio channel/equipment and full adaptive tactic/route memory. Add tests without asking for Unity compilation each round. Preserve all backlog IDs.
