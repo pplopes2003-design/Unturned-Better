@@ -255,3 +255,6 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 - [ ] NPC contorna quina de casa: grid de 9×9 células mantém nós válidos próximos às paredes, mas rejeita arestas realmente obstruídas. Não atravessar parede nem caminhar lateralmente sem progresso.
 - [ ] Dois pisos separados por >stepOffset: grafo local não conecta um piso superior ao inferior por aresta impossível. Escada verdadeira depende da malha nativa/nav e de pequenos degraus válidos.
 - [ ] NPC muda de objetivo durante detour: descartar caminho obsoleto, não entrar em oscilação permanente junto ao muro.
+
+
+- [ ] No diagnóstico de `PlayerInputPacket.write`, testar tanto `RaycastInfo.collider` presente quanto impacto que só preserve `RaycastInfo.transform`; o pacote `MOBILE_NPC` deve ser preservado somente quando o transform pertence efetivamente a um NPC móvel, sem alterar impactos do chão ou de outros objetos (commit `59714ab8`).
