@@ -1551,6 +1551,150 @@ namespace SDG.Unturned
 			activeRememberedRouteIndex = -1;
 		}
 
+		/// <summary>
+		/// Portal-style, two-stage routing assembled from actual experience:
+		/// (1) compute a REAL physically walkable route to a previously visited
+		/// stair entrance; (2) revalidate and append this NPC's actually traveled
+		/// floor-connecting footsteps. The brain's final target remains unchanged.
+		/// No arbitrary map portal, instantaneous elevation or faction knowledge.
+		/// </summary>
+		private bool TryBuildKnownFloorAccessRoute(Vector3 destination,
+			out bool waitingForApproach)
+		{
+			waitingForApproach = false;
+			if (!Provider.isServer || travelMemory == null || characterController == null
+				|| !characterController.enabled || routeWaypoints.Count > 0
+				|| Mathf.Abs(destination.y - transform.position.y) < 1.2f
+				|| (targetIsVisible && brainDriver != null
+					&& (brainDriver.CurrentGoal == MobileNPCTactics.Goal.SeekCover
+						|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat)))
+				return false;
+
+			if (!hasPendingKnownAccessPath
+				|| (lastKnownAccessGoal - destination).sqrMagnitude > 2.25f)
+			{
+				hasPendingKnownAccessPath = false;
+				lastKnownAccessGoal = destination;
+			}
+			if (Time.time < nextKnownAccessPlanTime)
+			{
+				waitingForApproach = hasPendingKnownAccessPath
+					&& nativeAStarRouteProvider != null
+					&& nativeAStarRouteProvider.IsRequestPending;
+				return false;
+			}
+			nextKnownAccessPlanTime = Time.time + 0.75f;
+			if (!travelMemory.TryFindKnownFloorAccessServer(transform.position,
+				destination, learnedAccessSteps, out Vector3 entrance,
+				out int learnedRouteIndex))
+			{
+				hasPendingKnownAccessPath = false;
+				return false;
+			}
+
+			float radius = Mathf.Clamp(obstacleProbeRadius, 0.05f,
+				Mathf.Max(0.05f, characterController.radius * 0.9f));
+			learnedAccessApproach.Clear();
+			float entranceDistance = Vector3.Distance(transform.position, entrance);
+			if (entranceDistance <= 5.0f)
+			{
+				// Near the remembered entrance we can use the inexpensive
+				// exact-goal local A* without changing the current route.
+				if (!TryBuildLocalRoute(entrance, learnedAccessApproach, true))
+					return false;
+			}
+			else
+			{
+				// Farther away (e.g., different room), rely on the game's actual
+				// graph if available. It is ASYNCHRONOUS: while pending, do not
+				// issue a competing A* request straight to the upstairs target.
+				if (nativeAStarRouteProvider == null
+					|| !nativeAStarRouteProvider.IsAvailable)
+				{
+					hasPendingKnownAccessPath = false;
+					return false;
+				}
+				if (!nativeAStarRouteProvider.TryGetRoute(
+					transform.position, entrance, learnedAccessApproach))
+				{
+					hasPendingKnownAccessPath = nativeAStarRouteProvider.IsRequestPending;
+					waitingForApproach = hasPendingKnownAccessPath;
+					return false;
+				}
+			}
+			hasPendingKnownAccessPath = false;
+			if (learnedAccessApproach.Count < 1
+				|| learnedAccessApproach.Count > 32
+				|| learnedAccessSteps.Count < 3
+				|| learnedAccessSteps.Count > MobileNPCTravelMemory.MaxFootsteps)
+				return false;
+
+			Vector3 approachEnd =
+				learnedAccessApproach[learnedAccessApproach.Count - 1];
+			if (Vector3.Distance(approachEnd, entrance) > 1.2f
+				|| Mathf.Abs(approachEnd.y - entrance.y) > 0.6f)
+				return false;
+
+			// A correct navigation graph or old memory can still be stale after
+			// new barricades, doors, roof changes or flooding. Verify EVERY
+			// candidate segment against current floor and full-body collision.
+			Vector3 previous = transform.position;
+			for (int i = 0; i < learnedAccessApproach.Count; ++i)
+			{
+				Vector3 next = learnedAccessApproach[i];
+				float length = Vector3.Distance(previous, next);
+				if (length > 10f || !Level.checkSafeIncludingClipVolumes(next)
+					|| (length > 0.2f
+						&& !IsActuallyWalkableStairConnection(previous, next, radius)))
+					return false;
+				previous = next;
+			}
+			if (Vector3.Distance(previous, learnedAccessSteps[0]) > 0.25f
+				&& !IsActuallyWalkableStairConnection(
+					previous, learnedAccessSteps[0], radius))
+				return false;
+			previous = learnedAccessSteps[0];
+			for (int i = 1; i < learnedAccessSteps.Count; ++i)
+			{
+				Vector3 next = learnedAccessSteps[i];
+				float length = Vector3.Distance(previous, next);
+				if (length < 0.01f || length > 2.6f
+					|| !Level.checkSafeIncludingClipVolumes(next)
+					|| !IsActuallyWalkableStairConnection(previous, next, radius))
+				{
+					travelMemory.ReportReuseFailureServer(learnedRouteIndex);
+					return false;
+				}
+				previous = next;
+			}
+			float finalDistance = Vector3.Distance(previous, destination);
+			if (finalDistance > 1.9f
+				|| (finalDistance > 0.35f
+					&& !IsActuallyWalkableStairConnection(previous, destination, radius)))
+				return false;
+
+			routeWaypoints.Clear();
+			for (int i = 0; i < learnedAccessApproach.Count; ++i)
+			{
+				if (Vector3.Distance(transform.position,
+					learnedAccessApproach[i]) > 0.5f)
+					routeWaypoints.Add(learnedAccessApproach[i]);
+			}
+			for (int i = 1; i < learnedAccessSteps.Count; ++i)
+				routeWaypoints.Add(learnedAccessSteps[i]);
+			if (finalDistance > 0.55f)
+				routeWaypoints.Add(destination);
+			if (routeWaypoints.Count < 1)
+				return false;
+
+			routeWaypointIndex = 0;
+			detourGoalSnapshot = destination;
+			hasDetourWaypoint = false;
+			activeRememberedRouteIndex = learnedRouteIndex;
+			nextPlannedRouteValidationTime = 0f;
+			return true;
+		}
+
 		private bool TryBuildNativeAStarRoute(Vector3 destination)
 		{
 			if (nativeAStarRouteProvider == null
