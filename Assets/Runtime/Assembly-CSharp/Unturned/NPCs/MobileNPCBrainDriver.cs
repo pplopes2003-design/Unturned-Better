@@ -17,6 +17,7 @@ namespace SDG.Unturned
 		private MobileNPCBrain brain;
 		private MobileNPCTactics tactics;
 		private readonly MobileNPCPlayerKnowledge playerKnowledge = new MobileNPCPlayerKnowledge();
+		private bool investigatingPlayerClue;
 		private float nextDefensiveReplanAt;
 		private Vector3 lastDefensiveThreatPosition;
 		private bool hasInitialized;
@@ -52,6 +53,7 @@ namespace SDG.Unturned
 			brain.SetSpawnPosition(spawnPosition);
 			brain.Reset();
 			playerKnowledge.Clear();
+			investigatingPlayerClue = false;
 			tactics.ClearGoal();
 			hasInitialized = true;
 			MobileNPCRegistry.Register(this);
@@ -74,6 +76,7 @@ namespace SDG.Unturned
 			if (visiblePlayer != null && visiblePlayer.life != null && !visiblePlayer.life.isDead)
 				playerKnowledge.ObserveSight(visiblePlayer.transform.position, Time.time);
 
+			investigatingPlayerClue = false;
 			brain.ReportVisibleTarget(target, Time.time);
 			PublishDecisionIfChanged();
 		}
@@ -85,6 +88,7 @@ namespace SDG.Unturned
 				return;
 			}
 
+			investigatingPlayerClue = false;
 			brain.ReportNoise(position, Time.time, duration);
 			PublishDecisionIfChanged();
 		}
@@ -353,7 +357,8 @@ namespace SDG.Unturned
 			else
 			{
 				brain.ReportDestinationReached();
-				TryUsePlayerKnowledgeHint();
+				if (investigatingPlayerClue)
+					TryUsePlayerKnowledgeHint();
 			}
 
 			PublishDecisionIfChanged();
@@ -367,12 +372,20 @@ namespace SDG.Unturned
 			}
 
 			MobileNPCBrain.State previousState = brain.CurrentState;
+			Transform previousTarget = brain.Target;
 			brain.Tick(Time.time, targetIsVisible);
 			// When the ordinary brain loses the remembered target, its second
 			// advisory layer can propose a nearby search, not reveal live position.
 			if (previousState == MobileNPCBrain.State.Pursuing
 				&& brain.CurrentState == MobileNPCBrain.State.Investigating)
-				TryUsePlayerKnowledgeHint();
+			{
+				investigatingPlayerClue = previousTarget != null
+					&& previousTarget.GetComponentInParent<Player>() != null;
+				if (investigatingPlayerClue)
+					TryUsePlayerKnowledgeHint();
+			}
+			else if (brain.CurrentState != MobileNPCBrain.State.Investigating)
+				investigatingPlayerClue = false;
 
 			if (tactics.IsGoalExpired(Time.time))
 			{
@@ -419,6 +432,7 @@ namespace SDG.Unturned
 			brain.Reset();
 			tactics.ClearGoal();
 			playerKnowledge.Clear();
+			investigatingPlayerClue = false;
 			PublishDecisionIfChanged();
 		}
 
