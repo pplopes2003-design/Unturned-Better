@@ -25,6 +25,8 @@ namespace SDG.Unturned
 		private MethodInfo startPathMethod;
 		private MethodInfo cancelPathMethod;
 		private Delegate pathCallback;
+		private int requestVersion;
+		private int activeRequestVersion;
 		private bool initialized;
 		private float nextInitializationAttemptTime;
 		private string diagnosticStatus = "waiting-for-backend";
@@ -41,7 +43,7 @@ namespace SDG.Unturned
 			get
 			{
 				EnsureInitialized();
-				return seeker != null && startPathMethod != null && pathCallback != null;
+				return seeker != null && startPathMethod != null;
 			}
 		}
 
@@ -84,7 +86,6 @@ namespace SDG.Unturned
 					CancelPendingRequest();
 					lastPathFailed = true;
 					diagnosticStatus = "request-timeout";
-					diagnosticStatus = "request-timeout";
 					nextRequestTime = Time.time + 2.5f;
 				}
 				else if ((goal - requestedGoal).sqrMagnitude <= 9f)
@@ -102,6 +103,15 @@ namespace SDG.Unturned
 
 			requestedGoal = goal;
 			lastPathFailed = false;
+			activeRequestVersion = ++requestVersion;
+			pathCallback = CreatePathCallback(activeRequestVersion);
+			if (pathCallback == null)
+			{
+				lastPathFailed = true;
+				diagnosticStatus = "callback-generation-failed";
+				nextRequestTime = Time.time + 2.5f;
+				return false;
+			}
 			completedRoute.Clear();
 			requestPending = true;
 			requestStartedAt = Time.time;
@@ -202,14 +212,6 @@ namespace SDG.Unturned
 					return;
 				}
 
-				Type callbackType = startPathMethod.GetParameters()[2].ParameterType;
-				MethodInfo callbackTarget = GetType().GetMethod(
-					nameof(OnNativePathComplete), BindingFlags.Instance | BindingFlags.NonPublic);
-				ParameterInfo[] callbackParameters = callbackType.GetMethod("Invoke").GetParameters();
-				ParameterExpression callbackArgument = Expression.Parameter(callbackParameters[0].ParameterType, "path");
-				MethodCallExpression callbackBody = Expression.Call(
-					Expression.Constant(this), callbackTarget, Expression.Convert(callbackArgument, typeof(object)));
-				pathCallback = Expression.Lambda(callbackType, callbackBody, callbackArgument).Compile();
 				initialized = true;
 				diagnosticStatus = "ready";
 			}
@@ -219,6 +221,31 @@ namespace SDG.Unturned
 				startPathMethod = null;
 				pathCallback = null;
 				diagnosticStatus = "aspfp-reflection-initialization-failed";
+			}
+		}
+
+		private Delegate CreatePathCallback(int version)
+		{
+			try
+			{
+				if (startPathMethod == null)
+					return null;
+				Type callbackType = startPathMethod.GetParameters()[2].ParameterType;
+				MethodInfo callbackTarget = GetType().GetMethod(
+					nameof(OnNativePathComplete), BindingFlags.Instance | BindingFlags.NonPublic);
+				ParameterInfo[] callbackParameters = callbackType.GetMethod("Invoke").GetParameters();
+				if (callbackParameters.Length != 1)
+					return null;
+				ParameterExpression callbackArgument = Expression.Parameter(callbackParameters[0].ParameterType, "path");
+				MethodCallExpression callbackBody = Expression.Call(
+					Expression.Constant(this), callbackTarget,
+					Expression.Convert(callbackArgument, typeof(object)),
+					Expression.Constant(version));
+				return Expression.Lambda(callbackType, callbackBody, callbackArgument).Compile();
+			}
+			catch (Exception)
+			{
+				return null;
 			}
 		}
 
@@ -235,14 +262,17 @@ namespace SDG.Unturned
 			return null;
 		}
 
-		private void OnNativePathComplete(object path)
+		private void OnNativePathComplete(object path, int version)
 		{
+			if (version != activeRequestVersion || !requestPending)
+				return;
 			requestPending = false;
 			routeReady = false;
 			completedRoute.Clear();
 			if (path == null)
 			{
 				lastPathFailed = true;
+				diagnosticStatus = "null-path-callback";
 				nextRequestTime = Time.time + 2.5f;
 				return;
 			}
@@ -267,6 +297,7 @@ namespace SDG.Unturned
 				if (points == null)
 				{
 					lastPathFailed = true;
+					diagnosticStatus = "vector-path-unavailable";
 					nextRequestTime = Time.time + 2.5f;
 					return;
 				}
@@ -306,6 +337,7 @@ namespace SDG.Unturned
 			}
 
 			requestPending = false;
+			activeRequestVersion = ++requestVersion;
 		}
 
 		private void OnDestroy()
