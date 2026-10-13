@@ -380,3 +380,17 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 
 
 - [ ] Forçar `RecoverFromUnexpectedFall` durante viagem longa entre andares: a posição recuperada por segurança NÃO pode ser contada como passo fisicamente aprendido. Depois de cumprir todos os waypoints lembrados, apagar o ID da rota atual e não penalizá-la por um futuro obstáculo em uma rota já diferente (`e89e6580`).
+
+
+## 27. NAV-ACCESS-01 — Accessing a personally learned staircase from another room (FINAL BUILD ONLY)
+
+- [ ] NPC physically discovers/uses a stair route between two floors and finishes goal, so the same individual records real first-hand footsteps and saved v6 route. Place that NPC again ~8–15m away on the same original floor in another room and give it a goal near the learned stair EXIT. With native A* runtime backend active, it should find a real native path to the observed entrance, then replay the validated stair steps through CharacterController.
+- [ ] Confirm **entrance is only an intermediate waypoint**, not `brainDriver.ReportDestinationReached`; reach goal upstairs at correct 3D Y. No teleport, no fake XZ shortcut through stacked floor/ceiling. Going back DOWN an upstairs journey that was only observed UP must not be magically known as another traveled route.
+- [ ] When the entrance is 2.5–5m away, the bounded **local exact-goal** A* may approach without native backend if corridor physically exists; when entrance farther away, missing native ASPFP must not be treated as success; no marching straight into a building wall.
+- [ ] Simulate native entrance path pending async for multiple ticks: pending/ready unconsumed entrance response is NOT discarded by another request straight to final upstairs goal. Goal switching midway cancels old plan safely.
+- [ ] Place new locked door, actual wall, blocked stair, destroyed floor or barricade on recorded connector: composed route fails physical ground/collision revalidation and may reduce personal reuse confidence. An entirely different obstacle on **approach to entrance** must not falsely erase learned stair connector itself.
+- [ ] Enemy starts heading upstairs then moves target to another room 15m beyond stair exit: this is **known unsupported** as a direct portal+upper-floor continuation. Avoid declaring success at landing or teleporting to new room. Remains NAV-ACCESS-01 / CORE-04.
+- [ ] Reload save v6 on same survivor; route can be proposed again but must revalidate. Kill NPC and spawn replacement or place allied NPC of same faction: neither inherits exact stair entrance from the dead person's private memory without actually learning it.
+- [ ] With 1, 4, 20, 40 NPCs attempting indoor pursuits, profile number/CPU of personal route lookups, async requests, revalidation stair probes, movement stalls, FPS and allocations. Capture runtime Player.log, map, XYZ and video.
+- [ ] An unlocked native registered barricade door on approach/stair may be opened physically; a locked or phantom door never permits path/plan. Other group NPCs temporarily in doorway don't become solid lifelong block.
+- [ ] Only after actual Unity compile and gameplay evidence may a narrow NAV-ACCESS-01 subfeature be closed. The broad room portal graph and multi-stage upper-storey planning remain **EM IMPLEMENTAÇÃO**; no claim of finished global urban navigation.
