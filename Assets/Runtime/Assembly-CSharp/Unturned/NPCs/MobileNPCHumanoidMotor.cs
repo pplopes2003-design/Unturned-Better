@@ -14,7 +14,7 @@ namespace SDG.Unturned
 	/// Attach to a server-spawned humanoid prefab with a CharacterController and
 	/// MobileNPCBrainDriver. This motor intentionally moves only on the server;
 	/// network replication and client interpolation are a separate integration step.
-	/// It follows a complete Unity NavMesh route when one is available, with bounded local routing as fallback.
+	/// It prefers Unturned's native A* graph, then optional Unity NavMesh, with bounded local routing as fallback.
 	/// </summary>
 	[DisallowMultipleComponent]
 	[RequireComponent(typeof(CharacterController))]
@@ -48,7 +48,7 @@ namespace SDG.Unturned
 		[SerializeField, Range(0f, 60f)] private float roamingMaximumSlope = 38f;
 		[SerializeField] private LayerMask roamingGroundMask = ~0;
 
-		[Header("Local obstacle avoidance and bounded indoor route planning")]
+		[Header("Local obstacle avoidance and bounded route fallback")]
 		[SerializeField, Min(0.5f)] private float obstacleProbeDistance = 1.6f;
 		[SerializeField, Min(0.05f)] private float obstacleProbeRadius = 0.28f;
 		[SerializeField, Range(15f, 80f)] private float obstacleAvoidanceAngle = 48f;
