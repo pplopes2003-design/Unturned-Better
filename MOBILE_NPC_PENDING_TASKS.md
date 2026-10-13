@@ -347,3 +347,5 @@ Revisão estática adicional: conferidos `MobileNPCLooting`, `MobileNPCSupplyKno
 ### 2026-10-13 — NAV-ACCESS-01 / LEARN-ROUTE-01: restored-route integrity
 
 Commit `80f91042204dd670e5b7b81fc693f6d5f68ae009` (`MobileNPCTravelMemory.cs`) tightens snapshot v6 restoration: loaded individual routes now require firsthand start/end proximity, valid finite safe footstep positions, each consecutive segment within the observation interval (0.01–2.6m) and total observed travel of 3.5–80m. Previously malformed records passing a weaker restore check could be considered as staircase/continuation links after a reload. This is **source-only / not compiled / not runtime-verified**. `NAV-ACCESS-01` remains EM IMPLEMENTAÇÃO; `LEARN-ROUTE-01` remains QUASE PRONTA — AGUARDANDO BUILD. Preserve future checks for legacy saves, blocked geometry, route confidence, non-teleport passage and memory wiped after death.
+
+<!-- Status workflow: source-reviewed items awaiting only user Dev Build validation are QUASE PRONTA; approved feedback closes them, failed feedback reopens them. -->
