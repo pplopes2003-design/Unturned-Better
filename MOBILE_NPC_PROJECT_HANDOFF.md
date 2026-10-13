@@ -911,3 +911,31 @@ Continue P0 `CORE-04` pathfinding in houses and corner detours, `RAG-01` authore
 These source changes were NOT compiled or tested in a real Unturned map. Local search remains 9×9 grid cells at 1.25m pitch, so does not guarantee a path around an entire house; native `MobileNPCNativeAStarRouteProvider` uses reflection and only works if the commercial ASPFP backend is active. The full SDK does not guarantee baked graph connectivity across all levels. Navmesh stitching, actual door use/open/close, ladders/stairs, cover verification under real fire, climbing and swimming still P0/P1 work. `LEARN-05` individual contextual route learning beyond simple cover access remains incomplete.
 
 Next recommend: inspect and correct `UI-01` critical dialogue HUD/ESC broken since previous Dev Build OR continue `CORE-04` safe doorway/stairs handling and actual route success memory. Keep action in GitHub, update BOTH docs and tests each round, final Unity build at end only.
+
+
+## 2026-10-13 — LATEST ENGINEERING: SHOOTER-INSPIRED TACTICAL URBAN NAV (CORE-04/AI-03)
+
+**Start next session by reading** `MOBILE_NPC_PENDING_TASKS.md` and THIS handoff. For paths also read `MOBILE_NPC_NAVIGATION_RECOVERY_DESIGN.md` and new `MOBILE_NPC_URBAN_COMBAT_NAVIGATION_DESIGN.md`. Keep commits on `feature/npc-ai-foundation`, not main. User requested no Unity compile/playtest until final implementation phase. Update both canonical docs + tests after every engineering round. Never delete a task merely because source code exists. Full NPC AI/learning/communications diagram at END.
+
+### Primary shooter research actually checked
+
+- `F.E.A.R.`: Jeff Orkin (AAAI AIIDE 2005, GDC 2006) goal-oriented action planning dynamically replans action sequences on blocked routes/doors; expensive planning must be budgeted/cached. Real game still uses physical pathfinding separately. `https://ojs.aaai.org/index.php/AIIDE/article/view/18724`; `https://www.gdcvault.com/play/1013459/contactUs`.
+- `Killzone`: Guerrilla Games GDC Europe 2005 slide deck shows tactical waypoint-link costs for enemy exposure/friendly fire rather than only shortest path. `https://www.guerrilla-games.com/media/News/Files/gdce05_killzone_ai.pdf`.
+- Recast/DetourCrowd official source distinguishes nav/path corridor corners from local steer/crowd avoidance. Avoid installing an unmanaged 2nd transform mover alongside Unity `CharacterController`: `https://github.com/recastnavigation/recastnavigation/blob/main/DetourCrowd/Include/DetourCrowd.h`.
+- Game AI Pro tactical navigation chapter `https://www.gameaipro.com/GameAIPro/GameAIPro_Chapter27_Tactical_Pathfinding_on_a_NavMesh.pdf` warns unrestricted visibility rays/waypoint grids increase CPU cost; bounded exposure samples matter.
+
+### Actual GitHub source commits
+
+1. `9d4db3730af9ef2faa10696c5f821d2ddddf3bb2` `MobileNPCHumanoidMotor.cs`: **Killzone-like tactical local path cost**. When current goal is `SeekCover` or `Retreat` and the hostile is actually visible/within 40m, add +1.45 cost for exposed next nodes vs sheltered node cost 0, using real physics/world obstruction. An 81-cell A* route has max 24 supplementary LOS raycasts using per-instance reusable arrays; other goals remain shortest geometric paths, unseen player's live location NOT used (no omniscience). Also **Detour-like safe local path corridor lookahead**: every >=0.35s can skip 1 redundant corner if the following waypoint is within 4m, same floor, collision-free chest corridor and walkable ground verified at each ~1m sample. Movement always through `CharacterController.Move`. No walls/doors/large stair skipping.
+2. `ceef34f459de64ab8a2eceda83bcda4e8ea96868` same file: **`CanReachNearbyCoverServer`** runs a small, bounded 9x9 local A* against a cover candidate without mutating `routeWaypoints`, route index or cooldown of the NPC's active goal, using dedicated `coverRouteScratch`. It only returns true when target's actual preferred reachable grid cell is connected with correct floor and a clear last segment. No partial "closest reachable" shortcut counted as success. Targets further than ~6.5m / vertical >1m rejected by this local complex-path query.
+3. `42e68122574b1e4523d74352134efe05dcc93e28` `MobileNPCBrainDriver.cs`: cover behind corner was discarded solely because a direct spherecast from actor to shielded position hits wall. Now if ground/shield checks already passed and direct corridor is blocked, allow up to 3 independent physical local A* reachability checks per defensive decision, and only use cover candidate if exactly reachable. No auto wall phase, no globally granted exit knowledge. Existing personal `CoverAccess` success/failure bias remains.
+4. `f50d91d1191205cb4f17edc8a83e40b773ecd496` new design doc `MOBILE_NPC_URBAN_COMBAT_NAVIGATION_DESIGN.md` includes comparative research references, actual route logic, safety/performance, final multi-map test matrix and future work.
+5. `ad3bddd23713a13fa90527682c0b2f3fad87052c` canonical `MOBILE_NPC_PENDING_TASKS.md` update. **CORE-04 still EM IMPLEMENTAÇÃO, AI-03/LEARN-05/PERF-01 still OPEN.**
+
+### Critical limitations / future P0
+
+Full authored map-wide graph not guaranteed: optional Unturned ASPFP backend is present only in some builds and its commercial source absent from SDK. Local grid 9x9 @1.25m cannot reliably route through multiple rooms/doors/stair floors. `CanReachNearbyCoverServer` permits only short local corner solutions; all other paths and preemptive decisions remain unchanged. Tactical exposure checks represent only **one currently visually confirmed hostile**, not multiple threat cones or allied gunfire paths. 24 visibility probes and <=3 cover A* queries per defense decision are preliminary CPU caps, not profiled. Follow-up on occupancy collision layers and same-floor navigation to avoid any physical mistakes.
+
+Next highest priority should be explicit door/open/closed/breach traversal semantics, native scene door API, and navigation links between floors/POIs; also revisit UI-01 dialog HUD/ESC bug. Do not promise completed 'shooter-level urban combat' until real Unity Dev Build tests.
+
+No Unity compilation, Player.log or real playtesting happened in this round. Source files GitHub re-fetched and structure sanity-checked only. User will compile at END.
