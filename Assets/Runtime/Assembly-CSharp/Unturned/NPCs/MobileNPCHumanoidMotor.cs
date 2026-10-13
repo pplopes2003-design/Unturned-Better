@@ -72,6 +72,7 @@ namespace SDG.Unturned
 		private CharacterController characterController;
 		private MobileNPCBrainDriver brainDriver;
 		private MobileNPCInjurySystem injurySystem;
+		private MobileNPCNativeAStarRouteProvider nativeAStarRouteProvider;
 		private Vector3 spawnPosition;
 		private Vector3 velocity;
 		private bool hasInitialized;
@@ -178,6 +179,9 @@ namespace SDG.Unturned
 			characterController = GetComponent<CharacterController>();
 			brainDriver = GetComponent<MobileNPCBrainDriver>();
 			injurySystem = GetComponent<MobileNPCInjurySystem>();
+			nativeAStarRouteProvider = GetComponent<MobileNPCNativeAStarRouteProvider>();
+			if (nativeAStarRouteProvider == null)
+				nativeAStarRouteProvider = gameObject.AddComponent<MobileNPCNativeAStarRouteProvider>();
 			if (visualRoot == null)
 			{
 				visualRoot = transform;
@@ -266,16 +270,34 @@ namespace SDG.Unturned
 				// fences or terrain; local obstacle probing alone cannot discover such routes.
 				Vector3 globalGoalOffset = destination - transform.position;
 				globalGoalOffset.y = 0f;
-				if (!isUnderwater && useUnityNavMeshWhenAvailable
-					&& routeWaypoints.Count == 0 && !hasDetourWaypoint
-					&& globalGoalOffset.sqrMagnitude > stoppingDistance * stoppingDistance
-					&& Time.time >= nextGlobalRoutePlanTime)
+				if (!isUnderwater && routeWaypoints.Count == 0 && !hasDetourWaypoint
+					&& globalGoalOffset.sqrMagnitude > stoppingDistance * stoppingDistance)
 				{
-					if (TryBuildUnityNavMeshRoute(destination))
+					bool nativeAStarAvailable = nativeAStarRouteProvider != null && nativeAStarRouteProvider.IsAvailable;
+					bool nativeAStarPending = false;
+					if (nativeAStarAvailable && TryBuildNativeAStarRoute(destination))
 					{
 						detourGoalSnapshot = destination;
 						hasDetourWaypoint = false;
 					}
+				else if (nativeAStarAvailable)
+				{
+					nativeAStarPending = nativeAStarRouteProvider.IsRequestPending;
+				}
+
+					// Prefer Unturned's own A* graph when its licensed runtime backend is
+					// present. Unity NavMesh is a fallback only if native A* is absent or
+					// has failed, and never competes with an in-flight native route request.
+					if (routeWaypoints.Count == 0 && !nativeAStarPending
+						&& (!nativeAStarAvailable || nativeAStarRouteProvider.LastPathFailed)
+						&& useUnityNavMeshWhenAvailable && Time.time >= nextGlobalRoutePlanTime)
+					{
+						if (TryBuildUnityNavMeshRoute(destination))
+						{
+							detourGoalSnapshot = destination;
+							hasDetourWaypoint = false;
+						}
+				}
 				}
 
 				if (routeWaypointIndex < routeWaypoints.Count
@@ -840,9 +862,16 @@ namespace SDG.Unturned
 			if (toGoal.sqrMagnitude < 0.01f)
 				return;
 
-			// Prefer a real global route if Unity NavMesh data is present in this scene.
-			// Most Unturned maps use a separate pathfinding backend, so absence of Unity
-			// NavMesh is an expected fallback case, not a reason to fail NPC movement.
+			// Prefer Unturned's native A* graph when the licensed runtime library exists.
+			// The provider is reflection-only because the public SDK omits ASPFP sources.
+			if (TryBuildNativeAStarRoute(destination))
+			{
+				detourGoalSnapshot = destination;
+				hasDetourWaypoint = false;
+				return;
+			}
+
+			// Unity NavMesh is a secondary backend; many Unturned maps do not bake one.
 			if (TryBuildUnityNavMeshRoute(destination))
 			{
 				detourGoalSnapshot = destination;
@@ -910,6 +939,32 @@ namespace SDG.Unturned
 				detourGoalSnapshot = destination;
 				hasDetourWaypoint = true;
 			}
+		}
+
+		/// <summary>
+		/// Requests a route from Unturned's active A* Pathfinding Project graph when the
+		/// game runtime exposes it. The provider is asynchronous; false means either
+		/// no route is ready yet or the native backend is unavailable.
+		/// </summary>
+		private bool TryBuildNativeAStarRoute(Vector3 destination)
+		{
+			if (nativeAStarRouteProvider == null
+				|| !nativeAStarRouteProvider.TryGetRoute(transform.position, destination, routeWaypoints))
+			{
+				return false;
+			}
+
+			routeWaypointIndex = 0;
+			if (routeWaypoints.Count > 0
+				&& (routeWaypoints[0] - transform.position).sqrMagnitude <= 0.36f)
+			{
+				routeWaypoints.RemoveAt(0);
+			}
+
+			if (routeWaypoints.Count == 0)
+				return false;
+
+			return true;
 		}
 
 		/// <summary>
