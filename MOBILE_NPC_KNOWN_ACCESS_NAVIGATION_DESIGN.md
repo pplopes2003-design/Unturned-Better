@@ -81,3 +81,7 @@ This is a **bounded two-record connector composition** after a physical approach
 7. Confirm the C# project compiles when the user runs the **last Dev Build** and check the Unity Physics mask and current native A* backend. These source commits are not runtime verification.
 
 `NAV-ACCESS-01`, `CORE-04`, `LEARN-05`, and `PERF-01` remain OPEN; only a limited new case is source implemented.
+
+## Save restoration hardening — 2026-10-13
+
+Commit `80f91042204dd670e5b7b81fc693f6d5f68ae009`: the v6 individual-route snapshot loader now rejects tracks that violate the completed-journey footprint constraints, including discontinuities, degenerate duplicate samples, inconsistent start/end and impossible observed total length. This is a prerequisite for treating a past saved stair/corridor as *candidate knowledge*, not proof of present traversability. On replay the motor must still recheck physical floor, doors and colliders. Unity compilation/playtest deferred to final Dev Build.
