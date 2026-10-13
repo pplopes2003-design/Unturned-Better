@@ -194,13 +194,7 @@ namespace SDG.Unturned
                         groupMember.TryJoinExistingGroupServer(replacement.FormerGroupId);
                     }
 
-                    trackedNPCs.Add(new TrackedNPC
-                    {
-                        Instance = instance,
-                        Vitals = instance.GetComponent<MobileNPCHumanoidVitals>(),
-                        GroupId = groupMember != null ? groupMember.GroupId : 0,
-                        CleanupAt = float.PositiveInfinity
-                    });
+                    RegisterSpawnedNPC(instance);
                 }
             }
             else if (!string.IsNullOrEmpty(error))
@@ -210,36 +204,39 @@ namespace SDG.Unturned
             }
         }
 
+        /// <summary>
+        /// Register each successful spawn immediately, before a same-frame fatal hit
+        /// can disable its brain and remove it from MobileNPCRegistry.
+        /// This method is idempotent because multiple spawn paths can report an actor.
+        /// </summary>
+        public void RegisterSpawnedNPC(GameObject instance)
+        {
+            if (!Provider.isServer || instance == null)
+                return;
+
+            for (int i = 0; i < trackedNPCs.Count; ++i)
+            {
+                if (trackedNPCs[i].Instance == instance)
+                    return;
+            }
+
+            MobileNPCGroupMember groupMember = instance.GetComponent<MobileNPCGroupMember>();
+            trackedNPCs.Add(new TrackedNPC
+            {
+                Instance = instance,
+                Vitals = instance.GetComponent<MobileNPCHumanoidVitals>(),
+                GroupId = groupMember != null ? groupMember.GroupId : 0,
+                CleanupAt = float.PositiveInfinity
+            });
+        }
+
         private void TrackUntrackedActiveNPCs()
         {
             for (int i = 0; i < activeDrivers.Count; ++i)
             {
                 MobileNPCBrainDriver driver = activeDrivers[i];
-                if (driver == null || driver.gameObject == null)
-                    continue;
-
-                GameObject instance = driver.gameObject;
-                bool alreadyTracked = false;
-                for (int trackedIndex = 0; trackedIndex < trackedNPCs.Count; ++trackedIndex)
-                {
-                    if (trackedNPCs[trackedIndex].Instance == instance)
-                    {
-                        alreadyTracked = true;
-                        break;
-                    }
-                }
-
-                if (alreadyTracked)
-                    continue;
-
-                MobileNPCGroupMember groupMember = instance.GetComponent<MobileNPCGroupMember>();
-                trackedNPCs.Add(new TrackedNPC
-                {
-                    Instance = instance,
-                    Vitals = instance.GetComponent<MobileNPCHumanoidVitals>(),
-                    GroupId = groupMember != null ? groupMember.GroupId : 0,
-                    CleanupAt = float.PositiveInfinity
-                });
+                if (driver != null)
+                    RegisterSpawnedNPC(driver.gameObject);
             }
         }
 
@@ -362,13 +359,7 @@ namespace SDG.Unturned
                     requestedRole, out GameObject instance, out string spawnError))
                 {
                     MobileNPCGroupMember groupMember = instance.GetComponent<MobileNPCGroupMember>();
-                    trackedNPCs.Add(new TrackedNPC
-                    {
-                        Instance = instance,
-                        Vitals = instance.GetComponent<MobileNPCHumanoidVitals>(),
-                        GroupId = groupMember != null ? groupMember.GroupId : 0,
-                        CleanupAt = float.PositiveInfinity
-                    });
+                    RegisterSpawnedNPC(instance);
                     Debug.Log("[MobileNPCPopulationDirector] Test NPC (" + requestedRole + ") spawned near player at " + groundPosition + ".", instance);
                     return true;
                 }
