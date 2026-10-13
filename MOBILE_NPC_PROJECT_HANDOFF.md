@@ -974,3 +974,31 @@ Inspect actual *stairs / multilevel navigation link* representations in U3SDK le
 
 
 **NAV-DOOR-01 final static safety**: `775fb0aa0bcfefd90c44e3dff08d5325c2245e41` rejects unregistered/stale door objects from both the local A* edge and grid-cell traversability classifiers; merely finding an `InteractableDoor` MonoBehaviour is not proof it can actually be opened through BarricadeManager. Physical server opening already checks registration separately. Source only; no Unity compile. Keep NAV-DOOR-01 near-ready scoped, CORE-04 open.
+
+
+## 2026-10-13 — LATEST P0 CORE-04 / NAV-STAIR-01: physics-grounded two-level local stair navigation
+
+**Read next round:** `MOBILE_NPC_PENDING_TASKS.md` canonical backlog + this HANDOFF; also `MOBILE_NPC_VERTICAL_STAIR_NAVIGATION_DESIGN.md` for stair navigation, `MOBILE_NPC_DOOR_NAVIGATION_DESIGN.md` for doors. All code on `feature/npc-ai-foundation`, user performs Unity compile/Dev Build ONLY AT END. Do not mark tasks fully completed before source and runtime feedback; retain IDs; update both canonical docs and tests every engineering round. Diagram of complete NPC AI/learning/radio at end only.
+
+### Actual source problem confirmed
+
+Existing `MobileNPCHumanoidMotor.TryBuildLocalRoute` casts one local ground point per XZ cell, rejecting heights >0.8–1.25m from current floor. Its 9×9 grid cannot reach an upper storey even via genuine stairs. Simply relaxing `maxFloorDelta` risks connecting 3m-separated floors at same X/Z or crossing a stairwell gap. Need **real physical floor samples + validated stair connector edges** and a separate bounded search, not teleporting Y.
+
+### Source commits
+
+- `75a0613f6b4186ba2c6af25a2a6e7318dfdd8445`: motor allocates per-instance 162-node `9×9×2` workspace (up to 2 independent floor surfaces per XZ), triggers only for a near brain/roaming destination at >1m elevation delta (≤4.5m height, ≤√30≈5.48m planar), without replacing ordinary 81-node horizontal search or native A* provider. Route invalidation now also compares goal height, so a target who changes floors cannot reuse a lower-floor route just because they share XZ.
+- `35c83c0adc472551933af964520e57da4677cf49`: `TryBuildNearbyVerticalRoute` samples actual walkable floor surfaces with downward `Physics.RaycastNonAlloc`, maximum 24 hits per cell with saturation fails closed, removes Player/NPC/Zombie body colliders from candidate floors; validates map clips/normal/capsule occupancy. No direct same-cell floor-to-floor graph link. A* explores only adjacent X/Z nodes, with valid slope and physically continuous floor verified every 0.35m and stepOffset/skinWidth checks, plus collision-checked humanoid chest trajectory. Native unlocked-door path can be considered only with real registered barricade. Only **exact connected target elevation** counts as success, no partial lower-floor success.
+- `8543f9ccd24e7219eccf1246c436d4bb8a728243`: max 180 expensive vertical connector tests, per-instance 2.5s retry interval, shared one-plan-per-0.16s admission; each intermediate tread also checks full-body standing-capsule space so low ceiling, railing, beam or wall cannot become an imaginary traversable stair route.
+- `d50b6fcab163b7dd624f679182c8b49d741593f0`: do not permanently erase a real stair route just because only a **temporary moving actor** (Player/Zombie/mobile NPC) blocks the cell/edge. Other simultaneous world colliders still block. Real `CharacterController.Move` never ignores other actors or collision.
+- `c80b8e99e77a99f2d6344e0895ee4e7428441d51`: new `MOBILE_NPC_VERTICAL_STAIR_NAVIGATION_DESIGN.md` details graph, geometry, CPU bounds, still-missing global links and specific final Unity tests.
+- `9899aee83ef64c9358f03268b45cc63a87f74f6a`: canonical backlog updated: NAV-STAIR-01 new P1 EM IMPLEMENTAÇÃO, CORE-04 still EM IMPLEMENTAÇÃO.
+
+### Important limitations (do not overclaim)
+
+- This only plans actual short stairs within approximately 5m of the NPC and target, not long-distance entry to a stairwell from another POI/floor. It requires real walkable step surfaces at 1.25m XZ-grid points and intermediate samples, and at most two surfaces per cell. Narrow/winding stairs may fail safely and need a tighter grid or authored offmesh links. Native ASPFP may be absent; public SDK doesn't provide licensed backend.
+- No game runtime route demonstrated; all Unity compile/Dev Build testing remains with user at END. Compiler and physics signatures must be validated then.
+- Idle NPC standing directly under an enemy but with no detected accessible stairs must not move vertically; it can still lack a global alternate entrance route — this remains CORE-04. Do not claim teleport or guaranteed stairs.
+- New query load is bounded in source but not measured; 40 actors and mixed zombies/Player in stairwells can expose bottlenecks in `RaycastNonAlloc`, `OverlapCapsule`, A* scans and memory. PERF-01 still open.
+- Next engineering options: external authored stair/door connectors or stairwell spatial portals for global paths, multi-level navigation graph reliability, UI-01 dialogue HUD bug, UI-02 missing NPC melee animation and RAG-01 skeletal joints. Prioritize real user-visible bugs while moving toward final build.
+
+**Final checklist is appended to** `MOBILE_NPC_SINGLEPLAYER_TEST_PLAN.md`, section 25. Update docs and test plan after any further path changes.
