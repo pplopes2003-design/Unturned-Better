@@ -294,3 +294,18 @@ Para cada falha, guardar: mapa, passos para reproduzir, resultado esperado, resu
 - [ ] Todos estes são testes PLANEJADOS, não executados. Final Unity Dev Build e Player.log serão fornecidos pelo usuário ao fim, e a pendência só será encerrada após feedback positivo.
 
 - [ ] Conferir a enumeração exata `ERaycastInfoUsage.Punch`: servidor não deve consumir um pacote da categoria `MOBILE_NPC` quando o cliente disser `Gun`, `Melee` ou outro uso durante um soco; manter a sequência da fila e a cadência de ataque nativas.
+
+
+## 22. P0 CORE-04 — validação de waypoint, rota por quinas e stuck (para a Dev Build FINAL; NÃO EXECUTADO)
+
+- [ ] NPC hostil perseguindo jogador contorna esquina em L de uma casa no mapa real. Primeiro waypoint fica cerca de 2–4m antes do destino: chegar à quina **não** chama `brainDriver.ReportDestinationReached` nem encerra perseguição/cobertura/loot; segue até destino real. Confirmar no console/decisão.
+- [ ] Forçar A* nativo disponível e indisponível; pedido global pendente não deve bloquear a rota grade A* local por compartilhar cooldown (agora timers independentes).
+- [ ] Escolher destino atrás de parede a aproximadamente 4–7m: último nó da grade deve permanecer em solo válido; `localGoal` projetado dentro de parede não entra diretamente em `routeWaypoints`; não atravessar parede para alcançar o alvo.
+- [ ] Quina em que o caminho começa indo de lado ou até afastando-se do player: a distância ao waypoint diminui e conta como progresso; recuperar stuck NÃO deve trocar de lado e reiniciar o caminho a cada 1,5s.
+- [ ] Casa com dois andares: nó de waypoint projetado no mesmo X/Z do NPC mas >stepOffset na vertical não é marcado atingido; não atravesse teto nem pule para o andar superior sem escada validada.
+- [ ] NPC encostado em chão/parede: nodes perto do chão ainda são válidos se não houver paredes, pois cápsula de ocupação não deve tratar terreno como obstáculo bloqueante. Testar raio real do CharacterController contra meios-fios.
+- [ ] Quatro aliados e dois NPCs inimigos diante de uma porta: quando somente um personagem vivo bloqueia brevemente o corredor, o caminho A* planejado não é destruído e refeito todo frame; quando porta sólida fecha, a rota deve ser invalidada e replanejada. Inspecionar custo máximo dos SphereCast/Overlap.
+- [ ] Cobertura real atrás de parede, mas sem corredor navegável: depois de quatro recuperações de stuck, o motor deve notificar a IA de falha, desmarcar SeekCover/Flank, registrar `CoverAccess=false` apenas se cover, evitar repetir aquela posição num raio de 3m por 14s e procurar outra possibilidade. Não encerrar perseguição por isso.
+- [ ] Outro tipo de tarefa (looting, medicina, retirada crítica, seguir colega, investigar som): mudanças na conclusão de waypoint **não** podem marcar destino prematuramente; falha em cobertura não deve cancelá-las.
+- [ ] Estresse com 20–40 NPCs móveis + zumbis em duas POIs, incluindo cadeiras, mesas, escadas, pontes, portas, veículo, água e quina externa: medir FPS/GC/logs de stuck e observar buffer de raycasts.
+- [ ] Anotar mapa, build, obstáculo e posições iniciais, status A* nativo, quantidade de NPCs, log do console e `Player.log` quando usuário compilar no final; até lá manter `CORE-04` aberta.
