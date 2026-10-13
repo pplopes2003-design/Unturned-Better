@@ -16,6 +16,7 @@ namespace SDG.Unturned
     public sealed class MobileNPCDoorNavigation : MonoBehaviour
     {
         private readonly RaycastHit[] blockingHits = new RaycastHit[16];
+        private readonly Collider[] occupancyHits = new Collider[32];
         private float nextProbeTime;
         private float nextActualOpenAttemptTime;
         private float waitingForDoorAnimationUntil;
@@ -148,6 +149,45 @@ namespace SDG.Unturned
                 foundDoor = true;
             }
             return foundDoor;
+        }
+
+        /// <summary>
+        /// Closed unlocked door volume may occupy a local A* node even if the
+        /// space behind it is otherwise traversable. Every non-self overlap
+        /// must belong to one and the same genuine unlocked door. We cannot
+        /// assume a room/wall is passable just because a door is nearby.
+        /// </summary>
+        public bool IsOnlyUnlockedDoorOccupyingNodeServer(Vector3 bottom, Vector3 top,
+            float radius, int collisionMask)
+        {
+            if (!Provider.isServer || vitals == null || vitals.IsDead
+                || !IsFinite(bottom) || !IsFinite(top))
+                return false;
+
+            int count = Physics.OverlapCapsuleNonAlloc(bottom, top, radius,
+                occupancyHits, collisionMask, QueryTriggerInteraction.Ignore);
+            if (count <= 0 || count >= occupancyHits.Length)
+                return false;
+
+            InteractableDoor onlyDoor = null;
+            bool sawDoor = false;
+            for (int i = 0; i < count; ++i)
+            {
+                Collider collider = occupancyHits[i];
+                if (collider == null || collider.transform == transform
+                    || collider.transform.IsChildOf(transform))
+                    continue;
+                InteractableDoor door = collider.GetComponentInParent<InteractableDoor>();
+                if (door == null || !door.isActiveAndEnabled
+                    || door.IsChildOfVehicle || door.IsLockedForMobileNPCNavigation
+                    || !Level.checkSafeIncludingClipVolumes(door.transform.position))
+                    return false;
+                if (onlyDoor != null && onlyDoor != door)
+                    return false;
+                onlyDoor = door;
+                sawDoor = true;
+            }
+            return sawDoor;
         }
 
         private static bool IsFinite(Vector3 v)
