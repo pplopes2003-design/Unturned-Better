@@ -99,7 +99,7 @@ namespace SDG.Unturned
             // but no verified authored Jump/Vault clip. Only attempt a real
             // clip if that runtime prefab actually supplies one. Never repeat
             // or restart it every frame and never emit ground footsteps midair.
-            if (motor.IsClimbingLadder)
+            if (motor.IsClimbingLadder || motor.IsClambering)
             {
                 nextFootstepTime = 0f;
                 // These names are present in Human/Basic/Move and Idle
