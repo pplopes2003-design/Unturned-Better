@@ -344,7 +344,7 @@ namespace SDG.Unturned
                 colliders[i].enabled = false;
             }
 
-            MonoBehaviour[] legacyBehaviours = visual.GetComponentsInChildren<MonoBehaviour>(true);
+            Behaviour[] legacyBehaviours = visual.GetComponentsInChildren<Behaviour>(true);
             int disabledLegacyBehaviourCount = 0;
             int preservedVisualBehaviourCount = 0;
             for (int i = 0; i < legacyBehaviours.Length; ++i)
