@@ -138,8 +138,9 @@ namespace SDG.Unturned
 
 			if (!ApplyInjuryEffectsServer(part, damage, causeBleeding, causeFracture, severity))
 				return false;
-			vitals.ApplyDamage(damage);
-			return true;
+			// Report the authoritative health result instead of claiming success when
+			// the vitals component rejected the hit (e.g. death during a callback).
+			return vitals.ApplyDamage(damage);
 		}
 
 		/// <summary>
