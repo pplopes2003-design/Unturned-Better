@@ -499,3 +499,5 @@ NAV-JUMP-01 follow-up (commit `489ed764`): park a vehicle low in front of NPC an
 - [ ] Compile motor, new `MobileNPCLadderTraversal.cs`, visual, combat and ranged scripts; verify all Unity/Unturned names/signatures in live Dev Build. User feedback moves **only** the scoped `NAV-LADDER-NEAR-01` to CONCLUÍDA or reopens it with evidence; `NAV-LADDER-01` parent remains open for A* links and other layouts.
 
 See `MOBILE_NPC_NATIVE_LADDER_DESIGN.md`, native `InteractableLadder.cs`, `PlayerStance.cs` and `PlayerMovement.cs`. None of these tests has been executed.
+
+NAV-LADDER-NEAR-01 additional safety (`0aefbef9`): try to start climbing while physically crouched beneath a low ceiling or with severe leg injuries (MovementMultiplier <=0.5). It must reject initiation rather than crossing the ladder attachment in an invalid stance; test again after medically recovering/standing if headroom permits.
