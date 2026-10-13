@@ -37,3 +37,5 @@
 - On observed success, classify **scoped near-native-ladder entry/traverse/exit** CONCLUÍDA; errors reopen it. Parent `NAV-LADDER-01` remains EM IMPLEMENTAÇÃO until off-mesh graph/general-world routing and tricky entry/exit cases are handled.
 
 Read with `MOBILE_NPC_PENDING_TASKS.md`, `MOBILE_NPC_PROJECT_HANDOFF.md`, `MOBILE_NPC_SINGLEPLAYER_TEST_PLAN.md` section 34.
+
+**Entry guard update:** commit `0aefbef92c30044f64c9085ddffed3cca08a5ca8` blocks starting a native ladder traversal while the NPC is physically crouched or has severely impaired movement. This prevents shorter-capsule clearance abuse. Test with low roof and fractured legs in final Dev Build.
