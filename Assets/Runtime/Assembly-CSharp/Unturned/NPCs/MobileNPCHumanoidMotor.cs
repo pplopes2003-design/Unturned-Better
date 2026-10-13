@@ -336,6 +336,7 @@ namespace SDG.Unturned
 				trackingActualJourney = false;
 				actualTravelFootsteps.Clear();
 				activeRememberedRouteIndex = -1;
+				activeContinuationRouteIndex = -1;
 				hasPendingKnownAccessPath = false;
 				// Completed/expired goals must not leave the previous route waiting to
 				// steer the next unrelated investigation or roaming destination.
@@ -357,6 +358,7 @@ namespace SDG.Unturned
 					routeWaypoints.Clear();
 					routeWaypointIndex = 0;
 					activeRememberedRouteIndex = -1;
+					activeContinuationRouteIndex = -1;
 					hasPendingKnownAccessPath = false;
 				}
 				else if (routeWaypoints.Count == 0 && !hasDetourWaypoint)
@@ -461,6 +463,7 @@ namespace SDG.Unturned
 						// Finished the cached waypoints. Final brain destination
 						// completion is separately judged from actual XYZ position.
 						activeRememberedRouteIndex = -1;
+						activeContinuationRouteIndex = -1;
 						hasDetourWaypoint = false;
 						nextDetourAttemptTime = Time.time + 0.35f;
 					}
@@ -912,6 +915,7 @@ namespace SDG.Unturned
 			trackingActualJourney = false;
 			actualTravelFootsteps.Clear();
 			activeRememberedRouteIndex = -1;
+			activeContinuationRouteIndex = -1;
 			hasRoamingDestination = false;
 			hasDetourWaypoint = false;
 			routeWaypoints.Clear();
@@ -1482,6 +1486,7 @@ namespace SDG.Unturned
 						actualTravelStart, requestedGoal, actualTravelFootsteps))
 				{
 					activeRememberedRouteIndex = -1;
+					activeContinuationRouteIndex = -1;
 				}
 				trackingActualJourney = false;
 				actualTravelFootsteps.Clear();
@@ -1544,6 +1549,7 @@ namespace SDG.Unturned
 			detourGoalSnapshot = destination;
 			hasDetourWaypoint = false;
 			activeRememberedRouteIndex = learnedIndex;
+			activeContinuationRouteIndex = -1;
 			nextPlannedRouteValidationTime = 0f;
 			return routeWaypoints.Count > 0;
 		}
