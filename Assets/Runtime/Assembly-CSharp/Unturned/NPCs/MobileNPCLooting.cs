@@ -26,6 +26,14 @@ namespace SDG.Unturned
 		private MobileNPCBrainDriver driver;
 		private MobileNPCInventory inventory;
 		private MobileNPCAdaptiveMemory adaptiveMemory;
+		private MobileNPCSupplyKnowledge supplyKnowledge;
+		private ushort targetItemID;
+		private bool isRememberedSupplyTrip;
+		private ushort rememberedMagazineID;
+		private Vector3 rememberedSitePosition;
+		private float rememberedArrivalAt;
+		private float rememberedTripExpiresAt;
+		private float nextRememberedSearchAt;
 		private uint targetInstanceID;
 		private Vector3 targetPosition;
 		private bool hasTarget;
@@ -36,6 +44,7 @@ namespace SDG.Unturned
 			driver = GetComponent<MobileNPCBrainDriver>();
 			inventory = GetComponent<MobileNPCInventory>();
 			adaptiveMemory = GetComponent<MobileNPCAdaptiveMemory>();
+			supplyKnowledge = GetComponent<MobileNPCSupplyKnowledge>();
 		}
 
 		private void Update()
@@ -46,15 +55,20 @@ namespace SDG.Unturned
 				return;
 			}
 
+			UpdateRememberedSupplyTripServer();
+
 			if (!inventory.HasSpace)
 			{
+				CancelRememberedSupplyTripServer(false);
 				// A full inventory invalidates the pickup objective; don't leave the motor
 				// following a stale loot destination after the target has been discarded.
 				ClearTarget(cancelLootGoal: true);
 				return;
 			}
 
-			if (driver.Target != null || (driver.CurrentGoal != MobileNPCTactics.Goal.None && !(hasTarget && driver.CurrentGoal == MobileNPCTactics.Goal.Loot)))
+			if (driver.Target != null || (driver.CurrentGoal != MobileNPCTactics.Goal.None
+				&& !(hasTarget && driver.CurrentGoal == MobileNPCTactics.Goal.Loot)
+				&& !(isRememberedSupplyTrip && driver.CurrentGoal == MobileNPCTactics.Goal.Investigate)))
 			{
 				// Combat or another tactical order takes precedence over looting.
 				ClearTarget(cancelLootGoal: driver.CurrentGoal == MobileNPCTactics.Goal.Loot);
@@ -81,6 +95,12 @@ namespace SDG.Unturned
 				{
 					uint attemptedInstanceID = targetInstanceID;
 					bool pickedUp = inventory.TryPickupWorldItemServer(attemptedInstanceID, transform.position, pickupDistance + 0.5f);
+					// A remembered ammunition source requires an ACTUAL successful
+					// world-to-inventory transfer, not merely spotting an item.
+					if (pickedUp && supplyKnowledge != null && targetItemID != 0)
+						supplyKnowledge.RecordSuccessfulPickupServer(targetItemID, targetPosition);
+					if (pickedUp && isRememberedSupplyTrip && targetItemID == rememberedMagazineID)
+						CancelRememberedSupplyTripServer(false);
 					if (adaptiveMemory != null)
 						adaptiveMemory.RecordOwnOutcomeServer(MobileNPCAdaptiveMemory.ExperienceKind.LootAccess, targetPosition, pickedUp);
 					ClearTarget();
@@ -155,8 +175,13 @@ namespace SDG.Unturned
 				bestID = instanceID;
 			}
 
+			if (bestItem == null && !isRememberedSupplyTrip)
+				TryPlanRememberedMagazineSearchServer();
+
 			if (bestItem != null && driver.TryStartLoot(bestItem.transform.position))
 			{
+				targetItemID = bestItem.jar != null && bestItem.jar.item != null
+					? bestItem.jar.item.id : (ushort)0;
 				targetInstanceID = bestID;
 				targetPosition = bestItem.transform.position;
 				hasTarget = true;
@@ -184,8 +209,21 @@ namespace SDG.Unturned
 					score = inventory.CountItemType(EItemType.GUN) == 0 && inventory.CountItemType(EItemType.MELEE) == 0 ? 78f : 30f;
 					break;
 				case EItemType.MAGAZINE:
-					score = inventory.CountItemType(EItemType.GUN) > 0 ? 57f : 20f;
+				{
+					score = 20f;
+					ItemMagazineAsset magazine = item.asset as ItemMagazineAsset;
+					if (magazine != null && inventory.TryGetBestGun(out Item heldGun, out ItemGunAsset ownedGun)
+						&& ownedGun.magazineCalibers != null && magazine.calibers != null
+						&& magazine.CalibersContainAnyOfIds(ownedGun.magazineCalibers))
+					{
+						bool runningLow = heldGun.state != null && heldGun.state.Length > 10
+							&& heldGun.state[10] <= 8
+							&& !inventory.TryFindCompatibleMagazine(ownedGun,
+								out int reserveSlot, out ItemMagazineAsset reserveAsset);
+						score = runningLow ? 104f : 64f;
+					}
 					break;
+				}
 				case EItemType.FOOD:
 				case EItemType.WATER:
 				{
@@ -266,6 +304,89 @@ namespace SDG.Unturned
 			}
 			hasTarget = false;
 			targetInstanceID = 0;
+			targetItemID = 0;
+		}
+
+		/// <summary>
+		/// An empty-magazine NPC may revisit a place where it personally found a
+		/// compatible magazine. The place is a hypothesis, not a guaranteed spawn.
+		/// </summary>
+		private void TryPlanRememberedMagazineSearchServer()
+		{
+			if (supplyKnowledge == null || Time.time < nextRememberedSearchAt
+				|| driver == null || driver.Target != null
+				|| driver.CurrentGoal != MobileNPCTactics.Goal.None)
+				return;
+			nextRememberedSearchAt = Time.time + 40f;
+			if (!inventory.TryGetBestGun(out Item gun, out ItemGunAsset asset)
+				|| asset == null || gun.state == null || gun.state.Length <= 10
+				|| gun.state[10] > 8
+				|| inventory.TryFindCompatibleMagazine(asset, out int reserveSlot,
+					out ItemMagazineAsset spareMagazine))
+				return;
+
+			if (!supplyKnowledge.TrySuggestCompatibleMagazineSiteServer(
+				asset, transform.position, out Vector3 rememberedPosition, out ushort magazineID))
+				return;
+			// Resolve the remembered pickup site to actual map ground. No teleport,
+			// no special knowledge of police buildings or guaranteed item spawns.
+			if (!MobileNPCSpawnService.TryFindSafeGroundPosition(rememberedPosition,
+				12f, 8f, RayMasks.BLOCK_COLLISION, 38f, out Vector3 reachableGround, out _)
+				|| (reachableGround - rememberedPosition).sqrMagnitude > 100f
+				|| !driver.TryStartRememberedSupplySearch(reachableGround))
+				return;
+
+			isRememberedSupplyTrip = true;
+			rememberedMagazineID = magazineID;
+			rememberedSitePosition = rememberedPosition;
+			rememberedTripExpiresAt = Time.time + 65f;
+			rememberedArrivalAt = -1f;
+			Debug.Log("[MobileNPCLooting] NPC " + name
+				+ " is checking a previously observed magazine location; id="
+				+ magazineID + ", rememberedPlace=" + rememberedPosition
+				+ " (not a guaranteed drop).", this);
+		}
+
+		private void UpdateRememberedSupplyTripServer()
+		{
+			if (!isRememberedSupplyTrip)
+				return;
+			// Combat interrupts supply errands without training a false failure.
+			if (driver == null || driver.Target != null
+				|| driver.CurrentGoal == MobileNPCTactics.Goal.Retreat
+				|| driver.CurrentGoal == MobileNPCTactics.Goal.SeekCover
+				|| driver.CurrentGoal == MobileNPCTactics.Goal.Stalk)
+			{
+				CancelRememberedSupplyTripServer(false);
+				return;
+			}
+
+			if (rememberedArrivalAt < 0f
+				&& (transform.position - rememberedSitePosition).sqrMagnitude <= 36f)
+				rememberedArrivalAt = Time.time;
+
+			bool visitedAndChecked = rememberedArrivalAt >= 0f
+				&& Time.time >= rememberedArrivalAt + 5f;
+			bool couldNotReach = Time.time >= rememberedTripExpiresAt;
+			if ((visitedAndChecked && !hasTarget) || couldNotReach)
+			{
+				if (supplyKnowledge != null)
+					supplyKnowledge.RecordUnsuccessfulVisitServer(
+						rememberedMagazineID, rememberedSitePosition);
+				CancelRememberedSupplyTripServer(true);
+			}
+		}
+
+		private void CancelRememberedSupplyTripServer(bool finishInvestigation)
+		{
+			if (!isRememberedSupplyTrip)
+				return;
+			isRememberedSupplyTrip = false;
+			rememberedArrivalAt = -1f;
+			rememberedMagazineID = 0;
+			if (finishInvestigation && driver != null
+				&& driver.CurrentGoal == MobileNPCTactics.Goal.Investigate)
+				driver.ReportDestinationReached();
 		}
 	}
 }
