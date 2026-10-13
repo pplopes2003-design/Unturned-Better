@@ -500,3 +500,29 @@ Until implemented and verified, long-range messages MUST NOT work simply due to 
 14. **Diagram:** full NPC AI graph after all main modules structured, not prematurely.
 
 **Next practical engineering work:** verify latest code compilation compatibility and test tactical group roles. Then implement conservative suppression with ammo and friendly-sector checks, but do not write a purely cosmetic suppression command; ensure it actually affects player pressure and squad movement only after target evidence.
+
+
+## 2026-10-13 — Local speech realism + radio interception design (LATEST)
+
+User asked to improve realism of **voice-only NPC group communications**, and investigate implementing **native Unturned radio with player eavesdropping** rather than inventing a separate radio simulator.
+
+### Implemented source changes
+- `031bd43ad99016bbc7e766d63f736071a5dee8a6` — `MobileNPCGroupMember.BroadcastPlayerContactServer`: replaced unrealistic 35m flat speech with a 24m **alert shout** or a 7m **quiet report when crouched**. Obstructions attenuate effective voice reach to 42%; each recipient's reported location error and confidence scale with how far the report travels. Skips actors' own humanoid collision shells during occlusion query. Communication still restricted to living same-group agents and cooldowns.
+- `5b5cebe751fa55c8b018b10dfc39ad382505a550` — new `Assets/Runtime/Assembly-CSharp/Unturned/NPCs/MobileNPCRadioMessage.cs`: immutable-style, data-only report record with message kind, coarse sector, timestamps, confidence, faction, group ID and call sign; supports simulated intercepted subtitles for enemy contact, reinforcement, loot, airdrop and unknown bases. **NO radio transmission or player UI hookup yet**.
+- `f5e03d7002858fc4ebd614030e67be84c050701a` — updates `MOBILE_NPC_RADIO_SYSTEM_DESIGN.md` with *verified public Unturned documentation* on walkie and earpiece, design for channel-gated player interception, and explicit correction against inventing portable battery consumption.
+
+### Verified native radio facts (documentation, NOT SDK code integration)
+- Vanilla Unturned Walkie Talkie **1445**, `ItemToolAsset` with `Useable: Walkie_Talkie`; user-selectable radio channels, broadcasts to compatible equipped receivers across the map.
+- Earpiece **1446** allows *listening* to radio without transmitting.
+- Public sources: https://docs.smartlydressedgames.com/en/stable/items/tool-asset.html ; https://restoremonarchy.com/browser/vanilla/item/tool/1445 ; https://unturned.gameinfo.io/items/1446-earpiece ; https://unturned.fandom.com/wiki/Communication .
+- Not yet found or fetched the exact native Unity code/class hooks to read the player's tuned channel and equipped radio/earpiece in this repository. Do not claim native radio interception works until that integration is found, coded, compiled and tested.
+- Proposed player UX: if tuned correctly and possessing an actual receiver, show discreet **simulated radio dialogue subtitles** (speaker callsign + coarse region + line of speech) and optional native beep/static effects. Wrong channel or no receiver => absolutely no intercepted text. Do not leak precise player positions. No microphone voice acting is required at this stage.
+- Fixed base radio is future construction objective with real electrical requirements (power source and fuel only if the native asset supports it). Vehicle radio follows later vehicle NPC support. Do not invent portable radio battery drain or pretend fixed radio is already a working base asset.
+
+### Validation and outstanding
+- Read back `MobileNPCGroupMember.cs` and `MobileNPCRadioMessage.cs` from GitHub; confirmed expected symbols and balanced braces. **No Unity C# compile, build or runtime test** performed.
+- Test actual audio vs assumed radii, whisper/crouch legibility, walls/doors and indoor occlusion, allied hearing.
+- Future: verify native player voice frequency and item/equipment access, build real receiver gating and text HUD only after that, add power-gated base station and reinforcement/loot/airdrop/base report generation from actual game observations.
+- Continue previous pending: squad covering-fire with real ammo, group/faction validation, grenades Frag and Smoke with ally safety, healing during combat, AI vehicle usage, death/ragdoll/respawn, navigation/A*, animation and dialogue bugs, NPC zombie stealth/optics and long-term individual memory. Full AI diagram only when the major systems are structured.
+
+**IMPORTANT resume order:** verify Unity build, inspect native walkie/earpiece channel reception, then integrate physical radio messages and player interception. Keep HANDOFF and RADIO_SYSTEM_DESIGN up to date each round.
