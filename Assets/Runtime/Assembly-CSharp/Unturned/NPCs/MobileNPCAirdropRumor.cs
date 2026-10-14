@@ -88,6 +88,11 @@ namespace SDG.Unturned
             if (Time.time < doNotReinvestigateUntil
                 && (coarseSector - recentlySearchedSector).sqrMagnitude < 35f * 35f)
                 return false;
+            // Never replace an in-progress trip with a newer remote rumor:
+            // that could leave a different component's old goal running
+            // while this memory silently points somewhere else.
+            if (isInvestigating)
+                return false;
             if (hasRumor && (coarseSector - reportedSector).sqrMagnitude < 35f * 35f)
                 return false;
 
