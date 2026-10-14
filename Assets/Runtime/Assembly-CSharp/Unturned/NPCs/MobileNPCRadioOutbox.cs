@@ -117,6 +117,15 @@ namespace SDG.Unturned
                         + new Vector3(error.x, 0f, error.y);
                     brain.ReportGroupPlayerContactClue(uncertainLocation, confidence);
                 }
+                else if (message.Type == MobileNPCRadioMessage.Kind.Airdrop)
+                {
+                    // Receiving a broadcast does NOT grant a crate transform,
+                    // global loot registry or direct pickup permission. Each
+                    // individual stores an uncertain, short-lived destination.
+                    MobileNPCAirdropRumor rumor =
+                        receiver.GetComponent<MobileNPCAirdropRumor>();
+                    rumor?.ReceiveAirdropReportServer(message);
+                }
                 delivered++;
                 if (!receiver.HasOwnedPortableRadio)
                     baseStationReceivers++;
