@@ -56,9 +56,18 @@ namespace SDG.Unturned
 #if !DEDICATED_SERVER
         private void OnGUI()
         {
-            if (string.IsNullOrEmpty(subtitle) || Time.time >= visibleUntil
-                || !CanLocalPlayerIntercept(activeFrequency))
+            if (string.IsNullOrEmpty(subtitle))
                 return;
+            // Revocation is irreversible for this transmission. Tuning away,
+            // removing the earpiece, or dying must not let the player recover
+            // an old overheard message by quickly tuning back in.
+            if (Time.time >= visibleUntil
+                || !CanLocalPlayerIntercept(activeFrequency))
+            {
+                subtitle = null;
+                visibleUntil = 0f;
+                return;
+            }
             float width = Mathf.Min(520f, Screen.width - 32f);
             if (width < 120f)
                 return;
