@@ -1495,6 +1495,9 @@ namespace SDG.Unturned
 					|| region.PlayerCountInRegion > 0
 					|| ShouldRetainZombieRegionForLocalPlayer(i))
 					continue;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+				Debug.Log("[ZMB-01] Unloading distant inactive zombie home bound " + i);
+#endif
 				region.destroy();
 				region.isNetworked = false;
 			}
@@ -1515,6 +1518,13 @@ namespace SDG.Unturned
 						regions[oldBound].destroy();
 						regions[oldBound].isNetworked = false;
 					}
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+					else
+					{
+						Debug.Log("[ZMB-01] Retained bound " + oldBound
+							+ " after player entered " + newBound);
+					}
+#endif
 				}
 			}
 
@@ -1546,6 +1556,13 @@ namespace SDG.Unturned
 								generateZombies(newBound);
 								regions[newBound].isNetworked = true;
 							}
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+							else
+							{
+								Debug.Log("[ZMB-01] Reused bound " + newBound
+									+ " without resetting existing zombie identities");
+							}
+#endif
 						}
 						else
 						{
@@ -2047,6 +2064,30 @@ namespace SDG.Unturned
 				}
 			}
 			UnityEngine.Profiling.Profiler.EndSample();
+
+			// Non-hunting actors from a retained (now unoccupied) home bound
+			// still need their normal snapshot/idle audio updates while physically
+			// near the local player. Active hunters and occupied home regions
+			// have already been handled above; never duplicate their OnUpdate.
+			if (Provider.isServer && !Dedicator.IsDedicatedServer
+				&& Player.LocalPlayer != null && regions != null)
+			{
+				Vector3 localPosition = Player.LocalPlayer.transform.position;
+				for (int regionIndex = 0; regionIndex < regions.Length; ++regionIndex)
+				{
+					ZombieRegion retained = regions[regionIndex];
+					if (retained == null || !retained.isNetworked
+						|| retained.PlayerCountInRegion > 0)
+						continue;
+					foreach (Zombie zombie in retained.zombies)
+					{
+						if (zombie != null && !zombie.isDead && !zombie.isHunting
+							&& (zombie.transform.position - localPosition).sqrMagnitude
+								<= RETAIN_NEARBY_ZOMBIE_DISTANCE_SQR)
+							zombie.OnUpdate();
+					}
+				}
+			}
 
 			if (Time.realtimeSinceStartup - lastTick > Provider.UPDATE_TIME)
 			{
