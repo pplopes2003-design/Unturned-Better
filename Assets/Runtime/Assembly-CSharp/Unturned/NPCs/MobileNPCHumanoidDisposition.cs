@@ -47,7 +47,33 @@ namespace SDG.Unturned
 					+ FamilyNames[Random.Range(0, FamilyNames.Length)];
 			}
 		}
+		// Pacifist by default does not mean helpless after a validated attack.
+		// Only THIS individual remembers its actual attacker for a short time.
+		private Player recentPlayerAggressor;
+		private float selfDefenseExpiresAt;
 		public bool CanEngagePlayers => role == Role.Hostile;
+		public bool CanEngagePlayer(Player candidate)
+		{
+			return candidate != null && candidate.life != null
+				&& !candidate.life.isDead
+				&& (role == Role.Hostile
+					|| (Provider.isServer && candidate == recentPlayerAggressor
+						&& Time.time < selfDefenseExpiresAt));
+		}
+		public void RecordValidatedAttackServer(Transform attacker)
+		{
+			if (!Provider.isServer || attacker == null)
+				return;
+			Player attackingPlayer = attacker.GetComponent<Player>();
+			if (attackingPlayer == null)
+				attackingPlayer = attacker.GetComponentInParent<Player>();
+			if (attackingPlayer == null || attackingPlayer.life == null
+				|| attackingPlayer.life.isDead)
+				return;
+			recentPlayerAggressor = attackingPlayer;
+			selfDefenseExpiresAt = Time.time + 32f;
+		}
+
 		public bool CanEngageMobileNPCs => role != Role.Neutral;
 
 		/// <summary>
@@ -87,6 +113,8 @@ namespace SDG.Unturned
 			}
 
 			role = newRole;
+			recentPlayerAggressor = null;
+			selfDefenseExpiresAt = 0f;
 			MobileNPCFaction faction = GetComponent<MobileNPCFaction>();
 			faction?.SynchronizeDefaultFactionFromRole();
 
