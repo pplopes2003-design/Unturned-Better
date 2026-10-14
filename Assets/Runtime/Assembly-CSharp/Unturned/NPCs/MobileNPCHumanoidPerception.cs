@@ -91,7 +91,7 @@ namespace SDG.Unturned
 			// memory; do not replace that target with a nearer NPC while the player is
 			// behind cover. Visibility remains false during occlusion, so aiming/fire
 			// integrations must still require fresh line-of-sight evidence.
-			if (playerCandidate != null)
+			if (playerCandidate != null && disposition.CanEngagePlayer(playerCandidate))
 			{
 				visiblePlayer = playerCandidate;
 				visibleNPC = null;
@@ -118,6 +118,16 @@ namespace SDG.Unturned
 				visibleZombie = zombieCandidate;
 				brain.ReportVisibleTarget(zombieCandidate.transform);
 			}
+			else if (playerCandidate != null)
+			{
+				// A nonthreatening player may be SEE(N) and recognized without
+				// being targeted, stalked, chased or triggering stealth.
+				// Actual verified aggression changes CanEngagePlayer separately.
+				visiblePlayer = playerCandidate;
+				visibleNPC = null;
+				visibleZombie = null;
+				brain.ReportNonThreateningPlayerSightServer();
+			}
 			else
 			{
 				visiblePlayer = null;
@@ -127,7 +137,11 @@ namespace SDG.Unturned
 
 			if (motor != null)
 			{
-				motor.SetTargetVisibleFromServer(visiblePlayer != null || visibleNPC != null || visibleZombie != null);
+				// Visibility used for combat gait must refer to a legally
+				// engageable target, not a friendly player simply nearby.
+				motor.SetTargetVisibleFromServer(
+					visiblePlayer != null && disposition.CanEngagePlayer(visiblePlayer)
+					|| visibleNPC != null || visibleZombie != null);
 			}
 		}
 
