@@ -3513,13 +3513,25 @@ namespace SDG.Unturned
 					return;
 				}
 			}
-			effectiveRoamingRadius = Mathf.Min(effectiveRoamingRadius,
-					Mathf.Max(10f, routineMaximumStep * 1.3f));
+			// Guards operate close to their real base, scavengers search a
+			// wider neighborhood, and explorers retain the original long
+			// range. Do not accidentally shrink all A-Life exploration to
+			// the length of one patrol step.
+			if (autonomyPlanner != null
+				&& autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.GuardSettlement)
+				effectiveRoamingRadius = Mathf.Min(effectiveRoamingRadius, 26f);
+			else if (autonomyPlanner != null
+				&& autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge)
+				effectiveRoamingRadius = Mathf.Min(effectiveRoamingRadius, 110f);
 
 			// Prefer actual map structures, but keep searching over open terrain when a
 			// beach, field or remote island has no nearby large objects.
 			if (Random.value < structurePreference
 				&& TryChooseStructureExplorationPoint(effectiveRoamingRadius, out Vector3 structurePoint)
+				&& PlanarDistanceSquared(structurePoint, spawnPosition)
+					<= HomeTerritoryRadius * HomeTerritoryRadius
+				&& PlanarDistanceSquared(structurePoint, routineAnchor)
+					<= effectiveRoamingRadius * effectiveRoamingRadius
 				&& (autonomyPlanner == null || autonomyPlanner.IsCandidateAllowedServer(structurePoint)))
 			{
 				roamingDestination = structurePoint;
