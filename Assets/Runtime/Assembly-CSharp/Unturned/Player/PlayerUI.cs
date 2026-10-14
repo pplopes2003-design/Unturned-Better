@@ -2143,7 +2143,7 @@ namespace SDG.Unturned
 			else
 			{
 				// This should be untangled. :(
-				shouldBlur = (window.showCursor && !usingCustomModal && !MenuConfigurationGraphicsUI.active && !PlayerNPCDialogueUI.active && !PlayerNPCQuestUI.active && !PlayerNPCVendorUI.active && !PlayerWorkzoneUI.active) || (SDG.Framework.Water.WaterUtility.isPointUnderwater(MainCamera.instance.transform.position) && (Player.LocalPlayer.clothing.glassesAsset == null || !Player.LocalPlayer.clothing.glassesAsset.proofWater));
+				shouldBlur = (window.showCursor && !usingCustomModal && !MenuConfigurationGraphicsUI.active && !PlayerNPCDialogueUI.active && !PlayerNPCQuestUI.active && !PlayerNPCVendorUI.active && !MobileNPCInteractionController.IsDialogOpenFor(Player.LocalPlayer) && !PlayerWorkzoneUI.active) || (SDG.Framework.Water.WaterUtility.isPointUnderwater(MainCamera.instance.transform.position) && (Player.LocalPlayer.clothing.glassesAsset == null || !Player.LocalPlayer.clothing.glassesAsset.proofWater));
 			}
 
 			UnturnedPostProcess.instance.SetIsMainBlurEnabled(shouldBlur);
