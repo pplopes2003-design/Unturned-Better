@@ -88,6 +88,7 @@ namespace SDG.Unturned
 
 		private CharacterController characterController;
 		private MobileNPCBrainDriver brainDriver;
+		private MobileNPCAutonomyPlanner autonomyPlanner;
 		private MobileNPCHumanoidPerception visualPerception;
 		private MobileNPCInjurySystem injurySystem;
 		private MobileNPCDoorNavigation doorNavigation;
@@ -344,6 +345,7 @@ namespace SDG.Unturned
 		{
 			characterController = GetComponent<CharacterController>();
 			brainDriver = GetComponent<MobileNPCBrainDriver>();
+			autonomyPlanner = GetComponent<MobileNPCAutonomyPlanner>();
 			injurySystem = GetComponent<MobileNPCInjurySystem>();
 			doorNavigation = GetComponent<MobileNPCDoorNavigation>();
 			ladderTraversal = GetComponent<MobileNPCLadderTraversal>();
@@ -415,6 +417,14 @@ namespace SDG.Unturned
 				// This remains ordinary collision-aware movement; it does not teleport the NPC home.
 				roamingDestination = spawnPosition;
 				hasRoamingDestination = true;
+			}
+			else if (roamingEnabled && autonomyPlanner != null
+				&& autonomyPlanner.EvaluateRoutineServer() == MobileNPCAutonomyPlanner.Job.Recover)
+			{
+				// A safe, short recovery pause is a *routine*, not a tactical
+				// immobilization: any brain destination above preempts it instantly.
+				hasRoamingDestination = false;
+				nextRoamingDecisionTime = Time.time + 2f;
 			}
 			else if (roamingEnabled && Time.time >= nextRoamingDecisionTime && !hasRoamingDestination)
 			{
@@ -743,6 +753,8 @@ namespace SDG.Unturned
 				<= Mathf.Max(0.45f, characterController.stepOffset + 0.2f))
 				{
 					hasRoamingDestination = false;
+					if (autonomyPlanner != null)
+						autonomyPlanner.ReportRoamReachedServer();
 					nextRoamingDecisionTime = Time.time + Random.Range(
 						Mathf.Max(1f, roamingPauseMin), Mathf.Max(Mathf.Max(1f, roamingPauseMin), roamingPauseMax));
 				}
@@ -1743,6 +1755,8 @@ namespace SDG.Unturned
 			// tactical movement gets a temporary alternate steering angle instead.
 			if (hasRoamingDestination && !brainDriver.HasDestination)
 			{
+				if (autonomyPlanner != null)
+					autonomyPlanner.ReportRoamBlockedServer(roamingDestination);
 				hasRoamingDestination = false;
 				hasDetourWaypoint = false;
 				nextRoamingDecisionTime = Time.time + Random.Range(2f, 4f);
@@ -3484,10 +3498,29 @@ namespace SDG.Unturned
 			}
 
 			float effectiveRoamingRadius = Mathf.Min(Mathf.Max(2f, roamingRadius), HomeTerritoryRadius);
+			Vector3 routineAnchor = spawnPosition;
+			float routineMinimumStep = 24f;
+			float routineMaximumStep = 72f;
+			float structurePreference = 0.55f;
+			if (autonomyPlanner != null)
+			{
+				autonomyPlanner.GetRoamingProfileServer(spawnPosition,
+					out routineAnchor, out routineMinimumStep, out routineMaximumStep,
+					out structurePreference);
+				if (autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Recover)
+				{
+					nextRoamingDecisionTime = Time.time + 2f;
+					return;
+				}
+			}
+			effectiveRoamingRadius = Mathf.Min(effectiveRoamingRadius,
+					Mathf.Max(10f, routineMaximumStep * 1.3f));
 
 			// Prefer actual map structures, but keep searching over open terrain when a
 			// beach, field or remote island has no nearby large objects.
-			if (Random.value < 0.55f && TryChooseStructureExplorationPoint(effectiveRoamingRadius, out Vector3 structurePoint))
+			if (Random.value < structurePreference
+				&& TryChooseStructureExplorationPoint(effectiveRoamingRadius, out Vector3 structurePoint)
+				&& (autonomyPlanner == null || autonomyPlanner.IsCandidateAllowedServer(structurePoint)))
 			{
 				roamingDestination = structurePoint;
 				Vector3 structureDirection = structurePoint - transform.position;
@@ -3504,7 +3537,7 @@ namespace SDG.Unturned
 			// Continue in a roughly straight line for a while, validating each prospective
 			// ground point. If the NPC approaches the edge of its exploration radius, turn
 			// back inward instead of walking to the old spawn point and repeatedly restarting.
-			Vector3 fromHome = transform.position - spawnPosition;
+			Vector3 fromHome = transform.position - routineAnchor;
 			fromHome.y = 0f;
 			Vector3 baseDirection;
 			if (fromHome.magnitude >= effectiveRoamingRadius * 0.72f)
@@ -3529,9 +3562,9 @@ namespace SDG.Unturned
 			{
 				float turn = Random.Range(-48f, 48f) + (attempt > 5 ? Random.Range(-35f, 35f) : 0f);
 				Vector3 direction = Quaternion.AngleAxis(turn, Vector3.up) * baseDirection;
-				float distance = Random.Range(24f, 72f);
+				float distance = Random.Range(routineMinimumStep, routineMaximumStep);
 				Vector3 candidate = transform.position + direction * distance;
-				Vector3 fromHomeCandidate = candidate - spawnPosition;
+				Vector3 fromHomeCandidate = candidate - routineAnchor;
 				fromHomeCandidate.y = 0f;
 				if (fromHomeCandidate.sqrMagnitude > effectiveRoamingRadius * effectiveRoamingRadius)
 					continue;
@@ -3540,6 +3573,8 @@ namespace SDG.Unturned
 					Mathf.Clamp(roamingMaximumSlope, 25f, 42f), out Vector3 resolved, out _))
 					continue;
 				if (Mathf.Abs(resolved.y - transform.position.y) > 8f)
+					continue;
+				if (autonomyPlanner != null && !autonomyPlanner.IsCandidateAllowedServer(resolved))
 					continue;
 				Vector3 resolvedDirection = resolved - transform.position;
 				resolvedDirection.y = 0f;
