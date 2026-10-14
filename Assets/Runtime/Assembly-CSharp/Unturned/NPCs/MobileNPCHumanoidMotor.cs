@@ -422,7 +422,6 @@ namespace SDG.Unturned
 
 			bool waitingForDoorToOpen = false;
 			bool waitingForLearnedAccess = false;
-			Vector3 jumpRequestedDirection = Vector3.zero;
 			bool hasDestination = hasBrainDestination || hasRoamingDestination;
 			Vector3 destination = hasBrainDestination ? brainDriver.Destination : roamingDestination;
 			if (hasDestination && !isUnderwater && !isPlannedJumping
@@ -717,7 +716,6 @@ namespace SDG.Unturned
 				}
 				Vector3 offset = movementDestination - transform.position;
 				offset.y = 0.0f;
-				jumpRequestedDirection = offset;
 				if (offset.sqrMagnitude > stoppingDistance * stoppingDistance)
 				{
 					planarDirection = offset.normalized;
@@ -881,7 +879,10 @@ namespace SDG.Unturned
 					isPlannedJumping = false;
 					suppressJourneyUntil = Time.time + 0.3f;
 					if (!actuallyLanded)
+					{
 						RememberLocalNavigationDeadEnd(transform.position, destination);
+						noJumpUntil = Time.time + 6f;
+					}
 				}
 				if (!isPlannedJumping && !IsTraversingLadder
 					&& !IsVaultTraversing && vaultTraversal != null
@@ -926,8 +927,11 @@ namespace SDG.Unturned
 					&& !(targetIsVisible && (brainDriver.CurrentGoal
 							== MobileNPCTactics.Goal.SeekCover
 						|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat))
-					&& (TryBeginPlannedLowJump(jumpRequestedDirection, destination)
-						|| TryBeginVaultJump(jumpRequestedDirection, destination)))
+					&& ShouldChooseObstacleJumpServer(destination,
+						waitingForDoorToOpen, waitingForLearnedAccess,
+						waitingForLadderApproach, out Vector3 chosenJumpDirection)
+					&& (TryBeginPlannedLowJump(chosenJumpDirection, destination)
+						|| TryBeginVaultJump(chosenJumpDirection, destination)))
 				{
 					wantedToMove = true;
 				}
@@ -995,6 +999,7 @@ namespace SDG.Unturned
 				isPlannedJumping = false;
 				suppressJourneyUntil = Time.time + 0.3f;
 				RememberLocalNavigationDeadEnd(transform.position, destination);
+				noJumpUntil = Time.time + 6f; // prefer physical bypass after failed jump
 			}
 			IsMoving = wantedToMove && planarDisplacement.sqrMagnitude > 0.000001f;
 			// Noise is based on actual movement, not merely the desired AI gait.
