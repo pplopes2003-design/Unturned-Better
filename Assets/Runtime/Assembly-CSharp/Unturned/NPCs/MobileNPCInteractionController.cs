@@ -41,6 +41,7 @@ namespace SDG.Unturned
 		// An isolated Unity OnGUI panel can render below the game UI backend.
 		private ISleekBox nativePanel;
 		private ISleekLabel nativeMessage;
+		private ISleekScrollView nativeMessageScroll;
 		private readonly ISleekButton[] nativeOptions = new ISleekButton[9];
 		private ISleekButton nativeClose;
 		private bool nativeUIFailureLogged;
@@ -77,6 +78,7 @@ namespace SDG.Unturned
 				PlayerUI.container.RemoveChild(nativePanel);
 			nativePanel = null;
 			nativeMessage = null;
+			nativeMessageScroll = null;
 			nativeClose = null;
 #endif
 		}
@@ -217,17 +219,27 @@ namespace SDG.Unturned
 				PlayerUI.container.AddChild(panel);
 				nativePanel = panel;
 
+				// Text lives inside native scroll view: nine stock entries,
+				// greetings and confirmation screens may be taller than the
+				// visible panel. The numeric actions remain in a fixed footer.
+				nativeMessageScroll = Glazier.Get().CreateScrollView();
+				nativeMessageScroll.PositionOffset_X = 16;
+				nativeMessageScroll.PositionOffset_Y = 12;
+				nativeMessageScroll.SizeOffset_X = -32;
+				nativeMessageScroll.SizeOffset_Y = -70;
+				nativeMessageScroll.SizeScale_X = 1f;
+				nativeMessageScroll.SizeScale_Y = 1f;
+				nativeMessageScroll.ScaleContentToWidth = true;
+				nativePanel.AddChild(nativeMessageScroll);
+
 				nativeMessage = Glazier.Get().CreateLabel();
-				nativeMessage.PositionOffset_X = 16;
-				nativeMessage.PositionOffset_Y = 12;
-				nativeMessage.SizeOffset_X = -32;
-				nativeMessage.SizeOffset_Y = -66;
+				nativeMessage.SizeOffset_X = -14;
 				nativeMessage.SizeScale_X = 1f;
-				nativeMessage.SizeScale_Y = 1f;
+				nativeMessage.SizeOffset_Y = 185;
 				nativeMessage.TextAlignment = TextAnchor.UpperLeft;
 				nativeMessage.FontSize = ESleekFontSize.Medium;
 				nativeMessage.TextContrastContext = ETextContrastContext.InconspicuousBackdrop;
-				nativePanel.AddChild(nativeMessage);
+				nativeMessageScroll.AddChild(nativeMessage);
 
 				for (int i = 0; i < nativeOptions.Length; ++i)
 				{
@@ -266,6 +278,7 @@ namespace SDG.Unturned
 				}
 				nativePanel = null;
 				nativeMessage = null;
+				nativeMessageScroll = null;
 				if (!nativeUIFailureLogged)
 				{
 					nativeUIFailureLogged = true;
@@ -300,7 +313,17 @@ namespace SDG.Unturned
 			if (state == MenuState.Closed)
 				return;
 			if (nativeMessage != null)
-				nativeMessage.Text = lastPrompt ?? string.Empty;
+			{
+				string message = lastPrompt ?? string.Empty;
+				nativeMessage.Text = message;
+				int visualRows = 0;
+				foreach (string line in message.Split('\n'))
+					visualRows += Mathf.Max(1, Mathf.CeilToInt(line.Length / 65f));
+				float contentHeight = Mathf.Clamp(visualRows * 23 + 20, 185, 1100);
+				nativeMessage.SizeOffset_Y = contentHeight;
+				if (nativeMessageScroll != null)
+					nativeMessageScroll.ContentSizeOffset = new Vector2(0f, contentHeight);
+			}
 			int count = state == MenuState.TradeStock ? 9
 				: state == MenuState.Main || state == MenuState.ChooseTradePayment ? 3 : 2;
 			for (int i = 0; i < nativeOptions.Length; ++i)
