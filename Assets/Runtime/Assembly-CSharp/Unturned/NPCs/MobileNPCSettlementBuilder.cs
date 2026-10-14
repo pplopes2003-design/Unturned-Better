@@ -223,7 +223,21 @@ namespace SDG.Unturned
 			}
 			else
 			{
-				Barricade barricade = new Barricade(selectedAsset);
+				Barricade barricade;
+				if (placeGenerator)
+				{
+					// Native generator state encodes powered flag and fuel.
+					// Preserve the REAL inventory item's fuel/state on placement;
+					// new Barricade(asset) would reset both to zero.
+					if (!inventory.TryGetItemSnapshot(selectedSlot, out Item sourceGenerator)
+						|| sourceGenerator == null || sourceGenerator.state == null
+						|| sourceGenerator.state.Length < 3)
+						return;
+					barricade = new Barricade(selectedAsset, selectedAsset.health,
+						(byte[])sourceGenerator.state.Clone());
+				}
+				else
+					barricade = new Barricade(selectedAsset);
 				placedBarricade = BarricadeManager.dropBarricade(
 					barricade, null, placePosition, 0f, angle, 0f, 0UL, 0UL);
 				if (placedBarricade == null)
