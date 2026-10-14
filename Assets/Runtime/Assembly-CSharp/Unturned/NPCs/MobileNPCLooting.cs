@@ -266,6 +266,17 @@ namespace SDG.Unturned
 					break;
 			}
 
+			// A first genuine portable walkie has group survival utility.
+			// The world item still has to exist, be reachable, and be picked
+			// up through ordinary ItemManager/inventory transactions. Never
+			// conjure a radio or prioritize it above urgent medical supplies.
+			if (itemID == MobileNPCRadioOutbox.VanillaWalkieTalkieID
+				&& !inventory.ContainsItemID(itemID))
+			{
+				MobileNPCGroupMember group = GetComponent<MobileNPCGroupMember>();
+				if (group != null && group.GroupId > 0)
+					score = Mathf.Max(score, 62f);
+			}
 			if (itemID != 0 && inventory.ContainsItemID(itemID)) score -= 28f;
 			// A personal, bounded preference from *resolved* past loot attempts. Never
 			// replaces the item-type priority or the native pickup/path validation.
