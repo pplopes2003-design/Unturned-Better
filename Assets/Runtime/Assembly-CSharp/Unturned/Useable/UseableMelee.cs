@@ -549,6 +549,16 @@ namespace SDG.Unturned
 				Transform authoritativeMeleeHit = info.colliderTransform != null
 					? info.colliderTransform
 					: info.transform;
+				// A local mobile-NPC melee hit can be encoded as raycast NONE.
+				// Verify the FIRST physical impact server-side rather than
+				// inventing NPC health loss from the client's hitmarker.
+				if (authoritativeMeleeHit == null
+					|| authoritativeMeleeHit.GetComponentInParent<MobileNPCHumanoidVitals>() == null)
+				{
+					MobileNPCDamageBridge.TryResolvePhysicalServerHit(
+						player.look.aim.position, info.point,
+						equippedMeleeAsset.range, out authoritativeMeleeHit);
+				}
 				MobileNPCHumanoidVitals mobileNPCVitals = authoritativeMeleeHit != null
 					? authoritativeMeleeHit.GetComponentInParent<MobileNPCHumanoidVitals>()
 					: null;
