@@ -1362,6 +1362,12 @@ namespace SDG.Unturned
 
 		private void escapeMenu()
 		{
+			// Consume Escape for the local mobile NPC dialogue before the
+			// native pause/dashboard branch. Otherwise the HUD gets hidden
+			// behind a pause screen while the mobile dialogue is still active.
+			if (MobileNPCInteractionController.TryCloseOnEscape())
+				return;
+
 			// Pause sub-menus are available whether dead or alive.
 			if (MenuConfigurationOptionsUI.active)
 			{
