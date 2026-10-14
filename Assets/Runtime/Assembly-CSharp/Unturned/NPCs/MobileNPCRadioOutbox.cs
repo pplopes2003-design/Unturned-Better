@@ -27,6 +27,7 @@ namespace SDG.Unturned
         private static readonly HashSet<MobileNPCRadioOutbox> ActiveRadios
             = new HashSet<MobileNPCRadioOutbox>();
         private static float nextGlobalTransmitAt;
+        private static float nextRadioDiagnosticsAt;
         private const float TransmissionAirtime = 1.25f;
         private const float PerNpcTransmitInterval = 8f;
         private readonly Queue<MobileNPCRadioMessage> pending = new Queue<MobileNPCRadioMessage>();
@@ -48,6 +49,7 @@ namespace SDG.Unturned
         {
             ActiveRadios.Clear();
             nextGlobalTransmitAt = 0f;
+            nextRadioDiagnosticsAt = 0f;
         }
 
         private void OnEnable()
@@ -115,7 +117,17 @@ namespace SDG.Unturned
             }
             // Same frequency and physically worn earpiece/equipped walkie
             // criteria as native PlayerVoice radio culling. No chat broadcast.
+            bool intercepted = MobileNPCRadioInterceptHUD.CanLocalPlayerIntercept(frequency);
             MobileNPCRadioInterceptHUD.PresentServerTransmission(frequency, message);
+            if (Time.time >= nextRadioDiagnosticsAt)
+            {
+                nextRadioDiagnosticsAt = Time.time + 10f;
+                Debug.Log("[MobileNPCRadioOutbox] Portable radio text broadcast: group="
+                    + group.GroupId + ", frequency=" + frequency
+                    + ", NPC receivers=" + delivered
+                    + ", local player intercepted=" + intercepted
+                    + ". No microphone audio or remote-client replication.", this);
+            }
             ConfirmTransmittedReport(message);
         }
 
