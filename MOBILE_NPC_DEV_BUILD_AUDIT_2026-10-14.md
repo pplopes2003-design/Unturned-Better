@@ -42,3 +42,12 @@
 ## Regra de status
 
 Todas as alterações desta auditoria estão **EM IMPLEMENTAÇÃO — CORREÇÕES EM FONTE, AGUARDANDO NOVA BUILD**. Não classificar como FINALIZADA apenas porque o código foi commitado ou os sintomas parecem explicados. User testa; aprova e fecha, ou reporta erros com `Player.log` e contexto. Subtarefas source-scoped podem ser chamadas `QUASE PRONTAS`, mas regressões confirmadas de gameplay reabrem a pendência pai.
+
+
+### Confirmação externa adicional: desenvolvedores originais, não apenas mods
+
+**S.T.A.L.K.E.R. / Dmitriy Iassenev (programador da GSC Game World):** entrevista histórica da arquitetura A-Life dos jogos originais: https://www.gamedeveloper.com/game-platforms/interview-inside-the-ai-of-i-s-t-a-l-k-e-r-i- . A divisão **online/offline** é nível de detalhe: offline não renderiza animações, sons nem física e inventário detalhados, MAS segue caminhos por grafo global; online ativa personagem e navegação detalhados perto do jogador. Portanto, não é técnica que resolva a ausência de rede de rotas nos mapas Unturned, embora ajude a simular 20–40 sobreviventes distribuídos com custo controlado.
+
+**F.E.A.R. / Jeff Orkin, Monolith:** artigo técnico original do autor em AIIDE 2005 https://ojs.aaai.org/index.php/AIIDE/article/view/18724 : planejamento dinâmico supera ações pré-roteirizadas ante surpresas, mas exige distribuição/caching de cálculos para múltiplos NPCs simultâneos. Uma interpretação adequada para Unturned é manter **motor físico e interações nativas** e fazer decisões altas de baixo custo por metas/fatos, com execução/cancelamento após evidência física real; não copiar scripts de animação/objetos que dependem do motor F.E.A.R.
+
+**Status:** Pesquisa comparativa concluída; **implementação integral de arquitetura GOAP/A-Life no Unturned NÃO aconteceu nesta rodada**. Primeiro testar contratos de dano, UI, zumbi, loot e nav após correções concretas.
