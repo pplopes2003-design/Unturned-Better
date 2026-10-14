@@ -526,7 +526,17 @@ namespace SDG.Unturned
 
 				ERagdollEffect ragdollEffect = player.equipment.getUseableRagdollEffect();
 
-				if (info.type != ERaycastInfoType.NONE && info.type != ERaycastInfoType.SKIP)
+				// A custom mobile NPC is not a native Player/Zombie raycast type.
+				// The vanilla NONE gate used to discard a valid melee hit after
+				// showing a client hitmarker. Bypass ONLY when a trusted server
+				// ray confirms the FIRST collision is a real NPC anatomical hitbox.
+				Transform verifiedMobileNPCHit = null;
+				bool verifiedMobileNPCMelee = info.type == ERaycastInfoType.NONE
+					&& MobileNPCDamageBridge.TryResolvePhysicalServerHit(
+						player.look.aim.position, info.point, equippedMeleeAsset.range,
+						out verifiedMobileNPCHit);
+				if ((info.type != ERaycastInfoType.NONE && info.type != ERaycastInfoType.SKIP)
+					|| verifiedMobileNPCMelee)
 				{
 					if (Provider.modeConfigData.Items.ShouldWeaponTakeDamage && player.equipment.quality > 0 && Random.value < ((ItemWeaponAsset) player.equipment.asset).durability)
 					{
@@ -546,9 +556,9 @@ namespace SDG.Unturned
 				// The server's authoritative melee raycast stores the actual hit collider
 				// separately from info.transform. NPC hitboxes are custom colliders and can
 				// have ERaycastInfoType.NONE, so resolve their owner before the vanilla type switch.
-				Transform authoritativeMeleeHit = info.colliderTransform != null
-					? info.colliderTransform
-					: info.transform;
+				Transform authoritativeMeleeHit = verifiedMobileNPCMelee
+					? verifiedMobileNPCHit
+					: info.colliderTransform != null ? info.colliderTransform : info.transform;
 				// A local mobile-NPC melee hit can be encoded as raycast NONE.
 				// Verify the FIRST physical impact server-side rather than
 				// inventing NPC health loss from the client's hitmarker.
