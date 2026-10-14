@@ -845,3 +845,6 @@ COM-RADIO-PORTABLE-01 follow-up (`f84f390f`): rapid tune 460328 -> other channel
 - [ ] Destino de roaming fisicamente bloqueado gera memória local de 35s; 3 falhas de scavenge adiam novas tentativas 42s; não se atribui sucesso por simplesmente chegar no lugar.
 - [ ] Testar 1/10/20/40 NPCs em mapas com/sem estruturas, saúde/inventário diferentes, morte/salvamento, postura pacífica, loot e navegação. Conferir Player.log com logs [MobileNPCAutonomyPlanner] no momento de mudança, não por frame; capturar SHA efetivo da build.
 - [ ] AI-ALIFE-01 não é concluída sem build/feedback positivos. Testes anteriores CORE-02, ZMB-01, AI-07, UI-01 e CORE-04 continuam abertos.
+
+
+- [ ] Regressão adicional AI-ALIFE-01: NPC guardião sai 50–80m da base devido a combate válido, elimina/perde ameaça e retorna por caminho real à região de guarda (<=26m) sem ficar parado. Se rota inacessível, não teleportar, registrar motor stuck.
