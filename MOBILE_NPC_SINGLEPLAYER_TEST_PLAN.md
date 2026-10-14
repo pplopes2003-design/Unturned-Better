@@ -580,3 +580,5 @@ Source only — **QUASE PRONTA — AGUARDANDO BUILD**, no Unity compile, gamepla
 - [ ] User approval after build can close **only COM-RADIO-PORTABLE-01**, not COM-02, COM-03 or COM-04; defects reopen with Player.log, group IDs, tuned frequency, physical items, screen recording and reproduction.
 
 Source: `MobileNPCRadioOutbox.cs`, `MobileNPCRadioInterceptHUD.cs`, `MobileNPCPopulationBootstrap.cs`, `PlayerVoice.cs`, `PlayerQuests.cs`, `UseableWalkieTalkie.cs`; design `MOBILE_NPC_RADIO_SYSTEM_DESIGN.md`.
+
+**Section 39 real loot acquisition (`a3ea3d67`):** place one genuine world walkie ID 1445 within the loot scan radius of a living, radio-less grouped NPC. Confirm the usual ItemManager pickup/inventory transaction is completed before HasOwnedPortableRadio becomes true; a duplicate radio is deprioritized, and first gun/urgent healing still outranks the walkie. No free 1445 at spawn and no radio transmission before actual acquisition.
