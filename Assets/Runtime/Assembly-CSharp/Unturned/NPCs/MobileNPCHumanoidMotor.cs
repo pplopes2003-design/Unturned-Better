@@ -816,7 +816,12 @@ namespace SDG.Unturned
 				DestinationDistance = hasDestination ? Vector3.Distance(destination, transform.position) : 0f
 			};
 			MobileNPCLocomotionPolicy.Gait gait = locomotionPolicy.Decide(context, Time.time);
+			// Audio-only uncertainty is weaker than positive eye contact.
+			// Do not remain physically crouched while an active combat target
+			// is confirmed visible just because a prior footstep suggested
+			// listening or stalking. Cover itself remains a tactical goal.
 			UpdateCrouchStance(!isPlannedJumping && !IsTraversingLadder
+				&& !targetIsVisible
 				&& (gait == MobileNPCLocomotionPolicy.Gait.Sneak
 					|| brainDriver.IsListening || brainDriver.IsAmbushPreparing)
 				&& !isUnderwater);
