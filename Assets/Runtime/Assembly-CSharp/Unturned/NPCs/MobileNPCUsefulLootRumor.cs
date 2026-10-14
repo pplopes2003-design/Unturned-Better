@@ -301,7 +301,7 @@ namespace SDG.Unturned
         }
 
         public static bool CanSeeWorldDropServer(InteractableItem item,
-            Transform observer, float maximumDistance)
+            Transform observer, float maximumDistance, bool requireRadioUsefulCategory = true)
         {
             if (!Provider.isServer || !Level.isLoaded || item == null
                 || observer == null || item.transform == null
@@ -309,7 +309,7 @@ namespace SDG.Unturned
                 || item.asset == null || item.jar == null
                 || item.jar.item == null || item.jar.item.id != item.asset.id
                 || item.jar.item.amount == 0
-                || IntrinsicImportance(item.asset) <= 0f
+                || (requireRadioUsefulCategory && IntrinsicImportance(item.asset) <= 0f)
                 || !ItemManager.TryGetWorldItemInstanceID(item, out uint id)
                 || id == 0)
                 return false;
