@@ -34,6 +34,12 @@ namespace SDG.Unturned
 			public bool SettlementCentralStoragePlaced;
 			public MobileNPCHumanoidDisposition.Role Role;
 			public MobileNPCFaction.Id Faction;
+			// Smart-terrain-inspired job claims belong to the living group's
+			// current settlement, not to a static map registry. At most two
+			// guards get distinct physically grounded watch sectors.
+			public readonly MobileNPCGroupMember[] GuardPostOwners = new MobileNPCGroupMember[2];
+			public readonly Vector3[] GuardPostPoints = new Vector3[2];
+			public readonly bool[] GuardPostValidated = new bool[2];
 		}
 
 		private MobileNPCHumanoidVitals vitals;
@@ -357,6 +363,13 @@ namespace SDG.Unturned
 
 			group.Anchor = anchor;
 			group.HasSettlement = true;
+			// A new actual settlement must not inherit watch points from an
+			// unrelated previous map position.
+			for (int slot = 0; slot < group.GuardPostOwners.Length; ++slot)
+			{
+				group.GuardPostOwners[slot] = null;
+				group.GuardPostValidated[slot] = false;
+			}
 			foreach (MobileNPCGroupMember member in group.Members)
 			{
 				if (member == null || member.vitals != null && member.vitals.IsDead)
@@ -365,6 +378,94 @@ namespace SDG.Unturned
 				if (member.motor != null)
 					member.motor.TrySetHomePositionServer(anchor);
 			}
+		}
+
+
+		/// <summary>
+		/// A group settlement offers at most two named, exclusive watch duties.
+		/// Eligibility is checked by the existing A-Life routine utility. A
+		/// reservation does NOT imply that the NPC reached the post.
+		/// </summary>
+		public bool HasAvailableGuardPostServer
+		{
+			get
+			{
+				if (!Provider.isServer || !HasSettlement
+					|| !groups.TryGetValue(GroupId, out GroupRecord group))
+					return false;
+				PruneDeadMembers(group);
+				for (int slot = 0; slot < group.GuardPostOwners.Length; ++slot)
+					if (group.GuardPostOwners[slot] == null
+						|| group.GuardPostOwners[slot] == this)
+						return true;
+				return false;
+			}
+		}
+
+		public bool TryReserveGuardPostServer(out Vector3 physicalPost)
+		{
+			physicalPost = Vector3.zero;
+			if (!Provider.isServer || !HasSettlement || vitals != null && vitals.IsDead
+				|| !groups.TryGetValue(GroupId, out GroupRecord group)
+				|| !group.Members.Contains(this))
+				return false;
+			PruneDeadMembers(group);
+
+			// Prefer own slot after combat; never release a claim just because
+			// the guard briefly pursued an enemy or went for cover.
+			int chosen = -1;
+			for (int slot = 0; slot < group.GuardPostOwners.Length; ++slot)
+				if (group.GuardPostOwners[slot] == this) { chosen = slot; break; }
+			if (chosen < 0)
+			{
+				for (int slot = 0; slot < group.GuardPostOwners.Length; ++slot)
+					if (group.GuardPostOwners[slot] == null) { chosen = slot; break; }
+			}
+			if (chosen < 0)
+				return false;
+
+			if (!group.GuardPostValidated[chosen])
+			{
+				// Only ground NEAR an actually established group settlement is
+				// eligible; no imagined guard towers, building placement or
+				// magical entrances. Distinct opposite approaches avoid crowding.
+				float bearing = (group.Id * 53f + chosen * 180f) * Mathf.Deg2Rad;
+				Vector3 direction = new Vector3(Mathf.Cos(bearing), 0f,
+					Mathf.Sin(bearing));
+				bool found = false;
+				for (int attempt = 0; attempt < 3; ++attempt)
+				{
+					float distance = 9f + attempt * 1.5f;
+					Vector3 candidate = group.Anchor + direction * distance;
+					if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate,
+						32f, 32f, ~0, 28f, out Vector3 ground, out _)
+						|| !Level.checkSafeIncludingClipVolumes(ground)
+						|| Mathf.Abs(ground.y - group.Anchor.y) > 2.1f
+						|| Physics.CheckSphere(ground + Vector3.up * 0.95f,
+							0.45f, ~0, QueryTriggerInteraction.Ignore))
+						continue;
+					group.GuardPostPoints[chosen] = ground;
+					group.GuardPostValidated[chosen] = true;
+					found = true;
+					break;
+				}
+				if (!found)
+					return false;
+			}
+			group.GuardPostOwners[chosen] = this;
+			physicalPost = group.GuardPostPoints[chosen];
+			return true;
+		}
+
+		/// <summary>Release only THIS NPC's job claim. Other members keep theirs.</summary>
+		public void ReleaseGuardPostServer()
+		{
+			if (!Provider.isServer || GroupId <= 0
+				|| !groups.TryGetValue(GroupId, out GroupRecord group))
+				return;
+			for (int slot = 0; slot < group.GuardPostOwners.Length; ++slot)
+				if (group.GuardPostOwners[slot] == this)
+					group.GuardPostOwners[slot] = null;
 		}
 
 		private MobileNPCFaction.Id GetCurrentFaction(MobileNPCHumanoidDisposition.Role fallbackRole)
@@ -449,6 +550,13 @@ namespace SDG.Unturned
 		{
 			group.Members.RemoveWhere(member => member == null || member.leftGroup
 				|| member.vitals != null && member.vitals.IsDead);
+			for (int slot = 0; slot < group.GuardPostOwners.Length; ++slot)
+			{
+				MobileNPCGroupMember owner = group.GuardPostOwners[slot];
+				if (owner != null && (!group.Members.Contains(owner)
+					|| owner.vitals != null && owner.vitals.IsDead))
+					group.GuardPostOwners[slot] = null;
+			}
 		}
 
 		private void OnDied()
@@ -515,6 +623,11 @@ namespace SDG.Unturned
 			if (groups.TryGetValue(GroupId, out GroupRecord group))
 			{
 				group.Members.Remove(this);
+				for (int slot = 0; slot < group.GuardPostOwners.Length; ++slot)
+				{
+					if (group.GuardPostOwners[slot] == this)
+						group.GuardPostOwners[slot] = null;
+				}
 				PruneDeadMembers(group);
 				if (group.Leader == this || group.Leader == null || group.Leader.vitals != null && group.Leader.vitals.IsDead)
 				{
