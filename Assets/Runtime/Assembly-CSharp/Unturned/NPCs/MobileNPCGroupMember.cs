@@ -403,6 +403,26 @@ namespace SDG.Unturned
 			return true;
 		}
 
+		/// <summary>
+		/// Finds the current living leader only for a member of the registered group.
+		/// A radio station cannot be used through a dissolved or foreign group.
+		/// </summary>
+		public bool TryGetLivingLeaderServer(out MobileNPCGroupMember leader)
+		{
+			leader = null;
+			if (!Provider.isServer || !initialized || leftGroup || GroupId <= 0
+				|| vitals != null && vitals.IsDead
+				|| !groups.TryGetValue(GroupId, out GroupRecord group))
+				return false;
+			PruneDeadMembers(group);
+			if (!group.Members.Contains(this) || group.Leader == null
+				|| !group.Members.Contains(group.Leader)
+				|| group.Leader.GroupId != GroupId)
+				return false;
+			leader = group.Leader;
+			return true;
+		}
+
 		private static GroupRecord FindNearestGroup(Vector3 position, MobileNPCHumanoidDisposition.Role role, MobileNPCFaction.Id faction)
 		{
 			GroupRecord nearest = null;
