@@ -818,3 +818,18 @@ COM-RADIO-PORTABLE-01 follow-up (`f84f390f`): rapid tune 460328 -> other channel
 - [ ] Escalar 1/10/20/40 NPCs para garantir que checagens LOS somente ao iniciar/pickup não produzam stalls de FPS; `ItemManager` ainda percorre regiões ao fazer commit e poderá exigir otimização depois de medição.
 
 **Todas as checkboxes abertas. Mudança em fonte não significa concluído runtime.**
+
+
+### Seção 54 — ZMB-01: streaming quando Player cruza regiões/POI (2026-10-14; NÃO EXECUTADO)
+
+- [ ] Dev Build single-player com HEAD anotado: atrair 1 zumbi comum da POI (0–20m), confirmar `isHunting`, caminhar para fora do bound/nav sem atravessar paredes e permanecer 20–40m fisicamente do zumbi. Esperado: zumbi persiste, se locomove em terreno válido, causa dano ao alcançar; nunca desaparece no exato frame da fronteira.
+- [ ] Perder aggro/usar canto próximo de borda com zumbi vivo e parado a <=48m (ou estado investigando); alternar bound. Esperado: zumbi não desaparece por ter `isHunting=false` naquele instante. Em home bound vazio, checar se `OnUpdate` não fica congelado nem duplica.
+- [ ] Dar meia-volta em até 3s e reentrar no bound enquanto ele continua retido: `[ZMB-01] Reused bound...` aparece; `generateZombies` NÃO recria zumbis nem altera IDs, quantidade viva, boss/quest ou posições além do movimento físico normal.
+- [ ] Afastar jogador além de 112m (ou zumbi ocioso a mais de 48m), esperar pelo menos 6s; registrar `[ZMB-01] Unloading distant inactive...` se não restar nenhum zumbi próximo/perseguidor, então voltar e confirmar a população normal de spawn. Não manter 20 regiões eternamente.
+- [ ] Repetir com boss de missão efetivamente aggro, perseguição 20–60m para fora da POI: não receber dano letal artificial de 50.000 por simples troca de bound. Afastar-se além do limite ou morrer: regra de abandono da missão continua. Verificar HP, XP, kill credit, evento único, boss vivo/removido.
+- [ ] Zumbi atacando NPC móvel (ou o jogador) fora de região, água/costa, declive perigoso, portas/parede, player voltando à POI com zumbi ainda fora. Não atravessar colisões, teletransportar ou inventar A* em navmesh ausente; perseguidores além de 64m podem continuar dependendo de navegação nativa.
+- [ ] Logs `[ZMB-01] Retained bound`, `Reused bound` e `Unloading distant...` somente em `UNITY_EDITOR || DEVELOPMENT_BUILD`; coletar Player.log + mapa/posição, reação física/HP e número de zumbis antes/depois.
+- [ ] Cenários 1, 20, 50, 200 zumbis: FPS/GC, número de regiões `isNetworked` sem player, `OnUpdate` por frame e tempo para descarregar. Não fazer benchmark em release antes de compilar patches.
+- [ ] Dedicado/remote-player: interesse por região de origem **NÃO** foi corrigido nesta rodada; não aprovar multiplayer `NET-01` por causa do teste single-player.
+
+**Estado:** mudança commitada, revisão estática realizada, compilação Unity/Dev Build **não executadas**. `ZMB-01` continua EM IMPLEMENTAÇÃO; subescopo `ZMB-POI-STREAM-03` QUASE PRONTO aguardando feedback real.
