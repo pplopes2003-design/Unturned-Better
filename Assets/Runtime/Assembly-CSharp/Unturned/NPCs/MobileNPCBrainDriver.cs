@@ -156,6 +156,11 @@ namespace SDG.Unturned
 			investigatingPlayerClue = false;
 			listenUntil = 0f;
 			brain.ReportVisibleTarget(target, Time.time);
+			// A real current visual target plus a genuine recent wound can
+			// justify a HELP request. A past unseen attacker, mere sound clue,
+			// or group-wide knowledge never creates this radio message.
+			MobileNPCRadioOutbox supportRadio = GetComponent<MobileNPCRadioOutbox>();
+			supportRadio?.TryQueueCombatReinforcementsServer(target);
 			PublishDecisionIfChanged();
 		}
 
@@ -683,6 +688,24 @@ namespace SDG.Unturned
 				|| float.IsNaN(validatedPlace.z) || float.IsInfinity(validatedPlace.z)
 				|| !Level.checkSafeIncludingClipVolumes(validatedPlace))
 				|| !tactics.TryStartSupplySearch(validatedPlace, Time.time))
+				return false;
+			PublishDecisionIfChanged();
+			return true;
+		}
+
+		/// <summary>
+		/// Move toward a validated APPROXIMATE wounded ally rendezvous, never
+		/// toward an enemy target. Normal motor/pathfinder performs movement;
+		/// visual perception must discover any hostile again for actual combat.
+		/// </summary>
+		public bool TryStartRadioReinforcementServer(Vector3 safeRendezvous)
+		{
+			if (!CanAcceptServerInput || brain.Target != null
+				|| brain.CurrentState != MobileNPCBrain.State.Idle
+				|| tactics.CurrentGoal != MobileNPCTactics.Goal.None
+				|| !IsFiniteSquadPoint(safeRendezvous)
+				|| !Level.checkSafeIncludingClipVolumes(safeRendezvous)
+				|| !tactics.TryStartRadioReinforcement(safeRendezvous, Time.time))
 				return false;
 			PublishDecisionIfChanged();
 			return true;
