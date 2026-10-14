@@ -1,6 +1,6 @@
-# Mobile NPC radio communications — design only (2026-10-13)
+# Mobile NPC radio communications — architecture, implementation history and limits (2026-10-13)
 
-**Status (latest): portable radio text V1 connected in source, awaiting Unity Dev Build.** This file records requested requirements and interface constraints for future agents. Do not treat radio access as a passive skill, magically shared faction memory, or a substitute for line-of-sight/audio evidence.
+**Status (latest): portable and improvised electrically powered base-radio text endpoints connected in source, awaiting Unity Dev Build. COM-02/COM-03/COM-04 parents remain unfinished.** This file records requested requirements and interface constraints for future agents. Do not treat radio access as a passive skill, magically shared faction memory, or a substitute for line-of-sight/audio evidence.
 
 ## Why it exists
 
@@ -133,3 +133,36 @@ Final Dev Build must verify actual ID 1445 inventory ownership, two separate equ
 - Source review confirms referenced symbols and call chains, and a basic delimiter check was performed on the changed file. This is **not** proof of compilation, Unity prefab integration correctness, functional frequency-selector UI, or acceptable runtime performance.
 
 **Status:** scoped `COM-RADIO-PORTABLE-01` **QUASE PRONTA — AGUARDANDO BUILD** (text-only, group/faction/equipment-gated host single-player); parent `COM-02` **EM IMPLEMENTAÇÃO** (NPC hand visuals, audio and native/networked transport outstanding); `COM-03` **NÃO INVESTIGADA** for verified native powered base radio; `COM-04` **EM IMPLEMENTAÇÃO** (partial airdrop report producer/text transport only; recipient behavior and other reports pending). Next planned work: research actual placeable base power/radio assets **before** writing a fictitious powered radio, then separately add bounded reinforcement/intelligence consumers without magical spawning. Tests in section 39 and its static-review addendum of `MOBILE_NPC_SINGLEPLAYER_TEST_PLAN.md`.
+
+
+## 2026-10-13 — COM-BASE-PHYSICAL-01: real-items-only powered base station (source milestone)
+
+**Implementation commits** (branch `feature/npc-ai-foundation`): `7c4960b1` (live group leader lookup), `a46dea22` (own real base storage + generator slot), `61f7544a` (base station power and stored walkie validation), `ac008d99` (COM-02 outbox endpoints), `9525da25` (safe bounded inventory iteration), `36e27f5f` (Unity meta), `fc283b1b` (preserve real generator power/fuel state), `bab2bee1` (diagnostics). **No Unity compile/runtime test occurred.**
+
+### Native source research, and what does NOT exist
+
+- Checked actual repository `EBuild.GENERATOR`, `ItemGeneratorAsset`, `InteractableGenerator`, `InteractablePower`, `PowerTool`, `BarricadeManager`, `ItemStorageAsset/InteractableStorage`, `PlayerVoice` and `UseableWalkieTalkie`.
+- Native `InteractableGenerator.IsWorldPositionPowered(Vector3)` checks the list of **enabled, fueled, world-based** generators and their authored wiring radii, not infinite virtual electricity. `Level.info.configData.Has_Global_Electricity` is the native separate global power option. `InteractablePower` uses these same two power mechanisms.
+- Native `InteractableStereo` plays songs. It does not implement a faction radio transmitter; no genuine ready-to-use native fixed `InteractableRadio` class was found in the scanned runtime. **Do not label the following assembly a vanilla radio asset.** It is a clearly defined extension combining actual native objects.
+- Vanilla walkie 1445 remains a portable device without a new fictional battery drain. **The improvised base *station assembly* needs electricity to run**, as a project-specific rule; this is different from claiming that standalone vanilla walkies require batteries.
+
+### Physical station rule (already wired in source)
+
+`MobileNPCBaseRadioStation.CanOperateServer` requires **all**:
+1. Living registered group and living group leader, actual settlement anchor, builder's **placed or world-restored** central storage; never use a global phantom radio registry.
+2. A live `InteractableStorage` within 3.5m of the real group anchor; group storage must have `CSteamID.Nil` owner and owner-group and be referenced by the elected group leader's settlement builder. Do not hijack player-owned chests.
+3. **A real Item 1445** inside this actual native storage's `Items` inventory. Looting/removing it immediately revokes the station at the next operation.
+4. Power at the storage position from actual activated native generator with real nonzero fuel/wirerange, **or** a map explicitly configured with native global electricity. The radio does **not** operate merely because an unpowered generator mesh exists.
+5. **Actual NPC operator within 3m of this storage**. Distant members lacking personal 1445 get no radio endpoint; remote listeners must have their own 1445 or another valid powered base operating position. Messages remain restricted to the same `GroupId`, `MobileNPCFaction.Id` and `460327 + runtimeGroupId`.
+6. Sender still needs firsthand `EnemyContact` or near, landed, nonempty airdrop evidence; receiver brain only consumes the EnemyContact kind, as before. Any successful player intercept remains tuned+equipped and host-only text; no native microphone/visual hand equip/network replica.
+
+The `MobileNPCSettlementBuilder` can reserve ONE of its existing four non-storage perimeter positions for a **real owned `ItemGeneratorAsset`** when available (no item ID invented). It does not create a new slot or magically spawn fuel; generator items are no longer prematurely dumped into central storage. Native generator item `state` (on/off and fuel) is preserved in `new Barricade(asset, health, clone(state))` instead of reset to empty. Builders detect nearby existing generators on one-time settlement restore to reduce duplicates, and the leader's actual known central storage is exposed through a no-scanning accessor. Existing four-point base geometry still determines placement. A generator counts as one of the perimeter slots, replacing one defensive piece rather than expanding the default 5-piece cap.
+
+`MobileNPCRadioOutbox` uses either `HasOwnedPortableRadio` **or** `MobileNPCBaseRadioStation.CanOperateServer(group, npc.position)` for both speaker and NPC listener, retaining group/faction/TTL/cooldowns and 1.25-second global airtime. Logs (max once/10s) distinguish `source=portable` vs `source=powered-base` and base station receiver count. No per-frame all-world generator/storages scan is introduced into the radio endpoint: the builder's on-reconcile scan is bounded to first settlement restore, and native generators have an efficient built-in world power registry.
+
+### Strict remaining scope and caveats
+
+- **NOT implemented:** automatic fuel canister selection and transactional refueling, generator switch interaction by an NPC, placing a distinct vanilla fixed-radio object, player-operable fixed-station UI, real voice/audio, radio use animation, cross-group/faction relaying, vehicle radio, station operator travel to an empty seat, radio repairs, or authenticated persistent station ownership per saved group. A fueled generator with ON bit from a real carried item or an already functional world generator / global electricity is needed to demonstrate COM-BASE-PHYSICAL-01. A newly crafted generator with fuel=0 and powered=false does not become active automatically.
+- After reloading, builder reconciles nil-owner storage within 3.5m and existing generator within 6m of the saved chosen site. This is a **proximity-based legacy base-ownership heuristic**, not a cryptographically/uniquely tagged station; nearby unowned world objects may be mistaken for the same settlement. Do not consider ownership/persistence final until a reliable placement instance ID is stored and restored. Existing base 5-piece and saved progress limits may prevent adding a generator to an already completed older settlement.
+- Real generator placement via `BarricadeManager.dropBarricade` inherits all limitations of earlier base-building code (collision, server registration, consuming the source item only after placement). No guarantee that the prefab is collision-free or that the Unity import compiles.
+- **Scoped status:** `COM-BASE-PHYSICAL-01` **QUASE PRONTA — AGUARDANDO BUILD** only for the power-gated, real-stored-1445, near-operator, same-group **text** endpoint and the one-slot real-generator placement. Parent `COM-03` **EM IMPLEMENTAÇÃO**. Generator autonomous activation/refueling `COM-BASE-POWER-02` **EM IMPLEMENTAÇÃO / pending next engineering round**, no ready claim. Continue `COM-04` consumers/observations separately. User's final Dev Build and feedback decide acceptance or reopening. See test-plan section 40.
