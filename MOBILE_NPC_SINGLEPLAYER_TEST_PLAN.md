@@ -803,3 +803,18 @@ COM-RADIO-PORTABLE-01 follow-up (`f84f390f`): rapid tune 460328 -> other channel
 - [ ] Enquanto sessão aberta, NPC/jogador se afastam >4m, NPC morre, jogador morre ou nível descarrega: menu desaparece sem travar cursor, HUD, inventário ou próxima conversa; garantir não ficar com `PlayerUI.window.showCursor` true.
 - [ ] Verificar que mouse não obriga ocultação permanente de `PlayerLifeUI`; investigar exceções `Glazier/ISleekElement`, `CreateScrollView`, `Native Sleek dialogue panel` no `Player.log`. Se backend nativo não inicializar, registrar fallback IMGUI e manter UI-01 aberta.
 - [ ] Compilar sem CS errors, registrar SHA exato da build, NPC, input, resolução e 2 screenshots (menu e pós-ESC). **Nenhum critério acima foi executado; status: QUASE PRONTA — AGUARDANDO BUILD**.
+
+
+### Seção 53 — Coleta física em mesa/prateleira, altura/LOS e transação real (2026-10-14, NÃO EXECUTADA)
+
+- [ ] Iniciar SP Dev Build com SHA atual; 1 NPC neutro perto de **item real** no chão: confirmar Goal.Loot, deslocamento físico, `ItemManager` remoção de drop uma única vez, incremento inventário NPC de **exatamente 1**, sem duplicar no mapa.
+- [ ] Repetir com item sobre bancada ~1,45m acima dos pés e a 1m no plano horizontal. Antes a distância euclidiana dos pés era ~1,76m (maior que `pickupDistance=1,4m`), agora deve tentar transferir se houver alcance real da mão e LOS. Conferir logs de motivo de falha se não concluir.
+- [ ] Item em prateleira ~1,9m e a 1,25m horizontal, sem objeto bloqueando a linha olho→drop: tentativa possível dentro dos limites. Depois colocar item na mesma posição mas com parede/porta fechada entre NPC e drop: deve ser rejeitado, nenhum inventário alterado, nenhuma passagem através da parede.
+- [ ] Mesmo X/Z no andar acima (altura ~3m) ou item a mais de 2,8m horizontal: **não** pegar através de piso, teto ou distância. Se o sistema alcançar pelo outro pavimento, identificar tipo de colisão e reportar.
+- [ ] Mesa larga, armário fechado e prateleira com colisão: NPC não deve atravessar o móvel nem ficar alternando à esquerda e à direita sem parar; impossível de alcançar deve expirar / cooldown e tentar outra tarefa. Isso ainda não está comprovado.
+- [ ] Dois NPCs buscando o mesmo `instanceID` em paralelo: no máximo um armazena, o outro abandona item inexistente. NPC com inventário cheio não remove item. Atenção à réplica cliente/host: drop não deve permanecer como fantasma.
+- [ ] Testar food/water, gun/ammo, roupa, barricado/construção e itens com `amount=0` (somente carregador permitido pela regra nativa), incluindo reprodução de `Pickup transfer failed`.
+- [ ] Buscar texto `[MobileNPCLooting] Pickup transfer failed for item instance ... reason=...` no Player.log; classificar: `outside horizontal/vertical pickup reach`, `beyond hand reach`, `occluded or no longer registered`, `native world drop not present`, `inventory rejected item`, `instance missing ...` ou identidade divergente. Documentar posição raiz e item, tipo de móvel, screenshot e SHA de build.
+- [ ] Escalar 1/10/20/40 NPCs para garantir que checagens LOS somente ao iniciar/pickup não produzam stalls de FPS; `ItemManager` ainda percorre regiões ao fazer commit e poderá exigir otimização depois de medição.
+
+**Todas as checkboxes abertas. Mudança em fonte não significa concluído runtime.**
