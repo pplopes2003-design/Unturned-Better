@@ -73,7 +73,10 @@ namespace SDG.Unturned
 			MobileNPCHumanoidVitals targetVitals = targetNPC != null ? targetNPC.GetComponent<MobileNPCHumanoidVitals>() : null;
 			if (targetPlayer != null)
 			{
-				if (targetPlayer.life == null || targetPlayer.life.isDead)
+				MobileNPCHumanoidDisposition own =
+					GetComponent<MobileNPCHumanoidDisposition>();
+				if (own == null || !own.CanEngagePlayer(targetPlayer)
+					|| targetPlayer.life == null || targetPlayer.life.isDead)
 					return;
 			}
 			else if (targetNPC != null)
@@ -240,7 +243,7 @@ namespace SDG.Unturned
 		public bool TryAttack(Player targetPlayer, Vector3 attackDirection)
 		{
 			MobileNPCHumanoidDisposition ownDisposition = GetComponent<MobileNPCHumanoidDisposition>();
-			if (!Provider.isServer || ownDisposition == null || !ownDisposition.CanEngagePlayers
+			if (!Provider.isServer || ownDisposition == null || !ownDisposition.CanEngagePlayer(targetPlayer)
 				|| targetPlayer == null || targetPlayer.life == null || targetPlayer.life.isDead
 				|| Time.time < nextAttackTime)
 			{
