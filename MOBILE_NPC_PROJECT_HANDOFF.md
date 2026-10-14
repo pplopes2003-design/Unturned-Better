@@ -1617,3 +1617,14 @@ O usuário retornou após nova interrupção pedindo continuação. Revalidada b
 - `6e212061` — `ZombieManager.cs`: zumbis ociosos ainda fisicamente próximos e de home region retida continuam recebendo `OnUpdate`. Nenhuma duplicação de atualização para hunters/regions com players. Logs limitados a transições de bound `[ZMB-01]` em Development Build (retain, unload, reentry no spawn).
 
 **Validação:** inspeção no GitHub, chaves C# balanceadas e `#if/#endif` coerentes; não houve compilação, Dev Build ou prova do usuário. `ZMB-POI-STREAM-03` é **QUASE PRONTA — AGUARDANDO BUILD**; `ZMB-01` (pai), `ZMB-02` e `NET-01` **EM IMPLEMENTAÇÃO**. Faltam testes de zombies e boss em borda de POI, distância 30–140m, ida/volta, dano/morte real, agressão a NPC móvel, visibilidade de origem e estabilidade de rede, profiler 1/20/50/200 zumbis. Nenhum caminho global/A* novo é prometido. Documentação especializada: `ZOMBIE_CROSS_REGION_NAVIGATION_DESIGN.md`, plano de testes seção 54.
+
+
+## 2026-10-14 — PRIORIDADE DO USUÁRIO: IA de NPC estilo A-Life, zumbis depois
+
+Usuário solicitou explicitamente aprimorar os NPCs com autonomia baseada no A-Life de S.T.A.L.K.E.R., em vez de prosseguir ZMB-01. Baseline da branch feature/npc-ai-foundation: 889e8d35ddb1e3e1c25ecd91c8b62cb11eccab8b. Todos os avanços antigos de ZMB e NPC preservados.
+
+Referências de arquitetura X-Ray/Anomaly: smart jobs locais, squad assignment, schemes/GOAP e online/offline; URLs e limites no novo MOBILE_NPC_ALIFE_AUTONOMY_DESIGN.md. Unturned já tinha combate, percepção, necessidades, inventário, grupos, construção, rádio, memória e navegação; esta é camada estratégica inicial e NÃO uma reprodução completa de GOAP ou do A-Life original.
+
+Código commitado: 2f2dae4e (novo MobileNPCAutonomyPlanner com utilidades Patrol, Scavenge, GuardSettlement, Recover, prioridades e estabilidade da escolha), b730886a/26ed8f86 (template runtime e .meta), 2952abfc/cf0984ee/d29af84a (integração no motor com perfil de ronda, busca de áreas com estruturas, guarda da base, recuperação breve e memória de waypoint bloqueado). Nem preempção por rotina de alvo confirmado, nem deslocamento impossível, criação de recursos ou conhecimento escondido. Combate e todas as ordens táticas anteriores continuam superiores.
+
+AI-ALIFE-01 recorte conectado em FONTE: QUASE PRONTA — AGUARDANDO BUILD. Parent AI-01 EM IMPLEMENTAÇÃO. Não compilado nem executado no Unity. Faltam jobs reservados, cadeia GOAP, economia A-Life offline, simulação social com eventos, persistência de personalidade e agenda. Criados backlog AI-ALIFE-02..06. Próxima prioridade recomendada AI-ALIFE-02 (tarefas físicas e slots de job) e AI-ALIFE-03 (planos curtos de necessidades). Preservar o pedido antigo de diagrama completo somente quando demais subsistemas estiverem estruturados. Usuário compila/testa na Dev Build final.
