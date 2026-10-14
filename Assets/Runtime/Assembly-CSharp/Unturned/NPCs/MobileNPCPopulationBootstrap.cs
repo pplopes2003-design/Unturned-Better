@@ -50,6 +50,7 @@ namespace SDG.Unturned
             // This is especially important when changing maps before the 30-second autosave.
             MobileNPCPersistence.PrepareForMapTransitionServer();
             MobileNPCGroupMember.ResetAllServerGroups();
+            MobileNPCRadioOutbox.ResetRadioSessionServer();
             MobileNPCPersistence.ResetForLoadedMapServer();
             MobileNPCAirdropContest.ResetServer();
             DestroyExistingRuntimeObjects();
@@ -401,6 +402,9 @@ namespace SDG.Unturned
             directorObject = new GameObject("MobileNPCPopulationDirector_Runtime");
             MobileNPCPopulationDirector director = directorObject.AddComponent<MobileNPCPopulationDirector>();
             directorObject.AddComponent<MobileNPCInteractionController>();
+            directorObject.AddComponent<MobileNPCRadioInterceptHUD>();
+            // The HUD only renders a radio report when the native local
+            // receiver gear and PlayerQuests.radioFrequency actually match.
             // Server-side motion sampling generates audible footstep evidence.
             // It does not expose the player's live transform to NPC decisions.
             directorObject.AddComponent<MobileNPCPlayerFootstepSensor>();
