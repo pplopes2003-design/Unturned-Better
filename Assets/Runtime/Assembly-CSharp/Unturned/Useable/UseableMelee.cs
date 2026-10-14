@@ -255,11 +255,11 @@ namespace SDG.Unturned
 				Ray ray = new Ray(player.look.aim.position, player.look.aim.forward);
 				RaycastInfo info = DamageTool.raycast(ray, ((ItemWeaponAsset) player.equipment.asset).range, RayMasks.DAMAGE_CLIENT, ignorePlayer: player);
 
-				// Server melee input carries the authoritative collider transform separately
-				// from the client-side RaycastInfo transform. Prefer it so custom NPC hitboxes
-				// receive the same server damage handling as vanilla character colliders.
+				// RaycastInfo exposes collider and transform. Prefer the actual
+				// hit collider for mobile NPC body-part detection; use the
+				// RaycastInfo transform when there is no physical collider.
 				Transform meleeHitTransform = info.collider != null ? info.collider.transform
-					: info.colliderTransform != null ? info.colliderTransform : info.transform;
+					: info.transform;
 				MobileNPCHumanoidVitals mobileNPCVitals = meleeHitTransform != null
 					? meleeHitTransform.GetComponentInParent<MobileNPCHumanoidVitals>()
 					: null;
