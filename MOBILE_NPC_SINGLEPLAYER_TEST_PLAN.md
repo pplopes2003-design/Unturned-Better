@@ -777,3 +777,17 @@ COM-RADIO-PORTABLE-01 follow-up (`f84f390f`): rapid tune 460328 -> other channel
 - [ ] Regressão de bootstrap: percepção adicionada depois do motor no template inativo deve ser resolvida e armazenada em cache após ativação; 20–40 NPCs não fazem `GetComponent` em cada ciclo para a mesma leitura.
 
 **Source-only, ainda não compilado/testado pelo usuário em Unity.**
+
+
+### Section 51 — follow-up de navegação e loot visível (2026-10-14; ainda NÃO executado)
+
+- [ ] Preparar mapa com item nativo atrás de parede: NPC no lado externo não recebe meta Loot **só por região ItemManager**. Entrar no cômodo/linha de visão a até 17m: deve poder escolher, alcançar e recolher item sem teleporte/parede atravessada. Rodar com água, alimento, arma, item de roupa, estrutura/material de base (não só classes de rádio).
+- [ ] Colocar dois itens reais: de longe (>17m), nenhum deve ser escolhido só pelo raio de scan de 28m. Ao aproximar-se até 17m com visão desobstruída, prioridade situacional do ScoreItem mantém vantagem por necessidade e distância. Parede opaca deve bloquear visão; vidro/porta têm de respeitar máscara nativa real.
+- [ ] Com item em mesa ou prateleira: observar posição da origem do loot, colisão do tampo, fim do Goal.Loot, `Pickup transfer failed` e estado do inventário, sem pickup mágico. Se falhar por geometria/altura, reabrir bug específico; novo filtro de visão por si só NÃO corrige transferência.
+- [ ] Por rádio, confirmar que `MobileNPCUsefulLootRumor.TryConfirmLocallySeenItemServer` segue escolhendo SOMENTE classes úteis e primeiro item verdadeiro localmente visto; não duplicar `TryStartLoot`, não perder estado da investigação, nenhum item materializado.
+- [ ] Obstrução de poste e canto pequeno: evitar esquerda/direita sem avanço; com objetivo >6m atrás de muro comprido, capturar no Player.log ≥2 eventos reais `[MobileNPCHumanoidMotor] Blocked` e checar se a busca ampla de 81 células/2m permite contorno sem atravessar colisão. Se não, classificar como pendente; rota global continua dependente de backend de navegação válido.
+- [ ] Escadas, portas e pisos diferentes: validação exata deve manter 1,25m, não saltar andar; porta trancada continua fechada, porta destrancada só abre pela API de BarricadeManager. Descida brusca/penhasco e água sem chão seguro não podem virar rota aceita.
+- [ ] Medir 1, 10, 20 e 40 NPCs com vários obstáculos e loot, FPS/GC e frequência de raycasts/logs, especialmente depois de travamentos. Não considerar nível de autonomia A-Life/GOAP concluído.
+- [ ] Refazer P0 de tiros, soco/melee, morte, retaliação, diálogo/ESC, nome por trás de parede, postura por ruído e perseguição de zumbi além de POI. Anotar SHA da build efetivamente compilada; diferenças entre Unity local e HEAD do GitHub podem invalidar o teste.
+
+**Status desta seção:** correções commitadas e revisadas estaticamente; compilação/Dev Build ainda NÃO testadas.
