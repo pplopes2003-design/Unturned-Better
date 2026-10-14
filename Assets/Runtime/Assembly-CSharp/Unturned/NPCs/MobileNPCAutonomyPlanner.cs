@@ -36,6 +36,7 @@ namespace SDG.Unturned
         private float jobCommittedUntil;
         private float recoveryNotBefore;
         private float scavengeNotBefore;
+        private float guardNotBefore;
         private float personalityExploreBias;
         private float personalityGuardBias;
         private int consecutiveFailedScavengeWaypoints;
@@ -69,6 +70,17 @@ namespace SDG.Unturned
             nextEvaluationTime = Time.time + Mathf.Max(2f, evaluationInterval)
                 + Random.Range(0f, 1.5f);
 
+            // Finish a timed recovery BEFORE recomputing the health utility.
+            // Otherwise a wounded NPC can immediately renew Recover forever,
+            // despite the intended short rest and its cooldown.
+            if (currentJob == Job.Recover && initialized
+                && Time.time >= jobCommittedUntil)
+            {
+                recoveryNotBefore = Time.time + 36f;
+                currentJob = Job.Patrol;
+                jobCommittedUntil = Time.time + 12f;
+            }
+
             // Threat perception and tactical travel have exclusive ownership of
             // movement; the routine does not reset or override either one.
             if (brain == null || brain.Target != null
@@ -90,9 +102,10 @@ namespace SDG.Unturned
                     + Mathf.Max(0f, 0.82f - thirst) * 95f
                     + (!hasGun ? 16f : 0f)
                 : -1000f;
-            float guard = hasSettlement
+            float guard = hasSettlement && Time.time >= guardNotBefore
+                && group.HasAvailableGuardPostServer
                 ? 53f + personalityGuardBias + (group.CanPlanSettlement ? 7f : 0f)
-                : inGroup ? 24f + personalityGuardBias : 7f;
+                : -1000f;
             float recover = Time.time >= recoveryNotBefore
                 ? 8f + (1f - health) * 100f
                     + (vitals != null && Time.time - vitals.LastDamageTime < 9f ? 17f : 0f)
@@ -115,6 +128,8 @@ namespace SDG.Unturned
 
             if (!initialized || best != currentJob)
             {
+                if (currentJob == Job.GuardSettlement && group != null)
+                    group.ReleaseGuardPostServer();
                 currentJob = best;
                 initialized = true;
                 jobCommittedUntil = Time.time + Mathf.Max(10f, minimumJobCommitment);
@@ -131,13 +146,6 @@ namespace SDG.Unturned
 #endif
             }
 
-            if (currentJob == Job.Recover && Time.time >= jobCommittedUntil)
-            {
-                recoveryNotBefore = Time.time + 36f;
-                currentJob = Job.Patrol;
-                jobCommittedUntil = Time.time + 12f;
-                nextEvaluationTime = Time.time + 0.1f;
-            }
             return currentJob;
         }
 
@@ -152,10 +160,25 @@ namespace SDG.Unturned
             Job job = EvaluateRoutineServer();
             if (job == Job.GuardSettlement)
             {
-                anchor = group != null && group.HasSettlement ? group.GroupAnchor : home;
-                minStep = 7f;
-                maxStep = 20f;
-                structurePreference = 0f;
+                if (group != null && group.TryReserveGuardPostServer(out Vector3 post))
+                {
+                    anchor = post;
+                    minStep = 3f;
+                    maxStep = 8f;
+                    structurePreference = 0f;
+                }
+                else
+                {
+                    // No reachable, physically verified or free guard job.
+                    // Return to ordinary patrol; another member may claim a
+                    // post later when a guard dies or changes duties.
+                    if (group != null)
+                        group.ReleaseGuardPostServer();
+                    currentJob = Job.Patrol;
+                    guardNotBefore = Time.time + 20f;
+                    jobCommittedUntil = Time.time + 12f;
+                    nextEvaluationTime = Time.time + 1f;
+                }
             }
             else if (job == Job.Scavenge)
             {
@@ -163,6 +186,19 @@ namespace SDG.Unturned
                 maxStep = 48f;
                 structurePreference = 0.88f;
             }
+        }
+
+
+        private void OnDisable()
+        {
+            if (group != null)
+                group.ReleaseGuardPostServer();
+        }
+
+        private void OnDestroy()
+        {
+            if (group != null)
+                group.ReleaseGuardPostServer();
         }
 
         /// <summary>Failed routes are learned only from actual physical stalls.</summary>
