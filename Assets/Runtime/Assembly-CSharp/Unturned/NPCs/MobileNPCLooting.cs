@@ -60,6 +60,12 @@ namespace SDG.Unturned
 				return;
 			}
 
+			// Runtime template components are attached while inactive; resolve
+			// late-added radio modules defensively after first activation too.
+			if (radioLootRumor == null)
+				radioLootRumor = GetComponent<MobileNPCUsefulLootRumor>();
+			if (radioOutbox == null)
+				radioOutbox = GetComponent<MobileNPCRadioOutbox>();
 			UpdateRememberedSupplyTripServer();
 			bool radioLootSearch = radioLootRumor != null
 				&& radioLootRumor.IsActivelySearchingServer;
