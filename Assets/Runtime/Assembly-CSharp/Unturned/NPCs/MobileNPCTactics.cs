@@ -71,7 +71,7 @@ namespace SDG.Unturned
 		/// server-side navigation and line-of-sight checks. Returns false if no tactical
 		/// response is currently required.
 		/// </summary>
-		public bool TryChooseDefensiveGoal(Vector3 currentPosition, Vector3? validatedCoverPoint, Vector3 threatPosition, float now)
+		public bool TryChooseDefensiveGoal(Vector3 currentPosition, Vector3? validatedCoverPoint, Vector3 threatPosition, float now, bool canReturnFire = false)
 		{
 			bool underRecentFire = now - lastShotAt <= 2.5f;
 			bool recentlyDamaged = now - lastDamageAt <= 3.0f;
@@ -106,9 +106,18 @@ namespace SDG.Unturned
 				return true;
 			}
 
-			// If no covered point was found, the host should validate a retreat point.
-			// Do not keep the NPC planted in its current exposed position just because
-			// a nearby hard-cover candidate was unavailable.
+			// F.E.A.R.-style defensive selection must not turn EVERY shot into
+			// a blind flight: a healthy, armed survivor with a truly confirmed
+			// target can stand and return fire when no reachable cover exists.
+			// No-target, unarmed, or seriously wounded survivors still withdraw.
+			if (canReturnFire && healthFraction > 0.55f)
+			{
+				if (currentGoal == Goal.SeekCover || currentGoal == Goal.Retreat)
+					ClearGoal();
+				return false;
+			}
+			// If the NPC cannot safely retaliate and no cover was found,
+			// validate a retreat position rather than standing exposed.
 			currentGoal = Goal.Retreat;
 			hasTacticalDestination = false;
 			goalDeadline = now + RetreatDuration;
