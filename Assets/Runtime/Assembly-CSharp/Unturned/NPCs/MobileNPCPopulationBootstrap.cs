@@ -107,6 +107,7 @@ namespace SDG.Unturned
             template.AddComponent<MobileNPCMedicalUse>();
             template.AddComponent<MobileNPCSettlementPlanner>();
             template.AddComponent<MobileNPCSettlementBuilder>();
+            template.AddComponent<MobileNPCBaseGeneratorOperator>();
             template.AddComponent<MobileNPCGroupMember>();
             template.AddComponent<MobileNPCRadioOutbox>();
             template.AddComponent<MobileNPCCompanionContract>();
