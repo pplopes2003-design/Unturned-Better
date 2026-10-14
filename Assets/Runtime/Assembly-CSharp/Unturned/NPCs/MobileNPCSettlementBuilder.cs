@@ -111,6 +111,20 @@ namespace SDG.Unturned
 			// in the NPC inventory so the settlement can continue expanding.
 			TryTransferSuppliesToCentralStorage();
 
+			// Leader succession must discover an ALREADY BUILT real storage
+			// even when the shared pattern is complete (placedPieces >= max).
+			// Previously reconciliation lived after that early return, so the
+			// successor could never discover the old leader's stockpile and
+			// all A-Life guard jobs/radio station consumers lost their anchor.
+			// This is a one-time native scene reconciliation, never per frame.
+			if (!hasReconciledExistingSettlement && planner != null
+				&& planner.HasChosenSite)
+			{
+				MobileNPCGroupMember currentLeader = GetComponent<MobileNPCGroupMember>();
+				if (currentLeader == null || currentLeader.CanPlanSettlement)
+					ReconcileExistingSettlement();
+			}
+
 			if (planner == null || !planner.HasChosenSite
 				|| inventory == null || motor == null || driver == null || !motor.IsInitialized
 				|| placedPieces >= Mathf.Clamp(maximumPieces, 1, 5) || Time.time < nextBuildTime)
@@ -130,11 +144,8 @@ namespace SDG.Unturned
 				centralStoragePlaced |= groupMember.SettlementCentralStoragePlaced;
 			}
 
-			// Vanilla structures survive world reloads independently of this NPC snapshot.
-			// Re-discover the central storage and skip already occupied perimeter slots so
-			// a restored settlement does not try to place duplicate pieces at the same points.
-			if (!hasReconciledExistingSettlement)
-				ReconcileExistingSettlement();
+			// Reconciliation was already attempted above even when every
+			// settlement piece is complete, including successor leaders.
 
 			if (placedPieces >= Mathf.Clamp(maximumPieces, 1, 5) || Time.time < nextBuildTime)
 				return;
