@@ -37,11 +37,30 @@ namespace SDG.Unturned
 		private float nextBuildTime;
 		private int placedPieces;
 		private bool centralStoragePlaced;
+		private bool generatorPlaced;
 		private int perimeterPiecesPlaced;
 		private InteractableStorage centralStorage;
 		private bool hasReconciledExistingSettlement;
 
 		public int PlacedPieces => placedPieces;
+
+		/// <summary>
+		/// Exposes only the leader's genuine saved/placed central storage.
+		/// No world search is performed during radio transmissions.
+		/// </summary>
+		public bool TryGetCentralStorageForRadioServer(out InteractableStorage storage)
+		{
+			storage = null;
+			MobileNPCGroupMember member = GetComponent<MobileNPCGroupMember>();
+			if (!Provider.isServer || member == null || !member.CanPlanSettlement
+				|| !member.HasSettlement || planner == null || !planner.HasChosenSite
+				|| centralStorage == null || !centralStorage.gameObject.activeInHierarchy
+				|| centralStorage.items == null
+				|| (centralStorage.transform.position - member.GroupAnchor).sqrMagnitude > 3.5f * 3.5f)
+				return false;
+			storage = centralStorage;
+			return true;
+		}
 
 		private void Awake()
 		{
@@ -124,11 +143,14 @@ namespace SDG.Unturned
 			ItemBarricadeAsset selectedAsset = null;
 			ItemStructureAsset selectedStructureAsset = null;
 
-			// Prefer vanilla wall/pillar/floor structures for the perimeter when available.
-			// Storage remains a barricade because vanilla storage containers are barricades.
-			bool placeStructure = !placeStorage
+			// Reserve one of the four perimeter positions for a REAL carried generator,
+			// if present. This extension never creates a generator, fuel or electricity.
+			// A powerless/unfueled generator still occupies a physical station slot.
+			bool placeGenerator = !placeStorage && !generatorPlaced
+				&& TrySelectGeneratorBuildable(out selectedSlot, out selectedAsset);
+			bool placeStructure = !placeStorage && !placeGenerator
 				&& TrySelectStructureBuildable(out selectedSlot, out selectedStructureAsset);
-			if (!placeStructure && !TrySelectBuildable(placeStorage, out selectedSlot, out selectedAsset))
+			if (!placeGenerator && !placeStructure && !TrySelectBuildable(placeStorage, out selectedSlot, out selectedAsset))
 			{
 				// If no suitable buildable is carried, try one safe vanilla recipe before
 				// the next construction interval. Ingredients are never invented.
@@ -226,7 +248,11 @@ namespace SDG.Unturned
 				TryTransferSuppliesToCentralStorage();
 			}
 			else
+			{
 				perimeterPiecesPlaced++;
+				if (placeGenerator)
+					generatorPlaced = true;
+			}
 
 			string placedName = placeStructure ? selectedStructureAsset.name : selectedAsset.name;
 			Debug.Log("[MobileNPCSettlementBuilder] Placed fixed-pattern settlement piece "
@@ -266,6 +292,20 @@ namespace SDG.Unturned
 
 			if (centralStorage != null)
 				centralStoragePlaced = true;
+
+			// One-time reconciliation, not a per-radio-transmission scene scan.
+			// Detect even an OFF or empty-fuel native generator to avoid duplicates
+			// after reloading and changing the living settlement leader.
+			InteractableGenerator[] generators = Object.FindObjectsOfType<InteractableGenerator>();
+			for (int i = 0; i < generators.Length; i++)
+			{
+				if (generators[i] != null && generators[i].gameObject.activeInHierarchy
+					&& (generators[i].transform.position - planner.ChosenSite).sqrMagnitude <= 6f * 6f)
+				{
+					generatorPlaced = true;
+					break;
+				}
+			}
 		}
 
 		/// <summary>
@@ -322,7 +362,8 @@ namespace SDG.Unturned
 
 				ItemAsset asset = Assets.find(EAssetType.ITEM, item.id) as ItemAsset;
 				if (asset == null || asset.type == EItemType.BARRICADE
-					|| asset.type == EItemType.STORAGE || asset.type == EItemType.STRUCTURE)
+					|| asset.type == EItemType.STORAGE || asset.type == EItemType.STRUCTURE
+					|| asset.type == EItemType.GENERATOR)
 					continue;
 
 				if (!centralStorage.items.tryAddItem(item, false))
@@ -349,6 +390,28 @@ namespace SDG.Unturned
 				ItemBarricadeAsset asset = Assets.find(EAssetType.ITEM, item.id) as ItemBarricadeAsset;
 				if (asset != null && asset.barricade != null && asset.build == EBuild.STORAGE)
 					return true;
+			}
+			return false;
+		}
+
+		/// <summary>
+		/// Generator must be a physical native barricade asset already owned by this
+		/// NPC, with the proper GENERATOR build type. Never fabricate an asset ID.
+		/// </summary>
+		private bool TrySelectGeneratorBuildable(out int selectedSlot, out ItemBarricadeAsset selectedAsset)
+		{
+			selectedSlot = -1;
+			selectedAsset = null;
+			for (int i = 0; i < inventory.UsedSlots; i++)
+			{
+				if (!inventory.TryGetItemSnapshot(i, out Item item) || item == null)
+					continue;
+				ItemGeneratorAsset asset = Assets.find(EAssetType.ITEM, item.id) as ItemGeneratorAsset;
+				if (asset == null || asset.barricade == null || asset.build != EBuild.GENERATOR)
+					continue;
+				selectedSlot = i;
+				selectedAsset = asset;
+				return true;
 			}
 			return false;
 		}
