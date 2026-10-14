@@ -38,7 +38,10 @@ namespace SDG.Unturned
                 || float.IsNaN(length) || float.IsInfinity(length))
                 return false;
 
-            int mask = RayMasks.DAMAGE_SERVER | RayMasks.ENTITY;
+            // Players/zombies also physically block the supplemental
+            // fallback: native DAMAGE_SERVER omits their special layers.
+            int mask = RayMasks.DAMAGE_SERVER | RayMasks.ENTITY
+                | RayMasks.PLAYER | RayMasks.ENEMY;
             if (!Physics.Raycast(origin, difference / length,
                 out RaycastHit hit, Mathf.Min(length + 0.75f, maximumRange + 1f),
                 mask, QueryTriggerInteraction.Ignore))
