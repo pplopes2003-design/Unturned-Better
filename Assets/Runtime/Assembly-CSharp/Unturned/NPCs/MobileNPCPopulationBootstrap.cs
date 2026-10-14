@@ -83,6 +83,8 @@ namespace SDG.Unturned
             controller.enableOverlapRecovery = false;
 
             template.AddComponent<MobileNPCBrainDriver>();
+            // Strategic routine arbitration runs only when tactical AI is idle.
+            template.AddComponent<MobileNPCAutonomyPlanner>();
             template.AddComponent<MobileNPCHumanoidMotor>();
             template.AddComponent<MobileNPCDoorNavigation>();
             template.AddComponent<MobileNPCHumanoidPerception>();
