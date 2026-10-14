@@ -315,6 +315,34 @@ namespace SDG.Unturned
         }
 
         /// <summary>
+        /// Shared strict NEED score for a real item observed or reported by radio.
+        /// Never converts knowing an item ID into knowledge of a world drop.
+        /// In particular, magazine compatibility, wounds, hunger and equipment
+        /// come from the receiver's OWN actual inventory and status.
+        /// </summary>
+        public static float GetCurrentRadioItemNeedServer(ushort itemID,
+            MobileNPCInventory inventory, MobileNPCHumanoidVitals health,
+            MobileNPCInjurySystem injuries, MobileNPCSurvivalNeeds survival)
+        {
+            if (!Provider.isServer || inventory == null || itemID == 0)
+                return 0f;
+            ItemAsset asset = Assets.find(EAssetType.ITEM, itemID) as ItemAsset;
+            if (asset == null)
+                return 0f;
+            Item heldGun = null;
+            ItemGunAsset gun = null;
+            inventory.TryGetBestGun(out heldGun, out gun);
+            float need = GetCurrentItemNeed(asset, inventory, health, injuries,
+                survival, heldGun, gun);
+            // A group's physical base radio can tell an operator who lacks a
+            // portable device where to search for their first real walkie.
+            if (itemID == MobileNPCRadioOutbox.VanillaWalkieTalkieID
+                && !inventory.ContainsItemID(itemID))
+                need = Mathf.Max(need, 72f);
+            return need;
+        }
+
+        /// <summary>
         /// Strictly need-driven utility. Never schedule a trip merely because an
         /// object is known. Medical care, hydration and hunger outrank nonessential
         /// spare equipment; compatible magazines use the vanilla caliber list.
