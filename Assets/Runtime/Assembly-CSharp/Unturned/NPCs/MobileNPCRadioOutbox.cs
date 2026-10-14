@@ -42,6 +42,7 @@ namespace SDG.Unturned
         private float nextPrepareAt;
         private float nextAttemptTransmitAt;
         private float nextPersonalTransmitAt;
+        private float nextReinforcementRequestAt;
 
         public uint TunedFrequency => group != null && group.GroupId > 0
             ? PlayerQuests.DEFAULT_RADIO_FREQUENCY
@@ -87,6 +88,8 @@ namespace SDG.Unturned
             nextPersonalTransmitAt = Time.time + PerNpcTransmitInterval;
             int delivered = 0;
             int baseStationReceivers = 0;
+            MobileNPCReinforcementResponse bestResponder = null;
+            float bestResponderScore = -1f;
             foreach (MobileNPCRadioOutbox receiver in ActiveRadios)
             {
                 if (receiver == null || receiver == this
@@ -119,17 +122,32 @@ namespace SDG.Unturned
                 }
                 else if (message.Type == MobileNPCRadioMessage.Kind.Airdrop)
                 {
-                    // Receiving a broadcast does NOT grant a crate transform,
-                    // global loot registry or direct pickup permission. Each
-                    // individual stores an uncertain, short-lived destination.
+                    // Actual crate lookup and loot validation stay local.
                     MobileNPCAirdropRumor rumor =
                         receiver.GetComponent<MobileNPCAirdropRumor>();
                     rumor?.ReceiveAirdropReportServer(message);
+                }
+                else if (message.Type == MobileNPCRadioMessage.Kind.NeedReinforcements)
+                {
+                    // Choose AT MOST one genuinely available ally. Radio does
+                    // not create more NPCs or grant live hostile identity.
+                    MobileNPCReinforcementResponse responder =
+                        receiver.GetComponent<MobileNPCReinforcementResponse>();
+                    float score = responder != null
+                        ? responder.GetResponseScoreServer(message) : -1f;
+                    if (score > bestResponderScore)
+                    {
+                        bestResponderScore = score;
+                        bestResponder = responder;
+                    }
                 }
                 delivered++;
                 if (!receiver.HasOwnedPortableRadio)
                     baseStationReceivers++;
             }
+            if (bestResponder != null)
+                bestResponder.ReceiveReinforcementRequestServer(message);
+
             // Same frequency and physically worn earpiece/equipped walkie
             // criteria as native PlayerVoice radio culling. No chat broadcast.
             bool intercepted = MobileNPCRadioInterceptHUD.CanLocalPlayerIntercept(frequency);
@@ -226,6 +244,53 @@ namespace SDG.Unturned
         }
 
         /// <summary>
+        /// A real visible threat AND accepted damage within the last 7s justify
+        /// a short, infrequent help request. Location is CALLER's own position,
+        /// not the shooter's live position. No calls from rumor, noise, status
+        /// alone or a non-hostile entity; no free reinforcements created.
+        /// </summary>
+        public bool TryQueueCombatReinforcementsServer(Transform seenThreat)
+        {
+            if (!Provider.isServer || !HasOperationalRadioEndpoint
+                || Time.time < nextReinforcementRequestAt
+                || Time.time < nextPrepareAt || seenThreat == null
+                || group == null || group.GroupId <= 0 || faction == null
+                || vitals == null || vitals.IsDead
+                || vitals.LastDamageTime < 0f
+                || Time.time - vitals.LastDamageTime > 7f
+                || vitals.HealthFraction > 0.9f || disposition == null)
+                return false;
+
+            Player player = seenThreat.GetComponentInParent<Player>();
+            MobileNPCHumanoidDisposition enemyNPC =
+                seenThreat.GetComponentInParent<MobileNPCHumanoidDisposition>();
+            Zombie zombie = seenThreat.GetComponentInParent<Zombie>();
+            bool verifiedEnemy = player != null && player.life != null
+                && !player.life.isDead && disposition.CanEngagePlayers
+                || enemyNPC != null && enemyNPC != disposition
+                && MobileNPCHumanoidDisposition.AreHostile(disposition, enemyNPC)
+                && enemyNPC.GetComponent<MobileNPCHumanoidVitals>() is MobileNPCHumanoidVitals enemyVitals
+                && !enemyVitals.IsDead
+                || zombie != null && !zombie.isDead;
+            if (!verifiedEnemy)
+                return false;
+
+            if (!MobileNPCRadioMessage.TryCreate(
+                MobileNPCRadioMessage.Kind.NeedReinforcements,
+                transform.position, Time.time, 48f, 0.78f,
+                faction.CurrentFaction, group.GroupId,
+                disposition.DisplayName, out MobileNPCRadioMessage message))
+                return false;
+
+            nextReinforcementRequestAt = Time.time + 80f;
+            nextPrepareAt = Time.time + SendPreparationCooldown;
+            while (pending.Count >= MaximumPendingReports)
+                pending.Dequeue();
+            pending.Enqueue(message);
+            return true;
+        }
+
+        /// <summary>
         /// Return the next fresh report for local simulated text transport.
         /// A report created before a group/faction change must not block fresh
         /// information or be forwarded using a different group's new channel.
@@ -269,6 +334,7 @@ namespace SDG.Unturned
             nextPrepareAt = 0f;
             nextAttemptTransmitAt = 0f;
             nextPersonalTransmitAt = 0f;
+            nextReinforcementRequestAt = 0f;
         }
     }
 }
