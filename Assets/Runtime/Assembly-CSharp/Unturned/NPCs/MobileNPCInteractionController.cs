@@ -319,7 +319,7 @@ namespace SDG.Unturned
 				int visualRows = 0;
 				foreach (string line in message.Split('\n'))
 					visualRows += Mathf.Max(1, Mathf.CeilToInt(line.Length / 65f));
-				float contentHeight = Mathf.Clamp(visualRows * 23 + 20, 185, 1100);
+				int contentHeight = Mathf.Clamp(visualRows * 23 + 20, 185, 1100);
 				nativeMessage.SizeOffset_Y = contentHeight;
 				if (nativeMessageScroll != null)
 					nativeMessageScroll.ContentSizeOffset = new Vector2(0f, contentHeight);
