@@ -594,6 +594,50 @@ namespace SDG.Unturned
 			return false;
 		}
 
+		/// <summary>
+		/// Spend up to requestedUnits of actual fuel from ONE owned native fuel
+		/// canister. The remaining state is saved against the same slot ID.
+		/// Only called after an eligible physically nearby generator and its
+		/// remaining capacity have been authoritatively checked on the server.
+		/// </summary>
+		public bool TrySpendGeneratorFuelServer(ushort requestedUnits, out ushort spentUnits)
+		{
+			spentUnits = 0;
+			if (!Provider.isServer || requestedUnits == 0)
+				return false;
+			for (int i = 0; i < slots.Count; i++)
+			{
+				Item item = slots[i];
+				ItemFuelAsset asset = item != null ? item.GetAsset<ItemFuelAsset>() : null;
+				if (item == null || item.amount != 1 || asset == null || asset.fuel == 0
+					|| item.state == null || item.state.Length < 2)
+					continue;
+				ushort available = System.BitConverter.ToUInt16(item.state, 0);
+				if (available == 0 || available > asset.fuel)
+					continue;
+				ushort amount = (ushort)Mathf.Min((int)requestedUnits, (int)available);
+				if (amount == 0)
+					continue;
+				ushort remaining = (ushort)(available - amount);
+				if (remaining == 0 && asset.shouldDeleteAfterFillingTarget)
+				{
+					slots.RemoveAt(i);
+					slotInstanceIDs.RemoveAt(i);
+				}
+				else
+				{
+					byte[] newState = (byte[])item.state.Clone();
+					byte[] fuelBytes = System.BitConverter.GetBytes(remaining);
+					newState[0] = fuelBytes[0];
+					newState[1] = fuelBytes[1];
+					slots[i] = new Item(item.id, item.amount, item.quality, newState);
+				}
+				spentUnits = amount;
+				return true;
+			}
+			return false;
+		}
+
 		/// <summary>Returns whether an item with this legacy ID is already stored.</summary>
 		public bool ContainsItemID(ushort itemID)
 		{
