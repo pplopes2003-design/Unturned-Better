@@ -226,6 +226,13 @@ namespace SDG.Unturned
 							failureReason = "native world drop not present";
 							return false;
 						}
+						if (data.item == null || worldItem.jar == null
+							|| worldItem.jar.item == null
+							|| worldItem.jar.item.id != data.item.id)
+						{
+							failureReason = "visual drop and authoritative stored item disagree";
+							return false;
+						}
 						Vector3 offset = itemPosition - npcPosition;
 						float heightDifference = Mathf.Abs(offset.y);
 						offset.y = 0f;
