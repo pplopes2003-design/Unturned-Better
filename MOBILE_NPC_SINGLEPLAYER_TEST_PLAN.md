@@ -848,3 +848,16 @@ COM-RADIO-PORTABLE-01 follow-up (`f84f390f`): rapid tune 460328 -> other channel
 
 
 - [ ] Regressão adicional AI-ALIFE-01: NPC guardião sai 50–80m da base devido a combate válido, elimina/perde ameaça e retorna por caminho real à região de guarda (<=26m) sem ficar parado. Se rota inacessível, não teleportar, registrar motor stuck.
+
+
+### Seção 56 — AI-ALIFE-02-GUARD-01 e CORE-02 (2026-10-14, NÃO TESTADOS)
+
+- [ ] NPC grupo 4 pessoas, sem base: ninguém assume local de guarda arbitrário; centro apenas PLANEJADO sem storage também não oferece vagas; somente quando o líder possui armazenamento central real `InteractableStorage` ativo e registrado surgem até 2 reservas.
+- [ ] Guardas ocupam pontos opostos (~9–12m) com solo/altura/colisão plausíveis, via Motor físico sem teleportar. Nenhum dos dois deve receber a vaga do outro; 3º/4º membro deve patrulhar ou procurar suprimentos, sem ficar travado esperando posto ocupadíssimo.
+- [ ] Hostil real aparece durante guarda: perseguição, cobertura, fogo, retreat e rádio têm prioridade; ao terminar, cada um retoma seu próprio posto, sem atribuição mágica de loot. Se base destruída, suspender guarda. Se líder morre, transferir liderança a membro vivo e verificar reassociação ao contêiner real.
+- [ ] Por tiro de jogador: registrar `[MobileNPCHumanoidVitals] Damage accepted` com HP realmente decrescente (100 -> valores inferiores -> 0), `Death transition`, desativação do motor, hitbox de cadáver sem bloquear tiros vivos, animação/física de corpo e saque. Não aceitar somente hitmarker como prova.
+- [ ] Por melee de jogador com arma real e socos: validar InputInfo MOBILE_NPC e o fallback de NONE apenas quando fisicamente permitido, sem atingir através de paredes; exigir HP 0 e morte. Repetir com objetos, esquinas, NPCs aliados/neutros e ferimentos por sangramento. Eventos Died precisam ocorrer UMA vez e não duplicar cadáver ou inventário.
+- [ ] Matar um dos 2 guardas: o grupo vivo precisa liberar a vaga e outro membro pode reivindicá-la sem ganhar bens/XP/identidade do falecido. Matar todos: grupo some, novos NPCs gerados não herdam a base apagada. Conferir a reposição com delay original e persistência no save.
+- [ ] Debug: `[MobileNPCDamageValidation] Rejected...` significa ray de servidor negado, `Damage accepted` prova HP, `Death transition` prova entrada no estado letal. Se não houver `Damage accepted`, analisar PlayerInput (enum, net read/write, raycast), UseableGun/Melee, máscara da layer Entity e físico do collider antes de mexer em vida.
+- [ ] Mensurar 1, 10, 20 e 40 NPCs; emprego dos postos não deve aumentar scan a cada frame. Testar carregamento de mapa, regeneração da base e reassentamento. Guardas devem revalidar física depois de mudanças no mapa. Registrar commit SHA EXATO da Dev Build.
+- [ ] Não promover CORE-02 ou AI-ALIFE-02 à concluída sem feedback runtime, inclusive confirmação da morte REAL.
