@@ -73,9 +73,15 @@ namespace SDG.Unturned
 			if (!inventory.HasSpace)
 			{
 				CancelRememberedSupplyTripServer(true);
-				// A full inventory invalidates the pickup objective; don't leave the motor
-				// following a stale loot destination after the target has been discarded.
+				// A full inventory invalidates pickup, NOT the ability to warn
+				// allies about a physically observed useful world drop.
 				ClearTarget(cancelLootGoal: true);
+				if (driver.Target == null && driver.CurrentGoal == MobileNPCTactics.Goal.None
+					&& Time.time >= nextScanTime)
+				{
+					nextScanTime = Time.time + scanInterval;
+					TryReportVisibleWorldLootWhileFullServer();
+				}
 				return;
 			}
 
@@ -246,6 +252,44 @@ namespace SDG.Unturned
 				targetPosition = bestItem.transform.position;
 				hasTarget = true;
 			}
+		}
+
+		/// <summary>
+		/// A full pack should not prevent a survivor from warning equipped
+		/// teammates of a genuine observed nearby item. No inventory transfer
+		/// or tactical loot goal can start on this path.
+		/// </summary>
+		private void TryReportVisibleWorldLootWhileFullServer()
+		{
+			if (!Provider.isServer || radioOutbox == null || ItemManager.regions == null)
+				return;
+			searchRegions.Clear();
+			candidates.Clear();
+			const float broadcastRange = 17f;
+			Regions.getRegionsInRadius(transform.position, broadcastRange, searchRegions);
+			ItemManager.getItemsInRadius(transform.position,
+				broadcastRange * broadcastRange, searchRegions, candidates);
+			InteractableItem best = null;
+			float highestScore = float.NegativeInfinity;
+			for (int i = 0; i < candidates.Count; i++)
+			{
+				InteractableItem item = candidates[i];
+				if (item == null || item.asset == null || item.transform == null)
+					continue;
+				float importance = MobileNPCUsefulLootVision.IntrinsicImportance(item.asset);
+				if (importance < 60f)
+					continue;
+				float distance = Vector3.Distance(transform.position, item.transform.position);
+				float score = importance - distance * 0.5f;
+				if (score <= highestScore
+					|| !MobileNPCUsefulLootVision.CanSeeWorldDropServer(
+						item, transform, broadcastRange))
+					continue;
+				highestScore = score;
+				best = item;
+			}
+			if (best != null)
+				radioOutbox.TryQueueObservedUsefulLootServer(best);
 		}
 
 		/// <summary>Ranks drops by situational usefulness first and distance second.</summary>
