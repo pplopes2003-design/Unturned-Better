@@ -3214,11 +3214,16 @@ namespace SDG.Unturned
 					}
 				}
 
-				for (byte hotkeyIndex = 0; hotkeyIndex < ControlsSettings.NUM_ITEM_HOTBAR_KEYS; ++hotkeyIndex)
+				// Dialogue options share number keys with equipment hotkeys.
+				// Do not swap held trade-payment items when choosing NPC options.
+				if (!MobileNPCInteractionController.IsDialogOpenFor(player))
 				{
-					if (InputEx.GetKeyDown(ControlsSettings.getEquipmentHotbarKeyCode(hotkeyIndex)))
+					for (byte hotkeyIndex = 0; hotkeyIndex < ControlsSettings.NUM_ITEM_HOTBAR_KEYS; ++hotkeyIndex)
 					{
-						hotkey(hotkeyIndex);
+						if (InputEx.GetKeyDown(ControlsSettings.getEquipmentHotbarKeyCode(hotkeyIndex)))
+						{
+							hotkey(hotkeyIndex);
+						}
 					}
 				}
 			}
