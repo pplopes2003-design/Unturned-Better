@@ -791,3 +791,15 @@ COM-RADIO-PORTABLE-01 follow-up (`f84f390f`): rapid tune 460328 -> other channel
 - [ ] Refazer P0 de tiros, soco/melee, morte, retaliação, diálogo/ESC, nome por trás de parede, postura por ruído e perseguição de zumbi além de POI. Anotar SHA da build efetivamente compilada; diferenças entre Unity local e HEAD do GitHub podem invalidar o teste.
 
 **Status desta seção:** correções commitadas e revisadas estaticamente; compilação/Dev Build ainda NÃO testadas.
+
+
+### Seção 52 — HUD de diálogo Glazier/Sleek, teclas e mouse (2026-10-14; NOVOS COMMITS, SEM TESTE)
+
+- [ ] No SP Unity Development Build atualizada, chegar a até 4m de um NPC neutro/amigável e pressionar F: `[MobileNPCInteractionController] Dialogue opened` no log e `Native Sleek dialogue panel attached` uma vez; na tela, ver rótulo/saudação e opções numeradas 1–3. Conferir que não aparece "null", menu vazio ou texto atrás do HUD.
+- [ ] Usar `Alpha1`, `Alpha2`, `Alpha3`, `Keypad1`, `Keypad2`, `Keypad3`: seleção exibe estados comércio, proposta de aliança e conversa. Confirmar que hotbar 1–9 NÃO equipa/desequipa item simultaneamente, especialmente durante oferta de item nativo real.
+- [ ] Com cursor visível apenas durante sessão, clicar nos botões nativos e em `Fechar`: os cliques não atuam no mundo atrás do diálogo nem abrem outro NPC. Fora da sessão, hotbar/interação/mira voltam ao comportamento normal.
+- [ ] Abrir e pressionar ESC UMA vez: fecha somente a conversa; Pause/Dashboard não abre, `PlayerLifeUI` não desaparece, cursor volta ao estado definido pelo jogo e armas/hotbar voltam. Com sessão fechada, ESC deve abrir a pausa normal, validando não regressão.
+- [ ] Comércio com 9 slots reais no NPC: painel rolável exibe entrada e opções 1–9, confirmação de pagamento/compra também funciona; não sobrepor botões de rodapé. Cancelar retorna tela esperada. Testar roupas/itens com nomes longos, resolução 720p e 1080p, UI scale diferente e idioma português.
+- [ ] Enquanto sessão aberta, NPC/jogador se afastam >4m, NPC morre, jogador morre ou nível descarrega: menu desaparece sem travar cursor, HUD, inventário ou próxima conversa; garantir não ficar com `PlayerUI.window.showCursor` true.
+- [ ] Verificar que mouse não obriga ocultação permanente de `PlayerLifeUI`; investigar exceções `Glazier/ISleekElement`, `CreateScrollView`, `Native Sleek dialogue panel` no `Player.log`. Se backend nativo não inicializar, registrar fallback IMGUI e manter UI-01 aberta.
+- [ ] Compilar sem CS errors, registrar SHA exato da build, NPC, input, resolução e 2 screenshots (menu e pós-ESC). **Nenhum critério acima foi executado; status: QUASE PRONTA — AGUARDANDO BUILD**.
