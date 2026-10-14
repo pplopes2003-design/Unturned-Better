@@ -1583,6 +1583,7 @@ O usuário retornou após nova interrupção pedindo continuação. Revalidada b
 - `e9864c2a` `PlayerUI.Update`: o diálogo local integra o cálculo normal de `window.showCursor` em vez de forçar/manter estado de cursor manualmente; assim os botões também podem ser clicados.
 - `c1d4f03b` `PlayerUI.tickMenuBlur`: impede o blur de pausa quando o diálogo móvel está ativo, de modo semelhante aos diálogos nativos.
 - `75759a03`: usa inteiro para dimensões do conteúdo no Sleek, com compatibilidade de propriedades de layout.
+- `ec937b10`: protege remoção do painel durante descarregamento do mapa, quando `PlayerUI.window` já foi destruída.
 
 **Revisão estática:** re-fetch dos quatro arquivos de código; chaves balanceadas, `#if !DEDICATED_SERVER` pareados, referências em `PlayerUI`, `PlayerEquipment` e `PlayerInteract` presentes e distinção entre UI nativa/fallback mantida. **Não houve compilação Unity nem runtime nesta rodada.** Portanto status exato `AUDIT-P0-UI-NATIVE-03 QUASE PRONTA — AGUARDANDO BUILD`; parent `UI-01 EM IMPLEMENTAÇÃO`, não concluído. Apesar de melhoria estrutural fundamentada no SDK, somente a Dev Build pode confirmar Glazier/ISleekElement em execução, renderização legível, mouse, teclas, HUD, foco e ausência de conflitos com UI de multiplayer.
 
