@@ -222,6 +222,15 @@ namespace SDG.Unturned
 		private int avoidanceSide = 1;
 		private float avoidanceSideUntil;
 		private int consecutiveStuckRecoveries;
+		// Ground route vs safe jump arbitration. A low wall by itself is NOT
+		// permission to jump: walking around and native doors take priority.
+		private float firstObservedObstacleTime;
+		private Vector3 lastObservedObstacleGoal;
+		private float nextObstacleComparisonTime;
+		private float noJumpUntil;
+		private static float nextSharedObstacleComparisonTime;
+		private readonly List<Vector3> obstacleWalkComparisonScratch
+			= new List<Vector3>(RouteGridNodeLimit);
 		// Per-survivor, short-lived local navigation evidence. These are NOT
 		// global map portals or inferred paths. They discourage repeated
 		// searches into a wall and expire when conditions may have changed.
@@ -1057,6 +1066,157 @@ namespace SDG.Unturned
 		/// verifies a real landing surface and sweeps the standing capsule
 		/// along the predicted parabola. No Transform displacement is applied.
 		/// </summary>
+		/// <summary>
+		/// Costed choice between an existing GROUND route, a genuine unlocked
+		/// door, local side exploration, and a possible physical jump.
+		/// Called only for eligible grounded NPCs with a stable actual brain
+		/// destination. It never bypasses a door, grants unknown walkable
+		/// floor edges, or commits to an unverified jump.
+		/// </summary>
+		private bool ShouldChooseObstacleJumpServer(Vector3 finalGoal,
+			bool waitingForDoor, bool waitingForLearnedRoute,
+			bool waitingForLadder, out Vector3 jumpDirection)
+		{
+			jumpDirection = Vector3.zero;
+			if (!Provider.isServer || characterController == null
+				|| !characterController.enabled || isPlannedJumping
+				|| IsTraversingLadder || hasPlannedLadderApproach
+				|| waitingForDoor || waitingForLearnedRoute || waitingForLadder
+				|| Time.time < noJumpUntil
+				|| Time.time < nextJumpTime
+				|| Mathf.Abs(finalGoal.y - transform.position.y) > 0.55f)
+				return false;
+
+			Vector3 direct = finalGoal - transform.position;
+			direct.y = 0f;
+			float remaining = direct.magnitude;
+			if (remaining < 2.0f)
+				return false;
+			jumpDirection = direct / remaining;
+
+			// Only a currently observed STATIC obstacle near the NPC can be
+			// a jump candidate; never initiate a leap merely because a long
+			// tactical detour appears in the planning graph.
+			int hits = Physics.SphereCastNonAlloc(
+				transform.position + Vector3.up * 0.32f, 0.12f,
+				jumpDirection, ObstacleHitBuffer,
+				Mathf.Min(1.0f, remaining), obstacleMask,
+				QueryTriggerInteraction.Ignore);
+			if (hits == 0 || hits >= ObstacleHitBuffer.Length)
+				return false;
+			bool hasStaticBlocker = false;
+			for (int i = 0; i < hits; ++i)
+			{
+				Collider col = ObstacleHitBuffer[i].collider;
+				if (col == null || IsOwnCollider(col))
+					continue;
+				if (col.attachedRigidbody != null
+					|| col.GetComponentInParent<Player>() != null
+					|| col.GetComponentInParent<Zombie>() != null
+					|| col.GetComponentInParent<MobileNPCHumanoidVitals>() != null
+					|| col.GetComponentInParent<InteractableDoor>() != null
+					|| col.GetComponentInParent<InteractableVehicle>() != null)
+					return false;
+				hasStaticBlocker = true;
+			}
+			if (!hasStaticBlocker)
+				return false;
+
+			// Native unlocked doors are interactions, NEVER obstacle jumps.
+			Vector3 chest = transform.position + Vector3.up
+				* Mathf.Max(0.45f, characterController.height * 0.55f);
+			float radius = Mathf.Clamp(obstacleProbeRadius, 0.05f,
+				Mathf.Max(0.05f, characterController.radius * 0.9f));
+			if (doorNavigation != null
+				&& doorNavigation.IsTraversableUnlockedDoorEdgeServer(chest,
+					jumpDirection, radius,
+					Mathf.Min(1.3f, remaining), obstacleMask))
+				return false;
+
+			if (PlanarDistanceSquared(lastObservedObstacleGoal, finalGoal) > 4f
+				|| Mathf.Abs(lastObservedObstacleGoal.y - finalGoal.y) > 0.5f)
+			{
+				lastObservedObstacleGoal = finalGoal;
+				firstObservedObstacleTime = Time.time;
+				nextObstacleComparisonTime = 0f;
+			}
+
+			// A known/physically calculated route is an actual alternative.
+			// Prefer it if it adds only modest walking distance. A path that
+			// ends at a partial frontier is NOT proof of reaching the goal;
+			// try it first, and reconsider only if movement repeatedly fails.
+			if (routeWaypointIndex < routeWaypoints.Count)
+			{
+				float walkingDistance = 0f;
+				Vector3 previous = transform.position;
+				for (int i = routeWaypointIndex; i < routeWaypoints.Count; ++i)
+				{
+					walkingDistance += Vector3.Distance(previous, routeWaypoints[i]);
+					previous = routeWaypoints[i];
+				}
+				float unfinished = Vector3.Distance(previous, finalGoal);
+				bool reachesGoal = unfinished <= 1.35f
+					&& Mathf.Abs(previous.y - finalGoal.y) <= 0.65f;
+				if (!reachesGoal && consecutiveStuckRecoveries < 2)
+					return false;
+				if (reachesGoal && (walkingDistance <= remaining + 3.0f
+					|| walkingDistance <= remaining * 1.55f))
+					return false;
+			}
+			else if (hasDetourWaypoint && consecutiveStuckRecoveries < 2)
+			{
+				return false; // let a chosen physical side route progress
+			}
+			else if (consecutiveStuckRecoveries == 0
+				&& Time.time - firstObservedObstacleTime < 1.0f)
+			{
+				return false; // allow normal route and door discovery first
+			}
+
+			// A local EXACT A* route to the goal is stronger evidence than a
+			// mere "nearest wall cell" frontier. Compare it to the short-hop
+			// cost before abandoning ground navigation. Global time admission
+			// avoids N NPCs running 81-node searches in the same frame.
+			if (routeWaypoints.Count == 0 && !hasDetourWaypoint
+				&& PlanarDistanceSquared(transform.position, finalGoal) <= 25f
+				&& Time.time >= nextObstacleComparisonTime
+				&& Time.time >= nextSharedObstacleComparisonTime)
+			{
+				nextObstacleComparisonTime = Time.time + 2.5f;
+				nextSharedObstacleComparisonTime = Time.time + 0.22f;
+				obstacleWalkComparisonScratch.Clear();
+				if (TryBuildLocalRoute(finalGoal, obstacleWalkComparisonScratch, true))
+				{
+					float distance = 0f;
+					Vector3 previous = transform.position;
+					for (int i = 0; i < obstacleWalkComparisonScratch.Count; ++i)
+					{
+						distance += Vector3.Distance(previous,
+							obstacleWalkComparisonScratch[i]);
+						previous = obstacleWalkComparisonScratch[i];
+					}
+					if (distance <= remaining + 3.0f
+						|| distance <= remaining * 1.55f)
+					{
+						// This route was actually validated by local A*.
+						// Do NOT teach the NPC a speculative shortcut.
+						routeWaypoints.Clear();
+						routeWaypoints.AddRange(obstacleWalkComparisonScratch);
+						routeWaypointIndex = 0;
+						detourGoalSnapshot = finalGoal;
+						hasDetourWaypoint = false;
+						nextPlannedRouteValidationTime = 0f;
+						return false;
+					}
+				}
+			}
+
+			// This only authorizes a feasibility test. The low-hop/parapet
+			// planners STILL require a genuine, collision-free ballistic arc
+			// and a walkable same-floor landing before launching.
+			return true;
+		}
+
 		private bool TryBeginPlannedLowJump(Vector3 desired, Vector3 currentGoal)
 		{
 			if (!Provider.isServer || isPlannedJumping || characterController == null
