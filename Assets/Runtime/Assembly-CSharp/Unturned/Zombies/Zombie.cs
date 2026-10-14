@@ -3259,7 +3259,17 @@ namespace SDG.Unturned
 			Vector3 offset = destination - transform.position;
 			Vector3 horizontal = new Vector3(offset.x, 0f, offset.z);
 			float range = horizontal.magnitude;
-			if (range < 1.9f || range > 24f || Mathf.Abs(offset.y) > 2.5f)
+			// Longer off-nav pursuit is allowed ONLY for an already-acquired
+			// living player/NPC across open, grounded terrain. Investigation
+			// POINT clues remain bounded to 24m and obstacles at longer range
+			// always defer to genuine native A* (no imaginary detours).
+			const float shortRangeDetourLimit = 24f;
+			const float openGroundPursuitLimit = 64f;
+			bool hasLivingActor = (player != null && !player.life.isDead)
+				|| (mobileNPCTarget != null && !mobileNPCTarget.IsDead);
+			if (range < 1.9f || range > (hasLivingActor
+					? openGroundPursuitLimit : shortRangeDetourLimit)
+				|| Mathf.Abs(offset.y) > 2.5f)
 				return false;
 
 			CharacterController controller = GetComponent<CharacterController>();
@@ -3269,7 +3279,11 @@ namespace SDG.Unturned
 			Vector3 heading = horizontal / range;
 			// Direct motion always wins when a segment clears: no forced "flank"
 			// delay that makes zombies stupid after the obstruction disappears.
-			bool directClear = HasOpenOffNavApproach(heading, range - 1.15f);
+			// Check only the NEXT short stretch. A remote fence 30m away
+			// should not prematurely trigger local corner navigation here,
+			// and the movement is physically revalidated on every tick.
+			bool directClear = HasOpenOffNavApproach(heading,
+				Mathf.Min(Mathf.Max(0.1f, range - 1.15f), 3.0f));
 			if (directClear)
 			{
 				offNavDetourUntil = 0f;
@@ -3277,6 +3291,11 @@ namespace SDG.Unturned
 			}
 			else
 			{
+				// No claim of far-ranging obstacle navigation: beyond the
+				// bounded 24m corner planner a blocked approach is handed
+				// back to the native seeker, not pushed through collision.
+				if (range > shortRangeDetourLimit)
+					return false;
 				// Never chase a freshly moved/teleported target along a stale detour.
 				if (offNavDetourUntil > Time.time
 					&& (destination - offNavDetourTargetAtSelection).sqrMagnitude > 36f)
