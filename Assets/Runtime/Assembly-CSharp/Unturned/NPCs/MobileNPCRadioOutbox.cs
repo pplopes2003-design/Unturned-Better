@@ -251,26 +251,27 @@ namespace SDG.Unturned
         /// </summary>
         public bool TryQueueCombatReinforcementsServer(Transform seenThreat)
         {
-            if (!Provider.isServer || !HasOperationalRadioEndpoint
-                || Time.time < nextReinforcementRequestAt
+            if (!Provider.isServer || Time.time < nextReinforcementRequestAt
                 || Time.time < nextPrepareAt || seenThreat == null
                 || group == null || group.GroupId <= 0 || faction == null
                 || vitals == null || vitals.IsDead
                 || vitals.LastDamageTime < 0f
                 || Time.time - vitals.LastDamageTime > 7f
-                || vitals.HealthFraction > 0.9f || disposition == null)
+                || vitals.HealthFraction > 0.9f || disposition == null
+                || !HasOperationalRadioEndpoint)
                 return false;
 
             Player player = seenThreat.GetComponentInParent<Player>();
             MobileNPCHumanoidDisposition enemyNPC =
                 seenThreat.GetComponentInParent<MobileNPCHumanoidDisposition>();
             Zombie zombie = seenThreat.GetComponentInParent<Zombie>();
+            MobileNPCHumanoidVitals enemyVitals = enemyNPC != null
+                ? enemyNPC.GetComponent<MobileNPCHumanoidVitals>() : null;
             bool verifiedEnemy = player != null && player.life != null
                 && !player.life.isDead && disposition.CanEngagePlayers
                 || enemyNPC != null && enemyNPC != disposition
                 && MobileNPCHumanoidDisposition.AreHostile(disposition, enemyNPC)
-                && enemyNPC.GetComponent<MobileNPCHumanoidVitals>() is MobileNPCHumanoidVitals enemyVitals
-                && !enemyVitals.IsDead
+                && enemyVitals != null && !enemyVitals.IsDead
                 || zombie != null && !zombie.isDead;
             if (!verifiedEnemy)
                 return false;
