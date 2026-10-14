@@ -892,9 +892,8 @@ namespace SDG.Unturned
 					&& injuryMovementMultiplier >= 0.95f
 					&& gait != MobileNPCLocomotionPolicy.Gait.Sneak
 					&& !brainDriver.IsListening && !brainDriver.IsAmbushPreparing
-					&& !(targetIsVisible && (brainDriver.CurrentGoal
-							== MobileNPCTactics.Goal.SeekCover
-						|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat))
+					&& brainDriver.CurrentGoal != MobileNPCTactics.Goal.SeekCover
+					&& brainDriver.CurrentGoal != MobileNPCTactics.Goal.Retreat
 					&& vaultTraversal.TryStartServer(destination,
 						jumpRequestedDirection, roamingGroundMask,
 						roamingMaximumSlope, obstacleMask))
@@ -924,9 +923,8 @@ namespace SDG.Unturned
 					&& !brainDriver.IsListening && !brainDriver.IsAmbushPreparing
 					// Defensive exposure goals should choose real cover/retreat
 					// paths rather than an airborne exposed leap by default.
-					&& !(targetIsVisible && (brainDriver.CurrentGoal
-							== MobileNPCTactics.Goal.SeekCover
-						|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat))
+					&& brainDriver.CurrentGoal != MobileNPCTactics.Goal.SeekCover
+					&& brainDriver.CurrentGoal != MobileNPCTactics.Goal.Retreat
 					&& ShouldChooseObstacleJumpServer(destination,
 						waitingForDoorToOpen, waitingForLearnedAccess,
 						waitingForLadderApproach, out Vector3 chosenJumpDirection)
@@ -1071,6 +1069,31 @@ namespace SDG.Unturned
 		/// verifies a real landing surface and sweeps the standing capsule
 		/// along the predicted parabola. No Transform displacement is applied.
 		/// </summary>
+		/// <summary>
+		/// Replace only speculative walking waypoints after a physically
+		/// authorized jump, without discrediting genuine past journey records.
+		/// </summary>
+		private void ClearWalkingPlanForVerifiedJump(Vector3 finalGoal)
+		{
+			routeWaypoints.Clear();
+			routeWaypointIndex = 0;
+			hasDetourWaypoint = false;
+			detourGoalSnapshot = finalGoal;
+			hasPendingKnownAccessPath = false;
+			pendingKnownAccessEntryRouteId = -1;
+			hasPlannedLadderApproach = false;
+			activeRememberedRouteIndex = -1;
+			activeContinuationRouteIndex = -1;
+			learnedStairStartWaypointIndex = -1;
+			learnedContinuationStartWaypointIndex = -1;
+			activeAccessRouteIds.Clear();
+			activeAccessWaypointStarts.Clear();
+			activeAccessFinalWaypointIndex = -1;
+			trackingActualJourney = false;
+			actualTravelFootsteps.Clear();
+			nextDetourAttemptTime = Time.time + 0.5f;
+		}
+
 		/// <summary>
 		/// Costed choice between an existing GROUND route, a genuine unlocked
 		/// door, local side exploration, and a possible physical jump.
@@ -1341,10 +1364,7 @@ namespace SDG.Unturned
 			isPlannedJumping = true;
 			velocity.y = impulse;
 			nextJumpTime = Time.time + Mathf.Max(0.5f, jumpCooldown);
-			// A successful airborne traversal is not a proven walkable floor
-			// edge for the individual's separate learned walking routes.
-			trackingActualJourney = false;
-			actualTravelFootsteps.Clear();
+			ClearWalkingPlanForVerifiedJump(currentGoal);
 			suppressJourneyUntil = Time.time + duration + 0.3f;
 			return true;
 		}
@@ -1383,18 +1403,7 @@ namespace SDG.Unturned
 			// delay between two adjacent low parapets.
 			nextJumpTime = Time.time + Mathf.Max(0.8f, plan.MaximumDuration + 0.15f);
 
-			// Do not write an airborne traversal as a walkable floor edge.
-			routeWaypoints.Clear();
-			routeWaypointIndex = 0;
-			hasDetourWaypoint = false;
-			hasPendingKnownAccessPath = false;
-			hasPlannedLadderApproach = false;
-			activeRememberedRouteIndex = -1;
-			activeContinuationRouteIndex = -1;
-			activeAccessRouteIds.Clear();
-			activeAccessWaypointStarts.Clear();
-			trackingActualJourney = false;
-			actualTravelFootsteps.Clear();
+			ClearWalkingPlanForVerifiedJump(currentGoal);
 			suppressJourneyUntil = Time.time + plan.MaximumDuration + 0.3f;
 			return true;
 		}
