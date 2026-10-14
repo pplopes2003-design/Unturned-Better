@@ -173,7 +173,9 @@ namespace SDG.Unturned
 			MobileNPCHumanoidVitals targetVitals = targetNPC != null ? targetNPC.GetComponent<MobileNPCHumanoidVitals>() : null;
 			if (targetPlayer != null)
 			{
-				if (targetPlayer.life == null || targetPlayer.life.isDead || perception.VisiblePlayer != targetPlayer)
+				if (ownDisposition == null || !ownDisposition.CanEngagePlayer(targetPlayer)
+					|| targetPlayer.life == null || targetPlayer.life.isDead
+					|| perception.VisiblePlayer != targetPlayer)
 					return;
 			}
 			else if (targetNPC != null)
