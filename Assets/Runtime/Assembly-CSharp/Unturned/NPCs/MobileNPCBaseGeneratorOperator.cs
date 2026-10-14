@@ -27,6 +27,7 @@ namespace SDG.Unturned
         private MobileNPCHumanoidVitals vitals;
         private MobileNPCBrainDriver driver;
         private float nextActionAt;
+        private readonly RaycastHit[] interactionHits = new RaycastHit[16];
 
         private void Awake()
         {
@@ -57,7 +58,8 @@ namespace SDG.Unturned
                 out InteractableGenerator generator) || generator == null
                 || !generator.gameObject.activeInHierarchy
                 || (generator.transform.position - transform.position).sqrMagnitude
-                    > MaximumOperationDistance * MaximumOperationDistance)
+                    > MaximumOperationDistance * MaximumOperationDistance
+                || !HasClearInteractionPath(generator.transform))
                 return;
 
             // Native global electricity doesn't require operating a generator.
@@ -82,7 +84,8 @@ namespace SDG.Unturned
                         out InteractableStorage storage)
                         && storage != null && storage.items != null
                         && (storage.transform.position - transform.position).sqrMagnitude
-                            <= MaximumStorageAccessDistance * MaximumStorageAccessDistance)
+                            <= MaximumStorageAccessDistance * MaximumStorageAccessDistance
+                        && HasClearInteractionPath(storage.transform))
                         spent = SpendStoredFuelServer(storage.items, requested);
 
                     // Otherwise use an actually owned fuel canister.
@@ -110,6 +113,38 @@ namespace SDG.Unturned
                     Debug.Log("[MobileNPCBaseGeneratorOperator] Native generator activated for group="
                         + member.GroupId + " after nearby physical operation.", this);
             }
+        }
+
+        /// <summary>
+        /// Distance alone does not grant interaction through locked rooms or
+        /// constructed walls. Exclude the machine's own physical collider and
+        /// the operator's NPC-only hitbox, but fail closed on any other wall.
+        /// Non-allocating, only sampled on the 12-second maintenance cadence.
+        /// </summary>
+        private bool HasClearInteractionPath(Transform target)
+        {
+            if (target == null)
+                return false;
+            Vector3 origin = transform.position + Vector3.up;
+            Vector3 endpoint = target.position + Vector3.up * 0.7f;
+            Vector3 offset = endpoint - origin;
+            float distance = offset.magnitude;
+            if (distance < 0.25f || distance > MaximumStorageAccessDistance + 1f)
+                return false;
+            int count = Physics.RaycastNonAlloc(origin, offset / distance,
+                interactionHits, distance, RayMasks.BLOCK_COLLISION,
+                QueryTriggerInteraction.Ignore);
+            if (count >= interactionHits.Length)
+                return false;
+            for (int i = 0; i < count; i++)
+            {
+                Collider hit = interactionHits[i].collider;
+                if (hit == null || hit.transform == target
+                    || hit.transform.IsChildOf(target))
+                    continue;
+                return false;
+            }
+            return true;
         }
 
         private static ushort SpendStoredFuelServer(Items items, ushort requested)
