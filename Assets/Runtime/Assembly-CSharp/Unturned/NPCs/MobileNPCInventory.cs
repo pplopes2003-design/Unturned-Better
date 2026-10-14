@@ -565,6 +565,44 @@ namespace SDG.Unturned
 			return 0;
 		}
 
+		/// <summary>
+		/// Consume exactly ONE genuine owned native explosive throwable.
+		/// This mirrors the one-use inventory debit of vanilla UseableThrowable,
+		/// and must be called only immediately before deploying a prefab.
+		/// Never use a fabricated grenade or consume flash/sticky/impact items
+		/// whose behavior is not implemented in the first NPC throw milestone.
+		/// </summary>
+		public bool TryConsumeSimpleGrenadeServer(ushort expectedID, out ItemThrowableAsset asset)
+		{
+			asset = null;
+			if (!Provider.isServer || expectedID == 0)
+				return false;
+			for (int i = 0; i < slots.Count; i++)
+			{
+				Item item = slots[i];
+				if (item == null || item.id != expectedID || item.amount == 0)
+					continue;
+				ItemThrowableAsset candidate =
+					Assets.find(EAssetType.ITEM, item.id) as ItemThrowableAsset;
+				if (candidate == null || !candidate.isExplosive
+					|| candidate.isSticky || candidate.explodeOnImpact
+					|| candidate.throwable == null || candidate.range <= 0f
+					|| candidate.fuseLength < 0.5f)
+					continue;
+				if (item.amount > 1)
+					slots[i] = new Item(item.id, (byte)(item.amount - 1),
+						item.quality, item.state != null ? (byte[])item.state.Clone() : new byte[0]);
+				else
+				{
+					slots.RemoveAt(i);
+					slotInstanceIDs.RemoveAt(i);
+				}
+				asset = candidate;
+				return true;
+			}
+			return false;
+		}
+
 		public bool TryConsumeFirstItemOfType(EItemType type, out Item consumedItem)
 		{
 			consumedItem = null;
