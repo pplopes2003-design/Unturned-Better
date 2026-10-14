@@ -198,6 +198,14 @@ namespace SDG.Unturned
         {
             if (!hasRumor)
                 return;
+            // Expired/invalid hearsay must not leave an investigate destination
+            // running long after the radio report has been forgotten. Clear
+            // only our own matching tactical investigation, never combat,
+            // escort orders or another component's newer objective.
+            if (Provider.isServer && isInvestigating && brain != null
+                && brain.CurrentGoal == MobileNPCTactics.Goal.Investigate
+                && (brain.Destination - approximateDestination).sqrMagnitude < 4f)
+                brain.ReportDestinationReached();
             recentlySearchedSector = reportedSector;
             doNotReinvestigateUntil = Time.time + ExpiredSiteRetryCooldown;
             hasRumor = false;
