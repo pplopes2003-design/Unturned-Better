@@ -179,7 +179,10 @@ namespace SDG.Unturned
 					{
 						lastInteract = Time.realtimeSinceStartup;
 
-						int interactRayMask = RayMasks.PLAYER_INTERACT;
+						// Mobile NPC anatomical hitboxes use ENTITY, not PLAYER/ENEMY.
+						// Without this layer the stock focus ray cannot ever
+						// reach the MobileNPCInteractionService dialogue branch.
+						int interactRayMask = RayMasks.PLAYER_INTERACT | RayMasks.ENTITY;
 						if (player.stance.stance == EPlayerStance.CLIMB)
 						{
 							interactRayMask &= ~RayMasks.LADDER;
