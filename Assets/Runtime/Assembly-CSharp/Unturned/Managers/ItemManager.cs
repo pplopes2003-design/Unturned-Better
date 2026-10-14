@@ -157,14 +157,45 @@ namespace SDG.Unturned
 			return false;
 		}
 
-		/// <summary>Transfers a nearby world item into NPC storage and replicates its removal.</summary>
-		public static bool TryTransferWorldItemToMobileNPCServer(uint instanceID, Vector3 npcPosition, float maximumDistance, MobileNPCInventory inventory)
+		/// <summary>
+		/// Transfer only a real, physically present drop within arm's reach.
+		/// Proximity is measured from the actor's feet in X/Z and from hand/
+		/// eye height in 3D: items on tables were unfairly rejected when
+		/// the entire vertical rise was measured from the NPC's feet.
+		/// </summary>
+		public static bool TryTransferWorldItemToMobileNPCServer(uint instanceID, Vector3 npcPosition,
+			float maximumDistance, MobileNPCInventory inventory)
 		{
-			if (!Provider.isServer || regions == null || inventory == null || !inventory.HasSpace
-				|| float.IsNaN(maximumDistance) || float.IsInfinity(maximumDistance) || maximumDistance < 0.0f
-				|| !Regions.checkSafe(npcPosition)) return false;
+			return TryTransferWorldItemToMobileNPCServer(instanceID, npcPosition,
+				maximumDistance, inventory, out _);
+		}
 
-			float maximumDistanceSqr = maximumDistance * maximumDistance;
+		/// <summary>
+		/// Diagnostic overload reports the exact rejected server-side gate.
+		/// The item's unique instance and authoritative ItemRegion remain the
+		/// sole source of ownership; success stores exactly once before removal.
+		/// </summary>
+		public static bool TryTransferWorldItemToMobileNPCServer(uint instanceID, Vector3 npcPosition,
+			float maximumDistance, MobileNPCInventory inventory, out string failureReason)
+		{
+			failureReason = null;
+			if (!Provider.isServer || regions == null || inventory == null || !inventory.HasSpace
+				|| instanceID == 0 || float.IsNaN(maximumDistance) || float.IsInfinity(maximumDistance)
+				|| maximumDistance < 0.5f || maximumDistance > 3f
+				|| float.IsNaN(npcPosition.x) || float.IsInfinity(npcPosition.x)
+				|| float.IsNaN(npcPosition.y) || float.IsInfinity(npcPosition.y)
+				|| float.IsNaN(npcPosition.z) || float.IsInfinity(npcPosition.z)
+				|| (inventory.transform.position - npcPosition).sqrMagnitude > 0.25f
+				|| !Regions.checkSafe(npcPosition))
+			{
+				failureReason = "invalid server, inventory or actor position";
+				return false;
+			}
+
+			// Hard cap independent of inspector settings. Hand reach must not
+			// turn into remotely vacuuming items from other rooms.
+			float reach = Mathf.Min(maximumDistance, 2.0f);
+			float reachSqr = reach * reach;
 			for (byte x = 0; x < Regions.WORLD_SIZE; ++x)
 			{
 				for (byte y = 0; y < Regions.WORLD_SIZE; ++y)
@@ -175,14 +206,67 @@ namespace SDG.Unturned
 					{
 						ItemData data = region.items[index];
 						if (data == null || data.instanceID != instanceID) continue;
-						if ((data.point - npcPosition).sqrMagnitude > maximumDistanceSqr) return false;
-						if (!inventory.TryStoreTransferredItem(data.item)) return false;
+
+						// An authoritative item may exist in a not-yet-streamed region.
+						// Physical NPC pickup requires the corresponding active native
+						// world drop, not only a record or a radio report.
+						InteractableItem worldItem = null;
+						Vector3 itemPosition = data.point;
+						for (int dropIndex = 0; dropIndex < region.drops.Count; ++dropIndex)
+						{
+							ItemDrop drop = region.drops[dropIndex];
+							if (drop == null || drop.instanceID != instanceID || drop.model == null)
+								continue;
+							worldItem = drop.interactableItem;
+							itemPosition = drop.model.position;
+							break;
+						}
+						if (worldItem == null || !worldItem.gameObject.activeInHierarchy)
+						{
+							failureReason = "native world drop not present";
+							return false;
+						}
+						Vector3 offset = itemPosition - npcPosition;
+						float heightDifference = Mathf.Abs(offset.y);
+						offset.y = 0f;
+						if (offset.sqrMagnitude > reachSqr || heightDifference > 2.1f)
+						{
+							failureReason = "item outside horizontal/vertical pickup reach";
+							return false;
+						}
+						// Validate actual hand-to-item reach, not just feet/planar
+						// distance. Same-floor furniture is allowed, other-floor
+						// pickups still need an unobstructed physical sightline.
+						Vector3 eyes = npcPosition + Vector3.up * 1.45f;
+						Vector3 dropPoint = itemPosition + Vector3.up * 0.23f;
+						float handRange = reach + 0.5f;
+						if ((dropPoint - eyes).sqrMagnitude > handRange * handRange)
+						{
+							failureReason = "item beyond hand reach";
+							return false;
+						}
+						if (!MobileNPCUsefulLootVision.CanSeeWorldDropServer(
+							worldItem, inventory.transform, handRange,
+							requireRadioUsefulCategory: false))
+						{
+							failureReason = "item occluded or no longer registered";
+							return false;
+						}
+						if (!inventory.TryStoreTransferredItem(data.item))
+						{
+							failureReason = "inventory rejected item";
+							return false;
+						}
+
 						region.items.RemoveAt(index);
-						SendDestroyItem.Invoke(ENetReliability.Reliable, Regions.GatherClientConnections(x, y, ITEM_REGIONS), x, y, instanceID, false);
+						SendDestroyItem.Invoke(ENetReliability.Reliable,
+							Regions.GatherClientConnections(x, y, ITEM_REGIONS),
+							x, y, instanceID, false);
 						return true;
 					}
 				}
 			}
+			failureReason = "instance missing from authoritative item regions";
 			return false;
 		}
 
