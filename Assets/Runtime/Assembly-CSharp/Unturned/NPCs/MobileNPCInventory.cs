@@ -92,8 +92,21 @@ namespace SDG.Unturned
 		/// </summary>
 		public bool TryPickupWorldItemServer(uint instanceID, Vector3 npcPosition, float maximumDistance)
 		{
-			return Provider.isServer && HasSpace
-				&& ItemManager.TryTransferWorldItemToMobileNPCServer(instanceID, npcPosition, maximumDistance, this);
+			return TryPickupWorldItemServer(instanceID, npcPosition, maximumDistance, out _);
+		}
+
+		/// <summary>For the Dev Build log: expose rejection reason without changing the transactional storage contract.</summary>
+		public bool TryPickupWorldItemServer(uint instanceID, Vector3 npcPosition,
+			float maximumDistance, out string failureReason)
+		{
+			failureReason = null;
+			if (!Provider.isServer || !HasSpace)
+			{
+				failureReason = "NPC storage full or not server";
+				return false;
+			}
+			return ItemManager.TryTransferWorldItemToMobileNPCServer(
+				instanceID, npcPosition, maximumDistance, this, out failureReason);
 		}
 
 		/// <summary>Counts stored items by vanilla item category.</summary>
