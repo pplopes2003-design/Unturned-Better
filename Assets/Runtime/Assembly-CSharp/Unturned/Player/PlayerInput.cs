@@ -1029,10 +1029,16 @@ namespace SDG.Unturned
 						if (Vector3.Dot(serverFacing, direction) < 0.95f)
 							return null;
 					}
+					// Custom NPC anatomy lives on ENTITY (23). Vanilla
+					// DAMAGE_SERVER intentionally excludes that layer, which
+					// previously REJECTED every reported MOBILE_NPC hit here.
+					// Preserve native world blockers and add ONLY the actual
+					// NPC collision layer; never approve a client hitmarker alone.
 					RaycastInfo confirmation = DamageTool.raycast(
 						new Ray(origin, direction),
 						usage == ERaycastInfoUsage.Punch ? 1.95f : distance + 0.75f,
-						RayMasks.DAMAGE_SERVER, ignorePlayer: player);
+						RayMasks.DAMAGE_SERVER | RayMasks.ENTITY,
+						ignorePlayer: player);
 					Collider confirmedCollider = confirmation != null ? confirmation.collider : null;
 					MobileNPCHumanoidVitals confirmedVitals = confirmedCollider != null
 						? confirmedCollider.GetComponentInParent<MobileNPCHumanoidVitals>() : null;
