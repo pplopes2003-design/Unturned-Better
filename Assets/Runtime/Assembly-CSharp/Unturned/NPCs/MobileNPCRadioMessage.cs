@@ -23,6 +23,9 @@ namespace SDG.Unturned
         }
 
         public readonly Kind Type;
+        // Only UsefulLoot reports may carry an exact observed native item ID.
+        // Position remains an uncertain observation and carries no world instance.
+        public readonly ushort ReportedItemID;
         public readonly Vector3 ReportedPosition;
         public readonly float ObservedAt;
         public readonly float ExpiresAt;
@@ -33,9 +36,11 @@ namespace SDG.Unturned
 
         private MobileNPCRadioMessage(Kind type, Vector3 reportedPosition,
             float observedAt, float expiresAt, float confidence,
-            MobileNPCFaction.Id faction, int senderGroupId, string callSign)
+            MobileNPCFaction.Id faction, int senderGroupId, string callSign,
+            ushort reportedItemID)
         {
             Type = type;
+            ReportedItemID = reportedItemID;
             ReportedPosition = reportedPosition;
             ObservedAt = observedAt;
             ExpiresAt = expiresAt;
@@ -58,7 +63,33 @@ namespace SDG.Unturned
                 return false;
             message = new MobileNPCRadioMessage(type, observedRegion,
                 observedAt, observedAt + Mathf.Min(timeToLive, 300f),
-                Mathf.Clamp01(confidence), senderFaction, senderGroupId, callSign);
+                Mathf.Clamp01(confidence), senderFaction, senderGroupId, callSign, 0);
+            return true;
+        }
+
+        /// <summary>
+        /// Unlike generic radio traffic, a useful-loot report MUST identify
+        /// a physically observed vanilla item type. No live item reference
+        /// or pickup rights are ever serialized into a radio message.
+        /// </summary>
+        public static bool TryCreateUsefulLoot(Vector3 observedPosition,
+            ushort nativeItemID, float now, float ttl, float confidence,
+            MobileNPCFaction.Id senderFaction, int senderGroupId,
+            string callSign, out MobileNPCRadioMessage message)
+        {
+            message = null;
+            if (nativeItemID == 0
+                || !(Assets.find(EAssetType.ITEM, nativeItemID) is ItemAsset)
+                || !IsFinite(observedPosition.x) || !IsFinite(observedPosition.y)
+                || !IsFinite(observedPosition.z) || !IsFinite(now)
+                || !IsFinite(ttl) || ttl <= 0f || !IsFinite(confidence)
+                || confidence <= 0f || senderGroupId <= 0
+                || string.IsNullOrEmpty(callSign))
+                return false;
+            message = new MobileNPCRadioMessage(Kind.UsefulLoot,
+                observedPosition, now, now + Mathf.Min(ttl, 300f),
+                Mathf.Clamp01(confidence), senderFaction, senderGroupId,
+                callSign, nativeItemID);
             return true;
         }
 
@@ -86,7 +117,10 @@ namespace SDG.Unturned
                 case Kind.NeedReinforcements:
                     return speaker + "Precisamos de reforços no " + region + ". Confirmem se conseguem chegar.";
                 case Kind.UsefulLoot:
-                    return speaker + "Possível material útil no " + region + ". Verifiquem antes de recolher.";
+                    ItemAsset reported = Assets.find(EAssetType.ITEM, ReportedItemID) as ItemAsset;
+                    string subject = reported != null ? reported.name : "material útil";
+                    return speaker + "Possível " + subject + " no " + region
+                        + " (" + reliability + "). Confirmem visualmente antes de recolher.";
                 case Kind.Airdrop:
                     return speaker + "Possível airdrop no " + region + ". Ainda precisamos confirmar.";
                 case Kind.UnknownBase:
