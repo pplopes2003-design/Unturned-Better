@@ -33,7 +33,11 @@ namespace SDG.Unturned
 		[SerializeField, Range(2.5f, 5.5f)] private float plannedJumpHorizontalSpeed = 4.0f;
 
 		[SerializeField, Min(0.05f)] private float stoppingDistance = 0.65f;
-		[SerializeField, Min(0.1f)] private float gravity = 20.0f;
+		// The native PlayerMovement uses Physics.gravity.y * 3 while airborne.
+		// This is a MULTIPLIER, not acceleration in m/s². The old serialized
+		// "gravity = 20" produced ~60m/s² and made native JUMP=7 fail.
+		// New field name deliberately avoids inheriting obsolete prefab data.
+		[SerializeField, Range(0.5f, 2f)] private float gravityMultiplier = 1.0f;
 		[SerializeField] private bool runWhenPursuing = true;
 
 		[Header("Swimming")]
@@ -845,7 +849,7 @@ namespace SDG.Unturned
 				}
 
 				// PlayerMovement applies Unity gravity with a 3x multiplier while airborne.
-				velocity.y += Physics.gravity.y * (gravity / 9.81f) * deltaTime * 3.0f;
+				velocity.y += Physics.gravity.y * Mathf.Clamp(gravityMultiplier, 0.5f, 2f) * deltaTime * 3.0f;
 				velocity.y = Mathf.Max(-100.0f, velocity.y);
 				motion.y = velocity.y;
 
@@ -1123,7 +1127,7 @@ namespace SDG.Unturned
 			if (Physics.gravity.y >= -1f)
 				return false;
 			float acceleration = Mathf.Abs(Physics.gravity.y)
-				* (gravity / 9.81f) * 3f;
+				* Mathf.Clamp(gravityMultiplier, 0.5f, 2f) * 3f;
 			if (acceleration < 0.01f)
 				return false;
 			// Match the actual native PlayerMovement jump impulse, not an
@@ -1191,7 +1195,7 @@ namespace SDG.Unturned
 				|| Time.time < nextJumpTime || Physics.gravity.y >= -1f)
 				return false;
 			float acceleration = Mathf.Abs(Physics.gravity.y)
-				* (gravity / 9.81f) * 3f;
+				* Mathf.Clamp(gravityMultiplier, 0.5f, 2f) * 3f;
 			if (!vaultTraversal.TryPlanJumpServer(currentGoal, desired,
 				roamingGroundMask, roamingMaximumSlope, obstacleMask,
 				acceleration, out MobileNPCVaultTraversal.JumpPlan plan))
