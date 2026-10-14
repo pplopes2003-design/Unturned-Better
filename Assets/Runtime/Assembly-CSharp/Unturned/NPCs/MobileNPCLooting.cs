@@ -117,10 +117,19 @@ namespace SDG.Unturned
 
 			if (hasTarget)
 			{
-				if ((targetPosition - transform.position).sqrMagnitude <= pickupDistance * pickupDistance)
+				// A table or shelf is a reach target, not a location where the
+				// NPC's feet should stand. Check planar proximity independently
+				// of item height, then let ItemManager enforce real hand-to-item
+				// distance, LOS, authoritative identity and storage capacity.
+				Vector3 reachOffset = targetPosition - transform.position;
+				float itemHeight = Mathf.Abs(reachOffset.y);
+				reachOffset.y = 0f;
+				if (reachOffset.sqrMagnitude <= pickupDistance * pickupDistance
+					&& itemHeight <= 2.1f)
 				{
 					uint attemptedInstanceID = targetInstanceID;
-					bool pickedUp = inventory.TryPickupWorldItemServer(attemptedInstanceID, transform.position, pickupDistance + 0.5f);
+					bool pickedUp = inventory.TryPickupWorldItemServer(attemptedInstanceID,
+						transform.position, pickupDistance + 0.5f, out string failureReason);
 					// Any learned source must be an ACTUAL completed transfer, not
 					// seeing loot through walls or a guaranteed respawn table.
 					if (pickedUp && supplyKnowledge != null && targetItemID != 0)
@@ -139,7 +148,10 @@ namespace SDG.Unturned
 						temporarilyInaccessibleInstanceID = attemptedInstanceID;
 						temporarilyInaccessibleUntil = Time.time + 35f;
 						Debug.Log("[MobileNPCLooting] Pickup transfer failed for item instance "
-							+ attemptedInstanceID + " on " + name + "; will rescan after cooldown.", this);
+							+ attemptedInstanceID + " on " + name
+							+ "; reason=" + (failureReason ?? "unspecified")
+							+ "; root=" + transform.position + "; item=" + targetPosition
+							+ "; will rescan after cooldown.", this);
 					}
 				}
 				else if (Time.time >= nextScanTime)
