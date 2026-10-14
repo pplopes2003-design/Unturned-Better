@@ -68,7 +68,8 @@ namespace SDG.Unturned
         /// </summary>
         public bool ReceiveAirdropReportServer(MobileNPCRadioMessage message)
         {
-            if (!Provider.isServer || !Level.isLoaded || message == null
+            if (!Provider.isServer || !Level.isLoaded
+                || !MobileNPCSettings.AirdropContestEnabled || message == null
                 || message.Type != MobileNPCRadioMessage.Kind.Airdrop
                 || !message.IsFresh(Time.time) || message.Confidence < 0.35f
                 || group == null || group.GroupId <= 0
@@ -143,7 +144,8 @@ namespace SDG.Unturned
                 return;
             nextThinkAt = Time.time + ThinkInterval;
 
-            if (Time.time >= expiresAt || group == null
+            if (!MobileNPCSettings.AirdropContestEnabled
+                || Time.time >= expiresAt || group == null
                 || group.GroupId != originalGroupId
                 || faction == null || faction.CurrentFaction != originalFaction
                 || vitals != null && vitals.IsDead || brain == null
