@@ -816,12 +816,19 @@ namespace SDG.Unturned
 				DestinationDistance = hasDestination ? Vector3.Distance(destination, transform.position) : 0f
 			};
 			MobileNPCLocomotionPolicy.Gait gait = locomotionPolicy.Decide(context, Time.time);
+			// The combat visibility flag intentionally excludes peaceful players,
+			// but they still provide positive visual evidence. A footstep is not
+			// a reason to duck when that SAME nonhostile player is plainly visible.
+			// Preserve deliberate stalking/cover against a DIFFERENT real enemy.
+			MobileNPCHumanoidPerception eyes = GetComponent<MobileNPCHumanoidPerception>();
+			bool seesNonThreateningPlayer = eyes != null && eyes.VisiblePlayer != null
+				&& brainDriver.Target == null;
 			// Audio-only uncertainty is weaker than positive eye contact.
 			// Do not remain physically crouched while an active combat target
 			// is confirmed visible just because a prior footstep suggested
 			// listening or stalking. Cover itself remains a tactical goal.
 			UpdateCrouchStance(!isPlannedJumping && !IsTraversingLadder
-				&& !targetIsVisible
+				&& !targetIsVisible && !seesNonThreateningPlayer
 				&& (gait == MobileNPCLocomotionPolicy.Gait.Sneak
 					|| brainDriver.IsListening || brainDriver.IsAmbushPreparing)
 				&& !isUnderwater);
