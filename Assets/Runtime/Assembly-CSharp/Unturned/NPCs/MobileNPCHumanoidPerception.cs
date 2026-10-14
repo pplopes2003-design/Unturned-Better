@@ -69,7 +69,9 @@ namespace SDG.Unturned
 			}
 
 			ClearDeadSelectedTarget();
-			Player playerCandidate = disposition.CanEngagePlayers ? FindVisiblePlayer() : null;
+			// All roles may LOOK at players; only an intrinsically hostile NPC
+			// or a recently attacked survivor may SELECT one for combat.
+			Player playerCandidate = FindVisiblePlayer();
 			MobileNPCHumanoidDisposition npcCandidate = disposition.CanEngageMobileNPCs ? FindVisibleNPC() : null;
 			Zombie zombieCandidate = FindVisibleZombie();
 
@@ -318,6 +320,7 @@ namespace SDG.Unturned
 				SteamPlayer steamPlayer = Provider.clients[i];
 				Player candidate = steamPlayer != null ? steamPlayer.player : null;
 				if (candidate == null || candidate == GetComponent<Player>()
+					|| !disposition.CanEngagePlayer(candidate)
 					|| candidate.life == null || candidate.life.isDead
 					|| candidate.gameObject == null || !candidate.gameObject.activeInHierarchy)
 				{
