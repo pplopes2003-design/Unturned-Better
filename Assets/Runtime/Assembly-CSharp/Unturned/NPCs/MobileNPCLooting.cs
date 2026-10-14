@@ -235,9 +235,16 @@ namespace SDG.Unturned
 
 				float score = ScoreItem(item, distanceSqr);
 				if (score <= bestScore)
-				{
 					continue;
-				}
+
+				// Region enumeration includes items behind walls and on other floors.
+				// Only physically SEEN native drops can become ordinary scavenging
+				// goals. Otherwise hidden loot repeatedly directs NPCs into a wall.
+				// Bound visual acquisition to 17m rather than claiming omniscient
+				// knowledge of every item in the 28m world-region scan.
+				if (distanceSqr > 17f * 17f
+					|| !MobileNPCUsefulLootVision.CanSeeWorldDropServer(item, transform, 17f))
+					continue;
 
 				bestScore = score;
 				bestItem = item;
