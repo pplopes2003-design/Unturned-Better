@@ -43,6 +43,9 @@ namespace SDG.Unturned
         private float nextAttemptTransmitAt;
         private float nextPersonalTransmitAt;
         private float nextReinforcementRequestAt;
+        private float lastUsefulLootReportAt = -1000f;
+        private Vector3 lastUsefulLootReportPosition;
+        private ushort lastUsefulLootReportItemID;
 
         public uint TunedFrequency => group != null && group.GroupId > 0
             ? PlayerQuests.DEFAULT_RADIO_FREQUENCY
@@ -126,6 +129,14 @@ namespace SDG.Unturned
                     MobileNPCAirdropRumor rumor =
                         receiver.GetComponent<MobileNPCAirdropRumor>();
                     rumor?.ReceiveAirdropReportServer(message);
+                }
+                else if (message.Type == MobileNPCRadioMessage.Kind.UsefulLoot)
+                {
+                    // A valid radio conveys the item TYPE and hearsay region,
+                    // not an ItemManager world instance or remote pickup right.
+                    MobileNPCUsefulLootRumor rumor =
+                        receiver.GetComponent<MobileNPCUsefulLootRumor>();
+                    rumor?.ReceiveUsefulLootReportServer(message);
                 }
                 else if (message.Type == MobileNPCRadioMessage.Kind.NeedReinforcements)
                 {
@@ -244,6 +255,49 @@ namespace SDG.Unturned
         }
 
         /// <summary>
+        /// Send only an ACTUAL first-hand, short-range, unobstructed and
+        /// registered world drop that can be valuable to a team member.
+        /// The sender must have seen the drop while doing ordinary local
+        /// ItemManager scans; the receiver must revalidate need and later
+        /// independently find the drop before it can take anything.
+        /// </summary>
+        public bool TryQueueObservedUsefulLootServer(InteractableItem observed)
+        {
+            if (!Provider.isServer || Time.time < nextPrepareAt
+                || group == null || group.GroupId <= 0
+                || faction == null || disposition == null
+                || observed == null || observed.asset == null
+                || observed.jar == null || observed.jar.item == null
+                || observed.jar.item.id == 0
+                || MobileNPCUsefulLootVision.IntrinsicImportance(observed.asset) < 60f
+                || !HasOperationalRadioEndpoint
+                || !MobileNPCUsefulLootVision.CanSeeWorldDropServer(
+                    observed, transform, 17f))
+                return false;
+
+            ushort itemID = observed.jar.item.id;
+            Vector3 location = observed.transform.position;
+            if (itemID == lastUsefulLootReportItemID
+                && (location - lastUsefulLootReportPosition).sqrMagnitude
+                    < 25f * 25f && Time.time - lastUsefulLootReportAt < 95f)
+                return false;
+            if (!MobileNPCRadioMessage.TryCreateUsefulLoot(
+                location, itemID, Time.time, 62f, 0.76f,
+                faction.CurrentFaction, group.GroupId, disposition.DisplayName,
+                out MobileNPCRadioMessage message))
+                return false;
+
+            lastUsefulLootReportAt = Time.time;
+            lastUsefulLootReportPosition = location;
+            lastUsefulLootReportItemID = itemID;
+            nextPrepareAt = Time.time + SendPreparationCooldown;
+            while (pending.Count >= MaximumPendingReports)
+                pending.Dequeue();
+            pending.Enqueue(message);
+            return true;
+        }
+
+        /// <summary>
         /// A real visible threat AND accepted damage within the last 7s justify
         /// a short, infrequent help request. Location is CALLER's own position,
         /// not the shooter's live position. No calls from rumor, noise, status
@@ -336,6 +390,9 @@ namespace SDG.Unturned
             nextAttemptTransmitAt = 0f;
             nextPersonalTransmitAt = 0f;
             nextReinforcementRequestAt = 0f;
+            lastUsefulLootReportAt = -1000f;
+            lastUsefulLootReportItemID = 0;
+            lastUsefulLootReportPosition = Vector3.zero;
         }
     }
 }
