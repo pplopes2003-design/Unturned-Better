@@ -39,6 +39,7 @@ namespace SDG.Unturned
         private float onSceneSince;
         private bool hasAssignment;
         private bool movingToHelp;
+        private bool waitingOnScene;
 
         private void Awake()
         {
@@ -121,6 +122,7 @@ namespace SDG.Unturned
             onSceneSince = 0f;
             hasAssignment = true;
             movingToHelp = false;
+            waitingOnScene = false;
             return true;
         }
 
@@ -140,6 +142,17 @@ namespace SDG.Unturned
                 || brain.Target != null)
             {
                 FinishAssignmentServer();
+                return;
+            }
+
+            if (waitingOnScene)
+            {
+                // The motor may already have cleared Goal.Reinforce on
+                // arrival. Remain briefly as an ordinary idle NPC so actual
+                // perception can discover enemies independently.
+                if (Time.time - onSceneSince >= 4f
+                    || brain.CurrentGoal != MobileNPCTactics.Goal.None)
+                    FinishAssignmentServer();
                 return;
             }
 
@@ -169,19 +182,31 @@ namespace SDG.Unturned
             if (brain.CurrentGoal != MobileNPCTactics.Goal.Reinforce
                 || (brain.Destination - plannedRendezvous).sqrMagnitude > 4f)
             {
-                FinishAssignmentServer();
+                // The motor may acknowledge arrival slightly earlier than
+                // this component's next 1.5-second scheduled Update.
+                bool genuinelyNear = (transform.position - plannedRendezvous).sqrMagnitude
+                    <= ArrivalRadius * ArrivalRadius;
+                if (genuinelyNear && brain.Target == null
+                    && brain.CurrentGoal == MobileNPCTactics.Goal.None)
+                {
+                    movingToHelp = false;
+                    waitingOnScene = true;
+                    onSceneSince = Time.time;
+                }
+                else
+                    FinishAssignmentServer();
                 return;
             }
 
             if ((transform.position - plannedRendezvous).sqrMagnitude
                 <= ArrivalRadius * ArrivalRadius)
             {
-                if (onSceneSince == 0f)
-                    onSceneSince = Time.time;
-                // Stay a moment to allow the regular perception/AI to search
-                // for a *newly visible* threat. Never grant a target by radio.
-                if (Time.time - onSceneSince >= 4f)
-                    FinishAssignmentServer();
+                // Finish movement but preserve individual arrival state for
+                // four seconds. Ordinary perception, not radio, finds targets.
+                movingToHelp = false;
+                waitingOnScene = true;
+                onSceneSince = Time.time;
+                brain.ReportDestinationReached();
             }
         }
 
@@ -193,6 +218,7 @@ namespace SDG.Unturned
                 brain.ReportDestinationReached();
             hasAssignment = false;
             movingToHelp = false;
+            waitingOnScene = false;
             onSceneSince = 0f;
         }
 
@@ -200,6 +226,7 @@ namespace SDG.Unturned
         {
             hasAssignment = false;
             movingToHelp = false;
+            waitingOnScene = false;
             onSceneSince = 0f;
         }
     }
