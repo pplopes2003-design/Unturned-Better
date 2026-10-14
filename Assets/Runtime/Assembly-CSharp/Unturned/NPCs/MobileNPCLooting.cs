@@ -243,7 +243,8 @@ namespace SDG.Unturned
 				// Bound visual acquisition to 17m rather than claiming omniscient
 				// knowledge of every item in the 28m world-region scan.
 				if (distanceSqr > 17f * 17f
-					|| !MobileNPCUsefulLootVision.CanSeeWorldDropServer(item, transform, 17f))
+					|| !MobileNPCUsefulLootVision.CanSeeWorldDropServer(item, transform, 17f,
+						requireRadioUsefulCategory: false))
 					continue;
 
 				bestScore = score;
