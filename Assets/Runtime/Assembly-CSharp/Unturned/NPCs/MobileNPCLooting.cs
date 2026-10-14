@@ -40,6 +40,8 @@ namespace SDG.Unturned
 		private uint targetInstanceID;
 		private Vector3 targetPosition;
 		private bool hasTarget;
+		private uint temporarilyInaccessibleInstanceID;
+		private float temporarilyInaccessibleUntil;
 		private float nextScanTime;
 
 		private void Awake()
@@ -104,6 +106,10 @@ namespace SDG.Unturned
 				// This is observable failure evidence, not proof of an impassable path.
 				if (adaptiveMemory != null)
 					adaptiveMemory.RecordOwnOutcomeServer(MobileNPCAdaptiveMemory.ExperienceKind.LootAccess, targetPosition, false);
+				// An inaccessible item must not be immediately reselected
+				// after the motor's physically confirmed navigation failure.
+				temporarilyInaccessibleInstanceID = targetInstanceID;
+				temporarilyInaccessibleUntil = Time.time + 75f;
 				ClearTarget();
 				nextScanTime = Time.time + scanInterval;
 				return;
@@ -130,6 +136,8 @@ namespace SDG.Unturned
 					nextScanTime = Time.time + scanInterval;
 					if (!pickedUp)
 					{
+						temporarilyInaccessibleInstanceID = attemptedInstanceID;
+						temporarilyInaccessibleUntil = Time.time + 35f;
 						Debug.Log("[MobileNPCLooting] Pickup transfer failed for item instance "
 							+ attemptedInstanceID + " on " + name + "; will rescan after cooldown.", this);
 					}
@@ -184,6 +192,9 @@ namespace SDG.Unturned
 				{
 					continue;
 				}
+				if (instanceID == temporarilyInaccessibleInstanceID
+					&& Time.time < temporarilyInaccessibleUntil)
+					continue;
 
 				float distanceSqr = (item.transform.position - transform.position).sqrMagnitude;
 
