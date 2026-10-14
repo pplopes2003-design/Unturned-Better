@@ -16,7 +16,7 @@ namespace SDG.Unturned
     {
         [SerializeField, Min(0.5f)] private float height = 2.15f;
         [SerializeField, Min(0.001f)] private float characterSize = 0.018f;
-        [SerializeField, Min(1f)] private float visibleDistance = 32f;
+        [SerializeField, Min(1f)] private float visibleDistance = 9f;
 
         private TextMesh label;
         private Transform labelTransform;
@@ -63,14 +63,25 @@ namespace SDG.Unturned
             if (camera == null)
                 return;
 
-            float distance = Vector3.Distance(camera.transform.position, labelTransform.position);
-            label.gameObject.SetActive(distance <= visibleDistance);
-            if (!label.gameObject.activeSelf)
-                return;
-
-            Vector3 direction = camera.transform.position - labelTransform.position;
-            if (direction.sqrMagnitude > 0.001f)
-                labelTransform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+            Vector3 view = labelTransform.position - camera.transform.position;
+            float distance = view.magnitude;
+            // World-space labels are local identification cues, not wallhacks:
+            // require close proximity, the NPC roughly in front of the
+            // player, and unobstructed scene geometry.
+            bool canRead = distance > 0.1f && distance <= visibleDistance
+                && Vector3.Dot(camera.transform.forward, view / Mathf.Max(distance, 0.01f)) >= 0.92f
+                && !Physics.Linecast(camera.transform.position,
+                    labelTransform.position, RayMasks.BLOCK_COLLISION,
+                    QueryTriggerInteraction.Ignore);
+            if (label.gameObject.activeSelf != canRead)
+                label.gameObject.SetActive(canRead);
+            if (canRead)
+            {
+                // Copy the camera rotation: TextMesh faces the viewer with
+                // readable glyph orientation; LookRotation(viewer - text)
+                // inverted the authored text mesh in this prefab.
+                labelTransform.rotation = camera.transform.rotation;
+            }
         }
     }
 }
