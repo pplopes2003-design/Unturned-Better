@@ -110,3 +110,12 @@ Final Dev Build must verify actual ID 1445 inventory ownership, two separate equ
 **Actual acquisition improvement:** source commit `a3ea3d67fddc010efe4d753eb57e57235dc7c7e4` modifies `MobileNPCLooting.ScoreItem` so a surviving group member without item 1445 values a REAL nearby walkie world drop at moderate score 62, below critical medicine or first gun; it still needs real ItemManager spawn, reachable path, an inventory slot and transactional pickup. Duplicates keep existing penalty. No free radio equipment on initial spawn, no synthetic supply.
 
 **Subtitle revocation:** `f84f390f8cfff3f89e512a766b890651b019a3ef` clears intercepted text permanently upon listener gear/frequency mismatch or death, not merely hides it until retuning. It only reappears for a NEW in-band transmission. Validate rapid channel and earpiece toggling in final build.
+
+
+## 2026-10-13 — Actual airdrop sightings enter radio outbox
+
+- `MobileNPCRadioOutbox.TryQueueObservedAirdrop` accepts a nearby (28m max) real landed airdrop and enqueues an `Airdrop` message (45s expiry, actual walkie item 1445 required, group/faction, existing cooldown).
+- `MobileNPCAirdropContest.TickServer` calls it only for a real carepackage storage with contents and only when the NPC itself is within 28m. The broader 220m loot contest scan does not by itself justify a radio message.
+- Existing `MobileNPCRadioOutbox.Update` can transmit the resulting simulated text to same-group tuned radio owners and local host player equipped/tuned through `MobileNPCRadioInterceptHUD`. Still no native microphone audio or multiplayer client subtitle bridge.
+- **Status:** COM-04 airdrop subfeature is SOURCE-IMPLEMENTED / **QUASE PRONTA — AGUARDANDO BUILD**. COM-04 as a whole remains OPEN (real reinforcements, valuable loot and unknown-base observations).
+- Tests: discover landed crate while equipped, no owned radio, far-away scan vs near observation, player tuned vs untuned, empty crate, repeated observations and TTL, faction restrictions, correct subtitle and no duplication. No Unity runtime validation yet.
