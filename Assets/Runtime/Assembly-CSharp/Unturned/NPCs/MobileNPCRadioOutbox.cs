@@ -173,6 +173,31 @@ namespace SDG.Unturned
         }
 
         /// <summary>
+        /// Reports a physically verified landed carepackage only when the NPC is
+        /// close enough to observe it. Does not manufacture loot or reveal
+        /// unseen airdrops to distant squads without an owned walkie.
+        /// </summary>
+        public bool TryQueueObservedAirdrop(Vector3 observedPosition)
+        {
+            if (!Provider.isServer || !HasOwnedPortableRadio || Time.time < nextPrepareAt
+                || group == null || group.GroupId <= 0
+                || faction == null || disposition == null
+                || Vector3.SqrMagnitude(observedPosition - transform.position) > 28f * 28f)
+                return false;
+
+            if (!MobileNPCRadioMessage.TryCreate(MobileNPCRadioMessage.Kind.Airdrop,
+                observedPosition, Time.time, 45f, 0.8f, faction.CurrentFaction,
+                group.GroupId, disposition.DisplayName, out MobileNPCRadioMessage message))
+                return false;
+
+            nextPrepareAt = Time.time + SendPreparationCooldown;
+            while (pending.Count >= MaximumPendingReports)
+                pending.Dequeue();
+            pending.Enqueue(message);
+            return true;
+        }
+
+        /// <summary>
         /// Pure handoff for a future transport bridge. Intentionally does not
         /// expose an unchecked send event or leak messages to client UI.
         /// </summary>
