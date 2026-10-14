@@ -17,6 +17,48 @@ namespace SDG.Unturned
 		/// Applies one validated hit to the NPC owning the hit collider.
 		/// Returns false when the collider is not part of a live mobile NPC or the hit is invalid.
 		/// </summary>
+        /// <summary>
+        /// Recover a custom NPC hit volume on the authoritative listen-server.
+        /// Vanilla InputInfo serialization may omit its colliderTransform when
+        /// the ray type is NONE (MobileNPC is neither Player nor Zombie).
+        /// NEVER trust only the client hitmarker: require the server's own
+        /// first unobstructed physics ray to hit an active NPC anatomical
+        /// collider close to the reported point. World geometry uses the
+        /// identical DAMAGE_SERVER mask, plus only the NPC ENTITY layer.
+        /// </summary>
+        public static bool TryResolvePhysicalServerHit(Vector3 origin,
+            Vector3 reportedPoint, float maximumRange, out Transform hitTransform)
+        {
+            hitTransform = null;
+            if (!Provider.isServer || !Level.isLoaded || maximumRange <= 0f)
+                return false;
+            Vector3 difference = reportedPoint - origin;
+            float length = difference.magnitude;
+            if (length < 0.05f || length > maximumRange + 1.0f
+                || float.IsNaN(length) || float.IsInfinity(length))
+                return false;
+
+            int mask = RayMasks.DAMAGE_SERVER | RayMasks.ENTITY;
+            if (!Physics.Raycast(origin, difference / length,
+                out RaycastHit hit, Mathf.Min(length + 0.75f, maximumRange + 1f),
+                mask, QueryTriggerInteraction.Ignore))
+                return false;
+
+            // If a wall/fence is in front of the NPC, the FIRST physics hit
+            // is that geometry, not an NPC. The incoming point must match.
+            if (hit.collider == null
+                || (hit.point - reportedPoint).sqrMagnitude > 1.25f * 1.25f
+                || hit.collider.GetComponent<MobileNPCBodyHitbox>() == null)
+                return false;
+            MobileNPCHumanoidVitals victim =
+                hit.collider.GetComponentInParent<MobileNPCHumanoidVitals>();
+            if (victim == null || victim.IsDead)
+                return false;
+
+            hitTransform = hit.collider.transform;
+            return true;
+        }
+
 		public static bool TryApplyValidatedHit(Collider hitCollider, float damage,
 			Vector3 hitImpulse, Transform attacker)
 		{
