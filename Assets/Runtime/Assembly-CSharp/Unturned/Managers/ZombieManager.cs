@@ -1448,15 +1448,57 @@ namespace SDG.Unturned
 			}
 		}
 
+		// Preserve an actively hunting native zombie when a local player
+		// crosses a LevelNavigation region boundary. This is not a new
+		// long-range zombie spawn or an invisible offscreen attack.
+		private static bool HasLiveHuntingZombieInRegion(int bound)
+		{
+			if (regions == null || bound < 0 || bound >= regions.Length
+				|| regions[bound] == null || regions[bound].zombies == null)
+				return false;
+			foreach (Zombie zombie in regions[bound].zombies)
+			{
+				if (zombie != null && !zombie.isDead && zombie.isHunting)
+					return true;
+			}
+			return false;
+		}
+
+		private static float nextAbandonedPursuitRegionSweep;
+		private static void PruneInactivePursuitRegionsServer()
+		{
+			if (!Provider.isServer || Dedicator.IsDedicatedServer
+				|| regions == null || Time.time < nextAbandonedPursuitRegionSweep)
+				return;
+			nextAbandonedPursuitRegionSweep = Time.time + 3f;
+			for (int i = 0; i < regions.Length; i++)
+			{
+				ZombieRegion region = regions[i];
+				if (region == null || !region.isNetworked
+					|| region.PlayerCountInRegion > 0
+					|| HasLiveHuntingZombieInRegion(i))
+					continue;
+				region.destroy();
+				region.isNetworked = false;
+			}
+		}
+
 		private void onBoundUpdated(Player player, byte oldBound, byte newBound)
 		{
 			if (player.channel.IsLocalPlayer)
 			{
 				if (LevelNavigation.checkSafe(oldBound) && regions[oldBound].isNetworked)
 				{
-					regions[oldBound].destroy();
-
-					regions[oldBound].isNetworked = false;
+					// In local single-player, the same callback destroys the
+					// old region's render AND its live zombie instances. Keep
+					// genuine hunters visible/alive across the navigation bound.
+					// A zero-player region without any hunting zombie is cleaned
+					// by the bounded pass in Update.
+					if (!Provider.isServer || !HasLiveHuntingZombieInRegion(oldBound))
+					{
+						regions[oldBound].destroy();
+						regions[oldBound].isNetworked = false;
+					}
 				}
 			}
 
@@ -1849,6 +1891,10 @@ namespace SDG.Unturned
 			{
 				return;
 			}
+
+			// A region held alive for a real chase is released only after
+			// it has no local player AND no still-hunting zombie.
+			PruneInactivePursuitRegionsServer();
 
 			if (!Provider.isServer && AllZombies != null)
 			{
