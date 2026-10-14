@@ -160,6 +160,18 @@ namespace SDG.Unturned
 			investigatingPlayerClue = false;
 			listenUntil = 0f;
 			brain.ReportVisibleTarget(target, Time.time);
+			// A healthy armed survivor who has now CONFIRMED the target may
+			// end an earlier fallback retreat caused by hearing an unseen shot.
+			// Do not cancel cover, low-health escape, or an unrelated objective.
+			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Retreat)
+			{
+				MobileNPCHumanoidVitals ownVitals = GetComponent<MobileNPCHumanoidVitals>();
+				MobileNPCHumanoidRangedCombat weapon = GetComponent<MobileNPCHumanoidRangedCombat>();
+				if (ownVitals != null && ownVitals.HealthFraction > 0.55f
+					&& weapon != null && weapon.SelectedGunAsset != null
+					&& weapon.RoundsRemaining > 0)
+					tactics.ClearGoal();
+			}
 			// A real current visual target plus a genuine recent wound can
 			// justify a HELP request. A past unseen attacker, mere sound clue,
 			// or group-wide knowledge never creates this radio message.
@@ -454,7 +466,17 @@ namespace SDG.Unturned
 			lastDefensiveThreatPosition = threatPosition;
 			nextDefensiveReplanAt = Time.time + 2.5f;
 			Vector3? coverPoint = TryFindNearbyCoverPoint(threatPosition);
-			if (tactics.TryChooseDefensiveGoal(transform.position, coverPoint, threatPosition, Time.time)
+			// Hearsay alone never permits retaliation. Actual current server
+			// perception must confirm THIS attacker before choosing to fight.
+			MobileNPCHumanoidPerception eyes = GetComponent<MobileNPCHumanoidPerception>();
+			bool visuallyConfirmed = eyes != null && threatTransform != null
+				&& (eyes.VisiblePlayer != null && threatTransform.IsChildOf(eyes.VisiblePlayer.transform)
+					|| eyes.VisibleNPC != null && threatTransform.IsChildOf(eyes.VisibleNPC.transform)
+					|| eyes.VisibleZombie != null && threatTransform.IsChildOf(eyes.VisibleZombie.transform));
+			MobileNPCHumanoidRangedCombat weapon = GetComponent<MobileNPCHumanoidRangedCombat>();
+			bool canReturnFire = visuallyConfirmed
+				&& weapon != null && weapon.SelectedGunAsset != null && weapon.RoundsRemaining > 0;
+			if (tactics.TryChooseDefensiveGoal(transform.position, coverPoint, threatPosition, Time.time, canReturnFire)
 				&& tactics.CurrentGoal == MobileNPCTactics.Goal.Retreat && !tactics.HasTacticalDestination)
 			{
 				Vector3 away = transform.position - threatPosition;
