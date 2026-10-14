@@ -2026,7 +2026,21 @@ namespace SDG.Unturned
 					// Mobile NPCs are not Players or Zombies in the vanilla raycast enum.
 					// The authoritative gun input carries its collider separately; use that
 					// transform first so the server resolves our custom hitbox reliably.
-					Transform gunHitTransform = info.colliderTransform != null ? info.colliderTransform : info.transform;
+					Transform gunHitTransform = info.colliderTransform != null
+						? info.colliderTransform : info.transform;
+					// The client can display a custom Entity-layer hitmarker even
+					// when native InputInfo has no network-serialized collider for
+					// ERaycastInfoType.NONE. Reconstruct ONLY if the server's
+					// FIRST ray hit is a real unobstructed anatomical NPC hitbox,
+					// at the reported position. No player-controlled damage or
+					// through-wall remote hit is accepted.
+					if (gunHitTransform == null
+						|| gunHitTransform.GetComponentInParent<MobileNPCHumanoidVitals>() == null)
+					{
+						MobileNPCDamageBridge.TryResolvePhysicalServerHit(
+							bullet.origin, info.point, equippedGunAsset.range,
+							out gunHitTransform);
+					}
 					MobileNPCHumanoidVitals mobileNPCVitals = gunHitTransform != null
 						? gunHitTransform.GetComponentInParent<MobileNPCHumanoidVitals>()
 						: null;
