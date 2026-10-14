@@ -349,6 +349,9 @@ namespace SDG.Unturned
 				// Explicitly end item acquisition, healing, survival ticking and construction
 				// so the corpse cannot resume work or mutate inventory/world state.
 				DisableOnDeath<MobileNPCLooting>();
+				// A-Life jobs cannot survive their owner. OnDisable also releases
+				// the reserved guard post so a living squadmate can claim it.
+				DisableOnDeath<MobileNPCAutonomyPlanner>();
 				DisableOnDeath<MobileNPCMedicalUse>();
 				DisableOnDeath<MobileNPCSurvivalNeeds>();
 				DisableOnDeath<MobileNPCSettlementPlanner>();
