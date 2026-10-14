@@ -50,3 +50,6 @@ O primeiro slice não contém smart terrain para POIs, postos em construções e
 
 ### Correção P0 paralela: mortalidade do NPC e suas vagas
 `UseableMelee` continha uma verificação `info.type != NONE && != SKIP` antes de chegar ao código que aplica dano aos hitboxes personalizados; o fallback de `NONE` agora só entra se o primeiro raycast físico revalidado no servidor atingir anatomia verdadeira de NPC. O protocolo específico `ERaycastInfoType.MOBILE_NPC` já existia em `PlayerInput` tanto na serialização quanto na validação de raio do servidor e permanece preservado. `MobileNPCHumanoidVitals.DieServer` agora também desativa o planejador A-Life, e o `OnDisable` libera a vaga sem depender de respawn. Isso não prova que o dano de tiro ou melee chegou ao HP durante a última build; exige log `Damage accepted` com `health=...->0.0` e `Death transition`, visual de corpo, nenhuma retomada de trabalho e vaga revendicada por vivo. P0 CORE-02 aberto.
+
+
+**Revisão de sucessão:** `MobileNPCSettlementBuilder` executa reconciliação física uma vez depois que o sucessor assume (mesmo se o padrão de construção já estiver no máximo), permitindo reusar armazenamento real em vez de registrar vagas em uma base imaginária; dependência preservada com COM-BASE/rádio. Sem execução Unity.
