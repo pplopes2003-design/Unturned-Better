@@ -71,6 +71,16 @@ namespace SDG.Unturned
 				if (nearest == null)
 					continue;
 
+				// Report only a genuinely nearby landed carepackage, not a
+				// remotely scanned crate. The radio outbox independently checks
+				// owned equipment, faction/group and its transmission cooldown.
+				if (bestDistanceSquared <= 28f * 28f)
+				{
+					MobileNPCRadioOutbox radio = driver.GetComponent<MobileNPCRadioOutbox>();
+					if (radio != null)
+						radio.TryQueueObservedAirdrop(nearest.transform.position);
+				}
+
 				if (bestDistanceSquared <= LootDistance * LootDistance)
 				{
 					if (TransferAirdropLootServer(nearest, inventory))
