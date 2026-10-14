@@ -3038,7 +3038,16 @@ namespace SDG.Unturned
 			if (goalOffset.sqrMagnitude < 0.01f)
 				return false;
 
-			Vector3 localGoal = transform.position + Vector3.ClampMagnitude(goalOffset, RouteGridCenter * RouteGridCellSize);
+			// Repeated PHYSICAL stalls behind long walls require a wider search
+			// horizon, not a smaller random steering twitch. Preserve 81 nodes
+			// and all collision/floor/door checks but sample at 2m spacing
+			// when the fine 1.25m grid has failed at least twice. Exact
+			// cover/door/ladder access checks always keep fine resolution.
+			float localCellSize = !requireExactLocalGoal
+				&& consecutiveStuckRecoveries >= 2 && goalOffset.sqrMagnitude > 36f
+				? 2.0f : RouteGridCellSize;
+
+			Vector3 localGoal = transform.position + Vector3.ClampMagnitude(goalOffset, RouteGridCenter * localCellSize);
 			Vector3[] positions = routeSearchPositions;
 			bool[] walkable = routeSearchWalkable;
 			float[] costs = routeSearchCosts;
@@ -3063,8 +3072,8 @@ namespace SDG.Unturned
 				{
 					int index = z * RouteGridSide + x;
 					Vector3 candidate = basePosition + new Vector3(
-						(x - RouteGridCenter) * RouteGridCellSize, 0f,
-						(z - RouteGridCenter) * RouteGridCellSize);
+						(x - RouteGridCenter) * localCellSize, 0f,
+						(z - RouteGridCenter) * localCellSize);
 					if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate,
 						1.6f, 2.2f, roamingGroundMask, roamingMaximumSlope,
 						out Vector3 resolved, out _))
@@ -3096,8 +3105,8 @@ namespace SDG.Unturned
 			Vector3 goalFromBase = localGoal - basePosition;
 			// Keep the desired grid cell as a preference only. It may be blocked or
 			// disconnected, so choose the nearest reachable node after the graph search.
-			int goalX = Mathf.Clamp(RouteGridCenter + Mathf.RoundToInt(goalFromBase.x / RouteGridCellSize), 0, RouteGridSide - 1);
-			int goalZ = Mathf.Clamp(RouteGridCenter + Mathf.RoundToInt(goalFromBase.z / RouteGridCellSize), 0, RouteGridSide - 1);
+			int goalX = Mathf.Clamp(RouteGridCenter + Mathf.RoundToInt(goalFromBase.x / localCellSize), 0, RouteGridSide - 1);
+			int goalZ = Mathf.Clamp(RouteGridCenter + Mathf.RoundToInt(goalFromBase.z / localCellSize), 0, RouteGridSide - 1);
 			int preferredGoal = goalZ * RouteGridSide + goalX;
 			// When this preferred cell is the approach where the survivor just
 			// got stuck, do not stop A* there or select it again. Explore
