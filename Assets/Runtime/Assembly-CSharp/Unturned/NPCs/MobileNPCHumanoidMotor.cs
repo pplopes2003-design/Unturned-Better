@@ -89,6 +89,8 @@ namespace SDG.Unturned
 		private CharacterController characterController;
 		private MobileNPCBrainDriver brainDriver;
 		private MobileNPCAutonomyPlanner autonomyPlanner;
+		private MobileNPCAutonomyPlanner.Job previousRoutineJob;
+		private bool hasPreviousRoutineJob;
 		private MobileNPCHumanoidPerception visualPerception;
 		private MobileNPCInjurySystem injurySystem;
 		private MobileNPCDoorNavigation doorNavigation;
@@ -406,6 +408,26 @@ namespace SDG.Unturned
 			brainDriver.TickServer(targetIsVisible);
 			Vector3 planarDirection = Vector3.zero;
 			bool hasBrainDestination = brainDriver.HasDestination;
+
+			// A routine switch may invalidate only a low-priority wander,
+			// never a combat/loot/reinforcement path. This is the online
+			// handoff between strategic job arbitration and physical motor.
+			if (!hasBrainDestination && autonomyPlanner != null)
+			{
+				MobileNPCAutonomyPlanner.Job routine = autonomyPlanner.EvaluateRoutineServer();
+				if (hasPreviousRoutineJob && routine != previousRoutineJob
+					&& hasRoamingDestination)
+				{
+					hasRoamingDestination = false;
+					routeWaypoints.Clear();
+					routeWaypointIndex = 0;
+					hasDetourWaypoint = false;
+					nextRoamingDecisionTime = Time.time + 0.5f;
+				}
+				previousRoutineJob = routine;
+				hasPreviousRoutineJob = true;
+			}
+
 			if (hasBrainDestination)
 			{
 				// Combat, investigation and tactical goals always take precedence over roaming or returning home.
@@ -423,7 +445,13 @@ namespace SDG.Unturned
 			{
 				// A safe, short recovery pause is a *routine*, not a tactical
 				// immobilization: any brain destination above preempts it instantly.
-				hasRoamingDestination = false;
+				if (hasRoamingDestination)
+				{
+					hasRoamingDestination = false;
+					routeWaypoints.Clear();
+					routeWaypointIndex = 0;
+					hasDetourWaypoint = false;
+				}
 				nextRoamingDecisionTime = Time.time + 2f;
 			}
 			else if (roamingEnabled && Time.time >= nextRoamingDecisionTime && !hasRoamingDestination)
