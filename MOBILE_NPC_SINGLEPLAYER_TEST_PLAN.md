@@ -563,3 +563,20 @@ Technical guide: `MOBILE_NPC_OBSTACLE_DECISION_DESIGN.md`. Source commits: `ce26
 - [ ] Try river/deep water, 40° incline, cliff, narrow ledge and unloaded/safe map bounds; existing CanStepOnOffNavGround must reject movement without genuine floor.
 - [ ] 1/20/50/200 active zombies crossing multiple boundaries; measure profiler raycasts, animation, stuck detector, pursuit persistence and server CPU. Multiplayer per-client region-interest tracking remains pending separately and should not be assumed solved.
 - [ ] On final build pass, close only ZMB-OPEN-01 with runtime evidence; any failure reopens scoped item with Player.log/map/positions. Do not mark overall ZMB-01 completed until network region and distant obstacle routing are truly addressed.
+
+## 39. COM-RADIO-PORTABLE-01 — simulated physical walkie traffic and player interception (FINAL Dev Build)
+
+Source only — **QUASE PRONTA — AGUARDANDO BUILD**, no Unity compile, gameplay, audio, remote-network test. Parent COM-02 remains EM IMPLEMENTAÇÃO.
+
+- [ ] Two living group members **each own native real walkie item 1445** in their respective MobileNPCInventory; trigger one server-verified player sighting by the hostile sender. Confirm sender broadcasts after preparation, recipient has a *weak approximate investigation clue* (not player Transform or wall-penetrating gunshot) and Player.log reports receiver count. Enemy reports expire after 24 seconds and max 4 queue items; 20-second sender preparation gap and shared 1.25-second airtime limit.
+- [ ] Remove radio from sender inventory before cue, and then receiver inventory independently. No long-distance communication when either endpoint lacks real 1445. Same-group but unarmed communication still uses only preexisting short-range voice, never a radio fallback without hardware.
+- [ ] Different group or faction, different assigned `GroupId`: no radio report delivery to rival group. Group 1 radio is native frequency **460328** (`DEFAULT_RADIO_FREQUENCY=460327 + 1`), dynamic if group identities differ. No inferred channel match from proximity alone.
+- [ ] Local singleplayer player with **earpiece ID 1446 actually worn as mask** and tuned to 460328 sees a ~5-second `[RÁDIO 460328]` Portuguese subtitle. Repeat with **walkie ID 1445 actually equipped**. This is synthetic text, NOT recorded voice/audio or fake native chat message. Wrong frequency, unequipped walkie sitting in inventory, mask other than earpiece, dead player: no subtitle.
+- [ ] Remove mask or change frequency **during** active subtitle: it disappears immediately. Returning to frequency without a new transmission should not reveal queued secret history.
+- [ ] Use other UI menus (NPC interaction/trade, ESC, standard HUD). Radio subtitle must not grab focus, hide HUD, change cursor or interfere with native voice.
+- [ ] Kill NPC sender during queued pending transmission, destroy/deactivate recipient, change group while message pending, reload map. No undead radio emission, no stale active registry or cross-map leakage; group and channel must update from living objects.
+- [ ] 1/10/20/40 mobile NPCs with 1445 distributed through real loot, do not autogive items to whole population outside testing; profile Update/radio transmissions/GC. Diagnostic at most one radio info log every 10 seconds while transmissions exist.
+- [ ] Dedicated server/multiplayer: do NOT expect subtitles on remote clients or native microphone voice; mark this part of COM-02 still EM IMPLEMENTAÇÃO and collect details for future network protocol.
+- [ ] User approval after build can close **only COM-RADIO-PORTABLE-01**, not COM-02, COM-03 or COM-04; defects reopen with Player.log, group IDs, tuned frequency, physical items, screen recording and reproduction.
+
+Source: `MobileNPCRadioOutbox.cs`, `MobileNPCRadioInterceptHUD.cs`, `MobileNPCPopulationBootstrap.cs`, `PlayerVoice.cs`, `PlayerQuests.cs`, `UseableWalkieTalkie.cs`; design `MOBILE_NPC_RADIO_SYSTEM_DESIGN.md`.
