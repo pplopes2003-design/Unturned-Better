@@ -221,7 +221,7 @@ The `MobileNPCSettlementBuilder` can reserve ONE of its existing four non-storag
 **Scoped status:** `COM-REINFORCEMENTS-RADIO-01` **QUASE PRONTA — AGUARDANDO BUILD** in C# source only; `COM-04` parent **EM IMPLEMENTAÇÃO** (useful-loot radio producer/consumer, unknown base, and extended faction response missing). No runtime success has been observed; feedback later closes/reopens exact subitem.
 
 
-## 2026-10-13 — COM-USEFUL-LOOT-RADIO-01 — need-based, physically verified useful-loot radio reports
+## 2026-10-14 — COM-USEFUL-LOOT-RADIO-01 — need-based, physically verified useful-loot radio reports
 
 **C# source committed only; no compilation, Unity Dev Build, Player.log or runtime performance evidence.** Relevant commits `3c2a8db7` item need API, `81034708` typed radio message, `e89e35e5` new rumor memory and local LOS, `8e03c2b6` radio producer/recipient, `dfa333d0` existing loot-scan integration, `7601def1` runtime component, `affc08ad` .meta, `b5dcb5ff` arrival timing, `e64476dc` late component resolution.
 
@@ -236,3 +236,5 @@ The `MobileNPCSettlementBuilder` can reserve ONE of its existing four non-storag
 **Limits:** no cross-group sharing, no source-target ItemManager pointer transfer, no automatic guaranteed pickup, no persistent hallucinated group loot map, no loot hoarding policy between humans/NPCs, no player fake access to all drops, no improved FOV beyond actual LOS. This is simulated text not native radio audio or remote multiplayer. Source scanner still sees nearby drops through ItemManager, but **only** LOS-filtered drops produce authoritative UsefulLoot reports; ordinary baseline local loot scoring is otherwise unchanged. Profile 20/40 NPCs to verify raycast budget and ordering in final build.
 
 **Status:** `COM-USEFUL-LOOT-RADIO-01` scoped **QUASE PRONTA — AGUARDANDO BUILD**; `COM-04` parent **EM IMPLEMENTAÇÃO** because `UnknownBase`, faction-wide group communications, vehicle radio and more advanced operational support remain open. Next radio scope `COM-UNKNOWN-BASE-RADIO-01` only when native structure ownership and genuine field perception can be verified. See test plan **section 44**.
+
+**Full inventory follow-up (`5bd28b14`)**: if the source NPC's inventory is full, its ordinary looting action remains disabled, but a bounded 2.5s/17m/LOS scan still permits reporting the highest-value visible real world item to equipped group allies. No pickup or new loot goal is started by the full NPC. **Subtitle follow-up (`bf38eec9`)**: use the item's native localized `itemName`, not the Unity prefab name.
