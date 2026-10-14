@@ -134,6 +134,24 @@ namespace SDG.Unturned
 			}
 			else
 			{
+				// Native quest-boss cleanup historically killed the boss as
+				// soon as the player changed its ORIGINAL navigation bound.
+				// That also kills a boss currently chasing the same player just
+				// outside the POI, despite the manager retaining its region.
+				// Keep only an active, nearby single-player encounter. When
+				// defeated, abandoned or farther away, the existing failed
+				// quest/boss cleanup below still runs unchanged.
+				if (Provider.isServer && !Dedicator.IsDedicatedServer
+					&& !bossZombie.isDead
+					&& Player.LocalPlayer != null && Player.LocalPlayer.life != null
+					&& Player.LocalPlayer.life.IsAlive)
+				{
+					float distanceSqr = (bossZombie.transform.position
+						- Player.LocalPlayer.transform.position).sqrMagnitude;
+					if (distanceSqr <= 48f * 48f
+						|| (bossZombie.isHunting && distanceSqr <= 112f * 112f))
+						return;
+				}
 				EPlayerKill kill;
 				uint xp;
 				bossZombie.askDamage(50000, Vector3.up, out kill, out xp, false, false);
