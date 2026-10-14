@@ -111,6 +111,7 @@ namespace SDG.Unturned
             template.AddComponent<MobileNPCGroupMember>();
             template.AddComponent<MobileNPCRadioOutbox>();
             template.AddComponent<MobileNPCAirdropRumor>();
+            template.AddComponent<MobileNPCUsefulLootRumor>();
             template.AddComponent<MobileNPCReinforcementResponse>();
             template.AddComponent<MobileNPCCompanionContract>();
 
