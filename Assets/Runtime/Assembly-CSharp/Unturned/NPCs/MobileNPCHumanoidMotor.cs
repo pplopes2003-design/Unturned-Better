@@ -422,6 +422,10 @@ namespace SDG.Unturned
 
 			bool waitingForDoorToOpen = false;
 			bool waitingForLearnedAccess = false;
+			// Shared across route planning AND ground movement / jump arbitration.
+			// Previously declared inside the destination block, out of scope for
+			// the later animation, vault and jumping checks in this Update.
+			bool waitingForLadderApproach = false;
 			bool hasDestination = hasBrainDestination || hasRoamingDestination;
 			Vector3 destination = hasBrainDestination ? brainDriver.Destination : roamingDestination;
 			if (hasDestination && !isUnderwater && !isPlannedJumping
@@ -520,7 +524,6 @@ namespace SDG.Unturned
 				// A real Ladder is a directed off-mesh movement action. Before
 				// global pathfinding to another floor, consider an approach
 				// through actual walkable ground to its observed entry side.
-				bool waitingForLadderApproach = false;
 				if (!isUnderwater && !waitingForLearnedAccess
 					&& routeWaypoints.Count == 0 && !hasDetourWaypoint)
 					TryBuildPhysicalLadderApproach(destination, out waitingForLadderApproach);
@@ -884,33 +887,12 @@ namespace SDG.Unturned
 						noJumpUntil = Time.time + 6f;
 					}
 				}
-				if (!isPlannedJumping && !IsTraversingLadder
-					&& !IsVaultTraversing && vaultTraversal != null
-					&& hasDestination && groundedBeforeMove
-					&& !physicallyCrouched && !waitingForDoorToOpen
-					&& !waitingForLearnedAccess && !waitingForLadderApproach
-					&& injuryMovementMultiplier >= 0.95f
-					&& gait != MobileNPCLocomotionPolicy.Gait.Sneak
-					&& !brainDriver.IsListening && !brainDriver.IsAmbushPreparing
-					&& brainDriver.CurrentGoal != MobileNPCTactics.Goal.SeekCover
-					&& brainDriver.CurrentGoal != MobileNPCTactics.Goal.Retreat
-					&& vaultTraversal.TryStartServer(destination,
-						jumpRequestedDirection, roamingGroundMask,
-						roamingMaximumSlope, obstacleMask))
-				{
-					routeWaypoints.Clear();
-					routeWaypointIndex = 0;
-					hasDetourWaypoint = false;
-					hasPendingKnownAccessPath = false;
-					hasPlannedLadderApproach = false;
-					activeRememberedRouteIndex = -1;
-					activeContinuationRouteIndex = -1;
-					activeAccessRouteIds.Clear();
-					activeAccessWaypointStarts.Clear();
-					trackingActualJourney = false;
-					actualTravelFootsteps.Clear();
-					wantedToMove = true;
-				}
+				// Vault and ordinary hops are both physical, gravity-driven jumps.
+				// The old TryStartServer-based animation traversal no longer exists:
+				// the one costed ground/door/ladder arbitration below selects a
+				// direction, then TryBeginPlannedLowJump / TryBeginVaultJump
+				// validate the actual capsule trajectory and landing.
+				Vector3 chosenJumpDirection = Vector3.zero;
 				if (!isPlannedJumping && !IsTraversingLadder
 					&& hasDestination && groundedBeforeMove
 					&& !waitingForDoorToOpen && !waitingForLearnedAccess
@@ -927,7 +909,7 @@ namespace SDG.Unturned
 					&& brainDriver.CurrentGoal != MobileNPCTactics.Goal.Retreat
 					&& ShouldChooseObstacleJumpServer(destination,
 						waitingForDoorToOpen, waitingForLearnedAccess,
-						waitingForLadderApproach, out Vector3 chosenJumpDirection)
+						waitingForLadderApproach, out chosenJumpDirection)
 					&& (TryBeginPlannedLowJump(chosenJumpDirection, destination)
 						|| TryBeginVaultJump(chosenJumpDirection, destination)))
 				{
