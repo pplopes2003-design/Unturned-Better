@@ -240,6 +240,31 @@ namespace SDG.Unturned
             Invoke(nameof(ApplyNPCSplashServer), Mathf.Max(0.03f, fuse - 0.03f));
         }
 
+        private static readonly RaycastHit[] SplashHits = new RaycastHit[24];
+
+        private bool IsShieldedByWorld(Vector3 from, Vector3 to,
+            Transform victim)
+        {
+            Vector3 diff = to - from;
+            float length = diff.magnitude;
+            if (length <= 0.05f)
+                return false;
+            int count = Physics.RaycastNonAlloc(from, diff / length,
+                SplashHits, length, RayMasks.BLOCK_COLLISION,
+                QueryTriggerInteraction.Ignore);
+            if (count >= SplashHits.Length)
+                return true;
+            for (int i = 0; i < count; i++)
+            {
+                Collider blocker = SplashHits[i].collider;
+                if (blocker == null || blocker.transform.IsChildOf(victim)
+                    || blocker.transform.IsChildOf(transform))
+                    continue;
+                return true;
+            }
+            return false;
+        }
+
         private void ApplyNPCSplashServer()
         {
             if (!Provider.isServer || !initialized || radius <= 0f || damage <= 0f)
@@ -258,8 +283,8 @@ namespace SDG.Unturned
                 Vector3 target = driver.transform.position + Vector3.up;
                 Vector3 difference = target - center;
                 float d = difference.magnitude;
-                if (d >= radius || Physics.Linecast(center, target,
-                    RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore))
+                if (d >= radius || IsShieldedByWorld(center, target,
+                    driver.transform))
                     continue;
                 float dealt = damage * Mathf.Clamp01(1f - d / radius);
                 if (dealt > 0f)
