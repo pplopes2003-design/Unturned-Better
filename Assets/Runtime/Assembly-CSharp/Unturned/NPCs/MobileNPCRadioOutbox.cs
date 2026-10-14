@@ -130,6 +130,12 @@ namespace SDG.Unturned
                         receiver.GetComponent<MobileNPCAirdropRumor>();
                     rumor?.ReceiveAirdropReportServer(message);
                 }
+                else if (message.Type == MobileNPCRadioMessage.Kind.UnknownBase)
+                {
+                    MobileNPCUnknownBaseIntel intel =
+                        receiver.GetComponent<MobileNPCUnknownBaseIntel>();
+                    intel?.ReceiveUnknownBaseReportServer(message);
+                }
                 else if (message.Type == MobileNPCRadioMessage.Kind.UsefulLoot)
                 {
                     // A valid radio conveys the item TYPE and hearsay region,
@@ -247,6 +253,28 @@ namespace SDG.Unturned
                 group.GroupId, disposition.DisplayName, out MobileNPCRadioMessage message))
                 return false;
 
+            nextPrepareAt = Time.time + SendPreparationCooldown;
+            while (pending.Count >= MaximumPendingReports)
+                pending.Dequeue();
+            pending.Enqueue(message);
+            return true;
+        }
+
+        /// <summary>Called only by the native ownership/LOS scanner after
+        /// confirming two genuine nonzero-owner player structures.</summary>
+        public bool TryQueueObservedUnknownBaseServer(Vector3 observedSite)
+        {
+            if (!Provider.isServer || Time.time < nextPrepareAt
+                || group == null || group.GroupId <= 0 || faction == null
+                || disposition == null || !HasOperationalRadioEndpoint
+                || (observedSite - transform.position).sqrMagnitude > 30f * 30f)
+                return false;
+            if (!MobileNPCRadioMessage.TryCreate(
+                MobileNPCRadioMessage.Kind.UnknownBase,
+                observedSite, Time.time, 85f, 0.61f,
+                faction.CurrentFaction, group.GroupId,
+                disposition.DisplayName, out MobileNPCRadioMessage message))
+                return false;
             nextPrepareAt = Time.time + SendPreparationCooldown;
             while (pending.Count >= MaximumPendingReports)
                 pending.Dequeue();
