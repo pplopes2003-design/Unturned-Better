@@ -100,7 +100,11 @@ namespace SDG.Unturned
             template.AddComponent<MobileNPCNameplate>();
             template.AddComponent<MobileNPCVisualGuard>();
             template.AddComponent<MobileNPCAppearance>();
-            template.AddComponent<MobileNPCInventory>();
+            // RequireComponent on combat/medical systems may already have
+            // inserted Inventory on the inactive template. Do not add it
+            // twice (confirmed twice-initialized components in Player.log).
+            if (template.GetComponent<MobileNPCInventory>() == null)
+                template.AddComponent<MobileNPCInventory>();
             template.AddComponent<MobileNPCDeathLoot>();
             template.AddComponent<MobileNPCSurvivalNeeds>();
             template.AddComponent<MobileNPCLooting>();
@@ -108,7 +112,8 @@ namespace SDG.Unturned
             template.AddComponent<MobileNPCSettlementPlanner>();
             template.AddComponent<MobileNPCSettlementBuilder>();
             template.AddComponent<MobileNPCBaseGeneratorOperator>();
-            template.AddComponent<MobileNPCGroupMember>();
+            if (template.GetComponent<MobileNPCGroupMember>() == null)
+                template.AddComponent<MobileNPCGroupMember>();
             template.AddComponent<MobileNPCRadioOutbox>();
             template.AddComponent<MobileNPCAirdropRumor>();
             template.AddComponent<MobileNPCUsefulLootRumor>();
