@@ -309,6 +309,17 @@ namespace SDG.Unturned
 				case EItemType.GUN:
 					score = inventory.CountItemType(EItemType.GUN) == 0 ? 82f : 43f;
 					break;
+				case EItemType.THROWABLE:
+				{
+					ItemThrowableAsset grenade = item.asset as ItemThrowableAsset;
+					// No interest in smoke, flash, unimplemented sticky/impact,
+					// or another explosive if the NPC already has a few.
+					score = grenade != null && grenade.isExplosive
+						&& !grenade.isSticky && !grenade.explodeOnImpact
+						&& inventory.CountItemType(EItemType.THROWABLE) < 2
+						? 64f : 10f;
+					break;
+				}
 				case EItemType.MELEE:
 					score = inventory.CountItemType(EItemType.GUN) == 0 && inventory.CountItemType(EItemType.MELEE) == 0 ? 78f : 30f;
 					break;
