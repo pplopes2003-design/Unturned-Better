@@ -40,6 +40,7 @@ namespace SDG.Unturned
 		private bool generatorPlaced;
 		private int perimeterPiecesPlaced;
 		private InteractableStorage centralStorage;
+		private InteractableGenerator managedGenerator;
 		private bool hasReconciledExistingSettlement;
 
 		public int PlacedPieces => placedPieces;
@@ -59,6 +60,31 @@ namespace SDG.Unturned
 				|| (centralStorage.transform.position - member.GroupAnchor).sqrMagnitude > 3.5f * 3.5f)
 				return false;
 			storage = centralStorage;
+			return true;
+		}
+
+		/// <summary>
+		/// Returns only a real native, zero-owner world generator associated with
+		/// this living leader's settlement. It is cached at placement/restore;
+		/// never select a nearby player's private generator for NPC refueling.
+		/// </summary>
+		public bool TryGetManagedGeneratorForPowerServer(out InteractableGenerator generator)
+		{
+			generator = null;
+			MobileNPCGroupMember member = GetComponent<MobileNPCGroupMember>();
+			if (!Provider.isServer || member == null || !member.CanPlanSettlement
+				|| !member.HasSettlement || planner == null || !planner.HasChosenSite
+				|| !hasReconciledExistingSettlement || managedGenerator == null
+				|| !managedGenerator.gameObject.activeInHierarchy
+				|| managedGenerator.IsChildOfVehicle
+				|| (managedGenerator.transform.position - member.GroupAnchor).sqrMagnitude > 6f * 6f)
+				return false;
+			BarricadeDrop drop = BarricadeDrop.FindByTransformFastMaybeNull(managedGenerator.transform);
+			BarricadeData data = drop != null ? drop.GetServersideData() : null;
+			if (drop == null || data == null || data.owner != 0UL || data.group != 0UL
+				|| !(drop.asset is ItemGeneratorAsset))
+				return false;
+			generator = managedGenerator;
 			return true;
 		}
 
@@ -265,7 +291,11 @@ namespace SDG.Unturned
 			{
 				perimeterPiecesPlaced++;
 				if (placeGenerator)
+				{
 					generatorPlaced = true;
+					managedGenerator = placedBarricade != null
+						? placedBarricade.GetComponentInChildren<InteractableGenerator>(true) : null;
+				}
 			}
 
 			string placedName = placeStructure ? selectedStructureAsset.name : selectedAsset.name;
@@ -314,9 +344,16 @@ namespace SDG.Unturned
 			for (int i = 0; i < generators.Length; i++)
 			{
 				if (generators[i] != null && generators[i].gameObject.activeInHierarchy
+					&& !generators[i].IsChildOfVehicle
 					&& (generators[i].transform.position - planner.ChosenSite).sqrMagnitude <= 6f * 6f)
 				{
+					BarricadeDrop drop = BarricadeDrop.FindByTransformFastMaybeNull(generators[i].transform);
+					BarricadeData data = drop != null ? drop.GetServersideData() : null;
+					if (data == null || data.owner != 0UL || data.group != 0UL
+						|| !(drop.asset is ItemGeneratorAsset))
+						continue;
 					generatorPlaced = true;
+					managedGenerator = generators[i];
 					break;
 				}
 			}
