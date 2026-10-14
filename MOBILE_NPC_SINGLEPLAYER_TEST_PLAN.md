@@ -861,3 +861,6 @@ COM-RADIO-PORTABLE-01 follow-up (`f84f390f`): rapid tune 460328 -> other channel
 - [ ] Debug: `[MobileNPCDamageValidation] Rejected...` significa ray de servidor negado, `Damage accepted` prova HP, `Death transition` prova entrada no estado letal. Se não houver `Damage accepted`, analisar PlayerInput (enum, net read/write, raycast), UseableGun/Melee, máscara da layer Entity e físico do collider antes de mexer em vida.
 - [ ] Mensurar 1, 10, 20 e 40 NPCs; emprego dos postos não deve aumentar scan a cada frame. Testar carregamento de mapa, regeneração da base e reassentamento. Guardas devem revalidar física depois de mudanças no mapa. Registrar commit SHA EXATO da Dev Build.
 - [ ] Não promover CORE-02 ou AI-ALIFE-02 à concluída sem feedback runtime, inclusive confirmação da morte REAL.
+
+
+- [ ] Teste de integração adicional: líder morre após concluir todas as 5 peças, outro membro assume e seu `MobileNPCSettlementBuilder` reconcilia armazenamento nativo antigo mesmo com `placedPieces >= maximumPieces`; não cria segundo contêiner, reassocia somente o zero-owner registrado e permite novas reservas reais de guarda.
