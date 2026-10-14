@@ -606,3 +606,6 @@ Revisão estática passou (chaves equilibradas nos 3 arquivos e referências de 
 - **AI-ALIFE-05 — PENDENTE:** coordenação de tarefas entre líder, facção e membros sem compartilhamento telepático.
 - **AI-ALIFE-06 — PENDENTE:** atualizar utilidade segundo resultados reais de missões e rotas.
 - Parent AI-01 autonomia A-Life EM IMPLEMENTAÇÃO. AI-ALIFE-01 apenas FONTE (sem compilação ou teste de Unity). Detalhes em MOBILE_NPC_ALIFE_AUTONOMY_DESIGN.md; plano seção 55. Preservar ZMB-01, CORE-02/04, AI-07, UI-01 e todos os itens originais. Usuário compila e valida na build final consolidada.
+
+
+**AI-ALIFE-01 hardening:** a9e9085f resolve NPC fora do pequeno raio de guarda/procura após uma perseguição: destino de retorno ao anchor válido executado pelo motor físico, sem ficar congelado tentando escolher candidatos impossíveis. Compilação e runtime ainda pendentes.
