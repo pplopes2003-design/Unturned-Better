@@ -257,6 +257,15 @@ namespace SDG.Unturned
 					+ ", lethal=" + (CurrentHealth <= 0.0f) + ".", this);
 			}
 			brainDriver?.ReportDamage(CurrentHealth, maximumHealth);
+			// A hitmarker is not aggression evidence; this branch runs only
+			// after the authoritative HP deduction above. A previously
+			// neutral/friendly survivor can identify and resist its REAL
+			// attacker if subsequently seen; otherwise it takes cover.
+			MobileNPCHumanoidDisposition disposition =
+				GetComponent<MobileNPCHumanoidDisposition>();
+			disposition?.RecordValidatedAttackServer(attacker);
+			if (attacker != null && CurrentHealth > 0f)
+				brainDriver?.ReportIncomingFire(attacker.position, attacker);
 			DamageReceived?.Invoke(attacker, damage);
 			HealthChanged?.Invoke(CurrentHealth, maximumHealth);
 
