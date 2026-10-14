@@ -1631,3 +1631,18 @@ AI-ALIFE-01 recorte conectado em FONTE: QUASE PRONTA — AGUARDANDO BUILD. Paren
 
 
 **Hardening posterior:** commit a9e9085f completa a transição para GuardSettlement/Scavenge quando NPC estava mais distante de sua zona de atividade mas ainda dentro do raio geral de 220m. Motor agora cria viagem FÍSICA de retorno ao anchor real e só então patrulha o bairro; continua sem teleporte nem suposta rota pronta. Nunca corrigir coordenadas arbitrariamente para mascarar navegação bloqueada.
+
+
+## 2026-10-14 — RODADA: AI-ALIFE-02-GUARD-01 e CORE-02-MELEE-NONE-01
+
+**Prioridade explícita do usuário:** evoluir autonomia A-Life dos NPCs, SEM perder o que já foi modificado, e assegurar morte real por tiros/golpes. Branch `feature/npc-ai-foundation`, ponto inicial `98cf2524130d6e146cd26d61b295ab1c10c4ed84`. Não trocar de branch, nem reescrever a arquitetura de tiro/vitais.
+
+**Trabalho real no GitHub:**
+- `484005ac`: `UseableMelee` permite tipo de raycast antigo `NONE` apenas quando há primeiro impacto físico confirmado pelo servidor em hitbox anatômico verdadeiro de NPC; caso contrário permanece rejeitado. Tipagem `MOBILE_NPC` existente em `PlayerInput` preservada.
+- `dee00d42` e `09bf1515`: `MobileNPCGroupMember.GroupRecord` registra até 2 reservas de posto de guarda opostas ao redor da base, guardadas por membro vivo, com solo seguro, desnível/ocupação, e exige armazenamento central **real** retornado por `MobileNPCSettlementBuilder.TryGetCentralStorageForRadioServer`. Guardas liberam vagas na morte/saída ou mudança de identidade; mudança de âncora de base invalida pontos.
+- `8325f4e5`: `MobileNPCAutonomyPlanner` usa vagas reais no score de GuardSettlement, reserva localização individual ao realizar patrulha, fallback a Patrol se não houver, libera ao mudar job/desativar e conserta erro de recuperação que renovava a pausa de personagem ferido indefinidamente após expiração.
+- `5d33fc18`: `MobileNPCHumanoidVitals.DieServer` desativa também novo planejador A-Life, deixando a morte governar tudo como antes e liberar trabalho reservado.
+
+**Garantias de integração:** loot continua do ItemManager, saúde e sangramento de Vitals/InjurySystem, combate de UseableGun/UseableMelee/MobileNPC...Combat, percepção e tática do BrainDriver, grupo e líder do GroupMember, locomoção do Motor. Posto é ponto validado, não teleporte ou base construída automaticamente; não permitir múltiplas reservas da mesma posição. A morte apaga memória própria e Died retira membro do grupo original, sem herdar sua identidade em novos spawns. Não copiar a lógica de vida para o novo planejador.
+
+**Situação honesta:** revisões estáticas em 4 arquivos passaram (chaves balanceadas e pré-processador). Sem compilação C#/Unity ou nova Dev Build; NÃO há evidência de que armas realmente matam NPCs no jogo nesta rodada. Classificar apenas subescopos `AI-ALIFE-02-GUARD-01` e `CORE-02-MELEE-NONE-01` **QUASE PRONTOS — AGUARDANDO BUILD**; pais AI-ALIFE-02 e CORE-02 seguem EM IMPLEMENTAÇÃO. Ver seção 56 do plano de testes e design A-Life. Próximas prioridades: investigar qualquer recusa de tiro com Player.log de servidor e expandir smart jobs de reconhecimento/escavação por POI observado; testes de build consolidados pelo usuário no final.
