@@ -45,9 +45,9 @@ namespace SDG.Unturned
             // base container. Removing or looting it instantly disables the
             // improvised station for the next channel operation.
             bool hasStoredWalkie = false;
-            for (byte i = 0; i < storage.items.getItemCount(); i++)
+            for (int i = 0; i < storage.items.getItemCount(); i++)
             {
-                ItemJar jar = storage.items.getItem(i);
+                ItemJar jar = storage.items.getItem((byte)i);
                 if (jar != null && jar.item != null
                     && jar.item.id == MobileNPCRadioOutbox.VanillaWalkieTalkieID)
                 {
