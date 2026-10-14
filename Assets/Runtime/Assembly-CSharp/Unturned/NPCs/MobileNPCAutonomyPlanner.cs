@@ -1,0 +1,204 @@
+////////////////////////////////////////////////////////////////////////////////////////
+// This file is part of the U3 SDK: https://github.com/smartlydressedgames/u3-sdk/    //
+// Please refer to the included LICENSE.txt for copyright notice and license details. //
+////////////////////////////////////////////////////////////////////////////////////////
+using UnityEngine;
+
+namespace SDG.Unturned
+{
+    /// <summary>
+    /// First A-Life-inspired *online* job arbitration layer. Unlike a random roaming
+    /// roll, the job is selected from facts actually owned by THIS NPC (health,
+    /// carried items, needs and group settlement). No omniscient world knowledge,
+    /// background teleportation, simulated pickup or hidden player information.
+    ///
+    /// Combat, ordered tactical travel and confirmed loot remain owned by existing
+    /// components and take priority over the low-urgency routine job.
+    /// </summary>
+    [DisallowMultipleComponent]
+    [RequireComponent(typeof(MobileNPCBrainDriver))]
+    public sealed class MobileNPCAutonomyPlanner : MonoBehaviour
+    {
+        public enum Job { Patrol, Scavenge, GuardSettlement, Recover }
+
+        [SerializeField, Range(2f, 12f)] private float evaluationInterval = 5f;
+        [SerializeField, Range(10f, 90f)] private float minimumJobCommitment = 27f;
+        [SerializeField, Range(4f, 28f)] private float switchAdvantage = 16f;
+
+        private MobileNPCBrainDriver brain;
+        private MobileNPCInventory inventory;
+        private MobileNPCSurvivalNeeds needs;
+        private MobileNPCHumanoidVitals vitals;
+        private MobileNPCGroupMember group;
+
+        private Job currentJob = Job.Patrol;
+        private float nextEvaluationTime;
+        private float jobCommittedUntil;
+        private float recoveryNotBefore;
+        private float scavengeNotBefore;
+        private float personalityExploreBias;
+        private float personalityGuardBias;
+        private int consecutiveFailedScavengeWaypoints;
+        private Vector3 lastBlockedWaypoint;
+        private float blockedWaypointExpiresAt;
+        private bool hasBlockedWaypoint;
+        private bool initialized;
+
+        public Job CurrentJob => currentJob;
+
+        private void Awake()
+        {
+            brain = GetComponent<MobileNPCBrainDriver>();
+            inventory = GetComponent<MobileNPCInventory>();
+            needs = GetComponent<MobileNPCSurvivalNeeds>();
+            vitals = GetComponent<MobileNPCHumanoidVitals>();
+            group = GetComponent<MobileNPCGroupMember>();
+            // Small independent preferences. These are not permanent identity traits.
+            personalityExploreBias = Random.Range(-7f, 8f);
+            personalityGuardBias = Random.Range(-6f, 7f);
+            nextEvaluationTime = Time.time + Random.Range(0.2f, 2.5f);
+        }
+
+        /// <summary>Only called by the motor while it is free of a brain/tactical goal.</summary>
+        public Job EvaluateRoutineServer()
+        {
+            if (!Provider.isServer || !Level.isLoaded || (vitals != null && vitals.IsDead))
+                return currentJob;
+            if (Time.time < nextEvaluationTime)
+                return currentJob;
+            nextEvaluationTime = Time.time + Mathf.Max(2f, evaluationInterval)
+                + Random.Range(0f, 1.5f);
+
+            // Threat perception and tactical travel have exclusive ownership of
+            // movement; the routine does not reset or override either one.
+            if (brain == null || brain.Target != null
+                || brain.CurrentGoal != MobileNPCTactics.Goal.None
+                || brain.CurrentState != MobileNPCBrain.State.Idle)
+                return currentJob;
+
+            float health = vitals != null ? vitals.HealthFraction : 1f;
+            float thirst = needs != null ? needs.ThirstFraction : 1f;
+            float hunger = needs != null ? needs.HungerFraction : 1f;
+            bool hasSpace = inventory != null && inventory.HasSpace;
+            bool hasGun = inventory != null && inventory.CountItemType(EItemType.GUN) > 0;
+            bool inGroup = group != null && group.GroupId > 0;
+            bool hasSettlement = inGroup && group.HasSettlement;
+
+            float patrol = 35f + personalityExploreBias;
+            float scavenge = hasSpace && Time.time >= scavengeNotBefore
+                ? 19f + Mathf.Max(0f, 0.80f - hunger) * 80f
+                    + Mathf.Max(0f, 0.82f - thirst) * 95f
+                    + (!hasGun ? 16f : 0f)
+                : -1000f;
+            float guard = hasSettlement
+                ? 53f + personalityGuardBias + (group.CanPlanSettlement ? 7f : 0f)
+                : inGroup ? 24f + personalityGuardBias : 7f;
+            float recover = Time.time >= recoveryNotBefore
+                ? 8f + (1f - health) * 100f
+                    + (vitals != null && Time.time - vitals.LastDamageTime < 9f ? 17f : 0f)
+                : -1000f;
+
+            Job best = Job.Patrol;
+            float bestScore = patrol;
+            if (scavenge > bestScore) { best = Job.Scavenge; bestScore = scavenge; }
+            if (guard > bestScore) { best = Job.GuardSettlement; bestScore = guard; }
+            if (recover > bestScore) { best = Job.Recover; bestScore = recover; }
+
+            float currentScore = currentJob == Job.Scavenge ? scavenge
+                : currentJob == Job.GuardSettlement ? guard
+                : currentJob == Job.Recover ? recover : patrol;
+            bool emergency = health < 0.30f && best == Job.Recover
+                || (thirst < 0.22f || hunger < 0.22f) && best == Job.Scavenge;
+            if (initialized && best != currentJob && Time.time < jobCommittedUntil
+                && !emergency && bestScore < currentScore + switchAdvantage)
+                return currentJob;
+
+            if (!initialized || best != currentJob)
+            {
+                currentJob = best;
+                initialized = true;
+                jobCommittedUntil = Time.time + Mathf.Max(10f, minimumJobCommitment);
+                if (currentJob == Job.Recover)
+                {
+                    // Recover is a short pause, not permanent AI paralysis.
+                    jobCommittedUntil = Time.time + Random.Range(6f, 11f);
+                }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                Debug.Log("[MobileNPCAutonomyPlanner] " + name + " routine=" + currentJob
+                    + " hp=" + health.ToString("F2") + " food=" + hunger.ToString("F2")
+                    + " water=" + thirst.ToString("F2") + " pack="
+                    + (inventory != null ? inventory.UsedSlots : 0));
+#endif
+            }
+
+            if (currentJob == Job.Recover && Time.time >= jobCommittedUntil)
+            {
+                recoveryNotBefore = Time.time + 36f;
+                currentJob = Job.Patrol;
+                jobCommittedUntil = Time.time + 12f;
+                nextEvaluationTime = Time.time + 0.1f;
+            }
+            return currentJob;
+        }
+
+        /// <summary>Provide a job profile, not a magical or unvalidated destination.</summary>
+        public void GetRoamingProfileServer(Vector3 home, out Vector3 anchor,
+            out float minStep, out float maxStep, out float structurePreference)
+        {
+            anchor = home;
+            minStep = 24f;
+            maxStep = 72f;
+            structurePreference = 0.55f;
+            Job job = EvaluateRoutineServer();
+            if (job == Job.GuardSettlement)
+            {
+                anchor = group != null && group.HasSettlement ? group.GroupAnchor : home;
+                minStep = 7f;
+                maxStep = 20f;
+                structurePreference = 0f;
+            }
+            else if (job == Job.Scavenge)
+            {
+                minStep = 15f;
+                maxStep = 48f;
+                structurePreference = 0.88f;
+            }
+        }
+
+        /// <summary>Failed routes are learned only from actual physical stalls.</summary>
+        public bool IsCandidateAllowedServer(Vector3 candidate)
+        {
+            if (!Provider.isServer || !hasBlockedWaypoint
+                || Time.time >= blockedWaypointExpiresAt)
+                return true;
+            Vector3 difference = candidate - lastBlockedWaypoint;
+            difference.y = 0f;
+            return difference.sqrMagnitude > 12f * 12f;
+        }
+
+        public void ReportRoamBlockedServer(Vector3 attemptedWaypoint)
+        {
+            if (!Provider.isServer)
+                return;
+            lastBlockedWaypoint = attemptedWaypoint;
+            blockedWaypointExpiresAt = Time.time + 35f;
+            hasBlockedWaypoint = true;
+            if (currentJob == Job.Scavenge && ++consecutiveFailedScavengeWaypoints >= 3)
+            {
+                // No endless re-selection of the same inaccessible loot district.
+                scavengeNotBefore = Time.time + 42f;
+                consecutiveFailedScavengeWaypoints = 0;
+                nextEvaluationTime = Time.time;
+            }
+        }
+
+        public void ReportRoamReachedServer()
+        {
+            if (!Provider.isServer)
+                return;
+            consecutiveFailedScavengeWaypoints = 0;
+            if (currentJob == Job.Recover)
+                recoveryNotBefore = Time.time + 36f;
+        }
+    }
+}
