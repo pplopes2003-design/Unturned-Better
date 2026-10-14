@@ -15,10 +15,13 @@ namespace SDG.Unturned
 	internal static class MobileNPCAirdropContest
 	{
 		private const float ScanInterval = 2f;
-		private const float MaximumSearchDistance = 220f;
+		// Do not reveal every unloaded/hidden crate inside a 220m global scan.
+		// A landed crate is first-hand evidence only within local visual reach.
+		private const float MaximumSearchDistance = 28f;
 		private const float LootDistance = 3.5f;
 		private static float nextScanTime;
 		private static readonly List<MobileNPCBrainDriver> Drivers = new List<MobileNPCBrainDriver>(32);
+		private static readonly RaycastHit[] VisualObstructions = new RaycastHit[16];
 
 		public static void ResetServer()
 		{
@@ -40,8 +43,15 @@ namespace SDG.Unturned
 			for (int i = 0; i < Drivers.Count; ++i)
 			{
 				MobileNPCBrainDriver driver = Drivers[i];
-				if (driver == null || driver.Target != null
-					|| driver.CurrentGoal != MobileNPCTactics.Goal.None && driver.CurrentGoal != MobileNPCTactics.Goal.Loot)
+				if (driver == null || driver.Target != null)
+					continue;
+				MobileNPCAirdropRumor radioRumor = driver.GetComponent<MobileNPCAirdropRumor>();
+				bool checkingRadioRumor = radioRumor != null
+					&& radioRumor.IsInvestigatingAirdropServer;
+				if (driver.CurrentGoal != MobileNPCTactics.Goal.None
+					&& driver.CurrentGoal != MobileNPCTactics.Goal.Loot
+					&& !(checkingRadioRumor
+						&& driver.CurrentGoal == MobileNPCTactics.Goal.Investigate))
 					continue;
 
 				MobileNPCInventory inventory = driver.GetComponent<MobileNPCInventory>();
@@ -61,7 +71,9 @@ namespace SDG.Unturned
 
 					Vector3 offset = storage.transform.position - driver.transform.position;
 					float distanceSquared = offset.sqrMagnitude;
-					if (distanceSquared < bestDistanceSquared)
+					if (distanceSquared < bestDistanceSquared
+						&& CanSeeCrateServer(driver.transform.position,
+							storage.transform))
 					{
 						bestDistanceSquared = distanceSquared;
 						nearest = storage;
@@ -81,6 +93,15 @@ namespace SDG.Unturned
 						radio.TryQueueObservedAirdrop(nearest.transform.position);
 				}
 
+				// Only after physically verifying a real, visible, nonempty
+				// carepackage may a listener promote uncertain radio hearsay to
+				// an ordinary loot objective with native item validation.
+				if (checkingRadioRumor)
+					radioRumor.TryInvestigateConfirmedCrateServer(nearest.transform.position);
+
+				if (driver.CurrentGoal == MobileNPCTactics.Goal.Investigate)
+					continue;
+
 				if (bestDistanceSquared <= LootDistance * LootDistance)
 				{
 					if (TransferAirdropLootServer(nearest, inventory))
@@ -94,6 +115,39 @@ namespace SDG.Unturned
 					driver.TryStartLoot(nearest.transform.position);
 				}
 			}
+		}
+
+		/// <summary>
+		/// Reject observed reports and crate looting through buildings, fences
+		/// and walls. The NPC must genuinely have line of sight, not merely have
+		/// a crate in a region-wide authoritative scan. This probe is only run
+		/// for candidates within the 28m visible-local envelope every 2s.
+		/// </summary>
+		private static bool CanSeeCrateServer(Vector3 observer, Transform crate)
+		{
+			if (crate == null)
+				return false;
+			Vector3 from = observer + Vector3.up * 1.35f;
+			Vector3 to = crate.position + Vector3.up * 0.8f;
+			Vector3 direction = to - from;
+			float distance = direction.magnitude;
+			if (distance <= 0.05f || distance > MaximumSearchDistance + 2f)
+				return false;
+			int count = Physics.RaycastNonAlloc(from, direction / distance,
+				VisualObstructions, distance, RayMasks.BLOCK_COLLISION,
+				QueryTriggerInteraction.Ignore);
+			// A saturated buffer could hide an actual occluder.
+			if (count >= VisualObstructions.Length)
+				return false;
+			for (int hitIndex = 0; hitIndex < count; hitIndex++)
+			{
+				Collider obstacle = VisualObstructions[hitIndex].collider;
+				if (obstacle == null || obstacle.transform == crate
+					|| obstacle.transform.IsChildOf(crate))
+					continue;
+				return false;
+			}
+			return true;
 		}
 
 		private static bool TransferAirdropLootServer(InteractableStorage storage, MobileNPCInventory inventory)
