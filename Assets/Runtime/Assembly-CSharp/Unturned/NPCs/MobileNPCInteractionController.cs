@@ -63,6 +63,8 @@ namespace SDG.Unturned
 			instance.activeNPC = npc;
 			instance.state = MenuState.Main;
 			instance.ShowMainMenu();
+			Debug.Log("[MobileNPCInteractionController] Dialogue opened for "
+				+ npc.DisplayName + " (single-player local interaction).");
 		}
 
 		private void Update()
@@ -167,6 +169,11 @@ namespace SDG.Unturned
 			if (state == MenuState.Closed || !IsSessionValid())
 				return;
 
+			// The Unturned HUD and other Unity IMGUI handlers can render later
+			// than a default-depth panel. Negative IMGUI depth keeps this
+			// local-only dialog above standard overlapping GUI windows.
+			// Numeric keys and Escape remain usable with a locked FPS cursor.
+			GUI.depth = -10000;
 			float width = Mathf.Min(540f, Screen.width - 24f);
 			if (width <= 120f)
 				return;
