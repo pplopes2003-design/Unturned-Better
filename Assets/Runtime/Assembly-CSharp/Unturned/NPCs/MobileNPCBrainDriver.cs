@@ -604,7 +604,7 @@ namespace SDG.Unturned
 						// Reservoir-sampled exploratory option: no List allocations,
 						// unbiased among the bounded set of verified candidates.
 						++checkedCoverCandidates;
-						if (Random.Range(0, checkedCoverCandidates) == 0)
+						if (UnityEngine.Random.Range(0, checkedCoverCandidates) == 0)
 							explorationCover = candidate;
 						if (checkedCoverCandidates >= maxCheckedCoverCandidates)
 							break;
@@ -613,7 +613,7 @@ namespace SDG.Unturned
 				if (checkedCoverCandidates >= maxCheckedCoverCandidates)
 					break;
 			}
-			return explorationCover.HasValue && Random.value < explorationProbability
+			return explorationCover.HasValue && UnityEngine.Random.value < explorationProbability
 				? explorationCover : bestCover;
 		}
 
@@ -959,7 +959,7 @@ namespace SDG.Unturned
 				Vector3 candidateOffset = clue - ground;
 				candidateOffset.y = 0f;
 				float score = -candidateOffset.magnitude
-					+ length * 0.2f + Random.Range(-0.35f, 0.35f);
+					+ length * 0.2f + UnityEngine.Random.Range(-0.35f, 0.35f);
 				if (score > bestScore)
 				{
 					bestScore = score;
