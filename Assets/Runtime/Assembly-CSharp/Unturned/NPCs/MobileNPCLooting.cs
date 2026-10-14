@@ -27,6 +27,8 @@ namespace SDG.Unturned
 		private MobileNPCInventory inventory;
 		private MobileNPCAdaptiveMemory adaptiveMemory;
 		private MobileNPCSupplyKnowledge supplyKnowledge;
+		private MobileNPCUsefulLootRumor radioLootRumor;
+		private MobileNPCRadioOutbox radioOutbox;
 		private ushort targetItemID;
 		private byte targetItemRounds;
 		private bool isRememberedSupplyTrip;
@@ -46,6 +48,8 @@ namespace SDG.Unturned
 			inventory = GetComponent<MobileNPCInventory>();
 			adaptiveMemory = GetComponent<MobileNPCAdaptiveMemory>();
 			supplyKnowledge = GetComponent<MobileNPCSupplyKnowledge>();
+			radioLootRumor = GetComponent<MobileNPCUsefulLootRumor>();
+			radioOutbox = GetComponent<MobileNPCRadioOutbox>();
 		}
 
 		private void Update()
@@ -57,6 +61,8 @@ namespace SDG.Unturned
 			}
 
 			UpdateRememberedSupplyTripServer();
+			bool radioLootSearch = radioLootRumor != null
+				&& radioLootRumor.IsActivelySearchingServer;
 
 			if (!inventory.HasSpace)
 			{
@@ -69,7 +75,8 @@ namespace SDG.Unturned
 
 			if (driver.Target != null || (driver.CurrentGoal != MobileNPCTactics.Goal.None
 				&& !(hasTarget && driver.CurrentGoal == MobileNPCTactics.Goal.Loot)
-				&& !(isRememberedSupplyTrip && driver.CurrentGoal == MobileNPCTactics.Goal.Investigate)))
+				&& !(isRememberedSupplyTrip && driver.CurrentGoal == MobileNPCTactics.Goal.Investigate)
+				&& !(radioLootSearch && driver.CurrentGoal == MobileNPCTactics.Goal.Investigate)))
 			{
 				// Combat or another tactical order takes precedence over looting.
 				ClearTarget(cancelLootGoal: driver.CurrentGoal == MobileNPCTactics.Goal.Loot);
@@ -151,6 +158,8 @@ namespace SDG.Unturned
 			float bestScore = float.MinValue;
 			InteractableItem bestItem = null;
 			uint bestID = 0;
+			float bestObservedRadioScore = float.MinValue;
+			InteractableItem bestObservedForRadio = null;
 			for (int i = 0; i < candidates.Count; ++i)
 			{
 				InteractableItem item = candidates[i];
@@ -165,6 +174,42 @@ namespace SDG.Unturned
 				}
 
 				float distanceSqr = (item.transform.position - transform.position).sqrMagnitude;
+
+				// A radio rumor only allows a locally re-seen matching native
+				// world item to supersede the uncertain investigation goal.
+				// Do not turn the heard position into a world-instance lookup.
+				if (radioLootSearch)
+				{
+					if (item.jar != null && item.jar.item != null
+						&& item.jar.item.id == radioLootRumor.ExpectedItemID
+						&& radioLootRumor.TryConfirmLocallySeenItemServer(item))
+					{
+						targetItemID = item.jar.item.id;
+						targetItemRounds = item.jar.item.amount;
+						targetInstanceID = instanceID;
+						targetPosition = item.transform.position;
+						hasTarget = true;
+						return;
+					}
+					continue;
+				}
+
+				// Actual firsthand local sightings can be announced to the
+				// group, whether this NPC personally needs the item or not.
+				// LOS and a physically registered world drop are mandatory.
+				if (radioOutbox != null && distanceSqr <= 17f * 17f)
+				{
+					float importance = MobileNPCUsefulLootVision.IntrinsicImportance(item.asset);
+					float broadcastScore = importance - Mathf.Sqrt(distanceSqr) * 0.5f;
+					if (importance >= 60f && broadcastScore > bestObservedRadioScore
+						&& MobileNPCUsefulLootVision.CanSeeWorldDropServer(
+							item, transform, 17f))
+					{
+						bestObservedRadioScore = broadcastScore;
+						bestObservedForRadio = item;
+					}
+				}
+
 				float score = ScoreItem(item, distanceSqr);
 				if (score <= bestScore)
 				{
@@ -175,6 +220,12 @@ namespace SDG.Unturned
 				bestItem = item;
 				bestID = instanceID;
 			}
+
+			if (radioLootSearch)
+				return;
+
+			if (bestObservedForRadio != null)
+				radioOutbox.TryQueueObservedUsefulLootServer(bestObservedForRadio);
 
 			if (bestItem == null && !isRememberedSupplyTrip)
 				TryPlanRememberedSupplySearchServer();
