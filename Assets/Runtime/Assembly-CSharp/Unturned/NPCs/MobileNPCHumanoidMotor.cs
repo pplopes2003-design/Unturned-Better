@@ -88,6 +88,7 @@ namespace SDG.Unturned
 
 		private CharacterController characterController;
 		private MobileNPCBrainDriver brainDriver;
+		private MobileNPCHumanoidPerception visualPerception;
 		private MobileNPCInjurySystem injurySystem;
 		private MobileNPCDoorNavigation doorNavigation;
 		private MobileNPCLadderTraversal ladderTraversal;
@@ -820,8 +821,12 @@ namespace SDG.Unturned
 			// but they still provide positive visual evidence. A footstep is not
 			// a reason to duck when that SAME nonhostile player is plainly visible.
 			// Preserve deliberate stalking/cover against a DIFFERENT real enemy.
-			MobileNPCHumanoidPerception eyes = GetComponent<MobileNPCHumanoidPerception>();
-			bool seesNonThreateningPlayer = eyes != null && eyes.VisiblePlayer != null
+			// The runtime template adds Perception after Motor. Resolve once
+			// after activation rather than GetComponent on every physics tick.
+			if (visualPerception == null)
+				visualPerception = GetComponent<MobileNPCHumanoidPerception>();
+			bool seesNonThreateningPlayer = visualPerception != null
+				&& visualPerception.VisiblePlayer != null
 				&& brainDriver.Target == null;
 			// Audio-only uncertainty is weaker than positive eye contact.
 			// Do not remain physically crouched while an active combat target
