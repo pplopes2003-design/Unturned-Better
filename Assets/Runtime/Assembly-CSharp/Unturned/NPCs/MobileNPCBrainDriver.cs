@@ -457,7 +457,10 @@ namespace SDG.Unturned
 		{
 			if (!CanAcceptServerInput || tactics == null || !tactics.HasTacticalDestination
 				|| (tactics.CurrentGoal != MobileNPCTactics.Goal.SeekCover
-					&& tactics.CurrentGoal != MobileNPCTactics.Goal.Flank)
+					&& tactics.CurrentGoal != MobileNPCTactics.Goal.Flank
+					&& tactics.CurrentGoal != MobileNPCTactics.Goal.Loot
+					&& tactics.CurrentGoal != MobileNPCTactics.Goal.Investigate
+					&& tactics.CurrentGoal != MobileNPCTactics.Goal.Reinforce)
 				|| (tactics.TacticalDestination - failedPoint).sqrMagnitude > 4f)
 				return false;
 			if (tactics.CurrentGoal == MobileNPCTactics.Goal.SeekCover)
@@ -468,8 +471,15 @@ namespace SDG.Unturned
 						MobileNPCAdaptiveMemory.ExperienceKind.CoverAccess,
 						tactics.TacticalDestination, false);
 			}
-			recentlyUnreachableCover = tactics.TacticalDestination;
-			recentlyUnreachableCoverUntil = Time.time + 14f;
+			// Unreachable optional errands should end rather than steer
+			// into the same post/house indefinitely. Only tactical cover
+			// and flank need the specialized short-lived cover blacklist.
+			if (tactics.CurrentGoal == MobileNPCTactics.Goal.SeekCover
+				|| tactics.CurrentGoal == MobileNPCTactics.Goal.Flank)
+			{
+				recentlyUnreachableCover = tactics.TacticalDestination;
+				recentlyUnreachableCoverUntil = Time.time + 14f;
+			}
 			tactics.ClearGoal();
 			PublishDecisionIfChanged();
 			return true;
