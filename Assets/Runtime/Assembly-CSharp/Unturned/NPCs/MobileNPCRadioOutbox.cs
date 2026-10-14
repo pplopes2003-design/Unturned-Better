@@ -86,6 +86,7 @@ namespace SDG.Unturned
             nextGlobalTransmitAt = Time.time + TransmissionAirtime;
             nextPersonalTransmitAt = Time.time + PerNpcTransmitInterval;
             int delivered = 0;
+            int baseStationReceivers = 0;
             foreach (MobileNPCRadioOutbox receiver in ActiveRadios)
             {
                 if (receiver == null || receiver == this
@@ -117,6 +118,8 @@ namespace SDG.Unturned
                     brain.ReportGroupPlayerContactClue(uncertainLocation, confidence);
                 }
                 delivered++;
+                if (!receiver.HasOwnedPortableRadio)
+                    baseStationReceivers++;
             }
             // Same frequency and physically worn earpiece/equipped walkie
             // criteria as native PlayerVoice radio culling. No chat broadcast.
@@ -127,7 +130,9 @@ namespace SDG.Unturned
                 nextRadioDiagnosticsAt = Time.time + 10f;
                 Debug.Log("[MobileNPCRadioOutbox] Physical radio text broadcast: group="
                     + group.GroupId + ", frequency=" + frequency
+                    + ", source=" + (HasOwnedPortableRadio ? "portable" : "powered-base")
                     + ", NPC receivers=" + delivered
+                    + ", base-station receivers=" + baseStationReceivers
                     + ", local player intercepted=" + intercepted
                     + ". No microphone audio or remote-client replication.", this);
             }
