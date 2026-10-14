@@ -1,6 +1,6 @@
 # Mobile NPC radio communications — design only (2026-10-13)
 
-**Status: NOT IMPLEMENTED.** This file records requested requirements and interface constraints for future agents. Do not treat radio access as a passive skill, magically shared faction memory, or a substitute for line-of-sight/audio evidence.
+**Status (latest): portable radio text V1 connected in source, awaiting Unity Dev Build.** This file records requested requirements and interface constraints for future agents. Do not treat radio access as a passive skill, magically shared faction memory, or a substitute for line-of-sight/audio evidence.
 
 ## Why it exists
 
@@ -94,3 +94,15 @@ Communication requires a *sender endpoint* and a *receiver endpoint*: functional
 ## Separate user addition: zombies beyond points of interest
 
 The user wants zombies to remain a credible threat **outside the POI/spawn region**. Add this to the persistent backlog, distinct from NPC radios. Native `Zombie.cs` and `ZombieManager.cs` are not directly accessible at the expected repository paths on this branch; do not invent field names or bypass native network/region sync. Study current zombie chasing/target retention, activation and unloading across region boundaries, leash / return-to-spawn logic, LOS/hearing event response, streaming and host authority, pathfinding distance and performance; compare whether a zombie should **continue an existing chase** vs spawn/wander globally. Require finite loss-of-target policy, safe despawn/respawn, multiplayer compatibility and performance bounds. Dev Build tests: lure a zombie away from POI, cross one/multiple map regions, maintain/lose LOS, sound pursuit, nighttime/environmental scenarios, unloaded region transitions, vehicle noise, NPC group encounters, and how far chasing remains fair. Do not claim zombies already follow seamlessly outside POIs.
+
+## 2026-10-13 — Portable radio text V1, source only
+
+Native evidence in local U3 SDK: `PlayerVoice.canHearRadio` checks equipped walkie or worn earpiece. `UseableWalkieTalkie.equip/dequip` toggles the transmitter state. `PlayerQuests.radioFrequency` is a uint, default 460327, and native `PlayerVoice.handleRelayVoiceCulling_RadioFrequency` requires equal listener and speaker frequencies.
+
+`MobileNPCRadioOutbox` now transmits ONLY a server-observed EnemyContact message from an NPC owning real item 1445. Group frequency is `PlayerQuests.DEFAULT_RADIO_FREQUENCY + (uint)(GroupId % 100000)`, so runtime group 1 uses 460328. Same-group living recipients require their own real 1445, matching faction and channel; receive uncertain/clamped `ReportGroupPlayerContactClue` rather than a visible enemy Transform. Fixed 1.25s shared airtime / 8s per-NPC interval, 20s enqueue cooldown, 24s expiry, no fabricated batteries or radios.
+
+`MobileNPCRadioInterceptHUD` is an independent single-player-host passive subtitle. A living local player must have real `player.voice.canHearRadio` (equipped walkie or mask earpiece 1446) and precisely matched `player.quests.radioFrequency`. Tuning away/removing gear immediately hides text. It does not alter native chat, cursor, interaction HUD or use spoofed native voice NetIds. Only simulated **text** is implemented, no microphone/audio/multiplayer relay. NPC has no PlayerVoice: operating the owned radio is simulated, not a visible equipped-hand prop. Transmissions log limited radio diagnostics. World reload resets registry and airtime.
+
+Scoped `COM-RADIO-PORTABLE-01` is QUASE PRONTA — AGUARDANDO BUILD, source only. Parent `COM-02` EM IMPLEMENTAÇÃO for true NPC hand equip, audio/native channel networking and further message kinds. `COM-03` fixed powered base/vehicle radios and `COM-04` calls for reinforcements/loot/airdrop/base remain open.
+
+Final Dev Build must verify actual ID 1445 inventory ownership, two separate equipped NPCs, same group vs different group, native player equipped 1445 or worn 1446 vs wrong frequency and unequipped inventory radio, removing radio, dying, time expiry, save/map swap, no UI takeover, profiling at 20–40 NPCs. No runtime tests performed.
