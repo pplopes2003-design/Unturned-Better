@@ -28,6 +28,7 @@ namespace SDG.Unturned
 
 		private MobileNPCBrainDriver brainDriver;
 		private MobileNPCHumanoidPerception perception;
+		private MobileNPCHumanoidDisposition disposition;
 		private Transform trackedTarget;
 		private Vector3 lastTargetPosition;
 		private Vector3 estimatedTargetVelocity;
@@ -42,6 +43,7 @@ namespace SDG.Unturned
 		{
 			brainDriver = GetComponent<MobileNPCBrainDriver>();
 			perception = GetComponent<MobileNPCHumanoidPerception>();
+			disposition = GetComponent<MobileNPCHumanoidDisposition>();
 		}
 
 		private void Update()
@@ -56,8 +58,14 @@ namespace SDG.Unturned
 			lastAimUpdateTime = now;
 			accumulatedShotSpread = Mathf.Max(0.0f, accumulatedShotSpread - shotSpreadRecoveryPerSecond * delta);
 
+			// Visual awareness is NOT permission to aim at a peaceful player.
+			// Only a hostile role or the NPC's own recent verified attacker
+			// can become an aim target, and the combat driver still confirms
+			// the target before a shot.
+			Player seenPlayer = perception != null ? perception.VisiblePlayer : null;
 			Transform currentTarget = perception != null
-				? (perception.VisiblePlayer != null ? perception.VisiblePlayer.transform
+				? (seenPlayer != null && disposition != null
+					&& disposition.CanEngagePlayer(seenPlayer) ? seenPlayer.transform
 					: perception.VisibleNPC != null ? perception.VisibleNPC.transform
 					: perception.VisibleZombie != null ? perception.VisibleZombie.transform : null)
 				: brainDriver.Target;
