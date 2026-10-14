@@ -18,6 +18,9 @@ namespace SDG.Unturned
 		private MobileNPCTactics tactics;
 		private readonly MobileNPCPlayerKnowledge playerKnowledge = new MobileNPCPlayerKnowledge();
 		private bool investigatingPlayerClue;
+		// A heard footstep is a provisional hypothesis, not a persistent
+		// crouch/stealth command after actual visual recognition.
+		private bool investigatingFootstepOnly;
 		private float nextDefensiveReplanAt;
 		private Vector3 lastDefensiveThreatPosition;
 		private float nextStalkPlanAt;
@@ -71,6 +74,7 @@ namespace SDG.Unturned
 			brain.Reset();
 			playerKnowledge.Clear();
 			investigatingPlayerClue = false;
+			investigatingFootstepOnly = false;
 			listenUntil = 0f;
 			ambushArmedUntil = 0f;
 			ambushAttackUnlockAt = 0f;
@@ -172,6 +176,7 @@ namespace SDG.Unturned
 			}
 
 			investigatingPlayerClue = false;
+			investigatingFootstepOnly = false;
 			brain.ReportNoise(position, Time.time, duration);
 			PublishDecisionIfChanged();
 		}
@@ -183,6 +188,8 @@ namespace SDG.Unturned
 
 		/// <summary>Briefly stop and crouch to discriminate an uncertain sound before searching.</summary>
 		public bool IsListening => Provider.isServer && hasInitialized && Time.time < listenUntil
+			&& (GetComponent<MobileNPCHumanoidPerception>() is MobileNPCHumanoidPerception perception
+				&& perception.VisiblePlayer == null)
 			&& brain != null && brain.CurrentState != MobileNPCBrain.State.Pursuing
 			&& tactics != null && tactics.CurrentGoal != MobileNPCTactics.Goal.Retreat
 			&& tactics.CurrentGoal != MobileNPCTactics.Goal.SeekCover;
@@ -204,6 +211,12 @@ namespace SDG.Unturned
 				return;
 			if (brain.CurrentState == MobileNPCBrain.State.Pursuing && brain.Target != null)
 				return;
+			// The visible player is stronger evidence than a guessed footstep.
+			// In particular peaceful NPCs must not duck merely because their
+			// visible, nonhostile neighbor takes a step.
+			MobileNPCHumanoidPerception perception = GetComponent<MobileNPCHumanoidPerception>();
+			if (perception != null && perception.VisiblePlayer != null)
+				return;
 			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Retreat
 				|| tactics.CurrentGoal == MobileNPCTactics.Goal.SeekCover
 				|| tactics.CurrentGoal == MobileNPCTactics.Goal.Stalk)
@@ -220,7 +233,29 @@ namespace SDG.Unturned
 			{
 				brain.ReportNoise(approximatePosition, Time.time, 10f);
 				investigatingPlayerClue = true;
+				investigatingFootstepOnly = true;
 			}
+			PublishDecisionIfChanged();
+		}
+
+		/// <summary>
+		/// A visually identified nonhostile player cancels ONLY an investigation
+		/// that began from uncertain footsteps. It does not revoke a genuine
+		/// defensive goal, a hostile target or an unrelated supply/escort task.
+		/// </summary>
+		public void ReportNonThreateningPlayerSightServer()
+		{
+			if (!CanAcceptServerInput)
+				return;
+			listenUntil = 0f;
+			if (investigatingFootstepOnly
+				&& brain.CurrentState == MobileNPCBrain.State.Investigating
+				&& tactics.CurrentGoal == MobileNPCTactics.Goal.None)
+			{
+				brain.Reset();
+				investigatingPlayerClue = false;
+			}
+			investigatingFootstepOnly = false;
 			PublishDecisionIfChanged();
 		}
 
