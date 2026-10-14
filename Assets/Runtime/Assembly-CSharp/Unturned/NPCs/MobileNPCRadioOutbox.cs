@@ -8,10 +8,11 @@ using UnityEngine;
 namespace SDG.Unturned
 {
     /// <summary>
-    /// Server-local preparation queue for NPC intel. Does NOT transmit over a
-    /// channel or show subtitles. Native channel, equipment state of player
-    /// receivers and base/vehicle radio infrastructure still need integration.
-    /// A real, owned vanilla Walkie Talkie is required even to queue a report.
+    /// Server-local NPC radio queue and single-player text transmitter.
+    /// Sends reports among living same-group radio owners and to the host-only
+    /// channel/equipment-gated intercept HUD. No native voice packets, physical
+    /// NPC hand equipment, remote client messages or powered base relays.
+    /// A real, owned vanilla Walkie Talkie is required for each NPC endpoint.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(MobileNPCInventory))]
@@ -23,6 +24,8 @@ namespace SDG.Unturned
         // Vanilla walkie/earpiece channel is PlayerQuests.radioFrequency:uint.
         // NPCs have no PlayerQuests or PlayerVoice component; choose one
         // deterministic tuneable native-frequency value for each living group.
+        // Runtime GroupId is unique within a map session; do not modulo the
+        // identity because unrelated groups would eventually share a channel.
         // This is simulated text traffic, NOT player microphone voice.
         private static readonly HashSet<MobileNPCRadioOutbox> ActiveRadios
             = new HashSet<MobileNPCRadioOutbox>();
@@ -42,7 +45,7 @@ namespace SDG.Unturned
 
         public uint TunedFrequency => group != null && group.GroupId > 0
             ? PlayerQuests.DEFAULT_RADIO_FREQUENCY
-                + (uint)(group.GroupId % 100000)
+                + (uint)group.GroupId
             : 0u;
 
         public static void ResetRadioSessionServer()
@@ -141,8 +144,9 @@ namespace SDG.Unturned
         }
 
         /// <summary>
-        /// The item's presence is only a *minimum* condition. A future native
-        /// bridge must separately check that the NPC operates/tunes it.
+        /// Item ownership permits SIMULATED NPC radio operation; NPCs do not
+        /// have native PlayerEquipment/PlayerVoice, or a hand-held radio prop.
+        /// Keep the visual/native voice bridge as a separate COM-02 task.
         /// </summary>
         public bool HasOwnedPortableRadio => Provider.isServer && inventory != null
             && inventory.ContainsItemID(VanillaWalkieTalkieID)
@@ -153,13 +157,14 @@ namespace SDG.Unturned
         public bool TryQueueObservedContact(Vector3 lastObservedPlayerPosition)
         {
             if (!Provider.isServer || !HasOwnedPortableRadio || Time.time < nextPrepareAt
-                || group == null || group.GroupId <= 0 || disposition == null
+                || group == null || group.GroupId <= 0 || faction == null
+                || disposition == null
                 || !disposition.CanEngagePlayers)
                 return false;
 
             if (!MobileNPCRadioMessage.TryCreate(MobileNPCRadioMessage.Kind.EnemyContact,
                 lastObservedPlayerPosition, Time.time, 24f, 0.78f,
-                faction != null ? faction.CurrentFaction : MobileNPCFaction.Id.Unaffiliated,
+                faction.CurrentFaction,
                 group.GroupId, disposition.DisplayName,
                 out MobileNPCRadioMessage message))
                 return false;
@@ -168,7 +173,7 @@ namespace SDG.Unturned
             while (pending.Count >= MaximumPendingReports)
                 pending.Dequeue();
             pending.Enqueue(message);
-            // No transmission until the native voice/channel bridge is verified.
+            // Update sends simulated text only, never native voice packets.
             return true;
         }
 
@@ -198,8 +203,9 @@ namespace SDG.Unturned
         }
 
         /// <summary>
-        /// Pure handoff for a future transport bridge. Intentionally does not
-        /// expose an unchecked send event or leak messages to client UI.
+        /// Return the next fresh report for local simulated text transport.
+        /// A report created before a group/faction change must not block fresh
+        /// information or be forwarded using a different group's new channel.
         /// </summary>
         public bool TryPeekFreshReport(out MobileNPCRadioMessage message)
         {
@@ -207,8 +213,17 @@ namespace SDG.Unturned
             if (!HasOwnedPortableRadio)
                 return false;
 
-            while (pending.Count > 0 && !pending.Peek().IsFresh(Time.time))
+            while (pending.Count > 0)
+            {
+                MobileNPCRadioMessage queued = pending.Peek();
+                if (queued.IsFresh(Time.time) && group != null && group.GroupId > 0
+                    && faction != null && queued.SenderGroupId == group.GroupId
+                    && queued.Faction == faction.CurrentFaction)
+                    break;
+                // Expired or former-group intelligence cannot be transmitted
+                // under a new identity, even when a fresher report is waiting.
                 pending.Dequeue();
+            }
             if (pending.Count == 0)
                 return false;
             message = pending.Peek();
@@ -217,8 +232,8 @@ namespace SDG.Unturned
 
         public void ConfirmTransmittedReport(MobileNPCRadioMessage message)
         {
-            // Reserved for verified native transport: the object must match the
-            // first queued record, preventing removal of another report.
+            // Consume only the record actually sent; a different pending
+            // message must never be removed by an unrelated send.
             if (Provider.isServer && message != null && pending.Count > 0
                 && object.ReferenceEquals(pending.Peek(), message))
                 pending.Dequeue();
@@ -229,6 +244,7 @@ namespace SDG.Unturned
             ActiveRadios.Remove(this);
             pending.Clear();
             nextPrepareAt = 0f;
+            nextAttemptTransmitAt = 0f;
             nextPersonalTransmitAt = 0f;
         }
     }
