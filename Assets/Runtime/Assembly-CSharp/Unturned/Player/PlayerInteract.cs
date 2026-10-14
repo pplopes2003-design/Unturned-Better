@@ -171,6 +171,10 @@ namespace SDG.Unturned
 		{
 			if (channel.IsLocalPlayer)
 			{
+				// The active mobile dialogue owns interaction input. Do not
+				// reopen, highlight or interact with world objects underneath it.
+				if (MobileNPCInteractionController.IsDialogOpenFor(player))
+					return;
 				if (player.stance.stance != EPlayerStance.DRIVING && player.stance.stance != EPlayerStance.SITTING && player.life.IsAlive && !player.workzone.isBuilding)
 				{
 					UnityEngine.Profiling.Profiler.BeginSample("Raycast");
