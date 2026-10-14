@@ -113,6 +113,8 @@ namespace SDG.Unturned
             template.AddComponent<MobileNPCAirdropRumor>();
             template.AddComponent<MobileNPCUsefulLootRumor>();
             template.AddComponent<MobileNPCReinforcementResponse>();
+            template.AddComponent<MobileNPCUnknownBaseIntel>();
+            template.AddComponent<MobileNPCGrenadeThrower>();
             template.AddComponent<MobileNPCCompanionContract>();
 
             // Reuse the game's existing humanoid visual hierarchy without modifying its
