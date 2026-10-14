@@ -74,7 +74,7 @@ namespace SDG.Unturned
 				instance = null;
 			Clear();
 #if !DEDICATED_SERVER
-			if (nativePanel != null && PlayerUI.container != null)
+			if (nativePanel != null && PlayerUI.window != null && PlayerUI.container != null)
 				PlayerUI.container.RemoveChild(nativePanel);
 			nativePanel = null;
 			nativeMessage = null;
