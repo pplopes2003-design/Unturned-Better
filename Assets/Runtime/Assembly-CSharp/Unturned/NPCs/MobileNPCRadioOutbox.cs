@@ -9,10 +9,10 @@ namespace SDG.Unturned
 {
     /// <summary>
     /// Server-local NPC radio queue and single-player text transmitter.
-    /// Sends reports among living same-group radio owners and to the host-only
+    /// Sends reports among living same-group radio endpoints and to the host-only
     /// channel/equipment-gated intercept HUD. No native voice packets, physical
-    /// NPC hand equipment, remote client messages or powered base relays.
-    /// A real, owned vanilla Walkie Talkie is required for each NPC endpoint.
+    /// NPC hand equipment or remote client messages. Each NPC endpoint must
+    /// either own 1445 or stand at its powered physical base-radio assembly.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(MobileNPCInventory))]
@@ -62,10 +62,11 @@ namespace SDG.Unturned
 
         private void Update()
         {
-            if (!Provider.isServer || !HasOwnedPortableRadio
+            if (!Provider.isServer || pending.Count == 0
                 || Time.time < nextAttemptTransmitAt
                 || Time.time < nextGlobalTransmitAt
-                || Time.time < nextPersonalTransmitAt)
+                || Time.time < nextPersonalTransmitAt
+                || !HasOperationalRadioEndpoint)
                 return;
             nextAttemptTransmitAt = Time.time + 0.35f;
             if (!TryPeekFreshReport(out MobileNPCRadioMessage message)
@@ -79,17 +80,16 @@ namespace SDG.Unturned
             if (frequency == 0u)
                 return;
 
-            // Consume airtime only on a real source-owned portable radio.
-            // The NPC has no PlayerEquipment hand slot; operating a known
-            // owned device is a bounded simulation, not a claimed native voice
-            // or visual equip animation.
+            // Consume airtime only with a real owned portable 1445 OR
+            // near a real stored 1445 at an electrically active group base.
+            // Neither option is an actual NPC PlayerVoice microphone packet.
             nextGlobalTransmitAt = Time.time + TransmissionAirtime;
             nextPersonalTransmitAt = Time.time + PerNpcTransmitInterval;
             int delivered = 0;
             foreach (MobileNPCRadioOutbox receiver in ActiveRadios)
             {
                 if (receiver == null || receiver == this
-                    || !receiver.HasOwnedPortableRadio
+                    || !receiver.HasOperationalRadioEndpoint
                     || receiver.TunedFrequency != frequency
                     || receiver.group == null
                     || receiver.group.GroupId != group.GroupId
@@ -125,7 +125,7 @@ namespace SDG.Unturned
             if (Time.time >= nextRadioDiagnosticsAt)
             {
                 nextRadioDiagnosticsAt = Time.time + 10f;
-                Debug.Log("[MobileNPCRadioOutbox] Portable radio text broadcast: group="
+                Debug.Log("[MobileNPCRadioOutbox] Physical radio text broadcast: group="
                     + group.GroupId + ", frequency=" + frequency
                     + ", NPC receivers=" + delivered
                     + ", local player intercepted=" + intercepted
@@ -144,19 +144,28 @@ namespace SDG.Unturned
         }
 
         /// <summary>
-        /// Item ownership permits SIMULATED NPC radio operation; NPCs do not
-        /// have native PlayerEquipment/PlayerVoice, or a hand-held radio prop.
-        /// Keep the visual/native voice bridge as a separate COM-02 task.
+        /// Portable ownership permits simulated NPC operation; a separate
+        /// physically operated, electrically active base assembly also qualifies.
+        /// Neither endpoint is native NPC PlayerVoice/PlayerEquipment.
         /// </summary>
         public bool HasOwnedPortableRadio => Provider.isServer && inventory != null
             && inventory.ContainsItemID(VanillaWalkieTalkieID)
             && (vitals == null || !vitals.IsDead);
 
+        /// <summary>
+        /// A station is only usable when the NPC is physically next to its
+        /// group's placed container containing 1445 and native active power.
+        /// There is no infinite-distance/base-radio telepathy.
+        /// </summary>
+        private bool HasOperationalRadioEndpoint => HasOwnedPortableRadio
+            || group != null && MobileNPCBaseRadioStation.CanOperateServer(
+                group, transform.position);
+
         public int PendingCount => pending.Count;
 
         public bool TryQueueObservedContact(Vector3 lastObservedPlayerPosition)
         {
-            if (!Provider.isServer || !HasOwnedPortableRadio || Time.time < nextPrepareAt
+            if (!Provider.isServer || !HasOperationalRadioEndpoint || Time.time < nextPrepareAt
                 || group == null || group.GroupId <= 0 || faction == null
                 || disposition == null
                 || !disposition.CanEngagePlayers)
@@ -184,7 +193,7 @@ namespace SDG.Unturned
         /// </summary>
         public bool TryQueueObservedAirdrop(Vector3 observedPosition)
         {
-            if (!Provider.isServer || !HasOwnedPortableRadio || Time.time < nextPrepareAt
+            if (!Provider.isServer || !HasOperationalRadioEndpoint || Time.time < nextPrepareAt
                 || group == null || group.GroupId <= 0
                 || faction == null || disposition == null
                 || Vector3.SqrMagnitude(observedPosition - transform.position) > 28f * 28f)
@@ -210,7 +219,7 @@ namespace SDG.Unturned
         public bool TryPeekFreshReport(out MobileNPCRadioMessage message)
         {
             message = null;
-            if (!HasOwnedPortableRadio)
+            if (!HasOperationalRadioEndpoint)
                 return false;
 
             while (pending.Count > 0)
