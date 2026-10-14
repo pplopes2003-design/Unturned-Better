@@ -38,3 +38,15 @@ This project is not integrating X-Ray, copying proprietary engine code, or claim
 - Test 1/10/20/40 NPC CPU and logs plus map save/load, group leader death/reassignment, settlement creation, active loot and melee/ranged death; no Unity compilation claimed so far.
 
 **Status:** AI-ALIFE-01 source QUASE PRONTA — AGUARDANDO BUILD. Parent long-term A-Life autonomy EM IMPLEMENTAÇÃO.
+
+
+## 2026-10-14 — AI-ALIFE-02: primeiros smart jobs físicos, sem duplicar o cérebro
+
+Foi implementado o recorte **AI-ALIFE-02-GUARD-01** usando **MobileNPCGroupMember.GroupRecord já existente**, não criando um mundo ou organização paralela. Cada grupo vivo com **armazenamento central nativo realmente registrado pelo líder** pode reservar **dois** postos de vigia individuais em setores opostos (~9–12m da base). Grupo com base apenas planejada, sem contêiner físico ativo, não ganha postos imaginários. Cada candidato precisa de solo físico seguro, continuidade de altura (diferença <=2,1m), ponto seguro de mapa e espaço de ocupação; o motor continua responsável pela rota real e pode falhar caso a passagem não exista. Reservar o posto NÃO significa já estar nele.
+
+Os membros consultam disponibilidade junto à avaliação de utilidade `MobileNPCAutonomyPlanner`; o ato de assumir ocorre somente durante o deslocamento da rotina de guarda. Se a vaga deixar de existir, o membro retorna a Patrol por 20s antes de tentar novamente. A patrulha se concentra ao redor de **seu próprio** posto reservado (passos 3–8m), em vez de quatro agentes se sobrepondo ao mesmo destino. Sair da rotina, mudar de facção/grupo, morrer ou ser destruído libera a vaga. Mudanças do grupo real invalidam cache dos postos; `PruneDeadMembers` remove reservas órfãs. Tarefas de loot/medicina/radio/defesa continuam pertencendo aos sistemas originais, sem transferência de itens, posições mágicas ou auto cura por postos.
+
+O primeiro slice não contém smart terrain para POIs, postos em construções específicas, abertura de portas por job, ocupação com animações dedicadas, economia de trabalho, disputa entre facções e simulação offline; pai AI-ALIFE-02 permanece EM IMPLEMENTAÇÃO. Ainda sem Unity compile/Dev Build.
+
+### Correção P0 paralela: mortalidade do NPC e suas vagas
+`UseableMelee` continha uma verificação `info.type != NONE && != SKIP` antes de chegar ao código que aplica dano aos hitboxes personalizados; o fallback de `NONE` agora só entra se o primeiro raycast físico revalidado no servidor atingir anatomia verdadeira de NPC. O protocolo específico `ERaycastInfoType.MOBILE_NPC` já existia em `PlayerInput` tanto na serialização quanto na validação de raio do servidor e permanece preservado. `MobileNPCHumanoidVitals.DieServer` agora também desativa o planejador A-Life, e o `OnDisable` libera a vaga sem depender de respawn. Isso não prova que o dano de tiro ou melee chegou ao HP durante a última build; exige log `Damage accepted` com `health=...->0.0` e `Death transition`, visual de corpo, nenhuma retomada de trabalho e vaga revendicada por vivo. P0 CORE-02 aberto.
