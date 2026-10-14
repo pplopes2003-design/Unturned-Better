@@ -36,6 +36,31 @@ namespace SDG.Unturned
 		private uint pendingExperienceCost;
 		private string lastPrompt;
 		private Vector2 menuScroll;
+#if !DEDICATED_SERVER
+		// Use the SAME Sleek/Glazier tree that native Unturned dialogues use.
+		// An isolated Unity OnGUI panel can render below the game UI backend.
+		private ISleekBox nativePanel;
+		private ISleekLabel nativeMessage;
+		private readonly ISleekButton[] nativeOptions = new ISleekButton[9];
+		private ISleekButton nativeClose;
+		private bool nativeUIFailureLogged;
+#endif
+
+		/// <summary>Modal local input belongs to the NPC session, not item hotkeys.</summary>
+		public static bool IsDialogOpenFor(Player player)
+		{
+			return instance != null && player != null
+				&& instance.activePlayer == player && instance.state != MenuState.Closed;
+		}
+
+		/// <summary>PlayerUI owns Escape consumption so it cannot also open pause.</summary>
+		public static bool TryCloseOnEscape()
+		{
+			if (instance == null || instance.state == MenuState.Closed)
+				return false;
+			instance.Clear();
+			return true;
+		}
 
 		private void Awake()
 		{
@@ -47,6 +72,13 @@ namespace SDG.Unturned
 			if (instance == this)
 				instance = null;
 			Clear();
+#if !DEDICATED_SERVER
+			if (nativePanel != null && PlayerUI.container != null)
+				PlayerUI.container.RemoveChild(nativePanel);
+			nativePanel = null;
+			nativeMessage = null;
+			nativeClose = null;
+#endif
 		}
 
 		public static void Open(Player player, MobileNPCHumanoidDisposition npc)
@@ -63,6 +95,12 @@ namespace SDG.Unturned
 			instance.activeNPC = npc;
 			instance.state = MenuState.Main;
 			instance.ShowMainMenu();
+#if !DEDICATED_SERVER
+			// PlayerUI may finish initialization after the level's bootstrap.
+			// Attach to the native root only for the local player session.
+			instance.EnsureNativePanel();
+			instance.RefreshNativePanel();
+#endif
 			Debug.Log("[MobileNPCInteractionController] Dialogue opened for "
 				+ npc.DisplayName + " (single-player local interaction).");
 		}
@@ -78,11 +116,8 @@ namespace SDG.Unturned
 				return;
 			}
 
-			if (Input.GetKeyDown(KeyCode.Escape))
-			{
-				Clear();
-				return;
-			}
+			// Escape is dispatched by PlayerUI.tickInput using ConsumeKeyDown.
+			// Handling it again here races the native pause/menu handler.
 
 			for (int number = 1; number <= 9; ++number)
 			{
@@ -162,11 +197,123 @@ namespace SDG.Unturned
 		}
 
 #if !DEDICATED_SERVER
-		// A persistent screen panel, not NPC_CUSTOM (which belongs to native NPC UI).
+		private bool EnsureNativePanel()
+		{
+			if (nativePanel != null)
+				return true;
+			if (PlayerUI.container == null || PlayerUI.window == null)
+				return false;
+
+			try
+			{
+				ISleekBox panel = Glazier.Get().CreateBox();
+				panel.PositionScale_X = 0.5f;
+				panel.PositionScale_Y = 0.72f;
+				panel.PositionOffset_X = -300;
+				panel.PositionOffset_Y = -130;
+				panel.SizeOffset_X = 600;
+				panel.SizeOffset_Y = 260;
+				panel.IsVisible = false;
+				PlayerUI.container.AddChild(panel);
+				nativePanel = panel;
+
+				nativeMessage = Glazier.Get().CreateLabel();
+				nativeMessage.PositionOffset_X = 16;
+				nativeMessage.PositionOffset_Y = 12;
+				nativeMessage.SizeOffset_X = -32;
+				nativeMessage.SizeOffset_Y = -66;
+				nativeMessage.SizeScale_X = 1f;
+				nativeMessage.SizeScale_Y = 1f;
+				nativeMessage.TextAlignment = TextAnchor.UpperLeft;
+				nativeMessage.FontSize = ESleekFontSize.Medium;
+				nativeMessage.TextContrastContext = ETextContrastContext.InconspicuousBackdrop;
+				nativePanel.AddChild(nativeMessage);
+
+				for (int i = 0; i < nativeOptions.Length; ++i)
+				{
+					ISleekButton option = Glazier.Get().CreateButton();
+					option.PositionOffset_X = 16 + i * 46;
+					option.PositionOffset_Y = -46;
+					option.PositionScale_Y = 1f;
+					option.SizeOffset_X = 42;
+					option.SizeOffset_Y = 32;
+					option.Text = (i + 1).ToString();
+					option.IsVisible = false;
+					option.OnClicked += OnNativeOptionClicked;
+					nativePanel.AddChild(option);
+					nativeOptions[i] = option;
+				}
+				nativeClose = Glazier.Get().CreateButton();
+				nativeClose.PositionOffset_X = -100;
+				nativeClose.PositionOffset_Y = -46;
+				nativeClose.PositionScale_X = 1f;
+				nativeClose.PositionScale_Y = 1f;
+				nativeClose.SizeOffset_X = 84;
+				nativeClose.SizeOffset_Y = 32;
+				nativeClose.Text = "Fechar";
+				nativeClose.OnClicked += OnNativeCloseClicked;
+				nativePanel.AddChild(nativeClose);
+				Debug.Log("[MobileNPCInteractionController] Native Sleek dialogue panel attached to PlayerUI.container.", this);
+				return true;
+			}
+			catch (System.Exception exception)
+			{
+				if (nativePanel != null)
+				{
+					nativePanel.IsVisible = false;
+					if (PlayerUI.container != null)
+						PlayerUI.container.RemoveChild(nativePanel);
+				}
+				nativePanel = null;
+				nativeMessage = null;
+				if (!nativeUIFailureLogged)
+				{
+					nativeUIFailureLogged = true;
+					Debug.LogError("[MobileNPCInteractionController] Failed to create native dialogue UI: " + exception, this);
+				}
+				return false;
+			}
+		}
+
+		private void OnNativeOptionClicked(ISleekElement button)
+		{
+			for (int i = 0; i < nativeOptions.Length; ++i)
+			{
+				if (button == nativeOptions[i])
+				{
+					ChooseOption(i + 1);
+					return;
+				}
+			}
+		}
+
+		private void OnNativeCloseClicked(ISleekElement button)
+		{
+			Clear();
+		}
+
+		private void RefreshNativePanel()
+		{
+			if (nativePanel == null)
+				return;
+			nativePanel.IsVisible = state != MenuState.Closed;
+			if (state == MenuState.Closed)
+				return;
+			if (nativeMessage != null)
+				nativeMessage.Text = lastPrompt ?? string.Empty;
+			int count = state == MenuState.TradeStock ? 9
+				: state == MenuState.Main || state == MenuState.ChooseTradePayment ? 3 : 2;
+			for (int i = 0; i < nativeOptions.Length; ++i)
+				if (nativeOptions[i] != null)
+					nativeOptions[i].IsVisible = i < count;
+		}
+
+		// Only used if PlayerUI native backend has not initialized yet.
+		// A persistent fallback screen panel, not NPC_CUSTOM (native NPC UI).
 		// No native HUD visibility, focus or cursor state is modified by this flow.
 		private void OnGUI()
 		{
-			if (state == MenuState.Closed || !IsSessionValid())
+			if (state == MenuState.Closed || !IsSessionValid() || nativePanel != null)
 				return;
 
 			// The Unturned HUD and other Unity IMGUI handlers can render later
@@ -531,6 +678,9 @@ namespace SDG.Unturned
 		{
 			lastPrompt = message;
 			menuScroll = Vector2.zero;
+#if !DEDICATED_SERVER
+			RefreshNativePanel();
+#endif
 		}
 
 		private void Clear()
@@ -545,6 +695,9 @@ namespace SDG.Unturned
 			tradeUsesCash = false;
 			state = MenuState.Closed;
 			menuScroll = Vector2.zero;
+#if !DEDICATED_SERVER
+			RefreshNativePanel();
+#endif
 		}
 	}
 }
