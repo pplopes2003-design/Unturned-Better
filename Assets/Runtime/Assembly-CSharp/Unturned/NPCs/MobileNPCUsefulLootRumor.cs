@@ -70,7 +70,6 @@ namespace SDG.Unturned
                     return (brain.Destination - destination).sqrMagnitude < 4f;
                 // Native motor may already clear Investigate at actual arrival.
                 return brain.CurrentGoal == MobileNPCTactics.Goal.None
-                    && arrivedAt >= 0f
                     && (transform.position - destination).sqrMagnitude
                         <= SearchArrivalRadius * SearchArrivalRadius;
             }
