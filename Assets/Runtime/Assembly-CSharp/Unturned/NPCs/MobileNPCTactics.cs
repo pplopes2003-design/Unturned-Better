@@ -22,7 +22,9 @@ namespace SDG.Unturned
 			Retreat,
 			Loot,
 			Flank,
-			Stalk
+			Stalk,
+			// Append only: do not renumber existing named goals.
+			Reinforce
 		}
 
 		private const float LowHealthThreshold = 0.30f;
@@ -189,6 +191,22 @@ namespace SDG.Unturned
 			tacticalDestination = place;
 			hasTacticalDestination = true;
 			goalDeadline = now + 65f;
+			return true;
+		}
+
+		/// <summary>
+		/// A physically reachable approximate ally rendezvous, not a hostile
+		/// target. The caller must verify health, gear, confidence and safe ground.
+		/// This never transfers the original shooter's identity or Transform.
+		/// </summary>
+		public bool TryStartRadioReinforcement(Vector3 safeRendezvous, float now)
+		{
+			if (currentGoal != Goal.None || !IsFinite(safeRendezvous))
+				return false;
+			currentGoal = Goal.Reinforce;
+			tacticalDestination = safeRendezvous;
+			hasTacticalDestination = true;
+			goalDeadline = now + 52f;
 			return true;
 		}
 
