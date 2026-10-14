@@ -1285,3 +1285,31 @@ Next reasonable engineering: continue `ZMB-01` with native region-aware client i
 **Next engineering recommendation:** enhance `COM-04` with event-sourced, resource-aware real reinforcement/loot/airdrop messages using only verified gameplay events; or tackle `COM-03` powered native placeable base radio after checking the real asset and energy infrastructure. Do not promise radios broadcast without item 1445 or that any distant survivor gets reports merely by faction. Never claim the native audio layer is finished without separate implementation and Dev Build evidence.
 
 **Last radio security correction:** commit `f84f390f8cfff3f89e512a766b890651b019a3ef` invalidates an already-presented radio subtitle when the local player tunes off-channel, removes the qualifying device or dies; the text cannot reappear if they retune within the original 5-second window. Player.log diagnostics and recipient group checks unchanged. No Unity playtest.
+
+
+## 2026-10-13 — Event-sourced airdrop radio and zombie pursuit beyond POIs (LATEST)
+
+**User request:** Continue development, and explicitly add validation of zombie pursuit outside spawn regions/POI limits so zombies remain dangerous in the open world. Keep this handoff current for other agents/conversations. Complete AI architecture diagram only after all major modules are structured.
+
+### Actual changes in this round
+- `3c7a1a0b05ddb17e8ac4c161844e314277b95aa7`: `MobileNPCRadioOutbox.TryQueueObservedAirdrop` accepts a physically close (<28m) reported landed airdrop position, but ONLY when server-side NPC owns actual item 1445, belongs to a group/faction, and the 20s preparation cooldown permits. Creates a `MobileNPCRadioMessage.Kind.Airdrop` report with 45s TTL and bounded queue; no radio or carepackage is fabricated.
+- `5ab40e687f7bbd7bc25fe50d89af1189a17abccc`: `MobileNPCAirdropContest.TickServer` checks a *real* `InteractableStorage` with `CarepackageDestroy` and remaining items. When a contesting NPC is within 28m, calls its radio outbox to report. The preexisting 220m contest scanning radius does NOT qualify as a radio sighting. Transmission still follows actual owned-walkie channel and player receiver validation via existing `MobileNPCRadioOutbox` and `MobileNPCRadioInterceptHUD`. It remains simulated text, not native audio/VOIP.
+- **Source changes only; not compiled or played in Unity.** Validate APIs, 28m proximity, empty/looted crates, repeated announcements, radio frequency/gear, report TTL, player subtitles and group receiving behavior in Dev Build.
+
+### NEW mandatory zombie work item: ZMB-POI-PURSUIT-02 (OPEN)
+**Goal:** zombies remain a threat after player/NPC leaves a POI, including rural roads, fields, wilderness, and the spaces between POIs. Existing `ZMB-OPEN-01` source-level open-ground pursuit was near-ready but did not prove the entire behavior. Do NOT claim finished.
+
+1. Audit `Zombie`, `ZombieManager`, `ZombieRegion`, zombie navigation and game spawn/interest rules in the actual Unity game code. Distinguish spawn/region ownership from chase distance, update/tick visibility and lifetime/despawn. Do not casually remove native region safety and performance bounds.
+2. Verify a zombie can maintain pursuit across POI boundary and multiple adjacent regions while its target remains detectable, with navigation path recomputation, terrain/corner/door handling, avoidance and no instantaneous teleport/reset to original spawn region.
+3. On LOS loss, investigate last known position and sound clues, then time out based on bounded evidence rather than a fixed POI-radius reset. Do not track hidden player Transform omnisciently.
+4. Ensure zombies outside POIs can detect new nearby targets/noises and attack players/NPCs. Define safe ambient roaming/spawn density and budget for wilderness without spawning a massive army at once.
+5. Verify unloaded regions, map transitions, dedicated server/client networking, zombie kill/death/despawn and perf limits at 20–100 active zombies. Prevent endless across-map pursuit and duplicate region ownership.
+6. Dev Build tests: lure zombie beyond town edge, across roads/fields and region borders, temporarily hide behind building, fire gun in open field, approach isolated rural NPC, test water/vehicles/vertical geometry, and inspect `Player.log` for region transitions and stuck states.
+7. Status: **PENDENTE DE AUDITORIA/VALIDAÇÃO EM JOGO**. Existing source work `ZMB-OPEN-01` is not proof. Prioritize this alongside NPC navigation and combat tests.
+
+### Still pending
+- Real NPC faction/group validation, death/ragdoll/respawn, full A* navigation, combat accuracy and cover, melee/ranged animations, dialogue/HUD/nameplates, actual group suppression, safe frag/smoke, healing under fire, base powered radio and future vehicle radio, more world-derived radio events (loot/reinforcements/unknown base), NPC vehicles, stealth vs zombies, optics and individual learning.
+- Radio portable/interception COM-RADIO-PORTABLE-01 still **QUASE PRONTA — AGUARDANDO BUILD**; full COM-02/03/04 unfinished. Zombie pursuit ZMB-POI-PURSUIT-02 remains OPEN until region-crossing tests.
+- Keep using the near-ready → finalized only on user's positive Dev Build feedback rule. Rejected or failing items return to PENDING.
+
+**Suggested next work:** audit native zombie region ownership and chase termination code; then implement a guarded cross-region continuation mechanism if native chase is forcibly clamped. Do not promise safe behavior without testing. Also continue event-driven radio intel with no invented world observations.
