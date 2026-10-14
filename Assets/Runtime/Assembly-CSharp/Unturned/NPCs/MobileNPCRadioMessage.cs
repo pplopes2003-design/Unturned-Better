@@ -118,7 +118,7 @@ namespace SDG.Unturned
                     return speaker + "Precisamos de reforços no " + region + ". Confirmem se conseguem chegar.";
                 case Kind.UsefulLoot:
                     ItemAsset reported = Assets.find(EAssetType.ITEM, ReportedItemID) as ItemAsset;
-                    string subject = reported != null ? reported.name : "material útil";
+                    string subject = reported != null ? reported.itemName : "material útil";
                     return speaker + "Possível " + subject + " no " + region
                         + " (" + reliability + "). Confirmem visualmente antes de recolher.";
                 case Kind.Airdrop:
