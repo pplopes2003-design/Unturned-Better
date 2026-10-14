@@ -725,3 +725,15 @@ COM-RADIO-PORTABLE-01 follow-up (`f84f390f`): rapid tune 460328 -> other channel
 - [ ] Compare actual behavior and screenshots/Player.log to tests 40–46. A scoped `QUASE PRONTA` becomes `CONCLUÍDA` ONLY when the user approves; if an error appears, reopen relevant ID `EM IMPLEMENTAÇÃO` and preserve all evidence in project docs.
 
 **No Unity compile or runtime gameplay tests were executed by the assistant in this source-authoring round.**
+
+
+## 48. COMPILER-FIX-01 — first Unity compilation 12 diagnostics (RECOMPILE)
+
+**Reported by user in Unity, now fixed ONLY in GitHub C# source:** `MobileNPCHumanoidMotor.cs` CS0103/CS1061/CS0165 x7; `MobileNPCBrainDriver.cs` CS0104 x3; `UseableMelee.cs` CS1061 x2. Fix commits `2f1f9026`, `70b76946`, `c9bae661`. **No Unity compiler/Dev Build test executed by assistant.**
+
+- [ ] Pull latest `feature/npc-ai-foundation`, let Unity recompile all scripts, clear the console, and confirm the **original 12 errors have disappeared**. If any new error appears, capture every exact file/line/compiler code rather than assuming build success.
+- [ ] Spawn NPC near a true Ladder and verify an approaching NPC waits for its actual path before climbing, remains affected by gravity and does not resume movement prematurely. Native `MobileNPCLadderTraversal.TryStartServer` should still function.
+- [ ] Real low ledge and parapet: `ShouldChooseObstacleJumpServer` selects a direction; `TryBeginPlannedLowJump` and existing `TryBeginVaultJump`/`TryPlanJumpServer` still run on actual collision-checked arc, land before repeating, never warp through wall or locked door.
+- [ ] Incoming fire + coverage scoring: `UnityEngine.Random.Range` and `UnityEngine.Random.value` preserve cover sampling and cautious stalking decisions without a compiler ambiguity or runtime exception.
+- [ ] Melee at native player, zombie and NPC custom hitbox: client `RaycastInfo` uses actual hit collider or fallback transform; server `InputInfo.colliderTransform` remains intact; damage/hitmarkers/body-part selection still work. No bogus melee hits through walls or double hit.
+- [ ] Continue final Dev Build test sections 42–47 ONLY after successful compilation, and use Player.log for runtime errors. This compile fix is **QUASE PRONTA — AGUARDANDO RECOMPILAÇÃO**, not runtime completed.
