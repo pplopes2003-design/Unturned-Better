@@ -768,3 +768,12 @@ COM-RADIO-PORTABLE-01 follow-up (`f84f390f`): rapid tune 460328 -> other channel
 - [ ] Shoot/Punch with hitmarker on custom `MobileNPCHitbox` and head/body/limbs. Confirm `[MobileNPCHumanoidVitals] Damage accepted`, exact previous/new HP and one death at zero. If hitmarker occurs without HP loss, filter Player.log for new `[MobileNPCDamageValidation] Rejected` diagnostic. This appears only `UNITY_EDITOR || DEVELOPMENT_BUILD` and at most once per 2s per player. Test vanilla player, zombie, structure hits for nonregression.
 - [ ] Open dialogue with local interaction, check console `[MobileNPCInteractionController] Dialogue opened`, visible IMGUI panel above HUD, 1–9 (top row/keypad), ESC/Fechar, 4m invalidation, no permanent HUD disappearance. Panel-depth-only fix may be insufficient, so preserve UI-01 open until visually validated. Verify name label does not appear through wall and faces camera with readable glyphs, based on earlier untested patch.
 - [ ] Keep nav/zombie/loot tests from section 49 open; they are NOT covered by this specific new round. Maintain game screenshot/video, exact build SHA, 1/2 NPC, equipment, Player.log, route map and Unity Console. Only user runtime validation closes scoped items.
+
+### Section 50 — addendum pós-interrupção (2026-10-14, `edd3fe9c`/`ff7ace46`)
+
+- [ ] Spawn NPC Neutral/Friendly com jogador visível, sem dano prévio: jogador andando e correndo perto não induz agachamento por escuta; `VisiblePlayer` visual não vira `Target` hostil por si só. Verifique se a animação/altura real do `CharacterController` acompanha o resultado, e não apenas o `Gait` nominal.
+- [ ] Após ouvir passos ocultos, NPC pode escutar cautelosamente; ao passar a enxergar o jogador pacífico, cancela postura sonora e hipótese de investigação de passos, mas não cancela combate real contra zumbi/hostil nem ordem ativa de cobertura.
+- [ ] Depois de um tiro real e aceito no HP: pacífico pode defender-se contra **aquele** jogador por janela curta; ataque sem dano e apenas hitmarker não autoriza agressão. Diferenciar pelo `Player.log` de validação e `Damage accepted`.
+- [ ] Regressão de bootstrap: percepção adicionada depois do motor no template inativo deve ser resolvida e armazenada em cache após ativação; 20–40 NPCs não fazem `GetComponent` em cada ciclo para a mesma leitura.
+
+**Source-only, ainda não compilado/testado pelo usuário em Unity.**
