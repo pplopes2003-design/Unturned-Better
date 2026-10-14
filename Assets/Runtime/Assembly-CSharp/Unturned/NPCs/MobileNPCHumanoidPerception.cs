@@ -120,7 +120,7 @@ namespace SDG.Unturned
 			}
 			else if (playerCandidate != null)
 			{
-				// A nonthreatening player may be SEE(N) and recognized without
+				// A nonthreatening player may be seen and recognized without
 				// being targeted, stalked, chased or triggering stealth.
 				// Actual verified aggression changes CanEngagePlayer separately.
 				visiblePlayer = playerCandidate;
@@ -156,7 +156,8 @@ namespace SDG.Unturned
 				selectedPlayer = selected.GetComponentInParent<Player>();
 			if (selectedPlayer != null)
 			{
-				if (selectedPlayer.life == null || selectedPlayer.life.isDead)
+				if (selectedPlayer.life == null || selectedPlayer.life.isDead
+					|| disposition == null || !disposition.CanEngagePlayer(selectedPlayer))
 					brain.ResetServer();
 				return;
 			}
@@ -334,7 +335,6 @@ namespace SDG.Unturned
 				SteamPlayer steamPlayer = Provider.clients[i];
 				Player candidate = steamPlayer != null ? steamPlayer.player : null;
 				if (candidate == null || candidate == GetComponent<Player>()
-					|| !disposition.CanEngagePlayer(candidate)
 					|| candidate.life == null || candidate.life.isDead
 					|| candidate.gameObject == null || !candidate.gameObject.activeInHierarchy)
 				{
