@@ -1448,17 +1448,34 @@ namespace SDG.Unturned
 			}
 		}
 
-		// Preserve an actively hunting native zombie when a local player
-		// crosses a LevelNavigation region boundary. This is not a new
-		// long-range zombie spawn or an invisible offscreen attack.
-		private static bool HasLiveHuntingZombieInRegion(int bound)
+		// Single-player streaming follows actual nearby zombie *positions*,
+		// not solely their original LevelNavigation spawn bound. Otherwise an
+		// actor still visible to the player can vanish the instant the player
+		// crosses a POI border or the hunt changes briefly to another state.
+		// This is intentionally NOT a client network subscription protocol.
+		private const float RETAIN_NEARBY_ZOMBIE_DISTANCE_SQR = 48f * 48f;
+		private const float RETAIN_ACTIVE_HUNTER_DISTANCE_SQR = 112f * 112f;
+		private static bool ShouldRetainZombieRegionForLocalPlayer(int bound)
 		{
-			if (regions == null || bound < 0 || bound >= regions.Length
+			if (!Provider.isServer || Dedicator.IsDedicatedServer
+				|| regions == null || bound < 0 || bound >= regions.Length
 				|| regions[bound] == null || regions[bound].zombies == null)
 				return false;
+			Player localPlayer = Player.LocalPlayer;
+			if (localPlayer == null || localPlayer.life == null
+				|| !localPlayer.life.IsAlive)
+				return false;
+
+			Vector3 playerPosition = localPlayer.transform.position;
 			foreach (Zombie zombie in regions[bound].zombies)
 			{
-				if (zombie != null && !zombie.isDead && zombie.isHunting)
+				if (zombie == null || zombie.isDead)
+					continue;
+				float distanceSqr = (zombie.transform.position - playerPosition).sqrMagnitude;
+				// Allow a genuinely active chase farther than the visible nearby
+				// bubble, but don't retain a lost/off-map zombie forever.
+				if (distanceSqr <= RETAIN_NEARBY_ZOMBIE_DISTANCE_SQR
+					|| (zombie.isHunting && distanceSqr <= RETAIN_ACTIVE_HUNTER_DISTANCE_SQR))
 					return true;
 			}
 			return false;
@@ -1476,7 +1493,7 @@ namespace SDG.Unturned
 				ZombieRegion region = regions[i];
 				if (region == null || !region.isNetworked
 					|| region.PlayerCountInRegion > 0
-					|| HasLiveHuntingZombieInRegion(i))
+					|| ShouldRetainZombieRegionForLocalPlayer(i))
 					continue;
 				region.destroy();
 				region.isNetworked = false;
@@ -1489,12 +1506,11 @@ namespace SDG.Unturned
 			{
 				if (LevelNavigation.checkSafe(oldBound) && regions[oldBound].isNetworked)
 				{
-					// In local single-player, the same callback destroys the
-					// old region's render AND its live zombie instances. Keep
-					// genuine hunters visible/alive across the navigation bound.
-					// A zero-player region without any hunting zombie is cleaned
-					// by the bounded pass in Update.
-					if (!Provider.isServer || !HasLiveHuntingZombieInRegion(oldBound))
+					// Local-region destruction removes every zombie in the
+					// ORIGINAL spawn bound, even if some are physically beside us
+					// outside that POI. Keep local visible actors and active hunters;
+					// the periodic sweep unloads once all are sufficiently distant.
+					if (!Provider.isServer || !ShouldRetainZombieRegionForLocalPlayer(oldBound))
 					{
 						regions[oldBound].destroy();
 						regions[oldBound].isNetworked = false;
@@ -1521,9 +1537,15 @@ namespace SDG.Unturned
 					{
 						if (player.channel.IsLocalPlayer)
 						{
-							generateZombies(newBound);
-
-							regions[newBound].isNetworked = true;
+							// A pursuit may have kept this region alive after the
+							// player left it. Its list still contains the ORIGINAL
+							// zombies with their immutable bound/id. Regenerating here
+							// can reset alive counts or spawn duplicate actors.
+							if (!regions[newBound].isNetworked)
+							{
+								generateZombies(newBound);
+								regions[newBound].isNetworked = true;
+							}
 						}
 						else
 						{
