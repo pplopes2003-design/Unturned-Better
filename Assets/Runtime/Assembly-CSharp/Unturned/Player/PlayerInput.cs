@@ -1044,7 +1044,23 @@ namespace SDG.Unturned
 						? confirmedCollider.GetComponentInParent<MobileNPCHumanoidVitals>() : null;
 					if (confirmedVitals == null || confirmedVitals.IsDead
 						|| (confirmation.point - inputInfo.point).sqrMagnitude > 2.25f)
+					{
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+						// Distinguish client hitmarker from a server-authorized hit.
+						// Bounded to once per 2s per PlayerInput, not every bullet.
+						if (Time.time >= nextMobileNPCHitRejectedLogAt)
+						{
+							nextMobileNPCHitRejectedLogAt = Time.time + 2f;
+							Debug.LogWarning("[MobileNPCDamageValidation] Rejected " + usage
+								+ " ray: firstServerCollider="
+								+ (confirmedCollider != null ? confirmedCollider.name : "<none>")
+								+ ", targetVitals=" + (confirmedVitals != null)
+								+ ", serverPoint=" + confirmation.point
+								+ ", reportedPoint=" + inputInfo.point + ".");
+						}
+#endif
 						return null;
+					}
 					inputInfo.point = confirmation.point;
 					inputInfo.direction = direction;
 					// Vanilla limb serialization is absent for custom hitboxes. Default
@@ -1133,6 +1149,8 @@ namespace SDG.Unturned
 		private RaycastHit obstruction;
 
 		private float lastInputed;
+		// Diagnostic only; never override authoritative hit rejection.
+		private float nextMobileNPCHitRejectedLogAt;
 		private bool hasInputed;
 		private bool isDismissed;
 
