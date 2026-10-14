@@ -550,3 +550,16 @@ Related: updated canonical `MOBILE_NPC_VAULT_DESIGN.md`, `MOBILE_NPC_PENDING_TAS
 - [ ] On success, mark **NAV-OBSTACLE-CHOICE-01** CONCLUÍDA (runtime verificado) only for demonstrated scope; otherwise revert to PENDENTE/EM IMPLEMENTAÇÃO with map, coordinates, screenshot, log and reproduction. Broad CORE-04 still requires actual map-wide route evidence.
 
 Technical guide: `MOBILE_NPC_OBSTACLE_DECISION_DESIGN.md`. Source commits: `ce26eeb8`, `4c1a1bf5`, `06a16b5d`, `f1ac8162`.
+
+## 38. ZMB-OPEN-01 — Existing off-nav target pursuit extended through 64m (FINAL Unity Dev Build)
+
+**Source status QUASE PRONTA — AGUARDANDO BUILD only; parent ZMB-01 OPEN.** Code `2cf9669b42e7f4230963e48b403ac2a5033dcb1d`.
+
+- [ ] With an authentic ALREADY ACQUIRED player target, follow on open, dry, gently sloping terrain beyond POI/nav mesh from 18→30→50m, no teleport, valid rotations/attack distance and physical 3m lookahead.
+- [ ] Repeat with genuinely alive mobile NPC target (zombie must not detect a hidden NPC merely because it's within 64m).
+- [ ] Put a fence/wall/house corner 2m away while target is 40m away: return to native seeker safely, no clip or fake long-range detour. At <=24m, the existing bounded ±55/±80 angle physical detour can still attempt a corner.
+- [ ] A target beyond 64m or with >2.5m elevation difference does not gain an imaginary route. Long distance from same map across disconnected nav meshes remains an OPEN global navigation problem.
+- [ ] An authentic POINT noise 30–50m outside a POI must not receive the new live-actor 64m traversal privilege; only previously acquired player/NPC target qualifies. Existing sound radius and audio occlusion require separate validation.
+- [ ] Try river/deep water, 40° incline, cliff, narrow ledge and unloaded/safe map bounds; existing CanStepOnOffNavGround must reject movement without genuine floor.
+- [ ] 1/20/50/200 active zombies crossing multiple boundaries; measure profiler raycasts, animation, stuck detector, pursuit persistence and server CPU. Multiplayer per-client region-interest tracking remains pending separately and should not be assumed solved.
+- [ ] On final build pass, close only ZMB-OPEN-01 with runtime evidence; any failure reopens scoped item with Player.log/map/positions. Do not mark overall ZMB-01 completed until network region and distant obstacle routing are truly addressed.
