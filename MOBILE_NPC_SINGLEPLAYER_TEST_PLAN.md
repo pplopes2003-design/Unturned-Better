@@ -833,3 +833,15 @@ COM-RADIO-PORTABLE-01 follow-up (`f84f390f`): rapid tune 460328 -> other channel
 - [ ] Dedicado/remote-player: interesse por região de origem **NÃO** foi corrigido nesta rodada; não aprovar multiplayer `NET-01` por causa do teste single-player.
 
 **Estado:** mudança commitada, revisão estática realizada, compilação Unity/Dev Build **não executadas**. `ZMB-01` continua EM IMPLEMENTAÇÃO; subescopo `ZMB-POI-STREAM-03` QUASE PRONTO aguardando feedback real.
+
+
+### Seção 55 — Testes de rotina autônoma A-Life (2026-10-14; NÃO EXECUTADOS)
+
+- [ ] NPC sem ameaça, saudável e abastecido pode patrulhar/explorar até o raio original permitido sem teleportar ou apresentar conhecimento onisciente.
+- [ ] NPC sem água/comida, com inventário livre, prioriza busca em estruturas; item físico precisa ser visto, alcançado e transferido via ItemManager antes de ser contabilizado.
+- [ ] Grupo com assentamento real distribui NPCs em rondas próximas da base, sem interferir em agressões reais, ordens de reforço ou atividades de grupo; sem base não inventa posto de vigia.
+- [ ] NPC ferido em segurança faz pausa curta, sem cura grátis, e volta a atividade após cooldown; alvo visual hostil ou outro objetivo prioritário preempta o descanso.
+- [ ] Sinal de rádio, seguimento do jogador, investigação de barulho, combate e retirada não são apagados por mudança de rotina.
+- [ ] Destino de roaming fisicamente bloqueado gera memória local de 35s; 3 falhas de scavenge adiam novas tentativas 42s; não se atribui sucesso por simplesmente chegar no lugar.
+- [ ] Testar 1/10/20/40 NPCs em mapas com/sem estruturas, saúde/inventário diferentes, morte/salvamento, postura pacífica, loot e navegação. Conferir Player.log com logs [MobileNPCAutonomyPlanner] no momento de mudança, não por frame; capturar SHA efetivo da build.
+- [ ] AI-ALIFE-01 não é concluída sem build/feedback positivos. Testes anteriores CORE-02, ZMB-01, AI-07, UI-01 e CORE-04 continuam abertos.
