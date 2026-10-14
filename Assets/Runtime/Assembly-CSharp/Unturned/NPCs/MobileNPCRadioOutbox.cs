@@ -20,6 +20,15 @@ namespace SDG.Unturned
         public const ushort VanillaWalkieTalkieID = 1445;
         private const int MaximumPendingReports = 4;
         private const float SendPreparationCooldown = 20f;
+        // Vanilla walkie/earpiece channel is PlayerQuests.radioFrequency:uint.
+        // NPCs have no PlayerQuests or PlayerVoice component; choose one
+        // deterministic tuneable native-frequency value for each living group.
+        // This is simulated text traffic, NOT player microphone voice.
+        private static readonly HashSet<MobileNPCRadioOutbox> ActiveRadios
+            = new HashSet<MobileNPCRadioOutbox>();
+        private static float nextGlobalTransmitAt;
+        private const float TransmissionAirtime = 1.25f;
+        private const float PerNpcTransmitInterval = 8f;
         private readonly Queue<MobileNPCRadioMessage> pending = new Queue<MobileNPCRadioMessage>();
         private MobileNPCInventory inventory;
         private MobileNPCGroupMember group;
@@ -27,6 +36,88 @@ namespace SDG.Unturned
         private MobileNPCHumanoidVitals vitals;
         private MobileNPCHumanoidDisposition disposition;
         private float nextPrepareAt;
+        private float nextAttemptTransmitAt;
+        private float nextPersonalTransmitAt;
+
+        public uint TunedFrequency => group != null && group.GroupId > 0
+            ? PlayerQuests.DEFAULT_RADIO_FREQUENCY
+                + (uint)(group.GroupId % 100000)
+            : 0u;
+
+        public static void ResetRadioSessionServer()
+        {
+            ActiveRadios.Clear();
+            nextGlobalTransmitAt = 0f;
+        }
+
+        private void OnEnable()
+        {
+            ActiveRadios.Add(this);
+        }
+
+        private void Update()
+        {
+            if (!Provider.isServer || !HasOwnedPortableRadio
+                || Time.time < nextAttemptTransmitAt
+                || Time.time < nextGlobalTransmitAt
+                || Time.time < nextPersonalTransmitAt)
+                return;
+            nextAttemptTransmitAt = Time.time + 0.35f;
+            if (!TryPeekFreshReport(out MobileNPCRadioMessage message)
+                || group == null || group.GroupId <= 0
+                || faction == null || message.SenderGroupId != group.GroupId
+                || message.Faction != faction.CurrentFaction
+                || !message.IsFresh(Time.time))
+                return;
+
+            uint frequency = TunedFrequency;
+            if (frequency == 0u)
+                return;
+
+            // Consume airtime only on a real source-owned portable radio.
+            // The NPC has no PlayerEquipment hand slot; operating a known
+            // owned device is a bounded simulation, not a claimed native voice
+            // or visual equip animation.
+            nextGlobalTransmitAt = Time.time + TransmissionAirtime;
+            nextPersonalTransmitAt = Time.time + PerNpcTransmitInterval;
+            int delivered = 0;
+            foreach (MobileNPCRadioOutbox receiver in ActiveRadios)
+            {
+                if (receiver == null || receiver == this
+                    || !receiver.HasOwnedPortableRadio
+                    || receiver.TunedFrequency != frequency
+                    || receiver.group == null
+                    || receiver.group.GroupId != group.GroupId
+                    || receiver.faction == null
+                    || receiver.faction.CurrentFaction != message.Faction
+                    || receiver.vitals != null && receiver.vitals.IsDead)
+                    continue;
+
+                MobileNPCBrainDriver brain = receiver.GetComponent<MobileNPCBrainDriver>();
+                if (brain == null)
+                    continue;
+
+                // Radio reports are unverified distant hearsay, not target
+                // acquisition. Only actual first-hand sightings in sender
+                // have been allowed into this outbox.
+                if (message.Type == MobileNPCRadioMessage.Kind.EnemyContact)
+                {
+                    float age = Mathf.Max(0f, Time.time - message.ObservedAt);
+                    float confidence = Mathf.Clamp(
+                        message.Confidence * (1f - age / 45f), 0.18f, 0.65f);
+                    Vector2 error = Random.insideUnitCircle
+                        * Mathf.Lerp(8f, 3f, confidence);
+                    Vector3 uncertainLocation = message.ReportedPosition
+                        + new Vector3(error.x, 0f, error.y);
+                    brain.ReportGroupPlayerContactClue(uncertainLocation, confidence);
+                }
+                delivered++;
+            }
+            // Same frequency and physically worn earpiece/equipped walkie
+            // criteria as native PlayerVoice radio culling. No chat broadcast.
+            MobileNPCRadioInterceptHUD.PresentServerTransmission(frequency, message);
+            ConfirmTransmittedReport(message);
+        }
 
         private void Awake()
         {
@@ -98,7 +189,10 @@ namespace SDG.Unturned
 
         private void OnDisable()
         {
+            ActiveRadios.Remove(this);
             pending.Clear();
+            nextPrepareAt = 0f;
+            nextPersonalTransmitAt = 0f;
         }
     }
 }
