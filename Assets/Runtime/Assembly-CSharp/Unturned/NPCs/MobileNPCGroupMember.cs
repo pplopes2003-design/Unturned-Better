@@ -382,6 +382,23 @@ namespace SDG.Unturned
 
 
 		/// <summary>
+		/// Require the leader's actually registered, active native base storage,
+		/// not merely the old HasSettlement flag (which is already true when
+		/// the first construction site is only PLANNED). Prevent job selection
+		/// around imaginary finished bases or the player's private storage.
+		/// </summary>
+		private static bool HasPhysicalSettlementPostAnchorServer(GroupRecord record)
+		{
+			if (record == null || !record.HasSettlement || record.Leader == null
+				|| record.Leader.vitals != null && record.Leader.vitals.IsDead)
+				return false;
+			MobileNPCSettlementBuilder builder =
+				record.Leader.GetComponent<MobileNPCSettlementBuilder>();
+			return builder != null
+				&& builder.TryGetCentralStorageForRadioServer(out _);
+		}
+
+		/// <summary>
 		/// A group settlement offers at most two named, exclusive watch duties.
 		/// Eligibility is checked by the existing A-Life routine utility. A
 		/// reservation does NOT imply that the NPC reached the post.
@@ -391,7 +408,8 @@ namespace SDG.Unturned
 			get
 			{
 				if (!Provider.isServer || !HasSettlement
-					|| !groups.TryGetValue(GroupId, out GroupRecord group))
+					|| !groups.TryGetValue(GroupId, out GroupRecord group)
+					|| !HasPhysicalSettlementPostAnchorServer(group))
 					return false;
 				PruneDeadMembers(group);
 				for (int slot = 0; slot < group.GuardPostOwners.Length; ++slot)
@@ -407,6 +425,7 @@ namespace SDG.Unturned
 			physicalPost = Vector3.zero;
 			if (!Provider.isServer || !HasSettlement || vitals != null && vitals.IsDead
 				|| !groups.TryGetValue(GroupId, out GroupRecord group)
+				|| !HasPhysicalSettlementPostAnchorServer(group)
 				|| !group.Members.Contains(this))
 				return false;
 			PruneDeadMembers(group);
