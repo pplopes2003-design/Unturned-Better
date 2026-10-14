@@ -1605,3 +1605,15 @@ O usuário retornou após nova interrupção pedindo continuação. Revalidada b
 **Checks estáticos executados:** re-fetch dos arquivos, chaves balanceadas. Teste aritmético sintético da geometria: item no chão a 1,1m e sobre mesa (1m planar, 1,45m alto) passam os gates de distância, enquanto item a 3m de altura ou 2,8m no mesmo piso não; cada sucesso ainda exige LOS real, armazenamento e remoção nativos em runtime. **Não é execução Unity nem validação visual ou física real.**
 
 **Status correto:** `AUDIT-P0-LOOT-REACH-02` **QUASE PRONTA — AGUARDANDO BUILD** (subescopo transfer e altura); parent `AI-07` permanece **EM IMPLEMENTAÇÃO**. Ainda testar itens muito altos, mesa larga com colisões, simulação de drop, raycasts obstruídos, física de retirada e identidade de instância, múltiplos NPCs competindo, inventário cheio e itens serializados, FPS 1/10/20/40. Se houver `Pickup transfer failed`, o `reason=` novo deve permitir diagnóstico concreto sem ajustes especulativos. UI-01, CORE-02, CORE-04 e perseguição ZMB-01 seguem abertas. Próxima prioridade pode retomar zumbis desaparecendo por fronteira/streaming POI.
+
+
+## 2026-10-14 — Próxima rodada ZMB-01: retenção física + reentrada sem duplicação + boss crossing
+
+**Baseline GitHub:** `b0d17be341652fead7f271e1879dff587c4a74db`, branch `feature/npc-ai-foundation`. O código já tinha `d304e89b` para preservar regiões de zumbis `isHunting`, a movimentação física limitada de alvo vivo 24–64m e `OnUpdate` de hunters de bounds vazios. Não reescrever isso.
+
+**Novos commits:**
+- `280acfcf` — `ZombieManager.cs`: retenção do bound de origem depende agora de **distância física do zumbi ao jogador local** (48m geral; 112m se perseguindo), sem exigir que o jogador continue no bound. Reentrada em bound ainda `isNetworked` não executa `generateZombies` outra vez; a rotina antiga resetava contador `alive` e podia adicionar zumbis à lista retida/IDs existentes.
+- `79e05b1e` — `ZombieRegion.cs`: lógica de boss de missão originalmente infligia 50.000 de dano quando todo jogador abandonava o bound, podendo matar o boss enquanto ainda caçava fora da POI. Servidor local preserva o boss vivo perto ou caçando (48/112m); limpador de quests continua ativo após afastamento real/morte.
+- `6e212061` — `ZombieManager.cs`: zumbis ociosos ainda fisicamente próximos e de home region retida continuam recebendo `OnUpdate`. Nenhuma duplicação de atualização para hunters/regions com players. Logs limitados a transições de bound `[ZMB-01]` em Development Build (retain, unload, reentry no spawn).
+
+**Validação:** inspeção no GitHub, chaves C# balanceadas e `#if/#endif` coerentes; não houve compilação, Dev Build ou prova do usuário. `ZMB-POI-STREAM-03` é **QUASE PRONTA — AGUARDANDO BUILD**; `ZMB-01` (pai), `ZMB-02` e `NET-01` **EM IMPLEMENTAÇÃO**. Faltam testes de zombies e boss em borda de POI, distância 30–140m, ida/volta, dano/morte real, agressão a NPC móvel, visibilidade de origem e estabilidade de rede, profiler 1/20/50/200 zumbis. Nenhum caminho global/A* novo é prometido. Documentação especializada: `ZOMBIE_CROSS_REGION_NAVIGATION_DESIGN.md`, plano de testes seção 54.
