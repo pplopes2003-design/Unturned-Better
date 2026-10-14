@@ -3552,6 +3552,25 @@ namespace SDG.Unturned
 				&& autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge)
 				effectiveRoamingRadius = Mathf.Min(effectiveRoamingRadius, 110f);
 
+			// A survivor may finish combat 80m from home and *then* be
+			// assigned guard duty. Without an explicit physical return trip,
+			// every nearby guard waypoint violates the small job radius,
+			// leaving the NPC idle forever inside its 220m home territory.
+			// The anchor was already validated when the group/site was made;
+			// the ordinary motor must still find a real path to get there.
+			if (PlanarDistanceSquared(transform.position, routineAnchor)
+				> effectiveRoamingRadius * effectiveRoamingRadius)
+			{
+				if (Level.checkSafeIncludingClipVolumes(routineAnchor))
+				{
+					roamingDestination = routineAnchor;
+					hasRoamingDestination = true;
+					return;
+				}
+				nextRoamingDecisionTime = Time.time + 6f;
+				return;
+			}
+
 			// Prefer actual map structures, but keep searching over open terrain when a
 			// beach, field or remote island has no nearby large objects.
 			if (Random.value < structurePreference
