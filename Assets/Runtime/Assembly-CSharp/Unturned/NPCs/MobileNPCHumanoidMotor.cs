@@ -78,6 +78,9 @@ namespace SDG.Unturned
 		private const int VerticalNodeLimit = RouteGridNodeLimit * 2;
 		private static float nextSharedVerticalRouteSlot;
 		private static float nextSharedKnownAccessRouteSlot;
+		// Optional fine-grid inspection only for nearby, same-floor unknown
+		// passages. An independent shared slot caps the extra physics work.
+		private static float nextSharedNarrowPassageSlot;
 		private static readonly Vector2Int[] RouteGridDirections =
 		{
 			new Vector2Int(1, 0), new Vector2Int(-1, 0),
@@ -207,6 +210,7 @@ namespace SDG.Unturned
 		private readonly byte[] routeSearchExposure = new byte[RouteGridNodeLimit];
 		private readonly List<Vector3> reversedRouteScratch = new List<Vector3>(RouteGridSide);
 		private readonly List<Vector3> coverRouteScratch = new List<Vector3>(RouteGridSide);
+		private readonly List<Vector3> narrowPassageScratch = new List<Vector3>(RouteGridNodeLimit);
 		private readonly Vector3[] verticalPositions = new Vector3[VerticalNodeLimit];
 		private readonly bool[] verticalWalkable = new bool[VerticalNodeLimit];
 		private readonly float[] verticalCost = new float[VerticalNodeLimit];
@@ -2383,11 +2387,32 @@ namespace SDG.Unturned
 				return;
 			}
 
-			// Fallback: bounded local grid search. The grid is centered on the NPC,
-			// limited to 81 nodes, and resolves only ground close to the current floor.
-			// A distant goal is approached in successive local segments rather than
-			// expanding the search without limit.
-			if (TryBuildLocalRoute(destination))
+			// First attempt the normal 81-node, same-floor local A*.
+			// A narrow real doorway can lie BETWEEN the 1.25m sample points:
+			// if the coarse route fails or stops short of a nearby exact goal,
+			// admit one finer 0.625m search, never a fabricated portal.
+			bool coarseSearchAdmitted = Time.time >= nextLocalRoutePlanTime
+				&& Time.time >= nextSharedUnknownRouteSlot;
+			bool coarseRouteFound = TryBuildLocalRoute(destination);
+			if (coarseSearchAdmitted && (coarseRouteFound || routeWaypoints.Count == 0)
+				&& PlanarDistanceSquared(transform.position, destination) <= 6.25f
+				&& Mathf.Abs(transform.position.y - destination.y) <= 0.65f)
+			{
+				bool coarseEndsShort = !coarseRouteFound;
+				if (coarseRouteFound && routeWaypoints.Count > 0)
+				{
+					Vector3 last = routeWaypoints[routeWaypoints.Count - 1];
+					coarseEndsShort = PlanarDistanceSquared(last, destination) > 0.81f
+						|| Mathf.Abs(last.y - destination.y) > 0.45f;
+				}
+				if (coarseEndsShort && TryBuildNarrowPassageRoute(destination))
+				{
+					detourGoalSnapshot = destination;
+					hasDetourWaypoint = false;
+					return;
+				}
+			}
+			if (coarseRouteFound)
 			{
 				detourGoalSnapshot = destination;
 				hasDetourWaypoint = false;
@@ -2443,6 +2468,36 @@ namespace SDG.Unturned
 				detourGoalSnapshot = destination;
 				hasDetourWaypoint = true;
 			}
+		}
+
+		/// <summary>
+		/// Same motor and local A* with half-size cells, only at close range.
+		/// This extra, capped attempt is exact-goal only: a reachable cell on
+		/// the WRONG side of a wall is never treated as a valid doorway.
+		/// </summary>
+		private bool TryBuildNarrowPassageRoute(Vector3 destination)
+		{
+			if (!Provider.isServer || characterController == null
+				|| !characterController.enabled
+				|| Time.time < nextSharedNarrowPassageSlot
+				|| PlanarDistanceSquared(transform.position, destination) > 6.25f
+				|| Mathf.Abs(transform.position.y - destination.y) > 0.65f)
+				return false;
+
+			// Across 20-40 NPCs avoid a second 81-node physics search in
+			// every planning frame. Normal/broad A* already has its own cap.
+			nextSharedNarrowPassageSlot = Time.time + 0.35f;
+			narrowPassageScratch.Clear();
+			if (!TryBuildLocalRoute(destination, narrowPassageScratch,
+				true, RouteGridCellSize * 0.5f))
+				return false;
+
+			routeWaypoints.Clear();
+			routeWaypoints.AddRange(narrowPassageScratch);
+			routeWaypointIndex = 0;
+			hasPartialLocalFrontier = false;
+			nextPlannedRouteValidationTime = 0f;
+			return routeWaypoints.Count > 0;
 		}
 
 		/// <summary>
@@ -3360,7 +3415,8 @@ namespace SDG.Unturned
 		}
 
 		private bool TryBuildLocalRoute(Vector3 destination,
-			List<Vector3> alternateOutput = null, bool requireExactLocalGoal = false)
+			List<Vector3> alternateOutput = null, bool requireExactLocalGoal = false,
+			float requestedCellSize = 0f)
 		{
 			// A two-dimensional "nearest reachable" partial route is not
 			// evidence that a destination on a DIFFERENT floor can be reached.
@@ -3393,9 +3449,11 @@ namespace SDG.Unturned
 			// and all collision/floor/door checks but sample at 2m spacing
 			// when the fine 1.25m grid has failed at least twice. Exact
 			// cover/door/ladder access checks always keep fine resolution.
-			float localCellSize = !requireExactLocalGoal
-				&& consecutiveStuckRecoveries >= 2 && goalOffset.sqrMagnitude > 36f
-				? 2.0f : RouteGridCellSize;
+			float localCellSize = requestedCellSize > 0f
+				? Mathf.Clamp(requestedCellSize, RouteGridCellSize * 0.5f, RouteGridCellSize)
+				: !requireExactLocalGoal
+					&& consecutiveStuckRecoveries >= 2 && goalOffset.sqrMagnitude > 36f
+						? 2.0f : RouteGridCellSize;
 
 			Vector3 localGoal = transform.position + Vector3.ClampMagnitude(goalOffset, RouteGridCenter * localCellSize);
 			Vector3[] positions = routeSearchPositions;
