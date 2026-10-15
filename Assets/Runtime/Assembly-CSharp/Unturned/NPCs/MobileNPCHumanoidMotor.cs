@@ -718,9 +718,21 @@ namespace SDG.Unturned
 									// Only a reached, currently solid-blocked frontier
 									// can trigger scouting. This is NOT knowledge of
 									// where an alternative entrance actually is.
-									observedEntranceSurveyOrigin = transform.position;
+									// Keep the SAME flank while the survey advances
+									// across consecutive physically witnessed
+									// frontiers. Rechoosing on each corner undoes
+									// the decision to try an alternate entrance.
+									bool continuingSurvey = observedEntranceSurveySide != 0
+										&& Time.time < observedEntranceSurveyUntil
+										&& PlanarDistanceSquared(destination, observedEntranceSurveyGoal) <= 2.25f
+										&& Mathf.Abs(destination.y - observedEntranceSurveyGoal.y) <= 0.8f
+										&& PlanarDistanceSquared(transform.position, observedEntranceSurveyOrigin) <= 225f;
+									if (!continuingSurvey)
+									{
+										observedEntranceSurveyOrigin = transform.position;
+										observedEntranceSurveySide = avoidanceSide >= 0 ? 1 : -1;
+									}
 									observedEntranceSurveyGoal = destination;
-									observedEntranceSurveySide = avoidanceSide >= 0 ? 1 : -1;
 									observedEntranceSurveyUntil = Time.time + 15f;
 								}
 							}
@@ -2506,7 +2518,28 @@ namespace SDG.Unturned
 				Vector3 candidateGoalOffset = destination - resolved;
 				candidateGoalOffset.y = 0f;
 				float goalDistanceImprovement = toGoal.magnitude - candidateGoalOffset.magnitude;
-				float score = progress * 3f + goalDistanceImprovement * 0.5f - resolvedOffset.magnitude * 0.05f;
+				// The single-hop fallback must not immediately return to
+				// a physically witnessed blocked approach. Reuse the SAME
+				// personal short-lived dead-end evidence as local A*.
+				float score = progress * 3f + goalDistanceImprovement * 0.5f
+					- resolvedOffset.magnitude * 0.05f
+					- LocalDeadEndPenalty(resolved, destination) * 0.75f;
+				if (observedEntranceSurveySide != 0
+					&& Time.time < observedEntranceSurveyUntil
+					&& PlanarDistanceSquared(destination, observedEntranceSurveyGoal) <= 2.25f
+					&& Mathf.Abs(destination.y - observedEntranceSurveyGoal.y) <= 0.8f
+					&& PlanarDistanceSquared(transform.position, observedEntranceSurveyOrigin) <= 225f)
+				{
+					Vector3 surveyHeading = observedEntranceSurveyGoal
+						- observedEntranceSurveyOrigin;
+					surveyHeading.y = 0f;
+					if (surveyHeading.sqrMagnitude > 0.1f)
+					{
+						Vector3 lateral = new Vector3(-surveyHeading.z, 0f, surveyHeading.x).normalized
+							* observedEntranceSurveySide;
+						score += Mathf.Clamp(Vector3.Dot(resolvedOffset, lateral), -2f, 4f);
+					}
+				}
 				if (score > bestScore)
 				{
 					bestScore = score;
