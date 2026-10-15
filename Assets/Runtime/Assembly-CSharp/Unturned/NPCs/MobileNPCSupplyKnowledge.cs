@@ -263,7 +263,8 @@ namespace SDG.Unturned
         public bool TrySuggestNeededSupplySiteServer(MobileNPCInventory inventory,
             MobileNPCHumanoidVitals health, MobileNPCInjurySystem injuries,
             MobileNPCSurvivalNeeds survival, Vector3 from,
-            out Vector3 position, out ushort itemID)
+            out Vector3 position, out ushort itemID,
+            System.Func<Vector3, bool> isSectorAvailable = null)
         {
             position = Vector3.zero;
             itemID = 0;
@@ -289,6 +290,12 @@ namespace SDG.Unturned
                     continue;
 
                 Vector3 remembered = new Vector3(site.x, site.y, site.z);
+                // A shared *reservation* may exclude this personal memory
+                // while another squadmate works there. Prefer the next
+                // independently learned, useful destination if available.
+                // Filtering cannot teach this NPC any new loot location.
+                if (isSectorAvailable != null && !isSectorAvailable(remembered))
+                    continue;
                 float distance = Vector3.Distance(from, remembered);
                 if (distance < 12f || distance > 240f)
                     continue;
