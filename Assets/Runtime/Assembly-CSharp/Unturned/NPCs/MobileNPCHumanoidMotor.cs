@@ -865,10 +865,19 @@ namespace SDG.Unturned
 				Vector3 requestedDirection = planarDirection;
 				if (useRecoverySteering && Time.time < recoverySteeringUntil)
 				{
-					Vector3 recoveryDirection = Quaternion.AngleAxis(recoverySteeringAngle, Vector3.up) * requestedDirection;
-					planarDirection = IsObstacleBlocking(recoveryDirection)
-						? ApplyTerrainAwareSteering(requestedDirection, isUnderwater)
-						: ApplyTerrainAwareSteering(recoveryDirection, isUnderwater);
+					// The new contact-normal wall-follow already committed to
+					// one PHYSICAL side. Rotating the goal by a second 90 degrees
+					// here would cancel that commitment and resume the original
+					// left/right ping-pong around posts or house corners.
+					if (hasWallContourCommit && Time.time < wallContourUntil)
+						planarDirection = ApplyTerrainAwareSteering(requestedDirection, isUnderwater);
+					else
+					{
+						Vector3 recoveryDirection = Quaternion.AngleAxis(recoverySteeringAngle, Vector3.up) * requestedDirection;
+						planarDirection = IsObstacleBlocking(recoveryDirection)
+							? ApplyTerrainAwareSteering(requestedDirection, isUnderwater)
+							: ApplyTerrainAwareSteering(recoveryDirection, isUnderwater);
+					}
 				}
 				else
 				{
