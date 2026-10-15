@@ -499,7 +499,8 @@ namespace SDG.Unturned
 		/// </summary>
 		private void TryPlanRememberedSupplySearchServer()
 		{
-			if (supplyKnowledge == null || Time.time < nextRememberedSearchAt
+			if (supplyPlanStage != SupplyPlanStage.None
+				|| supplyKnowledge == null || Time.time < nextRememberedSearchAt
 				|| driver == null || driver.Target != null
 				|| driver.CurrentGoal != MobileNPCTactics.Goal.None)
 				return;
@@ -677,7 +678,8 @@ namespace SDG.Unturned
 			if (supplyPlanStage == SupplyPlanStage.None
 				|| Time.time < nextSupplyPlanTickAt)
 				return;
-			nextSupplyPlanTickAt = Time.time + 0.8f;
+			nextSupplyPlanTickAt = Time.time
+				+ (supplyPlanStage == SupplyPlanStage.AwaitUse ? 0.8f : 2.0f);
 			MobileNPCHumanoidVitals vitals = GetComponent<MobileNPCHumanoidVitals>();
 			if (vitals == null || vitals.IsDead)
 			{
@@ -685,7 +687,21 @@ namespace SDG.Unturned
 				return;
 			}
 			if (supplyPlanStage != SupplyPlanStage.AwaitUse)
+			{
+				// GOAP preconditions are dynamic. If an NPC already obtained
+				// water, food, wound care or ammo by an unrelated legitimate
+				// action, do not keep marching toward a now-pointless old site.
+				MobileNPCInjurySystem currentInjuries = GetComponent<MobileNPCInjurySystem>();
+				MobileNPCSurvivalNeeds currentSurvival = GetComponent<MobileNPCSurvivalNeeds>();
+				float remainingNeed = MobileNPCSupplyKnowledge.GetCurrentRadioItemNeedServer(
+					supplyPlanItemID, inventory, vitals, currentInjuries, currentSurvival);
+				if (remainingNeed <= 0f && isRememberedSupplyTrip && !hasTarget)
+				{
+					LogSupplyPlanTransition("Replan", "original need no longer exists");
+					CancelRememberedSupplyTripServer(true);
+				}
 				return;
+			}
 
 			MobileNPCSurvivalNeeds survival = GetComponent<MobileNPCSurvivalNeeds>();
 			MobileNPCInjurySystem injuries = GetComponent<MobileNPCInjurySystem>();
