@@ -225,6 +225,12 @@ namespace SDG.Unturned
 		private bool hasPartialLocalFrontier;
 		private Vector3 partialLocalFrontier;
 		private Vector3 partialLocalTarget;
+		// A personal, short-lived preference after the survivor PHYSICALLY
+		// reaches a frontier blocked by static geometry. Not a known door.
+		private Vector3 observedEntranceSurveyOrigin;
+		private Vector3 observedEntranceSurveyGoal;
+		private float observedEntranceSurveyUntil;
+		private int observedEntranceSurveySide;
 		private float nextRoutePlanTime;
 		private float nextLocalRoutePlanTime;
 		private float nextVerticalRoutePlanTime;
@@ -347,6 +353,8 @@ namespace SDG.Unturned
 			nextPlannedRouteValidationTime = 0f;
 			nextRouteCornerShortcutTime = 0f;
 			hasPartialLocalFrontier = false;
+			observedEntranceSurveyUntil = 0f;
+			observedEntranceSurveySide = 0;
 			brainDriver.InitializeServer(spawnPosition);
 			hasRoamingDestination = false;
 			nextRoamingDecisionTime = Time.time + Random.Range(2f, 5f);
@@ -535,6 +543,7 @@ namespace SDG.Unturned
 			activeAccessFinalWaypointIndex = -1;
 				hasPendingKnownAccessPath = false;
 				hasPartialLocalFrontier = false;
+				observedEntranceSurveyUntil = 0f;
 				// Completed/expired goals must not leave the previous route waiting to
 				// steer the next unrelated investigation or roaming destination.
 				routeWaypoints.Clear();
@@ -553,6 +562,7 @@ namespace SDG.Unturned
 					|| Mathf.Abs(destination.y - detourGoalSnapshot.y) > 0.8f)
 				{
 					hasPartialLocalFrontier = false;
+					observedEntranceSurveyUntil = 0f;
 					hasDetourWaypoint = false;
 					routeWaypoints.Clear();
 					routeWaypointIndex = 0;
@@ -698,8 +708,21 @@ namespace SDG.Unturned
 								if (IsObstacleBlockingAlong(rayOrigin, radius,
 									towardFinal.normalized, probe)
 									&& !IsOnlyTemporaryActorBlockingAlong(rayOrigin, radius,
-										towardFinal.normalized, probe))
+										towardFinal.normalized, probe)
+									&& (doorNavigation == null
+										|| !doorNavigation.IsTraversableUnlockedDoorEdgeServer(
+											rayOrigin, towardFinal.normalized, radius,
+											Mathf.Min(2.5f, probe), obstacleMask)))
+								{
 									RememberLocalNavigationDeadEnd(transform.position, destination, 8f);
+									// Only a reached, currently solid-blocked frontier
+									// can trigger scouting. This is NOT knowledge of
+									// where an alternative entrance actually is.
+									observedEntranceSurveyOrigin = transform.position;
+									observedEntranceSurveyGoal = destination;
+									observedEntranceSurveySide = avoidanceSide >= 0 ? 1 : -1;
+									observedEntranceSurveyUntil = Time.time + 15f;
+								}
 							}
 						}
 						hasPartialLocalFrontier = false;
@@ -1756,6 +1779,22 @@ namespace SDG.Unturned
 			nextNavDeadEndSlot = (nextNavDeadEndSlot + 1) % MaxRecentNavDeadEnds;
 		}
 
+		private void FlipObservedEntranceSurveyAfterRealStall(Vector3 goal)
+		{
+			if (Time.time >= observedEntranceSurveyUntil
+				|| observedEntranceSurveySide == 0
+				|| PlanarDistanceSquared(goal, observedEntranceSurveyGoal) > 2.25f
+				|| Mathf.Abs(goal.y - observedEntranceSurveyGoal.y) > 0.8f
+				|| PlanarDistanceSquared(transform.position, observedEntranceSurveyOrigin) > 225f)
+				return;
+
+			// The normal stuck recovery already rejected temporary actor
+			// congestion before reaching here. Try the opposite side without
+			// changing the real task or imagining a passage.
+			observedEntranceSurveySide = -observedEntranceSurveySide;
+			observedEntranceSurveyUntil = Time.time + 10f;
+		}
+
 		private float LocalDeadEndPenalty(Vector3 candidate, Vector3 goal)
 		{
 			float penalty = 0f;
@@ -1924,6 +1963,7 @@ namespace SDG.Unturned
 				// A-Life location instead of retrying the same inaccessible POI.
 				if (consecutiveStuckRecoveries <= 2)
 				{
+					FlipObservedEntranceSurveyAfterRealStall(roamingDestination);
 					RememberLocalNavigationDeadEnd(samplePosition, roamingDestination, 9f);
 					routeWaypoints.Clear();
 					routeWaypointIndex = 0;
@@ -1972,6 +2012,7 @@ namespace SDG.Unturned
 				// Do not randomly flip left/right each time the agent touches a wall.
 				// Keep one side until a genuine route attempt has had time to progress.
 				consecutiveStuckRecoveries++;
+				FlipObservedEntranceSurveyAfterRealStall(brainDriver.Destination);
 				if ((consecutiveStuckRecoveries >= 4
 						&& brainDriver.ReportTacticalDestinationUnreachableServer(brainDriver.Destination))
 					|| (consecutiveStuckRecoveries >= 6
@@ -3659,6 +3700,21 @@ namespace SDG.Unturned
 
 			int goal = -1;
 			float bestFrontierScore = float.PositiveInfinity;
+			bool surveyingObservedWall = !requireExactLocalGoal
+				&& observedEntranceSurveySide != 0
+				&& Time.time < observedEntranceSurveyUntil
+				&& PlanarDistanceSquared(destination, observedEntranceSurveyGoal) <= 2.25f
+				&& Mathf.Abs(destination.y - observedEntranceSurveyGoal.y) <= 0.8f
+				&& PlanarDistanceSquared(basePosition, observedEntranceSurveyOrigin) <= 225f;
+			Vector3 surveyTangent = Vector3.zero;
+			if (surveyingObservedWall)
+			{
+				Vector3 toSurveyGoal = observedEntranceSurveyGoal - observedEntranceSurveyOrigin;
+				toSurveyGoal.y = 0f;
+				if (toSurveyGoal.sqrMagnitude > 0.1f)
+					surveyTangent = new Vector3(-toSurveyGoal.z, 0f, toSurveyGoal.x).normalized
+						* observedEntranceSurveySide;
+			}
 			for (int i = 0; i < RouteGridNodeLimit; ++i)
 			{
 				if (!closed[i] || !walkable[i] || i == start
@@ -3688,10 +3744,16 @@ namespace SDG.Unturned
 				int z = i / RouteGridSide;
 				bool boundary = x <= 1 || x >= RouteGridSide - 2
 					|| z <= 1 || z >= RouteGridSide - 2;
+				// Score only ALREADY connected physical frontiers:
+				// the preference cannot grant a passage through a wall.
+				float surveyLateral = surveyingObservedWall
+					? Mathf.Clamp(Vector3.Dot(positions[i] - basePosition, surveyTangent),
+						-2f, 4f) : 0f;
 				float frontierScore = forwardDistance
 					+ Mathf.Max(0f, costs[i]) * 0.12f
 					+ LocalDeadEndPenalty(positions[i], destination)
-					- (boundary ? 0.65f : 0f);
+					- (boundary ? 0.65f : 0f)
+					- surveyLateral * 1.4f;
 				if (frontierScore < bestFrontierScore)
 				{
 					bestFrontierScore = frontierScore;
