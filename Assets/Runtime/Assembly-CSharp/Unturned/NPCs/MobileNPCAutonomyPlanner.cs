@@ -128,8 +128,14 @@ namespace SDG.Unturned
 
             if (!initialized || best != currentJob)
             {
-                if (currentJob == Job.GuardSettlement && group != null)
-                    group.ReleaseGuardPostServer();
+                if (group != null)
+                {
+                    if (currentJob == Job.GuardSettlement)
+                        group.ReleaseGuardPostServer();
+                    // Switching strategic routine never owns the previous
+                    // scout's location or an interrupted supply-search lease.
+                    group.ReleaseActivitySectorServer(false, false);
+                }
                 currentJob = best;
                 initialized = true;
                 jobCommittedUntil = Time.time + Mathf.Max(10f, minimumJobCommitment);
@@ -192,13 +198,39 @@ namespace SDG.Unturned
         private void OnDisable()
         {
             if (group != null)
+            {
                 group.ReleaseGuardPostServer();
+                group.ReleaseActivitySectorServer(false, false);
+            }
         }
 
         private void OnDestroy()
         {
             if (group != null)
+            {
                 group.ReleaseGuardPostServer();
+                group.ReleaseActivitySectorServer(false, false);
+            }
+        }
+
+        /// <summary>
+        /// The motor first validates an authentic structure/ground destination.
+        /// This method only arbitrates whether a teammate is already checking
+        /// the same location; it never discovers or manufactures POIs.
+        /// </summary>
+        public bool TryClaimObservedExplorationSectorServer(Vector3 site)
+        {
+            if (!Provider.isServer || vitals != null && vitals.IsDead)
+                return false;
+            if (currentJob != Job.Patrol && currentJob != Job.Scavenge)
+                return false;
+            return group == null || group.TryClaimActivitySectorServer(site, 75f);
+        }
+
+        public void ReleaseExplorationSectorServer(bool visited, bool blocked)
+        {
+            if (group != null)
+                group.ReleaseActivitySectorServer(visited, blocked);
         }
 
         /// <summary>Failed routes are learned only from actual physical stalls.</summary>
@@ -216,6 +248,7 @@ namespace SDG.Unturned
         {
             if (!Provider.isServer)
                 return;
+            ReleaseExplorationSectorServer(false, true);
             lastBlockedWaypoint = attemptedWaypoint;
             blockedWaypointExpiresAt = Time.time + 35f;
             hasBlockedWaypoint = true;
@@ -232,6 +265,7 @@ namespace SDG.Unturned
         {
             if (!Provider.isServer)
                 return;
+            ReleaseExplorationSectorServer(true, false);
             consecutiveFailedScavengeWaypoints = 0;
             if (currentJob == Job.Recover)
                 recoveryNotBefore = Time.time + 36f;
