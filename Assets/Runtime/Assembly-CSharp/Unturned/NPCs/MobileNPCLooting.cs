@@ -27,6 +27,9 @@ namespace SDG.Unturned
 		private MobileNPCInventory inventory;
 		private MobileNPCAdaptiveMemory adaptiveMemory;
 		private MobileNPCSupplyKnowledge supplyKnowledge;
+		private MobileNPCGroupMember groupMember;
+		private MobileNPCAutonomyPlanner autonomyPlanner;
+		private bool hasRememberedSectorClaim;
 		private MobileNPCUsefulLootRumor radioLootRumor;
 		private MobileNPCRadioOutbox radioOutbox;
 		private ushort targetItemID;
@@ -50,6 +53,8 @@ namespace SDG.Unturned
 			inventory = GetComponent<MobileNPCInventory>();
 			adaptiveMemory = GetComponent<MobileNPCAdaptiveMemory>();
 			supplyKnowledge = GetComponent<MobileNPCSupplyKnowledge>();
+			groupMember = GetComponent<MobileNPCGroupMember>();
+			autonomyPlanner = GetComponent<MobileNPCAutonomyPlanner>();
 			radioLootRumor = GetComponent<MobileNPCUsefulLootRumor>();
 			radioOutbox = GetComponent<MobileNPCRadioOutbox>();
 		}
@@ -487,10 +492,26 @@ namespace SDG.Unturned
 			// Validate actual map ground; native pathfinding must still walk to it.
 			if (!MobileNPCSpawnService.TryFindSafeGroundPosition(rememberedPosition,
 				12f, 8f, RayMasks.BLOCK_COLLISION, 38f, out Vector3 reachableGround, out _)
-				|| (reachableGround - rememberedPosition).sqrMagnitude > 100f
-				|| !driver.TryStartRememberedSupplySearch(reachableGround))
+				|| (reachableGround - rememberedPosition).sqrMagnitude > 100f)
 				return;
 
+			// The individual discovered this site previously or heard about it
+			// through the existing local-talk lesson system. Claim its physical
+			// neighborhood from the real group, not a magical global loot table.
+			// Scouting may have an obsolete roam claim: relinquish it first.
+			if (autonomyPlanner != null)
+				autonomyPlanner.ReleaseExplorationSectorServer(false, false);
+			bool claimed = groupMember != null && groupMember.GroupId > 0;
+			if (claimed && !groupMember.TryClaimActivitySectorServer(reachableGround, 75f))
+				return;
+			if (!driver.TryStartRememberedSupplySearch(reachableGround))
+			{
+				if (claimed)
+					groupMember.ReleaseActivitySectorServer(false, false);
+				return;
+			}
+
+			hasRememberedSectorClaim = claimed;
 			isRememberedSupplyTrip = true;
 			rememberedItemID = itemID;
 			rememberedSitePosition = rememberedPosition;
@@ -534,15 +555,25 @@ namespace SDG.Unturned
 				if (supplyKnowledge != null)
 					supplyKnowledge.RecordUnsuccessfulVisitServer(
 						rememberedItemID, rememberedSitePosition);
-				CancelRememberedSupplyTripServer(true);
+				CancelRememberedSupplyTripServer(true, couldNotReach && rememberedArrivalAt < 0f);
 			}
 		}
 
-		private void CancelRememberedSupplyTripServer(bool finishInvestigation)
+		private void OnDisable()
+		{
+			// Death disables the looting component; tactical reactivation must
+			// not inherit a dead actor's exclusive remembered-site claim.
+			CancelRememberedSupplyTripServer(false);
+		}
+
+		private void CancelRememberedSupplyTripServer(bool finishInvestigation, bool blocked = false)
 		{
 			if (!isRememberedSupplyTrip)
 				return;
 			isRememberedSupplyTrip = false;
+			if (hasRememberedSectorClaim && groupMember != null)
+				groupMember.ReleaseActivitySectorServer(rememberedArrivalAt >= 0f, blocked);
+			hasRememberedSectorClaim = false;
 			rememberedArrivalAt = -1f;
 			rememberedItemID = 0;
 			if (finishInvestigation && driver != null
