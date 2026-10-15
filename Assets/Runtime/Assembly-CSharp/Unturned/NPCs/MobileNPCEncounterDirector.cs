@@ -57,11 +57,12 @@ namespace SDG.Unturned
 
         private void Awake()
         {
+            // Unity Destroy is deferred until end of frame. During a map
+            // transition the old runtime director may still exist when the
+            // NEW bootstrap installs this one. Retire the old component so
+            // the new director, not a disabled duplicate, owns the session.
             if (instance != null && instance != this)
-            {
-                enabled = false;
-                return;
-            }
+                instance.enabled = false;
             instance = this;
             lastSampleAt = Time.time;
             nextSampleAt = Time.time + 0.5f;
