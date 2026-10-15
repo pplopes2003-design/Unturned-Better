@@ -256,22 +256,45 @@ namespace SDG.Unturned
 					+ ", health=" + previousHealth.ToString("F1") + "->" + CurrentHealth.ToString("F1")
 					+ ", lethal=" + (CurrentHealth <= 0.0f) + ".", this);
 			}
-			brainDriver?.ReportDamage(CurrentHealth, maximumHealth);
-			// A hitmarker is not aggression evidence; this branch runs only
-			// after the authoritative HP deduction above. A previously
-			// neutral/friendly survivor can identify and resist its REAL
-			// attacker if subsequently seen; otherwise it takes cover.
-			MobileNPCHumanoidDisposition disposition =
-				GetComponent<MobileNPCHumanoidDisposition>();
-			disposition?.RecordValidatedAttackServer(attacker);
-			if (attacker != null && CurrentHealth > 0f)
-				brainDriver?.ReportIncomingFire(attacker.position, attacker);
-			DamageReceived?.Invoke(attacker, damage);
-			HealthChanged?.Invoke(CurrentHealth, maximumHealth);
-
-			if (CurrentHealth <= 0.0f)
+			// HP is already authoritative here. No observer, AI behavior or
+			// HUD callback is allowed to strand a lethal 0-HP actor in the
+			// reserved-but-not-dead state when it throws an exception.
+			bool lethal = CurrentHealth <= 0f;
+			try
 			{
-				DieServer(hitImpulse);
+				SafeDeathStage("brain damage reaction", () =>
+				{
+					if (brainDriver != null)
+						brainDriver.ReportDamage(CurrentHealth, maximumHealth);
+				});
+				SafeDeathStage("validated aggression", () =>
+				{
+					MobileNPCHumanoidDisposition disposition =
+						GetComponent<MobileNPCHumanoidDisposition>();
+					if (disposition != null)
+						disposition.RecordValidatedAttackServer(attacker);
+				});
+				if (attacker != null && !lethal)
+					SafeDeathStage("incoming fire reaction", () =>
+					{
+						if (brainDriver != null)
+							brainDriver.ReportIncomingFire(attacker.position, attacker);
+					});
+				SafeDeathStage("damage received event", () =>
+				{
+					if (DamageReceived != null)
+						DamageReceived(attacker, damage);
+				});
+				SafeDeathStage("health changed event", () =>
+				{
+					if (HealthChanged != null)
+						HealthChanged(CurrentHealth, maximumHealth);
+				});
+			}
+			finally
+			{
+				if (lethal)
+					DieServer(hitImpulse);
 			}
 
 			return true;
@@ -302,92 +325,129 @@ namespace SDG.Unturned
 			return !float.IsNaN(value) && !float.IsInfinity(value);
 		}
 
+		/// <summary>
+		/// Callback isolation is intentionally narrow. Damage validation still
+		/// decides whether HP changes; failures in presentation, memory, or
+		/// subscribers must NEVER interrupt the committed lethal transition.
+		/// All failures are visible in Player.log with their stage name.
+		/// </summary>
+		private void SafeDeathStage(string stage, System.Action action)
+		{
+			try
+			{
+				action();
+			}
+			catch (System.Exception exception)
+			{
+				Debug.LogError("[MobileNPCHumanoidVitals] Failed stage '" + stage
+					+ "' for " + name + ": " + exception, this);
+			}
+		}
+
+		private void PublishDiedSafely()
+		{
+			System.Action handlers = Died;
+			if (handlers == null)
+				return;
+			// A misbehaving loot listener cannot block the GroupMember listener,
+			// and vice versa; one death still publishes each subscription once.
+			foreach (System.Delegate handler in handlers.GetInvocationList())
+			{
+				System.Action callback = (System.Action)handler;
+				SafeDeathStage("Died subscriber", callback);
+			}
+		}
+
 		private void DieServer(Vector3 hitImpulse)
 		{
 			if (!Provider.isServer || isDead)
-			{
 				return;
-			}
 
+			// Set the terminal state FIRST. If a notification reenters damage,
+			// healing or another death attempt, the second attempt is rejected.
 			isDead = true;
 			lethalTransitionReserved = true;
-			// Private experience does not survive death or pass to the replacement NPC.
-			MobileNPCAdaptiveMemory adaptiveMemory = GetComponent<MobileNPCAdaptiveMemory>();
-			if (adaptiveMemory != null)
-				adaptiveMemory.ForgetOnDeathServer();
-			MobileNPCTravelMemory travelMemory = GetComponent<MobileNPCTravelMemory>();
-			if (travelMemory != null)
-				travelMemory.ForgetOnDeathServer();
-			MobileNPCSupplyKnowledge supplyKnowledge = GetComponent<MobileNPCSupplyKnowledge>();
-			if (supplyKnowledge != null)
-				supplyKnowledge.ForgetOnDeathServer();
+			CurrentHealth = 0f;
+
 			if (logDamageDiagnostics)
-			{
 				Debug.Log("[MobileNPCHumanoidVitals] Death transition: npc=" + name
 					+ ", lastAttacker=" + (LastAttacker != null ? LastAttacker.name : "<unknown>")
 					+ ", lastDamageTime=" + LastDamageTime.ToString("F2") + ".", this);
-			}
-			brainDriver?.ResetServer();
-			if (motor != null)
-			{
-				motor.enabled = false;
-			}
-			// Death always stops gameplay components; retain the serialized field for prefab compatibility.
-			{
-				if (combat != null)
-					combat.enabled = false;
-				if (rangedCombat != null)
-					rangedCombat.enabled = false;
-				if (perception != null)
-					perception.enabled = false;
-				if (aim != null)
-					aim.enabled = false;
-				if (characterController != null)
-					characterController.enabled = false;
 
-				// These server-side behaviors can still run after the brain is stopped.
-				// Explicitly end item acquisition, healing, survival ticking and construction
-				// so the corpse cannot resume work or mutate inventory/world state.
-				DisableOnDeath<MobileNPCLooting>();
-				// A-Life jobs cannot survive their owner. OnDisable also releases
-				// the reserved guard post so a living squadmate can claim it.
-				DisableOnDeath<MobileNPCAutonomyPlanner>();
-				DisableOnDeath<MobileNPCMedicalUse>();
-				DisableOnDeath<MobileNPCSurvivalNeeds>();
-				DisableOnDeath<MobileNPCSettlementPlanner>();
-				DisableOnDeath<MobileNPCSettlementBuilder>();
-				DisableOnDeath<MobileNPCRangedPresentation>();
-				DisableOnDeath<MobileNPCTacticalCombatBehavior>();
-				DisableOnDeath<MobileNPCCompanionContract>();
-				DisableOnDeath<MobileNPCMedicalBehavior>();
-				DisableOnDeath<MobileNPCInjurySystem>();
-				DisableOnDeath<MobileNPCNameplate>();
-				DisableOnDeath<MobileNPCVisualGuard>();
-			}
-			// Stop the living hit volume from intercepting later damage rays. The
-			// authored ragdoll colliders below become the physical corpse instead.
-			Transform hitboxRoot = transform.Find("MobileNPCHitbox");
-			if (hitboxRoot != null)
+			SafeDeathStage("forget adaptive memory", () =>
 			{
-				// All anatomical hit colliders must stop intercepting subsequent
-				// gun/melee rays, not only a collider on the hierarchy root.
-				Collider[] damageHitboxes = hitboxRoot.GetComponentsInChildren<Collider>(true);
-				for (int i = 0; i < damageHitboxes.Length; ++i)
-					if (damageHitboxes[i] != null)
-						damageHitboxes[i].enabled = false;
-			}
-			// NPCs are local single-player entities, not native Player/Zombie instances.
-			// Activate the physical ragdoll already authored in NPC_Client instead of
-			// calling PlayerLife/RagdollTool with an incompatible entity or leaving the
-			// humanoid animation standing over a zero-health state.
-			ActivateAuthoredRagdoll(hitImpulse);
-			DeathPresentationRequested?.Invoke(transform.position, transform.rotation, hitImpulse);
-			// Remove dead agents from active AI enumeration after publishing the final reset.
-			if (brainDriver != null)
+				MobileNPCAdaptiveMemory memory = GetComponent<MobileNPCAdaptiveMemory>();
+				if (memory != null) memory.ForgetOnDeathServer();
+			});
+			SafeDeathStage("forget travel memory", () =>
 			{
-				brainDriver.enabled = false;
-			}
-			Died?.Invoke();
+				MobileNPCTravelMemory memory = GetComponent<MobileNPCTravelMemory>();
+				if (memory != null) memory.ForgetOnDeathServer();
+			});
+			SafeDeathStage("forget supply knowledge", () =>
+			{
+				MobileNPCSupplyKnowledge knowledge = GetComponent<MobileNPCSupplyKnowledge>();
+				if (knowledge != null) knowledge.ForgetOnDeathServer();
+			});
+
+			SafeDeathStage("stop tactical brain", () =>
+			{
+				if (brainDriver != null) brainDriver.ResetServer();
+			});
+			// Each behavior must be stopped independently. One invalid/unloaded
+			// Unity reference does not permit another behavior to keep acting.
+			SafeDeathStage("stop motor", () => { if (motor != null) motor.enabled = false; });
+			SafeDeathStage("stop melee combat", () => { if (combat != null) combat.enabled = false; });
+			SafeDeathStage("stop ranged combat", () => { if (rangedCombat != null) rangedCombat.enabled = false; });
+			SafeDeathStage("stop perception", () => { if (perception != null) perception.enabled = false; });
+			SafeDeathStage("stop aiming", () => { if (aim != null) aim.enabled = false; });
+			SafeDeathStage("stop walking collider", () =>
+			{
+				if (characterController != null) characterController.enabled = false;
+			});
+
+			SafeDeathStage("stop loot", () => DisableOnDeath<MobileNPCLooting>());
+			SafeDeathStage("release A-Life job", () => DisableOnDeath<MobileNPCAutonomyPlanner>());
+			SafeDeathStage("stop medical use", () => DisableOnDeath<MobileNPCMedicalUse>());
+			SafeDeathStage("stop survival needs", () => DisableOnDeath<MobileNPCSurvivalNeeds>());
+			SafeDeathStage("stop settlement planner", () => DisableOnDeath<MobileNPCSettlementPlanner>());
+			SafeDeathStage("stop settlement builder", () => DisableOnDeath<MobileNPCSettlementBuilder>());
+			SafeDeathStage("stop ranged presentation", () => DisableOnDeath<MobileNPCRangedPresentation>());
+			SafeDeathStage("stop tactical combat", () => DisableOnDeath<MobileNPCTacticalCombatBehavior>());
+			SafeDeathStage("stop companion contract", () => DisableOnDeath<MobileNPCCompanionContract>());
+			SafeDeathStage("stop medical behavior", () => DisableOnDeath<MobileNPCMedicalBehavior>());
+			SafeDeathStage("stop injury ticking", () => DisableOnDeath<MobileNPCInjurySystem>());
+			SafeDeathStage("stop nameplate", () => DisableOnDeath<MobileNPCNameplate>());
+			SafeDeathStage("stop visual guard", () => DisableOnDeath<MobileNPCVisualGuard>());
+
+			SafeDeathStage("disable anatomical hit volumes", () =>
+			{
+				Transform hitboxRoot = transform.Find("MobileNPCHitbox");
+				if (hitboxRoot == null) return;
+				Collider[] hitboxes = hitboxRoot.GetComponentsInChildren<Collider>(true);
+				foreach (Collider collider in hitboxes)
+					if (collider != null) collider.enabled = false;
+			});
+			SafeDeathStage("activate corpse ragdoll", () => ActivateAuthoredRagdoll(hitImpulse));
+			SafeDeathStage("death visual observers", () =>
+			{
+				System.Action<Vector3, Quaternion, Vector3> handlers = DeathPresentationRequested;
+				if (handlers == null) return;
+				foreach (System.Delegate handler in handlers.GetInvocationList())
+				{
+					System.Action<Vector3, Quaternion, Vector3> callback =
+						(System.Action<Vector3, Quaternion, Vector3>)handler;
+					SafeDeathStage("death presentation subscriber", () =>
+						callback(transform.position, transform.rotation, hitImpulse));
+				}
+			});
+			SafeDeathStage("unregister brain", () =>
+			{
+				if (brainDriver != null) brainDriver.enabled = false;
+			});
+			// Group, loot and other death subscribers retain their original
+			// contracts and receive their signals even if ragdoll fails.
+			PublishDiedSafely();
 		}
 		private void DisableOnDeath<T>() where T : Behaviour
 		{
