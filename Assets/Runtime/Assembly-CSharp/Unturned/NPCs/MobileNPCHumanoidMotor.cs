@@ -1859,13 +1859,23 @@ namespace SDG.Unturned
 					// synthetic portal, or false obstacle-learning event.
 					if (hasRoamingDestination && !brainDriver.HasDestination)
 					{
+						// An occupied doorway is not a failed exploration of the
+						// POI; release the squad's sector without poisoning its memory.
+						if (autonomyPlanner != null)
+							autonomyPlanner.ReleaseExplorationSectorServer(false, false);
 						hasRoamingDestination = false;
+						hasPartialLocalFrontier = false;
 						nextRoamingDecisionTime = Time.time + Random.Range(1f, 2f);
 					}
-					else
+					else if (activeRememberedRouteIndex < 0
+						&& activeAccessRouteIds.Count == 0)
 					{
+						// Replan only a disposable tactical path. A recorded
+						// doorway/stair route is still valid when merely crowded,
+						// and must not lose its access-phase identifiers.
 						routeWaypoints.Clear();
 						routeWaypointIndex = 0;
+						hasPartialLocalFrontier = false;
 						hasDetourWaypoint = false;
 						nextRoutePlanTime = Time.time;
 						nextLocalRoutePlanTime = Time.time;
