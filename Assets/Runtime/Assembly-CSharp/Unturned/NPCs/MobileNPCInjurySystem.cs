@@ -160,7 +160,7 @@ namespace SDG.Unturned
 				state.Fracture();
 			if (causeBleeding)
 				SetBleedingServer(severity == BleedingSeverity.None ? BleedingSeverity.Light : severity, part);
-			PartConditionChanged?.Invoke(part, state.Condition, state.IsFractured);
+			PublishPartConditionSafely(part, state.Condition, state.IsFractured);
 			return true;
 		}
 
@@ -180,7 +180,7 @@ namespace SDG.Unturned
 				bleeding = severity;
 				bleedingPart = part;
 				nextBleedTick = Time.time + Mathf.Max(0.1f, bleedTickInterval);
-				BleedingChanged?.Invoke(bleeding, bleedingPart);
+				PublishBleedingSafely(bleeding, bleedingPart);
 			}
 		}
 
@@ -189,7 +189,7 @@ namespace SDG.Unturned
 			if (!Provider.isServer || bleeding == BleedingSeverity.None)
 				return;
 			bleeding = BleedingSeverity.None;
-			BleedingChanged?.Invoke(bleeding, bleedingPart);
+			PublishBleedingSafely(bleeding, bleedingPart);
 		}
 
 		/// <summary>Bandage action: stops bleeding and restores a modest amount of health.</summary>
@@ -216,6 +216,45 @@ namespace SDG.Unturned
 			state.TreatFracture();
 			PartConditionChanged?.Invoke(leg, state.Condition, state.IsFractured);
 			return true;
+		}
+
+		// Injury state changes before observers are notified. A HUD/animation/
+		// medical observer must never prevent the caller from debiting actual
+		// health for the SAME hit, so each notification is isolated and logged.
+		private void PublishPartConditionSafely(BodyPart part, float condition, bool fractured)
+		{
+			Action<BodyPart, float, bool> observers = PartConditionChanged;
+			if (observers == null) return;
+			foreach (Delegate subscriber in observers.GetInvocationList())
+			{
+				try
+				{
+					((Action<BodyPart, float, bool>)subscriber)(part, condition, fractured);
+				}
+				catch (Exception ex)
+				{
+					Debug.LogError("[MobileNPCInjurySystem] Part observer failed for " + name
+						+ ": " + ex, this);
+				}
+			}
+		}
+
+		private void PublishBleedingSafely(BleedingSeverity severity, BodyPart part)
+		{
+			Action<BleedingSeverity, BodyPart> observers = BleedingChanged;
+			if (observers == null) return;
+			foreach (Delegate subscriber in observers.GetInvocationList())
+			{
+				try
+				{
+					((Action<BleedingSeverity, BodyPart>)subscriber)(severity, part);
+				}
+				catch (Exception ex)
+				{
+					Debug.LogError("[MobileNPCInjurySystem] Bleeding observer failed for " + name
+						+ ": " + ex, this);
+				}
+			}
 		}
 
 		private PartState GetPartState(BodyPart part)
