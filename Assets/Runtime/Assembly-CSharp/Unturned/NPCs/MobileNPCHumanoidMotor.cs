@@ -149,6 +149,7 @@ namespace SDG.Unturned
 		private Vector3 lastTrackedStuckGoal;
 		private Vector3 lastMeaningfulRouteProgressPosition;
 		private bool hasTrackedStuckGoal;
+		private bool lastTrackedStuckWasBrainGoal;
 		private float nextStuckCheckTime;
 		private float nextGroundSafetyCheckTime;
 		private float nextGroundFailureLogTime;
@@ -348,6 +349,7 @@ namespace SDG.Unturned
 			lastStuckCheckPosition = transform.position;
 			lastMeaningfulRouteProgressPosition = transform.position;
 			hasTrackedStuckGoal = false;
+			lastTrackedStuckWasBrainGoal = false;
 			nextStuckCheckTime = Time.time + 0.75f;
 			blockedMovementDuration = 0f;
 			useRecoverySteering = false;
@@ -1781,16 +1783,23 @@ namespace SDG.Unturned
 			lastStuckCheckPosition = samplePosition;
 
 			bool madeMeaningfulProgress = movedDistance >= 0.12f;
-			if (brainDriver != null && brainDriver.HasDestination)
+			bool trackingBrainGoal = brainDriver != null && brainDriver.HasDestination;
+			// Roaming must use the same *goal-relative* progress evidence as
+			// combat. A survivor walking left/right in front of a wall is
+			// moving but NOT making progress toward an A-Life destination.
+			if (trackingBrainGoal || hasRoamingDestination)
 			{
-				Vector3 currentGoal = brainDriver.Destination;
-				// A newly assigned target must not inherit the previous destination's
-				// stuck counter, otherwise switching from loot to combat can trip it.
+				Vector3 currentGoal = trackingBrainGoal
+					? brainDriver.Destination : roamingDestination;
+				// A brain/roaming ownership switch or a different floor must not
+				// inherit the last goal's stuck time even when XY is unchanged.
 				if (!hasTrackedStuckGoal
+					|| lastTrackedStuckWasBrainGoal != trackingBrainGoal
 					|| PlanarDistanceSquared(currentGoal, lastTrackedStuckGoal) > 9f
 					|| Mathf.Abs(currentGoal.y - lastTrackedStuckGoal.y) > 0.8f)
 				{
 					hasTrackedStuckGoal = true;
+					lastTrackedStuckWasBrainGoal = trackingBrainGoal;
 					lastTrackedStuckGoal = currentGoal;
 					lastMeaningfulRouteProgressPosition = samplePosition;
 					blockedMovementDuration = 0f;
@@ -1804,8 +1813,9 @@ namespace SDG.Unturned
 				float anchorDistance = Mathf.Sqrt(PlanarDistanceSquared(
 					lastMeaningfulRouteProgressPosition, currentGoal));
 				// Sidestepping a wall may temporarily fail to reduce goal distance.
-				// Accept a substantial net detour only if it has not carried the
-				// NPC significantly farther away from the destination.
+				// Accept a substantial NET detour, not repeated small oscillations,
+				// only if it has not carried the NPC significantly farther away
+				// from the current brain OR actual roaming destination.
 				bool advancingTowardGoal = previousGoalDistance - currentGoalDistance >= 0.12f;
 				bool advancingAroundObstacle =
 					PlanarDistanceSquared(samplePosition, lastMeaningfulRouteProgressPosition) >= 1.44f
