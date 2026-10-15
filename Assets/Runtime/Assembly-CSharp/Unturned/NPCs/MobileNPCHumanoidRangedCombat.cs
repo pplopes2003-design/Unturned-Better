@@ -139,6 +139,29 @@ namespace SDG.Unturned
 				return;
 			}
 
+			// A-Life need -> acquisition -> use: a safe NPC may reload BEFORE
+			// battle, using exactly the same owned-magazine transaction as the
+			// existing combat reload. Do not create ammunition or pick a second
+			// weapon silently while a reservation is being committed.
+			if (!reloadPending && !selectedGunAsset.infiniteAmmo
+				&& brain.Target == null
+				&& brain.CurrentState == MobileNPCBrain.State.Idle
+				&& brain.CurrentGoal == MobileNPCTactics.Goal.None
+				&& selectedGunInstanceID != 0
+				&& roundsRemaining <= Mathf.Max(1, selectedGunAsset.ammoPerShot * 2)
+				&& inventory.TryFindCompatibleMagazine(selectedGunAsset,
+					out int idleMagazineSlot, out ItemMagazineAsset idleMagazineAsset))
+			{
+				MobileNPCHumanoidMotor idleMotor = GetComponent<MobileNPCHumanoidMotor>();
+				if (idleMotor == null || (!idleMotor.IsClimbingLadder
+					&& !idleMotor.IsVaultTraversing))
+				{
+					BeginReload();
+					if (reloadPending)
+						return;
+				}
+			}
+
 			MobileNPCHumanoidMotor motor = GetComponent<MobileNPCHumanoidMotor>();
 			if (motor != null && (motor.IsClimbingLadder || motor.IsVaultTraversing))
 				return; // hands occupied by ladder or parapet; no shooting mid-action
