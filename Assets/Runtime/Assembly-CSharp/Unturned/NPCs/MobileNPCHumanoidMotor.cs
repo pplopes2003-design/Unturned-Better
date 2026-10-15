@@ -214,6 +214,12 @@ namespace SDG.Unturned
 		private readonly RaycastHit[] verticalFloorHitBuffer = new RaycastHit[24];
 		private readonly List<Vector3> verticalReverseScratch = new List<Vector3>(VerticalNodeLimit);
 		private int routeWaypointIndex;
+		// A local A* frontier can be physically reached without reaching
+		// the real task. Keep that separate from final-goal arrival and
+		// briefly discourage choosing the same wall-facing frontier again.
+		private bool hasPartialLocalFrontier;
+		private Vector3 partialLocalFrontier;
+		private Vector3 partialLocalTarget;
 		private float nextRoutePlanTime;
 		private float nextLocalRoutePlanTime;
 		private float nextVerticalRoutePlanTime;
@@ -334,6 +340,7 @@ namespace SDG.Unturned
 			hasPendingKnownAccessPath = false;
 			nextPlannedRouteValidationTime = 0f;
 			nextRouteCornerShortcutTime = 0f;
+			hasPartialLocalFrontier = false;
 			brainDriver.InitializeServer(spawnPosition);
 			hasRoamingDestination = false;
 			nextRoamingDecisionTime = Time.time + Random.Range(2f, 5f);
@@ -519,6 +526,7 @@ namespace SDG.Unturned
 			activeAccessWaypointStarts.Clear();
 			activeAccessFinalWaypointIndex = -1;
 				hasPendingKnownAccessPath = false;
+				hasPartialLocalFrontier = false;
 				// Completed/expired goals must not leave the previous route waiting to
 				// steer the next unrelated investigation or roaming destination.
 				routeWaypoints.Clear();
@@ -535,6 +543,7 @@ namespace SDG.Unturned
 				if (PlanarDistanceSquared(destination, detourGoalSnapshot) > 2.25f
 					|| Mathf.Abs(destination.y - detourGoalSnapshot.y) > 0.8f)
 				{
+					hasPartialLocalFrontier = false;
 					hasDetourWaypoint = false;
 					routeWaypoints.Clear();
 					routeWaypointIndex = 0;
@@ -659,6 +668,22 @@ namespace SDG.Unturned
 					++routeWaypointIndex;
 					if (routeWaypointIndex >= routeWaypoints.Count)
 					{
+						// Reaching a LOCAL exploratory frontier is not evidence
+						// that the actual target was reached. If its direct path
+						// remains physically obstructed, avoid the same near-wall
+						// frontier for a few seconds on the next bounded A* pass.
+						if (hasPartialLocalFrontier
+							&& PlanarDistanceSquared(partialLocalTarget, destination) <= 2.25f
+							&& PlanarDistanceSquared(partialLocalFrontier, transform.position) <= 1.4f
+							&& PlanarDistanceSquared(destination, transform.position) > 9f)
+						{
+							Vector3 towardFinal = destination - transform.position;
+							towardFinal.y = 0f;
+							if (towardFinal.sqrMagnitude > 0.01f
+								&& IsObstacleBlocking(towardFinal.normalized))
+								RememberLocalNavigationDeadEnd(transform.position, destination, 8f);
+						}
+						hasPartialLocalFrontier = false;
 						routeWaypoints.Clear();
 						routeWaypointIndex = 0;
 						// Finished the cached waypoints. Final brain destination
@@ -1684,13 +1709,15 @@ namespace SDG.Unturned
 			}
 			return found;
 		}
-		private void RememberLocalNavigationDeadEnd(Vector3 blockedPosition, Vector3 goal)
+		private void RememberLocalNavigationDeadEnd(Vector3 blockedPosition,
+			Vector3 goal, float memorySeconds = 18f)
 		{
 			if (!Provider.isServer || !Level.checkSafeIncludingClipVolumes(blockedPosition))
 				return;
 			recentNavDeadEndPositions[nextNavDeadEndSlot] = blockedPosition;
 			recentNavDeadEndGoals[nextNavDeadEndSlot] = goal;
-			recentNavDeadEndExpiry[nextNavDeadEndSlot] = Time.time + 18f;
+			recentNavDeadEndExpiry[nextNavDeadEndSlot] = Time.time
+				+ Mathf.Clamp(memorySeconds, 2f, 18f);
 			nextNavDeadEndSlot = (nextNavDeadEndSlot + 1) % MaxRecentNavDeadEnds;
 		}
 
@@ -3477,6 +3504,13 @@ namespace SDG.Unturned
 				destinationRoute.Add(reversed[i]);
 			if (alternateOutput == null)
 			{
+				// Never tag exact-cover, obstacle comparison, or known access
+				// scratch routes as speculative frontiers. The marker is
+				// tied to this specific endpoint and its real final objective.
+				hasPartialLocalFrontier = !requireExactLocalGoal
+					&& PlanarDistanceSquared(positions[goal], destination) > 9f;
+				partialLocalFrontier = positions[goal];
+				partialLocalTarget = destination;
 				routeWaypointIndex = 0;
 				nextPlannedRouteValidationTime = 0f;
 			}
