@@ -148,7 +148,7 @@ namespace SDG.Unturned
 				&& brain.CurrentState == MobileNPCBrain.State.Idle
 				&& brain.CurrentGoal == MobileNPCTactics.Goal.None
 				&& selectedGunInstanceID != 0
-				&& roundsRemaining <= Mathf.Max(1, selectedGunAsset.ammoPerShot * 2)
+				&& roundsRemaining <= Mathf.Max(8, selectedGunAsset.ammoPerShot * 2)
 				&& inventory.TryFindCompatibleMagazine(selectedGunAsset,
 					out int idleMagazineSlot, out ItemMagazineAsset idleMagazineAsset)
 			// Do not discard a partly full magazine for an even emptier one.
