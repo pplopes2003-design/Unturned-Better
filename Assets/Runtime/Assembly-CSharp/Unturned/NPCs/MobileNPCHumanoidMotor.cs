@@ -1843,6 +1843,39 @@ namespace SDG.Unturned
 				return;
 			}
 
+			// A teammate, player or zombie standing in a doorway is NOT
+			// evidence that the map has a permanent wall or that a recorded
+			// stair/entrance route has become invalid. Yield initially, then
+			// request a different physical route without penalizing the
+			// personal route memory or declaring a tactical goal unreachable.
+			// This uses the exact same bounded collision masks as the motor.
+			if (IsOnlyTemporaryActorBlockingCurrentApproach())
+			{
+				useRecoverySteering = false;
+				if (blockedMovementDuration >= 5f)
+				{
+					// Crowd lasting several seconds: give the existing native
+					// and local route planners another chance. No teleport,
+					// synthetic portal, or false obstacle-learning event.
+					if (hasRoamingDestination && !brainDriver.HasDestination)
+					{
+						hasRoamingDestination = false;
+						nextRoamingDecisionTime = Time.time + Random.Range(1f, 2f);
+					}
+					else
+					{
+						routeWaypoints.Clear();
+						routeWaypointIndex = 0;
+						hasDetourWaypoint = false;
+						nextRoutePlanTime = Time.time;
+						nextLocalRoutePlanTime = Time.time;
+						nextDetourAttemptTime = Time.time + 0.25f;
+					}
+					blockedMovementDuration = 0f;
+				}
+				return;
+			}
+
 			// Preserve combat/investigation destinations. Only roaming waypoints are discarded;
 			// tactical movement gets a temporary alternate steering angle instead.
 			if (hasRoamingDestination && !brainDriver.HasDestination)
@@ -1946,6 +1979,34 @@ namespace SDG.Unturned
 				}
 				blockedMovementDuration = 0.25f;
 			}
+		}
+
+		/// <summary>
+		/// Distinguish a short-lived crowd from a genuine map obstruction
+		/// before inserting failed wall coordinates into learned memory.
+		/// Only the FIRST travel segment is sampled: a distant actor elsewhere
+		/// in the building does not count as blocking this NPC right now.
+		/// </summary>
+		private bool IsOnlyTemporaryActorBlockingCurrentApproach()
+		{
+			if (characterController == null)
+				return false;
+			Vector3 next = routeWaypointIndex < routeWaypoints.Count
+				? routeWaypoints[routeWaypointIndex]
+				: hasDetourWaypoint ? detourWaypoint
+				: brainDriver != null && brainDriver.HasDestination
+					? brainDriver.Destination : roamingDestination;
+			Vector3 delta = next - transform.position;
+			delta.y = 0f;
+			float distance = delta.magnitude;
+			if (distance < 0.2f)
+				return false;
+			Vector3 origin = transform.position
+				+ Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f);
+			float radius = Mathf.Clamp(obstacleProbeRadius, 0.05f,
+					Mathf.Max(0.05f, characterController.radius * 0.9f));
+			return IsOnlyTemporaryActorBlockingAlong(origin, radius,
+				delta / distance, Mathf.Min(distance, Mathf.Max(0.5f, obstacleProbeDistance)));
 		}
 
 		private bool IsObstacleBlocking(Vector3 direction)
