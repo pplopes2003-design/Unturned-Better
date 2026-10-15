@@ -971,3 +971,10 @@ COM-RADIO-PORTABLE-01 follow-up (`f84f390f`): rapid tune 460328 -> other channel
 - [ ] Rota sem alternativa, sem nenhuma espera legítima, com `planarDirection=0`: ainda liberar waypoint de baixa prioridade e escolher outro local verdadeiro; não criar teleporte nem declarar coleta/visita.
 - [ ] Perseguição/investigação com alvo que muda de piso >0,8m, mas mantém X/Z: `UpdateStuckRecovery` reinicia contadores de progresso antigos; não cancela tática por evidência do piso anterior. Conferir transição rápida repetida.
 - [ ] Regressões: morte interrompe motor, combate tem prioridade, 1/10/20/40 NPCs com Physics/GC e FPS, mapas com e sem backend ASPFP. Comparar `[MobileNPCHumanoidMotor] Blocked` com baseline histórico 138 em tempo/cenário equivalente e registrar SHA de Dev Build e `Player.log`. Não aprovar `CORE-04` sem teste real.
+
+### Seção 63 — NAV-ROAM-PROGRESS-01 (2026-10-15, AGUARDANDO DEV BUILD)
+- [ ] Destino A-Life/loot atrás de parede, poste e quina: NPC oscilando 0,2–0,5m esquerda/direita sem reduzir distância nem avançar waypoint deve acumular 1,5s de bloqueio e iniciar recuperação física limitada; depois 2 retries deve desistir honestamente do local opcional, não repetir 11+ tentativas.
+- [ ] Contorno legítimo de uma parede longa: permitir movimento lateral com deslocamento LÍQUIDO >=1,2m e avanço de waypoint, mesmo que inicialmente aumente distância direta; não cancelar trajetória real por impaciência do detector.
+- [ ] Alternância roaming A-Life → combate / investigação → roaming: contador do objetivo anterior não contamina nova tarefa, nem despacha como inacessível o novo alvo no mesmo X/Z e outro piso (>0,8m).
+- [ ] Portas congestionadas por NPC/Player/Zombie preservam espera temporária; bloqueio sólido/porta trancada recebe a recuperação existente sem atravessar colliders.
+- [ ] Medir `[MobileNPCHumanoidMotor] Blocked` por missão e incidentes de `ReportRoamBlockedServer` indevidos; 1/10/20/40 NPCs, tempo em Pathfinding/Physics/GC, mapas com/s/ ASPFP, mesmo SHA de Dev Build em Player.log. Verificar sem regressão de morte, salto padrão, ladder, loot/GOAP, rádio e Memory.
