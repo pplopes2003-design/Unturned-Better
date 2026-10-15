@@ -40,6 +40,13 @@ namespace SDG.Unturned
 			public readonly MobileNPCGroupMember[] GuardPostOwners = new MobileNPCGroupMember[2];
 			public readonly Vector3[] GuardPostPoints = new Vector3[2];
 			public readonly bool[] GuardPostValidated = new bool[2];
+			// Bounded online A-Life work leases, not a second map/faction registry.
+			// A lease is created only for a location this member independently
+			// validated through native structures or its own learned supply site.
+			public readonly MobileNPCGroupMember[] WorkSectorOwners = new MobileNPCGroupMember[4];
+			public readonly Vector3[] WorkSectorLocations = new Vector3[4];
+			public readonly float[] WorkSectorLeaseExpires = new float[4];
+			public readonly float[] WorkSectorRevisitAfter = new float[4];
 		}
 
 		private MobileNPCHumanoidVitals vitals;
@@ -487,6 +494,91 @@ namespace SDG.Unturned
 					group.GuardPostOwners[slot] = null;
 		}
 
+		/// <summary>
+		/// Exclusive, expiring claim for an ALREADY known/physically verified
+		/// sector. Both the existing structure-roaming motor and the existing
+		/// remembered-supply search use this one shared group ledger.
+		/// No site lookup, loot assignment or background simulation occurs here.
+		/// </summary>
+		public bool TryClaimActivitySectorServer(Vector3 candidate, float leaseSeconds)
+		{
+			if (!Provider.isServer || !Level.isLoaded || !initialized || leftGroup
+				|| vitals != null && vitals.IsDead || !IsFinitePosition(candidate)
+				|| !Level.checkSafeIncludingClipVolumes(candidate)
+				|| (candidate - transform.position).sqrMagnitude > 260f * 260f
+				|| !groups.TryGetValue(GroupId, out GroupRecord group)
+				|| !group.Members.Contains(this))
+				return false;
+
+			PruneDeadMembers(group);
+			int currentSlot = -1;
+			int freeSlot = -1;
+			const float sameSectorSqr = 22f * 22f;
+			for (int i = 0; i < group.WorkSectorOwners.Length; ++i)
+			{
+				MobileNPCGroupMember owner = group.WorkSectorOwners[i];
+				if (owner == this)
+				{
+					currentSlot = i;
+					continue;
+				}
+				if (owner == null && Time.time >= group.WorkSectorRevisitAfter[i])
+				{
+					if (freeSlot < 0)
+						freeSlot = i;
+				}
+				// An active teammate or a recently checked physical sector
+				// excludes only NEARBY work, not every task in the district.
+				if ((owner != null || Time.time < group.WorkSectorRevisitAfter[i])
+					&& (candidate - group.WorkSectorLocations[i]).sqrMagnitude <= sameSectorSqr)
+					return false;
+			}
+			int chosen = currentSlot >= 0 ? currentSlot : freeSlot;
+			if (chosen < 0)
+			{
+				// Prefer a cooled-down unclaimed slot rather than evicting
+				// another member who is still physically traveling.
+				for (int i = 0; i < group.WorkSectorOwners.Length; ++i)
+					if (group.WorkSectorOwners[i] == null
+						&& Time.time >= group.WorkSectorRevisitAfter[i])
+						{ chosen = i; break; }
+			}
+			if (chosen < 0)
+				return false;
+
+			// A member may hold only one travel-sector task at a time.
+			if (currentSlot >= 0 && currentSlot != chosen)
+				group.WorkSectorOwners[currentSlot] = null;
+			group.WorkSectorOwners[chosen] = this;
+			group.WorkSectorLocations[chosen] = candidate;
+			group.WorkSectorLeaseExpires[chosen] =
+				Time.time + Mathf.Clamp(leaseSeconds, 10f, 95f);
+			group.WorkSectorRevisitAfter[chosen] = 0f;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			Debug.Log("[MobileNPCA-Life] Sector claimed npc=" + name
+				+ " group=" + GroupId + " position=" + candidate, this);
+#endif
+			return true;
+		}
+
+		/// <summary>
+		/// Retain a short group memory ONLY after reaching or physically
+		/// failing a sector. Danger/interruptions simply relinquish ownership.
+		/// </summary>
+		public void ReleaseActivitySectorServer(bool visited, bool blocked)
+		{
+			if (!Provider.isServer || !groups.TryGetValue(GroupId, out GroupRecord group))
+				return;
+			for (int i = 0; i < group.WorkSectorOwners.Length; ++i)
+			{
+				if (group.WorkSectorOwners[i] != this)
+					continue;
+				group.WorkSectorOwners[i] = null;
+				group.WorkSectorRevisitAfter[i] = Time.time
+					+ (visited ? 70f : blocked ? 40f : 0f);
+			}
+		}
+
 		private MobileNPCFaction.Id GetCurrentFaction(MobileNPCHumanoidDisposition.Role fallbackRole)
 		{
 			MobileNPCFaction faction = GetComponent<MobileNPCFaction>();
@@ -576,6 +668,14 @@ namespace SDG.Unturned
 					|| owner.vitals != null && owner.vitals.IsDead))
 					group.GuardPostOwners[slot] = null;
 			}
+			for (int slot = 0; slot < group.WorkSectorOwners.Length; ++slot)
+			{
+				MobileNPCGroupMember owner = group.WorkSectorOwners[slot];
+				if (owner != null && (!group.Members.Contains(owner)
+					|| owner.vitals != null && owner.vitals.IsDead
+					|| Time.time >= group.WorkSectorLeaseExpires[slot]))
+					group.WorkSectorOwners[slot] = null;
+			}
 		}
 
 		private void OnDied()
@@ -646,6 +746,16 @@ namespace SDG.Unturned
 				{
 					if (group.GuardPostOwners[slot] == this)
 						group.GuardPostOwners[slot] = null;
+				}
+				// Death, faction change and replacement MUST release the old
+				// individual's sector; a newly spawned member knows none of it.
+				for (int slot = 0; slot < group.WorkSectorOwners.Length; ++slot)
+				{
+					if (group.WorkSectorOwners[slot] == this)
+					{
+						group.WorkSectorOwners[slot] = null;
+						group.WorkSectorRevisitAfter[slot] = 0f;
+					}
 				}
 				PruneDeadMembers(group);
 				if (group.Leader == this || group.Leader == null || group.Leader.vitals != null && group.Leader.vitals.IsDead)
