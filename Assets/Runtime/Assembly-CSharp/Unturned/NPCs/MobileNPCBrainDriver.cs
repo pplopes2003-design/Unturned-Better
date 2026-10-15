@@ -548,6 +548,41 @@ namespace SDG.Unturned
 			return true;
 		}
 
+		/// <summary>
+		/// The motor has already spent several physically verified attempts
+		/// on this noncombat clue or impossible return point. A failed route
+		/// cannot be marked "arrived", and must not lock the brain forever in
+		/// Investigating/Returning without a traversable destination.
+		/// Tactical priorities, live enemies and companions are NOT cancelled.
+		/// </summary>
+		public bool ReportNonCombatNavigationExhaustedServer(Vector3 inaccessiblePoint)
+		{
+			if (!CanAcceptServerInput || brain == null || tactics == null
+				|| tactics.CurrentGoal != MobileNPCTactics.Goal.None
+				|| brain.Target != null || !brain.HasDestination
+				|| (brain.CurrentState != MobileNPCBrain.State.Investigating
+					&& brain.CurrentState != MobileNPCBrain.State.Returning)
+				|| (brain.Destination - inaccessiblePoint).sqrMagnitude > 4f)
+				return false;
+
+			// Abort just the impossible sensory/return task. This does not
+			// claim that the sound source was seen, or that the NPC went home.
+			// Future firsthand evidence can legitimately start a NEW search.
+			MobileNPCEncounterDirector.ReleaseOptionalEvidenceSearchServer(this);
+			brain.Reset();
+			investigatingPlayerClue = false;
+			investigatingFootstepOnly = false;
+			listenUntil = 0f;
+			playerKnowledge.Clear();
+			CancelAmbush();
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			Debug.Log("[MobileNPCNavigation] Exhausted blocked noncombat goal for "
+				+ name + " at " + inaccessiblePoint + "; resumed Idle without teleport.", this);
+#endif
+			PublishDecisionIfChanged();
+			return true;
+		}
+
 		private Vector3? TryFindNearbyCoverPoint(Vector3 threatPosition)
 		{
 			Vector3 away = transform.position - threatPosition;
