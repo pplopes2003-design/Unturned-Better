@@ -513,6 +513,8 @@ namespace SDG.Unturned
 			PruneDeadMembers(group);
 			int currentSlot = -1;
 			int freeSlot = -1;
+			int recyclableSlot = -1;
+			float earliestRevisit = float.PositiveInfinity;
 			const float sameSectorSqr = 22f * 22f;
 			for (int i = 0; i < group.WorkSectorOwners.Length; ++i)
 			{
@@ -522,27 +524,29 @@ namespace SDG.Unturned
 					currentSlot = i;
 					continue;
 				}
-				if (owner == null && Time.time >= group.WorkSectorRevisitAfter[i])
+				if (owner == null)
 				{
-					if (freeSlot < 0)
+					if (Time.time >= group.WorkSectorRevisitAfter[i] && freeSlot < 0)
 						freeSlot = i;
+					// Recycling the oldest inactive record is allowed ONLY
+					// when the new site is not within its cooldown radius.
+					if (group.WorkSectorRevisitAfter[i] < earliestRevisit)
+					{
+						earliestRevisit = group.WorkSectorRevisitAfter[i];
+						recyclableSlot = i;
+					}
 				}
-				// An active teammate or a recently checked physical sector
-				// excludes only NEARBY work, not every task in the district.
+				// Prevent squadmates from crowding active work and prevent
+				// immediate repeat investigation of an actually visited site.
 				if ((owner != null || Time.time < group.WorkSectorRevisitAfter[i])
 					&& (candidate - group.WorkSectorLocations[i]).sqrMagnitude <= sameSectorSqr)
 					return false;
 			}
-			int chosen = currentSlot >= 0 ? currentSlot : freeSlot;
-			if (chosen < 0)
-			{
-				// Prefer a cooled-down unclaimed slot rather than evicting
-				// another member who is still physically traveling.
-				for (int i = 0; i < group.WorkSectorOwners.Length; ++i)
-					if (group.WorkSectorOwners[i] == null
-						&& Time.time >= group.WorkSectorRevisitAfter[i])
-						{ chosen = i; break; }
-			}
+			// All four cooldown records may be full of DIFFERENT, already
+			// checked areas. Allow scouting a genuinely new sector without
+			// ever stealing a teammate's active work claim.
+			int chosen = currentSlot >= 0 ? currentSlot
+				: freeSlot >= 0 ? freeSlot : recyclableSlot;
 			if (chosen < 0)
 				return false;
 
