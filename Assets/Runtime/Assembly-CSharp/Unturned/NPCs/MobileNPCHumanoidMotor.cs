@@ -232,6 +232,7 @@ namespace SDG.Unturned
 		private float observedEntranceSurveyUntil;
 		private float observedEntranceSurveyEpisodeUntil;
 		private float nextObservedEntranceSurveyStartTime;
+		private bool observedEntranceSurveyWasBrainGoal;
 		private int observedEntranceSurveySide;
 		private float nextRoutePlanTime;
 		private float nextLocalRoutePlanTime;
@@ -1690,6 +1691,8 @@ namespace SDG.Unturned
 			velocity.y = 0f;
 			isPlannedJumping = false;
 			suppressJourneyUntil = Time.time + 0.35f;
+			ResetObservedEntranceSurvey();
+			System.Array.Clear(recentNavDeadEndExpiry, 0, recentNavDeadEndExpiry.Length);
 			// Emergency fall recovery is a safety reposition, not a physical
 			// walking segment. Never turn it into a learned shortcut or stair.
 			trackingActualJourney = false;
@@ -1784,11 +1787,13 @@ namespace SDG.Unturned
 			observedEntranceSurveyUntil = 0f;
 			observedEntranceSurveyEpisodeUntil = 0f;
 			nextObservedEntranceSurveyStartTime = 0f;
+			observedEntranceSurveyWasBrainGoal = false;
 		}
 
 		private bool IsObservingEntranceSurvey(Vector3 goal, Vector3 position)
 		{
 			return observedEntranceSurveySide != 0
+				&& observedEntranceSurveyWasBrainGoal == (brainDriver != null && brainDriver.HasDestination)
 				&& Time.time < observedEntranceSurveyUntil
 				&& Time.time < observedEntranceSurveyEpisodeUntil
 				&& PlanarDistanceSquared(goal, observedEntranceSurveyGoal) <= 2.25f
@@ -1801,6 +1806,7 @@ namespace SDG.Unturned
 			if (Time.time < nextObservedEntranceSurveyStartTime)
 				return;
 			bool sameGoalEpisode = observedEntranceSurveySide != 0
+				&& observedEntranceSurveyWasBrainGoal == (brainDriver != null && brainDriver.HasDestination)
 				&& PlanarDistanceSquared(goal, observedEntranceSurveyGoal) <= 2.25f
 				&& Mathf.Abs(goal.y - observedEntranceSurveyGoal.y) <= 0.8f;
 			if (sameGoalEpisode
@@ -1819,6 +1825,7 @@ namespace SDG.Unturned
 			{
 				observedEntranceSurveyOrigin = transform.position;
 				observedEntranceSurveyGoal = goal;
+				observedEntranceSurveyWasBrainGoal = brainDriver != null && brainDriver.HasDestination;
 				observedEntranceSurveySide = avoidanceSide >= 0 ? 1 : -1;
 				observedEntranceSurveyEpisodeUntil = Time.time + 42f;
 			}
@@ -1847,7 +1854,9 @@ namespace SDG.Unturned
 			for (int i = 0; i < MaxRecentNavDeadEnds; ++i)
 			{
 				if (Time.time > recentNavDeadEndExpiry[i]
-					|| PlanarDistanceSquared(goal, recentNavDeadEndGoals[i]) > 9f)
+					|| PlanarDistanceSquared(goal, recentNavDeadEndGoals[i]) > 9f
+					|| Mathf.Abs(goal.y - recentNavDeadEndGoals[i].y) > 0.8f
+					|| Mathf.Abs(candidate.y - recentNavDeadEndPositions[i].y) > 0.8f)
 					continue;
 				float squareDistance = PlanarDistanceSquared(candidate,
 					recentNavDeadEndPositions[i]);
