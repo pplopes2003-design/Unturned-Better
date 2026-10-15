@@ -485,9 +485,15 @@ namespace SDG.Unturned
 			MobileNPCHumanoidVitals vitals = GetComponent<MobileNPCHumanoidVitals>();
 			MobileNPCInjurySystem injuries = GetComponent<MobileNPCInjurySystem>();
 			MobileNPCSurvivalNeeds survival = GetComponent<MobileNPCSurvivalNeeds>();
+			// The personal need scorer remains authoritative. The group only
+			// filters sites a teammate is already examining, so an NPC with
+			// several independently learned useful sites can pick another one.
+			System.Func<Vector3, bool> availableSector = groupMember != null
+				&& groupMember.GroupId > 0
+				? (System.Func<Vector3, bool>)groupMember.IsActivitySectorAvailableServer : null;
 			if (!supplyKnowledge.TrySuggestNeededSupplySiteServer(inventory,
 				vitals, injuries, survival, transform.position,
-				out Vector3 rememberedPosition, out ushort itemID))
+				out Vector3 rememberedPosition, out ushort itemID, availableSector))
 				return;
 
 			// Validate actual map ground; native pathfinding must still walk to it.
@@ -576,7 +582,7 @@ namespace SDG.Unturned
 		{
 			// Death disables the looting component; tactical reactivation must
 			// not inherit a dead actor's exclusive remembered-site claim.
-			CancelRememberedSupplyTripServer(false);
+			CancelRememberedSupplyTripServer(true);
 		}
 
 		private void CancelRememberedSupplyTripServer(bool finishInvestigation, bool blocked = false)
