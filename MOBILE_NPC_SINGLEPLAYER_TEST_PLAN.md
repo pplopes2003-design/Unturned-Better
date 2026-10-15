@@ -944,3 +944,15 @@ COM-RADIO-PORTABLE-01 follow-up (`f84f390f`): rapid tune 460328 -> other channel
 - [ ] Compor rota *já aprendida* entre porta/escada/segundo piso e interromper com NPC vivo no meio: não invalidar `activeRememberedRouteIndex` nem cadeia `activeAccessRouteIds`; quando desocupa, retomar fisicamente e confirmar chegada ao andar certo, sem teleporte.
 - [ ] Bloquear a mesma porta também com parede ou tranca estática: não classificar como `only temporary actor` quando existe qualquer collider sólido de mundo. Tranca permanece fechada; fallback não atravessa geometria.
 - [ ] Regressão de 1/4/20/40 NPCs, CharacterController collision, trocas entre Investigate/Pursuit/Loot/Patrol, death limpando tarefas e Player.log. Se corridor permanently narrow, falha física honestamente permitida — não prometer caminho impossível. Build exata e erro CS devem ser verificados antes de mudar status.
+
+
+### Seção 61 — NAV-WALL-CONTOUR-02 (2026-10-15 — FONTE, NÃO EXECUTADO)
+
+- [ ] NPC hostil perseguindo jogador atrás de poste fino: desviar pela tangente da **normal física**, não fazer ping-pong esquerdo/direito, não passar através do poste ou perder alvo sem evidência.
+- [ ] Parede longa e quina em L com objetivo do outro lado: manter o lado de contorno durante passagem e não virar contra parede no primeiro 1,6m frontal aparentemente livre; após ganhar rota verdadeira, retomar objetivo. Canto duplo/corredor em U deve continuar respeitando rota A* e dead-end cooldown.
+- [ ] Entradas de casas: porta **nativa destrancada** abrir apenas pelo `MobileNPCDoorNavigation`, não por deslocamento forçado; porta trancada não abrir nem atravessar. Testar duas portas e acesso alternativo, escadas/corredor/andar superior com A* nativo disponível e ausente.
+- [ ] Mudança de objetivo enquanto contorna parede (Loot → defesa/Player visível → recuo): cancelar decisão de contorno antiga, priorizar novo brain goal. Ao travar 1,5s fisicamente, registrar evidência, considerar lado oposto só após falha genuína e não repetir 11+ vezes no mesmo `Goal.Loot`.
+- [ ] NPCs e zumbis bloqueando temporariamente doorway: não confundir com parede permanente nem esquecer rota válida; passar quando liberar fisicamente.
+- [ ] Água, costa, muretas, pulo padrão e ladder: sem regressão na segurança de terreno e na física do `CharacterController`; não teleportar. Mortos com `IsDead` não precisam navegar.
+- [ ] Medir 1, 10, 20, 40 NPCs, FPS/GC/Physics e número de `[MobileNPCHumanoidMotor] Blocked`; baseline real 138 eventos no Player.log anterior ao patch. Comparar por cenário e tempo de jogo equivalente, registrar SHA exato da nova Dev Build.
+- [ ] Backend ASPFP licenciado presente vs ausente e warnings `Pathfinding.NavmeshCut`: reconhecer limites de roteamento multi-salas; não aprovar CORE-04 como total concluído apenas por melhora no wall-follow.
