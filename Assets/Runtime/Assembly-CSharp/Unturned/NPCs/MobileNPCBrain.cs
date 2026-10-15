@@ -202,7 +202,23 @@ namespace SDG.Unturned
 				}
 				else
 				{
-					hasDestination = false;
+					// The three actually reached search points exhausted the
+					// physical investigation. Do not remain in Investigating
+					// with no destination until a timer expires, appearing to
+					// freeze or spin in the same corridor.
+					investigationDeadline = 0f;
+					investigationSearchCount = 0;
+					if (hasSpawnPosition)
+					{
+						destination = spawnPosition;
+						hasDestination = true;
+						state = State.Returning;
+					}
+					else
+					{
+						hasDestination = false;
+						state = State.Idle;
+					}
 				}
 			}
 		}
