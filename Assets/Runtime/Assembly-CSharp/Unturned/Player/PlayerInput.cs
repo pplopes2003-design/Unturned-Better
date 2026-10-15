@@ -1032,12 +1032,16 @@ namespace SDG.Unturned
 					// Custom NPC anatomy lives on ENTITY (23). Vanilla
 					// DAMAGE_SERVER intentionally excludes that layer, which
 					// previously REJECTED every reported MOBILE_NPC hit here.
-					// Preserve native world blockers and add ONLY the actual
-					// NPC collision layer; never approve a client hitmarker alone.
+					// The custom NPC must be the FIRST actual physical hit.
+					// Preserve normal world occlusion AND other living players /
+					// zombies in front of the target. DAMAGE_SERVER intentionally
+					// excludes their native layers, so include them explicitly here.
+					// As before, the server ignores the shooting player's own body.
 					RaycastInfo confirmation = DamageTool.raycast(
 						new Ray(origin, direction),
 						usage == ERaycastInfoUsage.Punch ? 1.95f : distance + 0.75f,
-						RayMasks.DAMAGE_SERVER | RayMasks.ENTITY,
+						RayMasks.DAMAGE_SERVER | RayMasks.ENTITY
+							| RayMasks.PLAYER | RayMasks.ENEMY,
 						ignorePlayer: player);
 					Collider confirmedCollider = confirmation != null ? confirmation.collider : null;
 					MobileNPCHumanoidVitals confirmedVitals = confirmedCollider != null
