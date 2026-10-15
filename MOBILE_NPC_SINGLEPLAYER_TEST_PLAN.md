@@ -890,3 +890,6 @@ COM-RADIO-PORTABLE-01 follow-up (`f84f390f`): rapid tune 460328 -> other channel
 - [ ] Matar NPC no meio da reserva de setor (tiro, melee, sangramento): HP→0, `Death transition`, `[MobileNPCDeathInvariant] PASS`, corpo físico, `Died` libera claim e outra pessoa pode trabalhar; **ainda P0/CORE-02 até jogo confirmar**. Apagar todos os membros dissolve grupo, novo NPC não recebe conhecimento/itens/claim do morto.
 - [ ] Testar 1, 10, 20 e 40 NPCs, rotação de jobs e mapa com/sem POIs; verificar que ledger ocupa somente 4 slots por grupo, não cria raycast por frame e não há `[MobileNPC...]` exceções. Registro com SHA da Dev Build e `Player.log` indispensáveis.
 - [ ] Unity compila sem CS errors e comportamento de combate, loot normal, rádio, guard posts, HUD, zumbis antigos não regrediu. **STATUS QUASE PRONTA — AGUARDANDO BUILD**, não CONCLUÍDA.
+
+
+- [ ] **Regressão da adaptação da memória:** dois NPCs conhecem o mesmo local A, mas o segundo NPC pessoalmente conhece também B (outro item útil, mais de 22m distante). Com A reservado por companheiro, o segundo pode selecionar B pelo escore nativo de necessidade/visitas, sem receber conhecimento novo, criar loot ou ignorar geografia. Se todos os setores estiverem com leases ativas, não iniciar investigação sem vaga. A função opcional de filtro não deve afetar callers antigos de `TrySuggestNeededSupplySiteServer`.
