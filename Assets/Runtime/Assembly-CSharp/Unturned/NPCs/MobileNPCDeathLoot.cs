@@ -51,8 +51,22 @@ namespace SDG.Unturned
             if (!Provider.isServer || deathObserved)
                 return;
             deathObserved = true;
-            AwardLegitimateHostileDefeatXPServer();
-            ReleaseRealInventoryServer();
+            // XP is optional, but dropping legitimately owned items is part
+            // of the death lifecycle. If stats/skills throw while awarding XP,
+            // still transfer or retain the corpse's inventory for retry.
+            try
+            {
+                AwardLegitimateHostileDefeatXPServer();
+            }
+            catch (System.Exception exception)
+            {
+                Debug.LogError("[MobileNPCDeathLoot] XP reward failed for " + name
+                    + " (corpse loot will still be attempted): " + exception, this);
+            }
+            finally
+            {
+                ReleaseRealInventoryServer();
+            }
         }
 
         /// <summary>
