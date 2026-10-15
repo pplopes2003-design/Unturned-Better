@@ -1649,3 +1649,22 @@ AI-ALIFE-01 recorte conectado em FONTE: QUASE PRONTA — AGUARDANDO BUILD. Paren
 
 
 **Hardening após revisão de integração:** commit `40322fe1` move a descoberta de armazenamento/gerador físico pelo `MobileNPCSettlementBuilder` PARA ANTES da saída antecipada quando `placedPieces >= maximumPieces`. Um sucessor eleito após morte do líder consegue reconciliar uma base já completa no seu primeiro ciclo de liderança e então oferecer postos e serviços de rádio existentes; a busca física é apenas uma vez por objeto de builder, não toda atualização. Ainda necessita Dev Build.
+
+
+## 2026-10-14 — AUDITORIA PRIORITÁRIA DA MORTE (antes de prosseguir IA)
+
+Pedido explícito: verificar a morte dos NPCs com o máximo de certeza por revisão do GitHub, preservar **todas** as modificações acumuladas e só depois continuar A-Life integrado. Baseline `8ef7a2ebca1a055fecdc8aaecd468e0d59aea83c`, branch `feature/npc-ai-foundation`. Auditoria técnica nova: **`MOBILE_NPC_DEATH_AUDIT.md`** (ler ANTES da próxima rodada AI-ALIFE-02/03).
+
+**Caminho revisado:** template cria 6 hitboxes `ENTITY`; `RayMasks.DAMAGE_CLIENT` inclui ENTITY; `PlayerInput` serializa `MOBILE_NPC` e valida primeiro impacto físico server-side com layer/entity/oclusão; `UseableGun`, `UseableMelee`, `PlayerEquipment` punch chamam `ApplyValidatedWeaponImpactServer` após arma e alvo autorizados; Vitals aplica lesão + HP único, `DieServer` publica morte única; DeathLoot publica drops verdadeiros, GroupMember solta vagas, Registry remove cérebro, PopulationDirector registra cadáver e respawn com atraso. `UseableMelee` mantém o fallback de NONE com validação server já implementado na rodada anterior.
+
+**Correções DESTA rodada:**
+- `a9722621`: Vitals: após debitar HP e reservar morte, notificação de dano/IA isolada; `finally` obriga executar `DieServer` com HP=0 mesmo quando callback falha. `DieServer` passa a ser por etapas isoladas com log de exceções, isDead=true antes de efeitos, publica CADA inscrito em `Died` mesmo que outro tenha falhado. Sem duplicar dono de HP.
+- `9f2d549a`: `MobileNPCInjurySystem`: notificações de lesão e sangramento independentes de erro de observer, que antes podia abortar dano de HP após evento anatômico.
+- `c6de814f`: Vitals: além do que já parava, desativa visualAnimation, rádio, decisões de granada, operador de gerador e reforços; adiciona log de Development Build `[MobileNPCDeathInvariant] PASS/FAILED` verificando HP, IsDead e desativação do cérebro/motor/melee/ranged. Não é teste real até rodar a build.
+- `163a3ebd`: `MobileNPCDeathLoot`: erro opcional na concessão de XP não impede o início do descarte de loot do cadáver.
+- `68d9c234`: `PlayerInput`: FIRST server ray agora inclui PLAYER/ENEMY como bloqueadores de linha de tiro, além de ENTITY e cenário nativo, para não acertar NPC através de outros corpos.
+- `262f0982`: novo documento `MOBILE_NPC_DEATH_AUDIT.md` com contratos, cadeia, limitações e matriz de validação.
+
+**Verificação executada:** 26 verificações estáticas de interligação sobre 14 arquivos C# relacionados (assinaturas/guards/eventos/damage path/destino; chaves balanceadas). **NÃO houve compilação Unity, execução de jogo, teste de dano físico ou inspeção de novo Player.log**, portanto é PROIBIDO classificar mortalidade real como concluída. Classificação `CORE-02-DEATH-HARDEN-04 QUASE PRONTA — AGUARDANDO BUILD`; parent `CORE-02 EM IMPLEMENTAÇÃO`. Critério para encerrar: `Damage accepted ... health=...->0` + `Death transition` + `[MobileNPCDeathInvariant] PASS` + cadáver/ragdoll verdadeiro + Died/loot/grupo/respawn em uma Dev Build com SHA identificado. Hitmarker isolado não é evidência.
+
+**Próxima rodada solicitada:** voltar para o planejamento A-Life com boa integração, PRIORIDADE `AI-ALIFE-02` inteligência de reconhecimento/scavenge com postos conhecidos e reserva pelo grupo, usando os contratos existentes de `MobileNPCGroupMember`, `MobileNPCAutonomyPlanner`, `MobileNPCHumanoidVitals`, `MobileNPCBrainDriver`, `MobileNPCInventory` e `ItemManager`. Nunca criar morte paralela nem inventar estoque/rota. Não esquecer CORE-02 pendente de runtime mesmo se nova IA avançar.
