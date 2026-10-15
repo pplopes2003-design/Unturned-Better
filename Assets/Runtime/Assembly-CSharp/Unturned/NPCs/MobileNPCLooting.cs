@@ -568,7 +568,11 @@ namespace SDG.Unturned
 				// memory search without granting it the rumor's hidden item.
 				|| radioLootRumor != null && radioLootRumor.IsActivelySearchingServer)
 			{
-				CancelRememberedSupplyTripServer(true);
+				// If a radio handler already owns Investigate, never clear
+				// its tactical goal just because this old plan is cancelled.
+				bool radioOwnsGoal = radioLootRumor != null
+					&& radioLootRumor.IsActivelySearchingServer;
+				CancelRememberedSupplyTripServer(!radioOwnsGoal);
 				return;
 			}
 
