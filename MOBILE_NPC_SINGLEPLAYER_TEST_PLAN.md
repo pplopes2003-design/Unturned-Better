@@ -956,3 +956,9 @@ COM-RADIO-PORTABLE-01 follow-up (`f84f390f`): rapid tune 460328 -> other channel
 - [ ] Água, costa, muretas, pulo padrão e ladder: sem regressão na segurança de terreno e na física do `CharacterController`; não teleportar. Mortos com `IsDead` não precisam navegar.
 - [ ] Medir 1, 10, 20, 40 NPCs, FPS/GC/Physics e número de `[MobileNPCHumanoidMotor] Blocked`; baseline real 138 eventos no Player.log anterior ao patch. Comparar por cenário e tempo de jogo equivalente, registrar SHA exato da nova Dev Build.
 - [ ] Backend ASPFP licenciado presente vs ausente e warnings `Pathfinding.NavmeshCut`: reconhecer limites de roteamento multi-salas; não aprovar CORE-04 como total concluído apenas por melhora no wall-follow.
+
+
+### Seção 61 — CORE-04-NAV-CONTOUR-01 (2026-10-15, NÃO TESTADO)
+- [ ] Poste, quina em L, parede de casa, corredor com vários acessos: NPC não oscila esquerda/direita repetidamente; deve contornar por movimento físico ou, quando inalcançável, encerrar tarefa opcional.
+- [ ] Fronteira parcial 9×9 alcançada não é registrada como chegada final; se houver parede adiante, registrar local bloqueado por 8s e tentar outro lado. Conferir portas e ladrilho em pisos distintos.
+- [ ] Regressões: combate, A-Life, loot real, diálogo, morte, saltos, escadas, porta trancada, custo 1/10/20/40 NPCs. Comparar com 138 logs de bloqueio da build anterior e documentar SHA/Player.log. Nenhuma correção aprovada sem nova Unity Dev Build.
