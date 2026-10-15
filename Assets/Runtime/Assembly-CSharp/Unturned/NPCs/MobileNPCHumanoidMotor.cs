@@ -418,6 +418,7 @@ namespace SDG.Unturned
 				if (hasPreviousRoutineJob && routine != previousRoutineJob
 					&& hasRoamingDestination)
 				{
+					autonomyPlanner.ReleaseExplorationSectorServer(false, false);
 					hasRoamingDestination = false;
 					routeWaypoints.Clear();
 					routeWaypointIndex = 0;
@@ -430,6 +431,10 @@ namespace SDG.Unturned
 
 			if (hasBrainDestination)
 			{
+				// Combat, investigation, confirmed loot, radio and follow orders
+				// preempt online scouting without leaving a false visited sector.
+				if (hasRoamingDestination && autonomyPlanner != null)
+					autonomyPlanner.ReleaseExplorationSectorServer(false, false);
 				// Combat, investigation and tactical goals always take precedence over roaming or returning home.
 				hasRoamingDestination = false;
 			}
@@ -792,6 +797,8 @@ namespace SDG.Unturned
 			{
 				// If terrain-aware steering rejects every direction, abandon this roaming
 				// waypoint and sample a different ground point rather than freezing forever.
+				if (autonomyPlanner != null)
+					autonomyPlanner.ReportRoamBlockedServer(roamingDestination);
 				hasRoamingDestination = false;
 				hasDetourWaypoint = false;
 				routeWaypoints.Clear();
@@ -3579,7 +3586,10 @@ namespace SDG.Unturned
 					<= HomeTerritoryRadius * HomeTerritoryRadius
 				&& PlanarDistanceSquared(structurePoint, routineAnchor)
 					<= effectiveRoamingRadius * effectiveRoamingRadius
-				&& (autonomyPlanner == null || autonomyPlanner.IsCandidateAllowedServer(structurePoint)))
+				&& (autonomyPlanner == null || autonomyPlanner.IsCandidateAllowedServer(structurePoint))
+				// Reserve only AFTER the native ground, actual object and territory
+				// checks pass. Other group members won't rush the same structure.
+				&& (autonomyPlanner == null || autonomyPlanner.TryClaimObservedExplorationSectorServer(structurePoint)))
 			{
 				roamingDestination = structurePoint;
 				Vector3 structureDirection = structurePoint - transform.position;
