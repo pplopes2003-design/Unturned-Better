@@ -238,6 +238,7 @@ namespace SDG.Unturned
 		private Vector3 wallContourGoal;
 		private Vector3 wallContourStart;
 		private float wallContourUntil;
+		private float nextBlockedDiagnosticAt;
 		private int consecutiveStuckRecoveries;
 		// Ground route vs safe jump arbitration. A low wall by itself is NOT
 		// permission to jump: walking around and native doors take priority.
@@ -352,6 +353,7 @@ namespace SDG.Unturned
 			useRecoverySteering = false;
 			hasWallContourCommit = false;
 			wallContourUntil = 0f;
+			nextBlockedDiagnosticAt = 0f;
 			consecutiveStuckRecoveries = 0;
 			System.Array.Clear(recentNavDeadEndExpiry, 0, recentNavDeadEndExpiry.Length);
 			nextNavDeadEndSlot = 0;
@@ -1875,8 +1877,11 @@ namespace SDG.Unturned
 				// Do not randomly flip left/right each time the agent touches a wall.
 				// Keep one side until a genuine route attempt has had time to progress.
 				consecutiveStuckRecoveries++;
-				if (consecutiveStuckRecoveries >= 4
-					&& brainDriver.ReportTacticalDestinationUnreachableServer(brainDriver.Destination))
+				if ((consecutiveStuckRecoveries >= 4
+						&& brainDriver.ReportTacticalDestinationUnreachableServer(brainDriver.Destination))
+					|| (consecutiveStuckRecoveries >= 6
+						&& brainDriver.ReportNonCombatNavigationExhaustedServer(
+							brainDriver.Destination)))
 				{
 					// Avoid hammering an impossible seek-cover/flank point. The
 					// driver records the failed physical route as personal evidence,
@@ -1902,10 +1907,24 @@ namespace SDG.Unturned
 				useRecoverySteering = true;
 				recoverySteeringUntil = Time.time + 1.5f;
 				nextRoutePlanTime = Time.time;
-				Debug.LogWarning("[MobileNPCHumanoidMotor] Blocked at " + transform.position
-					+ "; attempting alternate steering side=" + avoidanceSide
-					+ ", stuckRecoveries=" + consecutiveStuckRecoveries
-					+ ", brainGoal=" + brainDriver.CurrentGoal + ".", this);
+				// One event every ~3 seconds per NPC keeps a 40-agent Player.log
+				// readable while recording WHAT failed (and whether a real
+				// route backend/waypoint was available), not just "blocked".
+				if (Time.time >= nextBlockedDiagnosticAt)
+				{
+					nextBlockedDiagnosticAt = Time.time + 3f;
+					string routeMode = routeWaypointIndex < routeWaypoints.Count
+						? "planned-waypoint" : hasDetourWaypoint ? "physical-detour"
+						: hasWallContourCommit ? "wall-contour" : "direct-no-path";
+					Debug.LogWarning("[MobileNPCHumanoidMotor] Blocked at " + transform.position
+						+ "; goal=" + brainDriver.Destination
+						+ ", waypointMode=" + routeMode
+						+ ", nativeAStarAvailable="
+						+ (nativeAStarRouteProvider != null && nativeAStarRouteProvider.IsAvailable)
+						+ ", steeringSide=" + avoidanceSide
+						+ ", stuckRecoveries=" + consecutiveStuckRecoveries
+						+ ", brainGoal=" + brainDriver.CurrentGoal + ".", this);
+				}
 				blockedMovementDuration = 0.25f;
 			}
 		}
