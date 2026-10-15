@@ -139,6 +139,15 @@ namespace SDG.Unturned
             MobileNPCHumanoidVitals vitals = agent.GetComponent<MobileNPCHumanoidVitals>();
             if (vitals != null && vitals.IsDead)
                 return false;
+            // Only intrinsically hostile NPCs receive extra search
+            // permission. Friendly/neutral NPCs still hear, investigate
+            // and defend using their ORIGINAL sensory/tactical code;
+            // the pacing system never nudges them to stalk a civilian.
+            MobileNPCHumanoidDisposition disposition =
+                agent.GetComponent<MobileNPCHumanoidDisposition>();
+            if (disposition == null
+                || disposition.CurrentRole != MobileNPCHumanoidDisposition.Role.Hostile)
+                return false;
             if (Time.time < respiteUntil)
                 return false;
 
