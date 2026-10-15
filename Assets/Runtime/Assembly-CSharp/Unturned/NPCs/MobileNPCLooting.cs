@@ -561,9 +561,12 @@ namespace SDG.Unturned
 				return;
 			// Combat interrupts supply errands without training a false failure.
 			if (driver == null || driver.Target != null
-				|| driver.CurrentGoal == MobileNPCTactics.Goal.Retreat
-				|| driver.CurrentGoal == MobileNPCTactics.Goal.SeekCover
-				|| driver.CurrentGoal == MobileNPCTactics.Goal.Stalk)
+				|| (driver.CurrentGoal != MobileNPCTactics.Goal.None
+					&& driver.CurrentGoal != MobileNPCTactics.Goal.Investigate
+					&& !(hasTarget && driver.CurrentGoal == MobileNPCTactics.Goal.Loot))
+				// Radio loot reports can supersede this individual's personal
+				// memory search without granting it the rumor's hidden item.
+				|| radioLootRumor != null && radioLootRumor.IsActivelySearchingServer)
 			{
 				CancelRememberedSupplyTripServer(true);
 				return;
