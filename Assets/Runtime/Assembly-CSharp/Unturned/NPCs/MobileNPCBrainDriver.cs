@@ -850,7 +850,8 @@ namespace SDG.Unturned
 			brain.Tick(Time.time, targetIsVisible);
 			// When the ordinary brain loses the remembered target, its second
 			// advisory layer can propose a nearby search, not reveal live position.
-			if (brain.CurrentState != MobileNPCBrain.State.Investigating)
+			if (previousState == MobileNPCBrain.State.Investigating
+				&& brain.CurrentState != MobileNPCBrain.State.Investigating)
 				MobileNPCEncounterDirector.ReleaseOptionalEvidenceSearchServer(this);
 			if (previousState == MobileNPCBrain.State.Pursuing
 				&& brain.CurrentState == MobileNPCBrain.State.Investigating)
