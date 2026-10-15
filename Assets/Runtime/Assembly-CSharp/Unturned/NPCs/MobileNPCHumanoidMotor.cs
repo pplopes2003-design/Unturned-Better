@@ -681,9 +681,19 @@ namespace SDG.Unturned
 						{
 							Vector3 towardFinal = destination - transform.position;
 							towardFinal.y = 0f;
-							if (towardFinal.sqrMagnitude > 0.01f
-								&& IsObstacleBlocking(towardFinal.normalized))
-								RememberLocalNavigationDeadEnd(transform.position, destination, 8f);
+							if (towardFinal.sqrMagnitude > 0.01f)
+							{
+								Vector3 rayOrigin = transform.position + Vector3.up
+									* Mathf.Max(0.45f, characterController.height * 0.55f);
+								float radius = Mathf.Clamp(obstacleProbeRadius, 0.05f,
+									Mathf.Max(0.05f, characterController.radius * 0.9f));
+								float probe = Mathf.Max(0.5f, obstacleProbeDistance);
+								if (IsObstacleBlockingAlong(rayOrigin, radius,
+									towardFinal.normalized, probe)
+									&& !IsOnlyTemporaryActorBlockingAlong(rayOrigin, radius,
+										towardFinal.normalized, probe))
+									RememberLocalNavigationDeadEnd(transform.position, destination, 8f);
+							}
 						}
 						hasPartialLocalFrontier = false;
 						routeWaypoints.Clear();
