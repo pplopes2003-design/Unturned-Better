@@ -1729,3 +1729,16 @@ Baseline `a352d39e1e5427f00220ea5726a90db274ddbaea` em `feature/npc-ai-foundatio
 **Evidência:** inspeção de `MOBILE_NPC_DEV_BUILD_AUDIT_2026-10-14.md` (138 blocked, 38 A* warnings) e código atual. 20/20 contratos estáticos (motor, brain, A-Life, portas, Ladder, A* provider, vitals), braces e `#if/#endif` balanceados. Não compilaram ou executaram esses commits em Unity; não afirmar que eliminou TODOS os travamentos, especialmente multi-salas sem grafo global. P0 `CORE-04` segue EM IMPLEMENTAÇÃO, subescopos nav quase prontos aguardando Dev Build. Preservar P0 `CORE-02` morte, UI-01 e ZMB-01.
 
 **Próximos passos:** se continuar desenvolvimento de nav, priorizar graph global/portais fisicamente comprovados ou adapter A* realmente presente, testes de paredes 3+ quinas, interiores sem saída, portas e escadas. Após este subescopo, seguir a ordem já acertada com usuário: AI-DIRECTOR-02 esconderijos apenas observados, depois combate tático, navegação restante/loot, e grupos/sobrevivência; Dev Build consolidada no fim. Não exigir build agora.
+
+
+## 2026-10-15 — RETOMADA após conversa interrompida: CORE-04 / NAV-ACTOR-CROWD-01
+
+O usuário informou travamento da conversa e pediu continuar exatamente de onde parou. Branch `feature/npc-ai-foundation` confirmada; os commits de navegação que pareciam ter parado **já estavam gravados**: `a0a9e652`, `85bb6d6d`, `f0c46b6a`, `55396170`, `79c10779`, `7898ca95`, `6774289f`, além de docs do commit `c5fe8f20`. Não reaplicar ou duplicar esses patches.
+
+Nesta retomada, adicionalmente:
+1. **`f86a31fa`**: o motor detecta se a aproximação imediata à sua meta ou waypoint está obstruída SOMENTE por outro ator móvel (Player/Zombie/NPC), usando sua sondagem `IsOnlyTemporaryActorBlockingAlong` já existente. O stuck não insere observação de parede nem invalida lembranças de rotas que funcionaram; por até ~5s aguarda espaço físico, então admite retentativa limitada pelo pathfinder.
+2. **`e5060637`**: release correto de área reservada no A-Life quando uma patrulha é abandonada por congestionamento, SEM reporte de bloqueio estrutural/visita; se for jornada pessoal com entradas/escadas lembradas, preservar `activeRememberedRouteIndex` e `activeAccessRouteIds` em vez de destruir uma rota legítima por outro sobrevivente na porta; limpar frontier de rota descartável.
+
+Não houve mudanças no HP/morte, GOAP, radio, doors, native A*/ASPFP, jump/vault, NPC registry ou target selection. Todos continuam como antes. 22/22 checagens estáticas em 9 fontes relacionadas, brackets e #if/#endif balanceados; **nenhuma compilação Unity nem nova Dev Build**. NAV-ACTOR-CROWD-01 **QUASE PRONTA — AGUARDANDO BUILD**, CORE-04 pai **EM IMPLEMENTAÇÃO**. Critério real: Player.log de nova build, cenário de corredor com Player/NPC/Zombie no caminho, após desocupar continua, sem false learnt wall, sem atravessar porta trancada, sem quebra de combo Access A*; compare a 138 logs de Blocked somente em cenários equivalentes. Ver design recuperação e plano seção 61.
+
+**Prioridade do usuário ainda é NAV até esta fase estar minimamente integrada; só DEPOIS voltar à ordem combinada AI-DIRECTOR-02 (esconderijos observados), melhorias de combate, navegação/loot residual e sistemas sociais.** CORE-02 morte continua bloqueador P0 de aprovação apesar de fonte hardened; não afirmar funcional no jogo até build.
