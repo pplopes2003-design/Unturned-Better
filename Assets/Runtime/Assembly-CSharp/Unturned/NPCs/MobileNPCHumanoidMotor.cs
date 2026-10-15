@@ -535,6 +535,7 @@ namespace SDG.Unturned
 				routeWaypointIndex = 0;
 				hasDetourWaypoint = false;
 				useRecoverySteering = false;
+				hasWallContourCommit = false;
 			}
 			if (hasDestination && !IsTraversingLadder)
 			{
@@ -1785,6 +1786,7 @@ namespace SDG.Unturned
 					lastMeaningfulRouteProgressPosition = samplePosition;
 					blockedMovementDuration = 0f;
 					useRecoverySteering = false;
+					hasWallContourCommit = false;
 					return;
 				}
 				lastTrackedStuckGoal = currentGoal;
@@ -1929,6 +1931,14 @@ namespace SDG.Unturned
 				// Actual lack of movement is evidence that this local approach
 				// failed, not that the global tactical goal has been completed.
 				RememberLocalNavigationDeadEnd(samplePosition, brainDriver.Destination);
+				// An unsuccessful wall contour must not keep its old side and
+				// goal after a genuinely measured route stall.
+				if (hasWallContourCommit
+					&& PlanarDistanceSquared(samplePosition, wallContourStart) < 1.44f)
+				{
+					avoidanceSide = -avoidanceSide;
+					hasWallContourCommit = false;
+				}
 				// A failed detour must not keep pulling the NPC toward the same unusable point.
 				// Clear it so the next bounded attempt can choose a different side.
 				ReportLearnedRouteInvalidatedServer();
