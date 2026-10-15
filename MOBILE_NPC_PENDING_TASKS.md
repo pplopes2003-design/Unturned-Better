@@ -619,3 +619,10 @@ Revisão estática passou (chaves equilibradas nos 3 arquivos e referências de 
 
 
 **AI-ALIFE-02-GUARD-01 integração com liderança:** commit `40322fe1` corrige perda da descoberta do armazenamento nativo quando líder morre e sucessor assume uma base completa. Reconciliation independente de `placedPieces < maximumPieces`; cache por builder permanece. Sem teste em Unity.
+
+
+## 2026-10-14 — CORE-02, HARDENING letal ponta a ponta (prioridade máxima da rodada)
+
+- **`CORE-02-DEATH-HARDEN-04` — QUASE PRONTA — AGUARDANDO BUILD.** Commits `a9722621`, `9f2d549a`, `c6de814f`, `163a3ebd`, `68d9c234`. Garante em fonte que exceções em reação de cérebro/HUD, eventos de lesão/sangramento, apresentação de cadáver e eventos Died não deixem o NPC travado em 0 HP mas `IsDead=false`, nem bloqueiem o grupo/loot. Ao morrer: parar motor, combate, A-Life, animações, rádio, granadas, reforço, construtor e gerador, collider de hit vivo; emitir cadáver físico e eventos independentes, limpar grupo/postas e programar reposição sem ressuscitar identidade. Validação física de `MOBILE_NPC` no PlayerInput inclui mundo, Entity, Player e Enemy como primeiros bloqueadores, servidor único. Documentação especializada `MOBILE_NPC_DEATH_AUDIT.md` detalha 26 checagens estáticas sobre 14 arquivos e matriz de testes.
+- **CORE-02 (pai) EM IMPLEMENTAÇÃO — AINDA NÃO COMPROVADO EM RUNTIME.** Precisa Dev Build SHA + hit de tiro/melee/punch causando `Damage accepted` e HP=0, `Death transition`, `[MobileNPCDeathInvariant] PASS`, corpo real, drop legítimo, 1 evento por morte, grupo libera posto, `Death queued`, respawn posterior. Se não aparecer `Damage accepted`, inspecionar `[MobileNPCDamageValidation] Rejected` + logs do PlayerInput/Weapon, não mudar aleatoriamente função de vida. **NÃO DIZER QUE FOI CORRIGIDO DEFINITIVAMENTE** antes dos testes reais.
+- **AI-ALIFE-02 segue EM IMPLEMENTAÇÃO e é a PRÓXIMA RODADA, por pedido do usuário**. Sua integração deve manter vitals único, Died limpo, prioridades do BrainDriver e locomoção do Motor; não sobrescrever mods anteriores.
