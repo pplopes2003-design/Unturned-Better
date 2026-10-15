@@ -507,17 +507,23 @@ namespace SDG.Unturned
 				|| !group.Members.Contains(this))
 				return false;
 			PruneDeadMembers(group);
+			bool hasVacancy = false;
 			for (int i = 0; i < group.WorkSectorOwners.Length; ++i)
 			{
 				MobileNPCGroupMember owner = group.WorkSectorOwners[i];
 				if (owner == this)
+				{
+					hasVacancy = true;
 					continue;
+				}
+				if (owner == null)
+					hasVacancy = true;
 				if ((owner != null || Time.time < group.WorkSectorRevisitAfter[i])
 					&& (candidate - group.WorkSectorLocations[i]).sqrMagnitude
 						<= 22f * 22f)
 					return false;
 			}
-			return true;
+			return hasVacancy;
 		}
 
 		/// <summary>
