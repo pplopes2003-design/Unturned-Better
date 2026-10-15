@@ -30,6 +30,22 @@ namespace SDG.Unturned
 		private MobileNPCGroupMember groupMember;
 		private MobileNPCAutonomyPlanner autonomyPlanner;
 		private bool hasRememberedSectorClaim;
+		// AI-ALIFE-03: small precondition/effect plan. The EXISTING services
+		// continue to own physical travel, world pickup, inventory, medicine,
+		// food/water consumption and native magazine reload. This only observes
+		// authenticated outcomes instead of granting goal success on arrival.
+		private enum SupplyPlanStage { None, Travel, Inspect, AwaitUse }
+		private SupplyPlanStage supplyPlanStage;
+		private ushort supplyPlanItemID;
+		private EItemType supplyPlanItemType;
+		private float supplyPlanUseExpiresAt;
+		private float supplyPlanHungerAtPickup;
+		private float supplyPlanThirstAtPickup;
+		private float supplyPlanHealthAtPickup;
+		private MobileNPCInjurySystem.BleedingSeverity supplyPlanBleedingAtPickup;
+		private uint supplyPlanGunInstanceID;
+		private int supplyPlanRoundsAtPickup;
+		private float nextSupplyPlanTickAt;
 		private MobileNPCUsefulLootRumor radioLootRumor;
 		private MobileNPCRadioOutbox radioOutbox;
 		private ushort targetItemID;
@@ -74,6 +90,7 @@ namespace SDG.Unturned
 				radioLootRumor = GetComponent<MobileNPCUsefulLootRumor>();
 			if (radioOutbox == null)
 				radioOutbox = GetComponent<MobileNPCRadioOutbox>();
+			TickSupplyPlanServer();
 			UpdateRememberedSupplyTripServer();
 			bool radioLootSearch = radioLootRumor != null
 				&& radioLootRumor.IsActivelySearchingServer;
@@ -141,7 +158,12 @@ namespace SDG.Unturned
 					if (pickedUp && supplyKnowledge != null && targetItemID != 0)
 						supplyKnowledge.RecordSuccessfulPickupServer(targetItemID, targetItemRounds, targetPosition);
 					if (pickedUp && isRememberedSupplyTrip && targetItemID == rememberedItemID)
+					{
+						// Only an ItemManager-confirmed instance transfer completes
+						// Acquire; reading a rumor or arriving at a marker never does.
+						CompleteSupplyAcquisitionServer(targetItemID);
 						CancelRememberedSupplyTripServer(false);
+					}
 					if (adaptiveMemory != null)
 						adaptiveMemory.RecordOwnOutcomeServer(MobileNPCAdaptiveMemory.ExperienceKind.LootAccess, targetPosition, pickedUp);
 					ClearTarget();
@@ -520,6 +542,7 @@ namespace SDG.Unturned
 
 			hasRememberedSectorClaim = claimed;
 			isRememberedSupplyTrip = true;
+			BeginSupplyPlanServer(itemID);
 			rememberedItemID = itemID;
 			rememberedSitePosition = rememberedPosition;
 			rememberedGroundDestination = reachableGround;
@@ -560,6 +583,11 @@ namespace SDG.Unturned
 			if (rememberedArrivalAt < 0f && physicallyChecked)
 			{
 				rememberedArrivalAt = Time.time;
+				if (supplyPlanStage == SupplyPlanStage.Travel)
+				{
+					supplyPlanStage = SupplyPlanStage.Inspect;
+					LogSupplyPlanTransition("Inspect", "arrived at verified floor with clear sightline");
+				}
 				// Unlock normal loot acquisition on arrival. Keeping the
 				// Investigate goal would reject TryStartLoot for nearby drops.
 				if (driver.CurrentGoal == MobileNPCTactics.Goal.Investigate)
@@ -571,11 +599,133 @@ namespace SDG.Unturned
 			bool couldNotReach = Time.time >= rememberedTripExpiresAt && !hasTarget;
 			if ((visitedAndChecked && !hasTarget) || couldNotReach)
 			{
-				if (supplyKnowledge != null)
+				// An unreachable floor or obstructed corridor is a ROUTE
+				// failure, not proof that a previously observed item vanished.
+				// Only a physically checked site can lose supply confidence.
+				if (visitedAndChecked && supplyKnowledge != null)
 					supplyKnowledge.RecordUnsuccessfulVisitServer(
 						rememberedItemID, rememberedSitePosition);
 				CancelRememberedSupplyTripServer(true, couldNotReach && rememberedArrivalAt < 0f);
 			}
+		}
+
+		private void LogSupplyPlanTransition(string stage, string evidence)
+		{
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			Debug.Log("[MobileNPCSupplyPlan] npc=" + name + " stage=" + stage
+				+ " item=" + supplyPlanItemID + " evidence=" + evidence, this);
+#endif
+		}
+
+		private void BeginSupplyPlanServer(ushort itemID)
+		{
+			// The site and need have already been validated by the existing
+			// SupplyKnowledge scorer. No new item lookup or task brain here.
+			ItemAsset asset = Assets.find(EAssetType.ITEM, itemID) as ItemAsset;
+			supplyPlanItemID = itemID;
+			supplyPlanItemType = asset != null ? asset.type : EItemType.FOOD;
+			supplyPlanStage = SupplyPlanStage.Travel;
+			nextSupplyPlanTickAt = Time.time + 0.5f;
+			LogSupplyPlanTransition("Travel", "personal need plus personally known site");
+		}
+
+		private void CompleteSupplyAcquisitionServer(ushort itemID)
+		{
+			if (supplyPlanStage != SupplyPlanStage.Travel
+				&& supplyPlanStage != SupplyPlanStage.Inspect)
+				return;
+			if (itemID != supplyPlanItemID || inventory == null
+				|| !inventory.ContainsItemID(itemID))
+				return;
+
+			MobileNPCSurvivalNeeds survival = GetComponent<MobileNPCSurvivalNeeds>();
+			MobileNPCHumanoidVitals vitals = GetComponent<MobileNPCHumanoidVitals>();
+			MobileNPCInjurySystem injuries = GetComponent<MobileNPCInjurySystem>();
+			supplyPlanHungerAtPickup = survival != null ? survival.Hunger : 0f;
+			supplyPlanThirstAtPickup = survival != null ? survival.Thirst : 0f;
+			supplyPlanHealthAtPickup = vitals != null ? vitals.CurrentHealth : 0f;
+			supplyPlanBleedingAtPickup = injuries != null
+				? injuries.CurrentBleeding : MobileNPCInjurySystem.BleedingSeverity.None;
+			supplyPlanGunInstanceID = 0;
+			supplyPlanRoundsAtPickup = 0;
+			if (inventory.TryGetBestGun(out uint gunInstance, out Item gun,
+				out ItemGunAsset gunAsset) && gun != null && gun.state != null
+				&& gun.state.Length >= 11)
+			{
+				supplyPlanGunInstanceID = gunInstance;
+				supplyPlanRoundsAtPickup = gun.state[10];
+			}
+			LogSupplyPlanTransition("Acquire", "exact server world item moved to own inventory");
+
+			if (supplyPlanItemType != EItemType.FOOD
+				&& supplyPlanItemType != EItemType.WATER
+				&& supplyPlanItemType != EItemType.MEDICAL
+				&& supplyPlanItemType != EItemType.MAGAZINE)
+			{
+				FinishSupplyPlanServer("completed: genuine item now owned");
+				return;
+			}
+
+			supplyPlanStage = SupplyPlanStage.AwaitUse;
+			supplyPlanUseExpiresAt = Time.time + 50f;
+			nextSupplyPlanTickAt = Time.time + 0.5f;
+			LogSupplyPlanTransition("AwaitUse", "native need or weapon service owns use");
+		}
+
+		private void TickSupplyPlanServer()
+		{
+			if (supplyPlanStage == SupplyPlanStage.None
+				|| Time.time < nextSupplyPlanTickAt)
+				return;
+			nextSupplyPlanTickAt = Time.time + 0.8f;
+			MobileNPCHumanoidVitals vitals = GetComponent<MobileNPCHumanoidVitals>();
+			if (vitals == null || vitals.IsDead)
+			{
+				FinishSupplyPlanServer("interrupted by death");
+				return;
+			}
+			if (supplyPlanStage != SupplyPlanStage.AwaitUse)
+				return;
+
+			MobileNPCSurvivalNeeds survival = GetComponent<MobileNPCSurvivalNeeds>();
+			MobileNPCInjurySystem injuries = GetComponent<MobileNPCInjurySystem>();
+			bool used = false;
+			switch (supplyPlanItemType)
+			{
+				case EItemType.FOOD:
+					used = survival != null
+						&& survival.Hunger > supplyPlanHungerAtPickup + 0.5f;
+					break;
+				case EItemType.WATER:
+					used = survival != null
+						&& survival.Thirst > supplyPlanThirstAtPickup + 0.5f;
+					break;
+				case EItemType.MEDICAL:
+					used = vitals.CurrentHealth > supplyPlanHealthAtPickup + 0.5f
+						|| injuries != null && injuries.CurrentBleeding
+							< supplyPlanBleedingAtPickup;
+					break;
+				case EItemType.MAGAZINE:
+					if (supplyPlanGunInstanceID != 0
+						&& inventory.TryGetGunSnapshotServer(supplyPlanGunInstanceID,
+							out Item gun) && gun != null && gun.state != null
+							&& gun.state.Length >= 11)
+						used = gun.state[10] > supplyPlanRoundsAtPickup;
+					break;
+			}
+			if (used)
+				FinishSupplyPlanServer("completed: native inventory or needs postcondition observed");
+			else if (Time.time >= supplyPlanUseExpiresAt)
+				FinishSupplyPlanServer("item acquired; native use not observed before deadline");
+		}
+
+		private void FinishSupplyPlanServer(string reason)
+		{
+			if (supplyPlanStage == SupplyPlanStage.None)
+				return;
+			LogSupplyPlanTransition("Finish", reason);
+			supplyPlanStage = SupplyPlanStage.None;
+			supplyPlanItemID = 0;
 		}
 
 		private void OnDisable()
@@ -583,6 +733,7 @@ namespace SDG.Unturned
 			// Death disables the looting component; tactical reactivation must
 			// not inherit a dead actor's exclusive remembered-site claim.
 			CancelRememberedSupplyTripServer(true);
+			FinishSupplyPlanServer("component disabled");
 		}
 
 		private void CancelRememberedSupplyTripServer(bool finishInvestigation, bool blocked = false)
@@ -590,6 +741,9 @@ namespace SDG.Unturned
 			if (!isRememberedSupplyTrip)
 				return;
 			isRememberedSupplyTrip = false;
+			if (supplyPlanStage != SupplyPlanStage.AwaitUse)
+				FinishSupplyPlanServer(blocked ? "route blocked" :
+					rememberedArrivalAt >= 0f ? "site inspected without real pickup" : "interrupted");
 			if (hasRememberedSectorClaim && groupMember != null)
 				groupMember.ReleaseActivitySectorServer(rememberedArrivalAt >= 0f, blocked);
 			hasRememberedSectorClaim = false;
