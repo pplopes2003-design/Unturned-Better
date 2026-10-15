@@ -1710,3 +1710,22 @@ User requested immediately implementing the **Director** inspired by Alien: Isol
 **Other AI fixes:** `MobileNPCBrain.ReportDestinationReached` after three actual search sample arrivals leaves Investigating and starts physically Returning (or Idle if no home), avoiding agent-with-no-destination frozen/spinning. `MobileNPCBrainDriver.ReportGroupPlayerContactClue` no longer starts sound/hearsay ducking when firsthand visible player already established; sight/hostility still owned by Perception/Disposition.
 
 **Validation:** 26/26 static source integration contracts over nine C# source files pass; brace + #if balance pass. No Unity compile, Player.log, or runtime test. Mark scoped `AI-DIRECTOR-01`, `AI-SEARCH-END-01`, `AI-SOUND-VISION-03` **QUASE PRONTAS — AGUARDANDO DEV BUILD**, parent AI-01 EM IMPLEMENTAÇÃO, `CORE-02` mortalidade P0 also pending in-game. Next AI improvement: conditional player-hiding *pattern learning only from truly re-observed hide events* and low-cost far-offline A-Life, NOT a hidden-player tracker; finish AI item/use GOAP and validate real runtime before claiming gameplay. Tests in section 60. All old P0 navigation/UI/zombie/radio pending unchanged.
+
+
+## 2026-10-15 — RODADA CORE-04/NAV: usuário priorizou paredes, postes, quinas e interiores
+
+Baseline `a352d39e1e5427f00220ea5726a90db274ddbaea` em `feature/npc-ai-foundation`. Usuário: "Navegação - Eliminar travamentos em paredes, postes, quinas e ambientes internos. Vamos seguir com essa primeiro, depois seguimos a sua ordem." Não voltar à IA antes de avançar o P0 de navegação. Consultar `MOBILE_NPC_NAVIGATION_RECOVERY_DESIGN.md` (seção 2026-10-15), backlog e testes seção 61.
+
+**Compromisso de integração:** não criar outro `Motor`, não trocar `BrainDriver`, não simular rota entre salas, não ignorar `CharacterController.Move` ou `MobileNPCDoorNavigation`, `MobileNPCLadderTraversal`, escadas, vault do Unturned, `MobileNPCTravelMemory`, native A* opcional, ou a escolha de atividade `MobileNPCAutonomyPlanner`. NPC morto permanece incapaz de locomover. O backend A* nativo/ASPFP licenciado NÃO foi provado (38 warnings NavmeshCut no primeiro log).
+
+**Commits nesta rodada:**
+- `a0a9e652`: `MobileNPCHumanoidMotor.TryFollowObservedSolidObstacle` passa a observar normal do obstáculo estático e seguir sua tangente real com pequena separação física, preservar lado por 4s, usar sondagem real de solo e colisão, sem warp ou sugerir caminhos invisíveis.
+- `85bb6d6d` + `7898ca95`: reconhecer saída de routeWaypoints gerada por A* LOCAL como frontier parcial, não como conclusão de Goal. Se próxima trajetória direta ainda bloqueada por objeto fixo real ao alcançar frontier, registrar cache leve 8s em `recentNavDeadEnds`, penalizar no scorer do A* e escolher outro local realmente alcançável; personagem temporário não marca obstáculo estrutural.
+- `f0c46b6a`: o Motor permite até 2 tentativas físicas de nav/contorno em patrulhas A-Life antes de cancelar o waypoint e reportar falha ao planner, em vez de cancelar no primeiro stuck e girar.
+- `55396170`: `MobileNPCBrainDriver.ReportNonCombatNavigationExhaustedServer` para abortar apenas `Investigating` ou `Returning` sem goal tático e sem target após 6 blocked reais, sem falsa chegada/teleporte/abort de combate.
+- `79c10779`: chamar cancelamento acima após bloqueios efetivos e melhorar diagnóstico no log (3s/NPC, goal, waypointMode, native A* availability e recovery count).
+- `6774289f`: recuperação antiga com 90 graus não sobrescreve contorno físico quando há parede real sendo acompanhada.
+
+**Evidência:** inspeção de `MOBILE_NPC_DEV_BUILD_AUDIT_2026-10-14.md` (138 blocked, 38 A* warnings) e código atual. 20/20 contratos estáticos (motor, brain, A-Life, portas, Ladder, A* provider, vitals), braces e `#if/#endif` balanceados. Não compilaram ou executaram esses commits em Unity; não afirmar que eliminou TODOS os travamentos, especialmente multi-salas sem grafo global. P0 `CORE-04` segue EM IMPLEMENTAÇÃO, subescopos nav quase prontos aguardando Dev Build. Preservar P0 `CORE-02` morte, UI-01 e ZMB-01.
+
+**Próximos passos:** se continuar desenvolvimento de nav, priorizar graph global/portais fisicamente comprovados ou adapter A* realmente presente, testes de paredes 3+ quinas, interiores sem saída, portas e escadas. Após este subescopo, seguir a ordem já acertada com usuário: AI-DIRECTOR-02 esconderijos apenas observados, depois combate tático, navegação restante/loot, e grupos/sobrevivência; Dev Build consolidada no fim. Não exigir build agora.
