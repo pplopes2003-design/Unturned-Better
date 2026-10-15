@@ -1826,13 +1826,37 @@ namespace SDG.Unturned
 			// tactical movement gets a temporary alternate steering angle instead.
 			if (hasRoamingDestination && !brainDriver.HasDestination)
 			{
+				++consecutiveStuckRecoveries;
+				// A patrol has the SAME physical right to try a corner route
+				// as a tactical goal. The old branch immediately discarded
+				// the destination on the first 1.5s stall, so an NPC at a
+				// house wall could never learn which side led around it.
+				// Only two bounded retries; after that choose another real
+				// A-Life location instead of retrying the same inaccessible POI.
+				if (consecutiveStuckRecoveries <= 2)
+				{
+					RememberLocalNavigationDeadEnd(samplePosition, roamingDestination, 9f);
+					routeWaypoints.Clear();
+					routeWaypointIndex = 0;
+					hasDetourWaypoint = false;
+					hasPartialLocalFrontier = false;
+					nextDetourAttemptTime = Time.time;
+					nextLocalRoutePlanTime = Time.time;
+					nextRoutePlanTime = Time.time;
+					blockedMovementDuration = 0f;
+					// Keep physical side commitment when it exists.
+					return;
+				}
 				if (autonomyPlanner != null)
 					autonomyPlanner.ReportRoamBlockedServer(roamingDestination);
 				hasRoamingDestination = false;
 				hasDetourWaypoint = false;
+				hasPartialLocalFrontier = false;
+				consecutiveStuckRecoveries = 0;
 				nextRoamingDecisionTime = Time.time + Random.Range(2f, 4f);
 				blockedMovementDuration = 0f;
 				useRecoverySteering = false;
+				hasWallContourCommit = false;
 				return;
 			}
 
