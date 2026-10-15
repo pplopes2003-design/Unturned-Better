@@ -225,6 +225,13 @@ namespace SDG.Unturned
 		private bool hasLastRoamingDirection;
 		private int avoidanceSide = 1;
 		private float avoidanceSideUntil;
+		// Short-lived wall-follow commitment grounded in an actual static
+		// obstacle contact normal. Local A*, native A*, doors and learned
+		// access routes retain precedence over this last-mile fallback.
+		private bool hasWallContourCommit;
+		private Vector3 wallContourGoal;
+		private Vector3 wallContourStart;
+		private float wallContourUntil;
 		private int consecutiveStuckRecoveries;
 		// Ground route vs safe jump arbitration. A low wall by itself is NOT
 		// permission to jump: walking around and native doors take priority.
@@ -336,6 +343,8 @@ namespace SDG.Unturned
 			nextStuckCheckTime = Time.time + 0.75f;
 			blockedMovementDuration = 0f;
 			useRecoverySteering = false;
+			hasWallContourCommit = false;
+			wallContourUntil = 0f;
 			consecutiveStuckRecoveries = 0;
 			System.Array.Clear(recentNavDeadEndExpiry, 0, recentNavDeadEndExpiry.Length);
 			nextNavDeadEndSlot = 0;
@@ -2001,10 +2010,35 @@ namespace SDG.Unturned
 			Vector3 origin = transform.position + Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f);
 			float probeDistance = Mathf.Max(0.5f, obstacleProbeDistance);
 			float probeRadius = Mathf.Clamp(obstacleProbeRadius, 0.05f, Mathf.Max(0.05f, characterController.radius * 0.9f));
-			if (!IsObstacleBlockingAlong(origin, probeRadius, desiredDirection, probeDistance))
+			bool directlyBlocked = IsObstacleBlockingAlong(origin, probeRadius,
+				desiredDirection, probeDistance);
+			Vector3 currentRequestedGoal = brainDriver != null && brainDriver.HasDestination
+				? brainDriver.Destination : roamingDestination;
+			bool sameContourGoal = hasWallContourCommit
+				&& PlanarDistanceSquared(currentRequestedGoal, wallContourGoal) <= 2.25f
+				&& Mathf.Abs(currentRequestedGoal.y - wallContourGoal.y) <= 0.8f;
+			if (!sameContourGoal)
+				hasWallContourCommit = false;
+
+			// At a corner the first 1.6m may become clear before the WHOLE
+			// CharacterController has passed the wall. Keep the observed
+			// tangent briefly until a longer real ray also clears; otherwise
+			// direct-to-goal steering makes the agent bounce left/right.
+			bool wallStillAhead = sameContourGoal
+				&& Time.time < wallContourUntil
+				&& IsObstacleBlockingAlong(origin, probeRadius, desiredDirection,
+					Mathf.Max(probeDistance + 1.2f, probeDistance * 1.7f));
+			if (!directlyBlocked && !wallStillAhead)
 			{
+				hasWallContourCommit = false;
 				return desiredDirection;
 			}
+
+			if (routeWaypointIndex >= routeWaypoints.Count && !hasDetourWaypoint
+				&& TryFollowObservedSolidObstacle(desiredDirection, origin,
+					probeRadius, wallStillAhead ? probeDistance * 1.7f : probeDistance,
+					currentRequestedGoal, out Vector3 contourDirection))
+				return contourDirection;
 
 			// Probe both sides and prefer the clear direction that remains most aligned with the goal.
 			// This is deliberately short-range steering: it cannot route around large buildings.
@@ -2059,6 +2093,84 @@ namespace SDG.Unturned
 			return bestDirection;
 		}
 
+
+		/// <summary>
+		/// Follow the tangent of a physically hit wall/post rather than the
+		/// sign of a random heading. This is deliberately bounded and does
+		/// NOT claim a global path, breach walls, or overwrite a true A*
+		/// route. Collision + safe-next-ground are checked before each move.
+		/// </summary>
+		private bool TryFollowObservedSolidObstacle(Vector3 desiredDirection,
+			Vector3 origin, float radius, float probeDistance, Vector3 actualGoal,
+			out Vector3 selected)
+		{
+			selected = Vector3.zero;
+			int hits = Physics.SphereCastNonAlloc(origin, radius, desiredDirection,
+				ObstacleHitBuffer, probeDistance, obstacleMask, QueryTriggerInteraction.Ignore);
+			RaycastHit closest = default(RaycastHit);
+			float nearest = float.PositiveInfinity;
+			// Saturation must fail closed; a collider omitted by a full
+			// nonalloc buffer must not be ignored as a clear passage.
+			if (hits >= ObstacleHitBuffer.Length)
+				return false;
+			for (int i = 0; i < hits; ++i)
+			{
+				RaycastHit hit = ObstacleHitBuffer[i];
+				Collider collider = hit.collider;
+				if (collider == null || IsOwnCollider(collider)
+					|| collider.GetComponentInParent<MobileNPCHumanoidVitals>() != null
+					|| collider.GetComponentInParent<Player>() != null
+					|| collider.GetComponentInParent<Zombie>() != null)
+					continue;
+				if (hit.distance < nearest)
+				{
+					nearest = hit.distance;
+					closest = hit;
+				}
+			}
+			if (closest.collider == null)
+				return false;
+			Vector3 normal = closest.normal;
+			normal.y = 0f;
+			if (normal.sqrMagnitude < 0.12f)
+				return false;
+			normal.Normalize();
+
+			if (!hasWallContourCommit || Time.time >= wallContourUntil)
+			{
+				// Flip only after an unsuccessful entire physical commitment,
+				// not every time the NPC touches another piece of the same wall.
+				if (hasWallContourCommit && Time.time >= wallContourUntil
+					&& PlanarDistanceSquared(transform.position, wallContourStart) < 1.44f)
+					avoidanceSide = -avoidanceSide;
+				hasWallContourCommit = true;
+				wallContourGoal = actualGoal;
+				wallContourStart = transform.position;
+				wallContourUntil = Time.time + 4f;
+				avoidanceSideUntil = wallContourUntil;
+			}
+			Vector3 tangent = new Vector3(-normal.z, 0f, normal.x);
+			for (int attempt = 0; attempt < 2; ++attempt)
+			{
+				int side = attempt == 0 ? avoidanceSide : -avoidanceSide;
+				Vector3 direction = (tangent * side + normal * 0.27f).normalized;
+				if (IsObstacleBlockingAlong(origin, radius, direction,
+					Mathf.Clamp(probeDistance * 0.8f, 0.65f, 1.5f))
+					|| !HasWalkableGroundAhead(direction))
+					continue;
+				// Do not keep flipping to the other wall face while the
+				// chosen contour is still making actual physical progress.
+				if (attempt != 0)
+				{
+					avoidanceSide = side;
+					wallContourStart = transform.position;
+					wallContourUntil = Time.time + 3.5f;
+				}
+				selected = direction;
+				return true;
+			}
+			return false;
+		}
 
 		/// <summary>
 		/// Creates one short-lived waypoint around a nearby obstruction. The original
