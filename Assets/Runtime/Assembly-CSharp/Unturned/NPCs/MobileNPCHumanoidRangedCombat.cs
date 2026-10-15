@@ -150,7 +150,10 @@ namespace SDG.Unturned
 				&& selectedGunInstanceID != 0
 				&& roundsRemaining <= Mathf.Max(1, selectedGunAsset.ammoPerShot * 2)
 				&& inventory.TryFindCompatibleMagazine(selectedGunAsset,
-					out int idleMagazineSlot, out ItemMagazineAsset idleMagazineAsset))
+					out int idleMagazineSlot, out ItemMagazineAsset idleMagazineAsset)
+			// Do not discard a partly full magazine for an even emptier one.
+			&& inventory.TryGetItemSnapshot(idleMagazineSlot, out Item spareMagazine)
+			&& spareMagazine != null && spareMagazine.amount > roundsRemaining)
 			{
 				MobileNPCHumanoidMotor idleMotor = GetComponent<MobileNPCHumanoidMotor>();
 				if (idleMotor == null || (!idleMotor.IsClimbingLadder
