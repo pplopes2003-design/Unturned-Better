@@ -2384,8 +2384,19 @@ namespace SDG.Unturned
 			{
 				detourGoalSnapshot = destination;
 				hasDetourWaypoint = false;
+				hasPartialLocalFrontier = false;
 				return;
 			}
+
+			// The same native Seeker is asynchronous. Do not immediately
+			// replace a pending global multi-room path with a short local
+			// frontier; that could occupy routeWaypoints before the Seeker's
+			// completed answer gets a chance to be consumed. If native A*
+			// fails or times out, its existing retry cooldown permits the
+			// normal local fallback below.
+			if (nativeAStarRouteProvider != null
+				&& nativeAStarRouteProvider.IsRequestPending)
+				return;
 
 			// First attempt the normal 81-node, same-floor local A*.
 			// A narrow real doorway can lie BETWEEN the 1.25m sample points:
