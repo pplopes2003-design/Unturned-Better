@@ -864,3 +864,17 @@ COM-RADIO-PORTABLE-01 follow-up (`f84f390f`): rapid tune 460328 -> other channel
 
 
 - [ ] Teste de integração adicional: líder morre após concluir todas as 5 peças, outro membro assume e seu `MobileNPCSettlementBuilder` reconcilia armazenamento nativo antigo mesmo com `placedPieces >= maximumPieces`; não cria segundo contêiner, reassocia somente o zero-owner registrado e permite novas reservas reais de guarda.
+
+
+### Seção 57 — CORE-02, PROVA DE MORTE REAL APÓS AUDITORIA (2026-10-14; NENHUM TESTE EXECUTADO)
+
+- [ ] Registrar SHA da Dev Build e assegurar Unity sem erros CS. Spawn individual via F8/comando existente com role neutro/amigável/hostil. Disparar arma real contra peito e cabeça: a cada impacto confirmado no servidor exigir `[MobileNPCHumanoidVitals] Damage accepted: npc=... health=100.0->...`. Não basta hitmarker do cliente; em caso de falha buscar `[MobileNPCDamageValidation] Rejected` e comparações de primeiro collider/ponto.
+- [ ] Repetir com arma branca e punhos; testar tipos `ERaycastInfoType.MOBILE_NPC` e fallback NONE fisicamente confirmado (não aceitar NONE disparado em parede). Testar atirar por obstáculo, através de outro Player, Zombie e NPC; validar NÃO atravessa geometria ou personagens à frente.
+- [ ] Prosseguir até HP 0. No MESMO evento esperar `Death transition` e exatamente um `[MobileNPCDeathInvariant] PASS` por cadáver, nunca `FAILED`; corpo cai, stops motor/melee/ranged/brain, não permanece de pé atacando, hitboxes originais não interceptam dano, não renasce o mesmo NPC.
+- [ ] Sangramento sem medicação mata de verdade: após ferimento/lesão real verificar HP caindo nos ticks, transição única. Testar callbacks de visual/injúria enquanto NPC toma tiro: nenhuma exceção do log `Failed stage`; se existir, a transição final deve ocorrer mesmo assim e registrar exceção.
+- [ ] Após morte, observar DeathLoot dropando itens **realmente possuídos** sem duplicação; XP somente pela morte hostil com instigador Player; caso XP falhe, loot ainda deve ser tentado; se ItemManager recusa drop, manter item no cadáver e repetir conforme intervalo.
+- [ ] Grupo com guarda: membro morto libera posto, outros membros sobreviventes não herdam memória/inventário do falecido, líder morto permite sucessor real reconciliar armazenamento, nenhum comportamento A-Life, rádio, granada, gerador ou coleta segue ativo no morto. Ninguém pode reabilitar motor depois da morte.
+- [ ] PopulationDirector registra `Death queued` exatamente uma vez, mantém cadáver no tempo configurado, remove depois e gera NOVA identidade após cooldown, sem reviver a antiga; eliminar todos dissolve grupo; depois carregar save para conferir persistência.
+- [ ] Executar 1, 10, 40 NPCs com tiro automático, pellets, melee e múltiplos ataques simultâneos; observar GC/FPS, exceções, ragdoll, corpos próximos e transações de loot. Um caso que falhe reabre CORE-02, independentemente de passar 26 verificações estáticas.
+
+**Protocolo de aprovação:** print ou Player.log contendo `Damage accepted ... health->0` + `Death transition` + `[MobileNPCDeathInvariant] PASS` + observação in-game de corpo/drops + `Death queued`/limpeza. A auditoria fonte NÃO é validação Unity; não fechar CORE-02 sem feedback real.
