@@ -292,6 +292,12 @@ namespace SDG.Unturned
 			MobileNPCHumanoidVitals vitals = GetComponent<MobileNPCHumanoidVitals>();
 			if (vitals != null && vitals.IsDead)
 				return;
+			// A firsthand sighting outranks uncertain verbal directions. If
+			// the same player is visibly harmless, no stealth/listening
+			// should be triggered just because a teammate shouts a bearing.
+			MobileNPCHumanoidPerception perception = GetComponent<MobileNPCHumanoidPerception>();
+			if (perception != null && perception.VisiblePlayer != null)
+				return;
 			nextGroupContactAt = Time.time + 6f;
 			playerKnowledge.ObserveSound(approximatePosition, confidence, Time.time);
 			brain.ReportNoise(approximatePosition, Time.time, 12f);
@@ -844,6 +850,9 @@ namespace SDG.Unturned
 			brain.Tick(Time.time, targetIsVisible);
 			// When the ordinary brain loses the remembered target, its second
 			// advisory layer can propose a nearby search, not reveal live position.
+			if (previousState != MobileNPCBrain.State.Investigating
+				&& brain.CurrentState != MobileNPCBrain.State.Investigating)
+				MobileNPCEncounterDirector.ReleaseOptionalEvidenceSearchServer(this);
 			if (previousState == MobileNPCBrain.State.Pursuing
 				&& brain.CurrentState == MobileNPCBrain.State.Investigating)
 			{
@@ -915,6 +924,7 @@ namespace SDG.Unturned
 				return;
 			}
 
+			MobileNPCEncounterDirector.ReleaseOptionalEvidenceSearchServer(this);
 			brain.Reset();
 			tactics.ClearGoal();
 			playerKnowledge.Clear();
@@ -947,7 +957,11 @@ namespace SDG.Unturned
 				|| disposition.CurrentRole != MobileNPCHumanoidDisposition.Role.Hostile
 				|| !playerKnowledge.TryGetEvidence(Time.time, out Vector3 clue,
 					out float confidence, out float uncertainty, out _)
-				|| confidence < 0.34f || uncertainty > 12f)
+				|| confidence < 0.34f || uncertainty > 12f
+				// Director arbitrates only BONUS speculative stalking. Current
+				// direct visual combat, heard shot/footsteps and legitimate
+				// retreat/cover remain entirely unchanged.
+				|| !MobileNPCEncounterDirector.AllowsOptionalEvidenceSearchServer(this))
 				return;
 
 			Vector3 toClue = clue - transform.position;
@@ -1048,6 +1062,11 @@ namespace SDG.Unturned
 		{
 			if (brain == null || brain.CurrentState != MobileNPCBrain.State.Investigating)
 				return;
+			// Hypotheses do NOT gain perfect player coordinates. When too many
+			// squadmates are already searching the same legitimate contact,
+			// stick to the base brain's original sensory search instead.
+			if (!MobileNPCEncounterDirector.AllowsOptionalEvidenceSearchServer(this))
+				return;
 
 			for (int attempt = 0; attempt < 2; ++attempt)
 			{
@@ -1070,6 +1089,7 @@ namespace SDG.Unturned
 
 		private void OnDisable()
 		{
+			MobileNPCEncounterDirector.ReleaseOptionalEvidenceSearchServer(this);
 			MobileNPCRegistry.Unregister(this);
 		}
 
