@@ -840,10 +840,17 @@ namespace SDG.Unturned
 				}
 			}
 
-			if (hasDestination && planarDirection.sqrMagnitude <= 0.0001f && !hasBrainDestination)
+			if (hasDestination && hasRoamingDestination && !hasBrainDestination
+				&& planarDirection.sqrMagnitude <= 0.0001f
+				&& !waitingForDoorToOpen && !waitingForLearnedAccess
+				&& !waitingForLadderApproach)
 			{
-				// If terrain-aware steering rejects every direction, abandon this roaming
-				// waypoint and sample a different ground point rather than freezing forever.
+				// Only an active roam with NO navigation work pending may be
+				// discarded here. Reaching the target already clears that roam;
+				// an async known-access/ladder request or a native door animation
+				// is a deliberate pause, not evidence of a failed destination.
+				// If genuinely unable to steer, abandon this optional waypoint
+				// and sample another real ground point rather than freezing forever.
 				if (autonomyPlanner != null)
 					autonomyPlanner.ReportRoamBlockedServer(roamingDestination);
 				hasRoamingDestination = false;
@@ -1779,7 +1786,9 @@ namespace SDG.Unturned
 				Vector3 currentGoal = brainDriver.Destination;
 				// A newly assigned target must not inherit the previous destination's
 				// stuck counter, otherwise switching from loot to combat can trip it.
-				if (!hasTrackedStuckGoal || PlanarDistanceSquared(currentGoal, lastTrackedStuckGoal) > 9f)
+				if (!hasTrackedStuckGoal
+					|| PlanarDistanceSquared(currentGoal, lastTrackedStuckGoal) > 9f
+					|| Mathf.Abs(currentGoal.y - lastTrackedStuckGoal.y) > 0.8f)
 				{
 					hasTrackedStuckGoal = true;
 					lastTrackedStuckGoal = currentGoal;
