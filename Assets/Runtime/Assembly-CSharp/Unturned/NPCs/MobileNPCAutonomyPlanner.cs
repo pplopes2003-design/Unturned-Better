@@ -43,6 +43,7 @@ namespace SDG.Unturned
         private Vector3 lastBlockedWaypoint;
         private float blockedWaypointExpiresAt;
         private bool hasBlockedWaypoint;
+        private bool hasExplorationSectorLease;
         private bool initialized;
 
         public Job CurrentJob => currentJob;
@@ -134,7 +135,7 @@ namespace SDG.Unturned
                         group.ReleaseGuardPostServer();
                     // Switching strategic routine never owns the previous
                     // scout's location or an interrupted supply-search lease.
-                    group.ReleaseActivitySectorServer(false, false);
+                    ReleaseExplorationSectorServer(false, false);
                 }
                 currentJob = best;
                 initialized = true;
@@ -200,7 +201,7 @@ namespace SDG.Unturned
             if (group != null)
             {
                 group.ReleaseGuardPostServer();
-                group.ReleaseActivitySectorServer(false, false);
+                ReleaseExplorationSectorServer(false, false);
             }
         }
 
@@ -209,7 +210,7 @@ namespace SDG.Unturned
             if (group != null)
             {
                 group.ReleaseGuardPostServer();
-                group.ReleaseActivitySectorServer(false, false);
+                ReleaseExplorationSectorServer(false, false);
             }
         }
 
@@ -224,11 +225,16 @@ namespace SDG.Unturned
                 return false;
             if (currentJob != Job.Patrol && currentJob != Job.Scavenge)
                 return false;
-            return group == null || group.TryClaimActivitySectorServer(site, 75f);
+            bool claimed = group == null || group.TryClaimActivitySectorServer(site, 75f);
+            hasExplorationSectorLease = claimed;
+            return claimed;
         }
 
         public void ReleaseExplorationSectorServer(bool visited, bool blocked)
         {
+            if (!hasExplorationSectorLease)
+                return;
+            hasExplorationSectorLease = false;
             if (group != null)
                 group.ReleaseActivitySectorServer(visited, blocked);
         }
