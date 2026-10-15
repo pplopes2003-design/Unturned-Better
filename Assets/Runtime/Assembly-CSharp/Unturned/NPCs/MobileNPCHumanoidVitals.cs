@@ -413,7 +413,12 @@ namespace SDG.Unturned
 			SafeDeathStage("stop settlement planner", () => DisableOnDeath<MobileNPCSettlementPlanner>());
 			SafeDeathStage("stop settlement builder", () => DisableOnDeath<MobileNPCSettlementBuilder>());
 			SafeDeathStage("stop ranged presentation", () => DisableOnDeath<MobileNPCRangedPresentation>());
+			SafeDeathStage("stop visual animation", () => DisableOnDeath<MobileNPCVisualAnimation>());
 			SafeDeathStage("stop tactical combat", () => DisableOnDeath<MobileNPCTacticalCombatBehavior>());
+			SafeDeathStage("stop radio outbox", () => DisableOnDeath<MobileNPCRadioOutbox>());
+			SafeDeathStage("stop grenade decisions", () => DisableOnDeath<MobileNPCGrenadeThrower>());
+			SafeDeathStage("stop generator operation", () => DisableOnDeath<MobileNPCBaseGeneratorOperator>());
+			SafeDeathStage("stop radio reinforcement", () => DisableOnDeath<MobileNPCReinforcementResponse>());
 			SafeDeathStage("stop companion contract", () => DisableOnDeath<MobileNPCCompanionContract>());
 			SafeDeathStage("stop medical behavior", () => DisableOnDeath<MobileNPCMedicalBehavior>());
 			SafeDeathStage("stop injury ticking", () => DisableOnDeath<MobileNPCInjurySystem>());
@@ -448,6 +453,26 @@ namespace SDG.Unturned
 			// Group, loot and other death subscribers retain their original
 			// contracts and receive their signals even if ragdoll fails.
 			PublishDiedSafely();
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			// These observable invariants distinguish a hitmarker from real
+			// authoritative death in the next Player.log / development build.
+			bool transitionValid = isDead && CurrentHealth <= 0f
+				&& (motor == null || !motor.enabled)
+				&& (combat == null || !combat.enabled)
+				&& (rangedCombat == null || !rangedCombat.enabled)
+				&& (brainDriver == null || !brainDriver.enabled);
+			if (transitionValid)
+				Debug.Log("[MobileNPCDeathInvariant] PASS npc=" + name
+					+ " hp=" + CurrentHealth.ToString("F1")
+					+ " brain/motor/combat stopped, Died observers notified.", this);
+			else
+				Debug.LogError("[MobileNPCDeathInvariant] FAILED npc=" + name
+					+ " hp=" + CurrentHealth.ToString("F1")
+					+ " brain=" + (brainDriver != null && brainDriver.enabled)
+					+ " motor=" + (motor != null && motor.enabled)
+					+ " melee=" + (combat != null && combat.enabled)
+					+ " ranged=" + (rangedCombat != null && rangedCombat.enabled), this);
+#endif
 		}
 		private void DisableOnDeath<T>() where T : Behaviour
 		{
