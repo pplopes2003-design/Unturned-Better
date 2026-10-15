@@ -962,3 +962,12 @@ COM-RADIO-PORTABLE-01 follow-up (`f84f390f`): rapid tune 460328 -> other channel
 - [ ] Poste, quina em L, parede de casa, corredor com vários acessos: NPC não oscila esquerda/direita repetidamente; deve contornar por movimento físico ou, quando inalcançável, encerrar tarefa opcional.
 - [ ] Fronteira parcial 9×9 alcançada não é registrada como chegada final; se houver parede adiante, registrar local bloqueado por 8s e tentar outro lado. Conferir portas e ladrilho em pisos distintos.
 - [ ] Regressões: combate, A-Life, loot real, diálogo, morte, saltos, escadas, porta trancada, custo 1/10/20/40 NPCs. Comparar com 138 logs de bloqueio da build anterior e documentar SHA/Player.log. Nenhuma correção aprovada sem nova Unity Dev Build.
+
+### Seção 62 — NAV-ROAM-WAIT-01 (2026-10-15, AGUARDANDO DEV BUILD)
+- [ ] Após `ReportRoamReachedServer` físico, não registrar `ReportRoamBlockedServer` para o MESMO waypoint na atualização corrente; manter progresso de scouting A-Life.
+- [ ] NPC com destino de exploração em outro cômodo/andar, entrada pessoal conhecida >5m, ASPFP disponível: pausa enquanto o A* de entrada está `IsRequestPending`; ao concluir, prossegue pelos waypoints reais sem descartar `hasRoamingDestination` cedo. Simular resposta lenta.
+- [ ] Enquanto `TryBuildPhysicalLadderApproach` aguarda route/curto alcance, não classificar pausa de planejamento como falha da exploração; subida somente por `MobileNPCLadderTraversal` e colisão nativa.
+- [ ] Porta de barricada destrancada fechada: `waitingForDoorToOpen` não aborta roaming; aguardar `MobileNPCDoorNavigation` e passage real. Porta trancada ou bloqueada por sólido deve continuar intransponível.
+- [ ] Rota sem alternativa, sem nenhuma espera legítima, com `planarDirection=0`: ainda liberar waypoint de baixa prioridade e escolher outro local verdadeiro; não criar teleporte nem declarar coleta/visita.
+- [ ] Perseguição/investigação com alvo que muda de piso >0,8m, mas mantém X/Z: `UpdateStuckRecovery` reinicia contadores de progresso antigos; não cancela tática por evidência do piso anterior. Conferir transição rápida repetida.
+- [ ] Regressões: morte interrompe motor, combate tem prioridade, 1/10/20/40 NPCs com Physics/GC e FPS, mapas com e sem backend ASPFP. Comparar `[MobileNPCHumanoidMotor] Blocked` com baseline histórico 138 em tempo/cenário equivalente e registrar SHA de Dev Build e `Player.log`. Não aprovar `CORE-04` sem teste real.
