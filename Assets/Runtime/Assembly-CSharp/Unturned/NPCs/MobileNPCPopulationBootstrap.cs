@@ -414,6 +414,10 @@ namespace SDG.Unturned
 
             directorObject = new GameObject("MobileNPCPopulationDirector_Runtime");
             MobileNPCPopulationDirector director = directorObject.AddComponent<MobileNPCPopulationDirector>();
+            // World-level pacing advisor shares the *existing* population
+            // lifecycle; it never spawns agents, chooses hidden target
+            // coordinates, or replaces each agent's sensory/tactical brain.
+            directorObject.AddComponent<MobileNPCEncounterDirector>();
             directorObject.AddComponent<MobileNPCInteractionController>();
             directorObject.AddComponent<MobileNPCRadioInterceptHUD>();
             // The HUD only renders a radio report when the native local
