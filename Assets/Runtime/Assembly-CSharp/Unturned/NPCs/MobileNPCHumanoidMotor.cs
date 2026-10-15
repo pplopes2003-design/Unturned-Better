@@ -230,6 +230,8 @@ namespace SDG.Unturned
 		private Vector3 observedEntranceSurveyOrigin;
 		private Vector3 observedEntranceSurveyGoal;
 		private float observedEntranceSurveyUntil;
+		private float observedEntranceSurveyEpisodeUntil;
+		private float nextObservedEntranceSurveyStartTime;
 		private int observedEntranceSurveySide;
 		private float nextRoutePlanTime;
 		private float nextLocalRoutePlanTime;
@@ -353,8 +355,7 @@ namespace SDG.Unturned
 			nextPlannedRouteValidationTime = 0f;
 			nextRouteCornerShortcutTime = 0f;
 			hasPartialLocalFrontier = false;
-			observedEntranceSurveyUntil = 0f;
-			observedEntranceSurveySide = 0;
+			ResetObservedEntranceSurvey();
 			brainDriver.InitializeServer(spawnPosition);
 			hasRoamingDestination = false;
 			nextRoamingDecisionTime = Time.time + Random.Range(2f, 5f);
@@ -543,7 +544,7 @@ namespace SDG.Unturned
 			activeAccessFinalWaypointIndex = -1;
 				hasPendingKnownAccessPath = false;
 				hasPartialLocalFrontier = false;
-				observedEntranceSurveyUntil = 0f;
+				ResetObservedEntranceSurvey();
 				// Completed/expired goals must not leave the previous route waiting to
 				// steer the next unrelated investigation or roaming destination.
 				routeWaypoints.Clear();
@@ -562,7 +563,7 @@ namespace SDG.Unturned
 					|| Mathf.Abs(destination.y - detourGoalSnapshot.y) > 0.8f)
 				{
 					hasPartialLocalFrontier = false;
-					observedEntranceSurveyUntil = 0f;
+					ResetObservedEntranceSurvey();
 					hasDetourWaypoint = false;
 					routeWaypoints.Clear();
 					routeWaypointIndex = 0;
@@ -714,26 +715,12 @@ namespace SDG.Unturned
 											rayOrigin, towardFinal.normalized, radius,
 											Mathf.Min(2.5f, probe), obstacleMask)))
 								{
-									RememberLocalNavigationDeadEnd(transform.position, destination, 8f);
-									// Only a reached, currently solid-blocked frontier
-									// can trigger scouting. This is NOT knowledge of
-									// where an alternative entrance actually is.
-									// Keep the SAME flank while the survey advances
-									// across consecutive physically witnessed
-									// frontiers. Rechoosing on each corner undoes
-									// the decision to try an alternate entrance.
-									bool continuingSurvey = observedEntranceSurveySide != 0
-										&& Time.time < observedEntranceSurveyUntil
-										&& PlanarDistanceSquared(destination, observedEntranceSurveyGoal) <= 2.25f
-										&& Mathf.Abs(destination.y - observedEntranceSurveyGoal.y) <= 0.8f
-										&& PlanarDistanceSquared(transform.position, observedEntranceSurveyOrigin) <= 225f;
-									if (!continuingSurvey)
-									{
-										observedEntranceSurveyOrigin = transform.position;
-										observedEntranceSurveySide = avoidanceSide >= 0 ? 1 : -1;
-									}
-									observedEntranceSurveyGoal = destination;
-									observedEntranceSurveyUntil = Time.time + 15f;
+									// ONLY a frontier physically reached with an
+									// observed solid blocker enters this short-lived
+									// personal memory. Six slots, same real goal,
+									// no assumed building door or portal.
+									RememberLocalNavigationDeadEnd(transform.position, destination, 36f);
+									RememberReachedBlockedEntranceFrontier(destination);
 								}
 							}
 						}
@@ -1787,24 +1774,71 @@ namespace SDG.Unturned
 			recentNavDeadEndPositions[nextNavDeadEndSlot] = blockedPosition;
 			recentNavDeadEndGoals[nextNavDeadEndSlot] = goal;
 			recentNavDeadEndExpiry[nextNavDeadEndSlot] = Time.time
-				+ Mathf.Clamp(memorySeconds, 2f, 18f);
+				+ Mathf.Clamp(memorySeconds, 2f, 38f);
 			nextNavDeadEndSlot = (nextNavDeadEndSlot + 1) % MaxRecentNavDeadEnds;
+		}
+
+		private void ResetObservedEntranceSurvey()
+		{
+			observedEntranceSurveySide = 0;
+			observedEntranceSurveyUntil = 0f;
+			observedEntranceSurveyEpisodeUntil = 0f;
+			nextObservedEntranceSurveyStartTime = 0f;
+		}
+
+		private bool IsObservingEntranceSurvey(Vector3 goal, Vector3 position)
+		{
+			return observedEntranceSurveySide != 0
+				&& Time.time < observedEntranceSurveyUntil
+				&& Time.time < observedEntranceSurveyEpisodeUntil
+				&& PlanarDistanceSquared(goal, observedEntranceSurveyGoal) <= 2.25f
+				&& Mathf.Abs(goal.y - observedEntranceSurveyGoal.y) <= 0.8f
+				&& PlanarDistanceSquared(position, observedEntranceSurveyOrigin) <= 900f;
+		}
+
+		private void RememberReachedBlockedEntranceFrontier(Vector3 goal)
+		{
+			if (Time.time < nextObservedEntranceSurveyStartTime)
+				return;
+			bool sameGoalEpisode = observedEntranceSurveySide != 0
+				&& PlanarDistanceSquared(goal, observedEntranceSurveyGoal) <= 2.25f
+				&& Mathf.Abs(goal.y - observedEntranceSurveyGoal.y) <= 0.8f;
+			if (sameGoalEpisode
+				&& (Time.time >= observedEntranceSurveyEpisodeUntil
+					|| PlanarDistanceSquared(transform.position, observedEntranceSurveyOrigin) > 900f))
+			{
+				// Bounded search of a long unknown perimeter: fail safely,
+				// then let the existing A-Life/tactical recovery make a new
+				// decision rather than circling the building indefinitely.
+				observedEntranceSurveySide = 0;
+				observedEntranceSurveyUntil = 0f;
+				nextObservedEntranceSurveyStartTime = Time.time + 12f;
+				return;
+			}
+			if (!sameGoalEpisode)
+			{
+				observedEntranceSurveyOrigin = transform.position;
+				observedEntranceSurveyGoal = goal;
+				observedEntranceSurveySide = avoidanceSide >= 0 ? 1 : -1;
+				observedEntranceSurveyEpisodeUntil = Time.time + 42f;
+			}
+			// Keep the same flank over successive physically observed
+			// corners, but do not extend a single survey past 42s.
+			observedEntranceSurveyUntil = Mathf.Min(
+				observedEntranceSurveyEpisodeUntil, Time.time + 15f);
 		}
 
 		private void FlipObservedEntranceSurveyAfterRealStall(Vector3 goal)
 		{
-			if (Time.time >= observedEntranceSurveyUntil
-				|| observedEntranceSurveySide == 0
-				|| PlanarDistanceSquared(goal, observedEntranceSurveyGoal) > 2.25f
-				|| Mathf.Abs(goal.y - observedEntranceSurveyGoal.y) > 0.8f
-				|| PlanarDistanceSquared(transform.position, observedEntranceSurveyOrigin) > 225f)
+			if (!IsObservingEntranceSurvey(goal, transform.position))
 				return;
 
 			// The normal stuck recovery already rejected temporary actor
 			// congestion before reaching here. Try the opposite side without
 			// changing the real task or imagining a passage.
 			observedEntranceSurveySide = -observedEntranceSurveySide;
-			observedEntranceSurveyUntil = Time.time + 10f;
+			observedEntranceSurveyUntil = Mathf.Min(
+				observedEntranceSurveyEpisodeUntil, Time.time + 10f);
 		}
 
 		private float LocalDeadEndPenalty(Vector3 candidate, Vector3 goal)
@@ -2524,11 +2558,7 @@ namespace SDG.Unturned
 				float score = progress * 3f + goalDistanceImprovement * 0.5f
 					- resolvedOffset.magnitude * 0.05f
 					- LocalDeadEndPenalty(resolved, destination) * 0.75f;
-				if (observedEntranceSurveySide != 0
-					&& Time.time < observedEntranceSurveyUntil
-					&& PlanarDistanceSquared(destination, observedEntranceSurveyGoal) <= 2.25f
-					&& Mathf.Abs(destination.y - observedEntranceSurveyGoal.y) <= 0.8f
-					&& PlanarDistanceSquared(transform.position, observedEntranceSurveyOrigin) <= 225f)
+				if (IsObservingEntranceSurvey(destination, transform.position))
 				{
 					Vector3 surveyHeading = observedEntranceSurveyGoal
 						- observedEntranceSurveyOrigin;
@@ -3604,9 +3634,16 @@ namespace SDG.Unturned
 			// When this preferred cell is the approach where the survivor just
 			// got stuck, do not stop A* there or select it again. Explore
 			// physically connected lateral frontiers before retrying that wall.
+			bool surveyingObservedWall = !requireExactLocalGoal
+				&& IsObservingEntranceSurvey(destination, basePosition);
 			bool preferredRecentlyBlocked = !requireExactLocalGoal
 				&& walkable[preferredGoal]
 				&& LocalDeadEndPenalty(positions[preferredGoal], destination) >= 2.5f;
+			// Only during firsthand exploration of an observed solid wall
+			// does a reachable target-facing cell lose its early-exit
+			// privilege. All 81 nodes remain collision/ground validated.
+			bool evaluateAllSurveyFrontiers = surveyingObservedWall
+				&& PlanarDistanceSquared(destination, basePosition) > 16f;
 
 			// Killzone-like tactical A*: during an actual *visible* hostile
 			// engagement, seeking cover/retreat may prefer a physically sheltered
@@ -3656,7 +3693,7 @@ namespace SDG.Unturned
 				// blocked or disconnected, keep exploring the reachable component so
 				// the fallback can select its nearest reachable node.
 				if (current == preferredGoal && current != start
-					&& !preferredRecentlyBlocked)
+					&& !preferredRecentlyBlocked && !evaluateAllSurveyFrontiers)
 					break;
 
 				int cx = current % RouteGridSide;
@@ -3733,12 +3770,6 @@ namespace SDG.Unturned
 
 			int goal = -1;
 			float bestFrontierScore = float.PositiveInfinity;
-			bool surveyingObservedWall = !requireExactLocalGoal
-				&& observedEntranceSurveySide != 0
-				&& Time.time < observedEntranceSurveyUntil
-				&& PlanarDistanceSquared(destination, observedEntranceSurveyGoal) <= 2.25f
-				&& Mathf.Abs(destination.y - observedEntranceSurveyGoal.y) <= 0.8f
-				&& PlanarDistanceSquared(basePosition, observedEntranceSurveyOrigin) <= 225f;
 			Vector3 surveyTangent = Vector3.zero;
 			if (surveyingObservedWall)
 			{
@@ -3753,10 +3784,9 @@ namespace SDG.Unturned
 				if (!closed[i] || !walkable[i] || i == start
 					|| previous[i] < 0 || float.IsInfinity(costs[i]))
 					continue;
-				if (i == preferredGoal && !preferredRecentlyBlocked)
+				if (i == preferredGoal && !preferredRecentlyBlocked
+					&& !evaluateAllSurveyFrontiers)
 				{
-					// A physically reachable preferred cell is still useful
-					// even if the final target is several local grids away.
 					goal = i;
 					break;
 				}
