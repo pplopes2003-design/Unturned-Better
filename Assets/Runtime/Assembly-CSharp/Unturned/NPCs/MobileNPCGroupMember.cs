@@ -495,6 +495,32 @@ namespace SDG.Unturned
 		}
 
 		/// <summary>
+		/// Read-only candidate filter for the EXISTING demand-weighted personal
+		/// supply-site scorer. This does not disclose teammates' unknown sites
+		/// or claim a job. The actual claim is atomic in TryClaimActivitySector.
+		/// </summary>
+		public bool IsActivitySectorAvailableServer(Vector3 candidate)
+		{
+			if (!Provider.isServer || !Level.isLoaded || !initialized || leftGroup
+				|| vitals != null && vitals.IsDead || !IsFinitePosition(candidate)
+				|| !groups.TryGetValue(GroupId, out GroupRecord group)
+				|| !group.Members.Contains(this))
+				return false;
+			PruneDeadMembers(group);
+			for (int i = 0; i < group.WorkSectorOwners.Length; ++i)
+			{
+				MobileNPCGroupMember owner = group.WorkSectorOwners[i];
+				if (owner == this)
+					continue;
+				if ((owner != null || Time.time < group.WorkSectorRevisitAfter[i])
+					&& (candidate - group.WorkSectorLocations[i]).sqrMagnitude
+						<= 22f * 22f)
+					return false;
+			}
+			return true;
+		}
+
+		/// <summary>
 		/// Exclusive, expiring claim for an ALREADY known/physically verified
 		/// sector. Both the existing structure-roaming motor and the existing
 		/// remembered-supply search use this one shared group ledger.
