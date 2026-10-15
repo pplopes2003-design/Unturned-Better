@@ -37,6 +37,7 @@ namespace SDG.Unturned
 		private bool isRememberedSupplyTrip;
 		private ushort rememberedItemID;
 		private Vector3 rememberedSitePosition;
+		private Vector3 rememberedGroundDestination;
 		private float rememberedArrivalAt;
 		private float rememberedTripExpiresAt;
 		private float nextRememberedSearchAt;
@@ -515,6 +516,7 @@ namespace SDG.Unturned
 			isRememberedSupplyTrip = true;
 			rememberedItemID = itemID;
 			rememberedSitePosition = rememberedPosition;
+			rememberedGroundDestination = reachableGround;
 			rememberedTripExpiresAt = Time.time + 65f;
 			rememberedArrivalAt = -1f;
 			Debug.Log("[MobileNPCLooting] " + name
@@ -537,8 +539,19 @@ namespace SDG.Unturned
 				return;
 			}
 
-			if (rememberedArrivalAt < 0f
-				&& (transform.position - rememberedSitePosition).sqrMagnitude <= 36f)
+			// A site can be 6m away through a wall or directly overhead on
+			// another floor. That is NOT a physically checked/visited area.
+			// Evaluate arrival at the actual reachable ground destination,
+			// then require an unobstructed firsthand view of the memory area.
+			Vector3 offset = rememberedGroundDestination - transform.position;
+			float verticalDifference = Mathf.Abs(offset.y);
+			offset.y = 0f;
+			bool physicallyChecked = offset.sqrMagnitude <= 2.5f * 2.5f
+				&& verticalDifference <= 1.2f
+				&& !Physics.Linecast(transform.position + Vector3.up * 1.45f,
+					rememberedSitePosition + Vector3.up * 0.23f,
+					RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+			if (rememberedArrivalAt < 0f && physicallyChecked)
 			{
 				rememberedArrivalAt = Time.time;
 				// Unlock normal loot acquisition on arrival. Keeping the
