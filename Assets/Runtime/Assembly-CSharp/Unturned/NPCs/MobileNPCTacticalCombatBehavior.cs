@@ -38,6 +38,7 @@ namespace SDG.Unturned
 		private float blockedSince = -1f;
 		private float nextFlankTime;
 		private float nextCasualtyWithdrawalAt;
+		private float nextShotQualityRepositionAt;
 		private Transform subscribedTarget;
 		private readonly Vector3[] candidateOffsets = new Vector3[8];
 
@@ -215,6 +216,60 @@ namespace SDG.Unturned
 
 			if (Time.time - blockedSince >= blockedLineOfFireDelay && Time.time >= nextFlankTime)
 				TryChooseFlank(target, false);
+		}
+
+		/// <summary>
+		/// A trained survivor who has repeatedly missed may seek a short real
+		/// alternate firing position rather than endlessly wasting ammunition.
+		/// This never grants an enemy Transform: brain/perception have already
+		/// identified the same *currently visible* target. Navigation validates
+		/// every candidate; failing all checks leaves existing combat intact.
+		/// </summary>
+		public bool TryImproveFiringPositionServer()
+		{
+			if (!Provider.isServer || brain == null || perception == null
+				|| motor == null || rangedCombat == null
+				|| Time.time < nextShotQualityRepositionAt
+				|| brain.CurrentState != MobileNPCBrain.State.Pursuing
+				|| brain.CurrentGoal != MobileNPCTactics.Goal.None
+				|| rangedCombat.IsReloading)
+				return false;
+			Transform enemy = brain.Target;
+			if (enemy == null) return false;
+			Player player = enemy.GetComponentInParent<Player>();
+			MobileNPCHumanoidDisposition npc =
+				enemy.GetComponentInParent<MobileNPCHumanoidDisposition>();
+			Zombie zombie = enemy.GetComponentInParent<Zombie>();
+			bool seen = player != null && perception.VisiblePlayer == player
+				|| npc != null && perception.VisibleNPC == npc
+				|| zombie != null && perception.VisibleZombie == zombie;
+			if (!seen) return false;
+			// Geometry probing is capped and staggered across survivors.
+			nextShotQualityRepositionAt = Time.time + Random.Range(7f, 11f);
+			Vector3 toEnemy = enemy.position - transform.position;
+			toEnemy.y = 0f;
+			if (toEnemy.sqrMagnitude < 16f * 16f) return false;
+			Vector3 lateral = Vector3.Cross(Vector3.up, toEnemy.normalized);
+			Vector3[] attempts =
+			{
+				transform.position + lateral * 5f,
+				transform.position - lateral * 5f,
+				transform.position + (lateral + toEnemy.normalized * 0.3f).normalized * 6f,
+				transform.position + (-lateral + toEnemy.normalized * 0.3f).normalized * 6f
+			};
+			for (int i = 0; i < attempts.Length; ++i)
+			{
+				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(attempts[i],
+					1.5f, 1.4f, RayMasks.BLOCK_COLLISION | RayMasks.GROUND2, 45f,
+					out Vector3 safe, out _)
+					|| Mathf.Abs(safe.y - transform.position.y) > 0.65f
+					|| !motor.CanReachNearbyCoverServer(safe)
+					|| !IsClearLineOfFire(safe + Vector3.up * eyeHeight,
+						enemy.position + Vector3.up * targetHeight, enemy))
+					continue;
+				if (brain.TryStartFlank(safe)) return true;
+			}
+			return false;
 		}
 
 		private bool IsCurrentTargetConfirmed(Transform target)
