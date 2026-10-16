@@ -116,6 +116,10 @@ namespace SDG.Unturned
 			if (autonomyPlanner != null)
 				autonomyPlanner.ReportLocalInspectionScannedServer(
 					routineInspectionSite, startedRealLootGoal);
+			MobileNPCInteriorSurvey survey = GetComponent<MobileNPCInteriorSurvey>();
+			if (survey != null)
+				survey.ReportLocalScanCompletedServer(routineInspectionSite,
+					startedRealLootGoal);
 		}
 
 		private void Update()
