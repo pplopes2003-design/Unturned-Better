@@ -66,6 +66,11 @@ namespace SDG.Unturned
 		[SerializeField] private LayerMask obstacleMask = ~0;
 
 		private static readonly float[] FallbackSteeringAngles = { -90f, 90f, -135f, 135f, 180f };
+		// A tiny fixed set of real ground exits used ONLY by NPCs currently
+		// standing on a verified object top; never a generic off-mesh link.
+		private static readonly float[] FurnitureExitAngles = { 0f, -45f, 45f };
+		private static readonly float[] FurnitureExitDistances = { 1.6f, 2.2f };
+		private static float nextSharedFurnitureExitSlot;
 		private static readonly RaycastHit[] ObstacleHitBuffer = new RaycastHit[16];
 		private static readonly Collider[] RouteOccupancyBuffer = new Collider[32];
 		private const int RouteGridSide = 9;
@@ -2610,6 +2615,12 @@ namespace SDG.Unturned
 				&& nativeAStarRouteProvider.IsRequestPending)
 				return;
 
+			// A survivor who ACTUALLY landed on a crate may need to step
+			// down into a lower room. Never plan this for an unseen rooftop
+			// or make an A* node automatically traverse the object's wall.
+			if (TryChooseVerifiedFurnitureGroundExit(destination))
+				return;
+
 			// First attempt the normal 81-node, same-floor local A*.
 			// A narrow real doorway can lie BETWEEN the 1.25m sample points:
 			// if the coarse route fails or stops short of a nearby exact goal,
@@ -2710,6 +2721,81 @@ namespace SDG.Unturned
 				detourGoalSnapshot = destination;
 				hasDetourWaypoint = true;
 			}
+		}
+
+		/// <summary>
+		/// A one-hop exit from a physically occupied, low object into a
+		/// lower, open patch of genuine floor. CharacterController.Move and
+		/// gravity still execute the ENTIRE descent; no warp/off-mesh link.
+		/// This is not called unless normal direct travel hit a blocker.
+		/// </summary>
+		private bool TryChooseVerifiedFurnitureGroundExit(Vector3 goal)
+		{
+			if (verifiedFurnitureSupportCollider == null
+				|| Time.time >= verifiedFurnitureSupportValidUntil
+				|| Time.time < nextSharedFurnitureExitSlot
+				|| goal.y >= transform.position.y - 0.35f
+				|| PlanarDistanceSquared(goal, transform.position) < 1.0f)
+				return false;
+			nextSharedFurnitureExitSlot = Time.time + 0.3f;
+
+			Vector3 toGoal = goal - transform.position;
+			toGoal.y = 0f;
+			Vector3 desired = toGoal.normalized;
+			float radius = Mathf.Clamp(obstacleProbeRadius, 0.05f,
+				Mathf.Max(0.05f, characterController.radius * 0.9f));
+			Vector3 chest = transform.position + Vector3.up
+				* Mathf.Max(0.45f, characterController.height * 0.55f);
+
+			for (int i = 0; i < FurnitureExitAngles.Length; ++i)
+			{
+				Vector3 direction = Quaternion.AngleAxis(
+					FurnitureExitAngles[i], Vector3.up) * desired;
+				for (int j = 0; j < FurnitureExitDistances.Length; ++j)
+				{
+					float step = FurnitureExitDistances[j];
+					if (IsObstacleBlockingAlong(chest, radius, direction, step))
+						continue;
+
+					Vector3 candidate = transform.position + direction * step;
+					if (!MobileNPCSpawnService.TryFindSafeGroundPosition(
+						candidate, 1.0f, 1.4f, roamingGroundMask,
+						roamingMaximumSlope, out Vector3 ground,
+						out Collider groundCollider, out _)
+						|| groundCollider == null
+						|| IsFurnitureSurfaceCollider(groundCollider)
+						|| MobileNPCVaultTraversal.IsSamePhysicalObstacle(
+							groundCollider, verifiedFurnitureSupportCollider)
+						|| !Level.checkSafeIncludingClipVolumes(ground))
+						continue;
+					float drop = transform.position.y - ground.y;
+					if (drop < 0.35f || drop > 1.05f
+						|| IsRouteNodeOccupied(ground, radius))
+						continue;
+
+					// The actual edge must lie at least 0.75m BEHIND
+					// the stopping point. Otherwise the motor would stop
+					// while still on the crate and never step off.
+					Vector3 behind = transform.position + direction * (step - 0.75f);
+					if (!MobileNPCSpawnService.TryFindSafeGroundPosition(
+						behind, 1.0f, 1.4f, roamingGroundMask,
+						roamingMaximumSlope, out Vector3 edgeFloor,
+						out Collider edgeCollider, out _)
+						|| edgeCollider == null
+						|| MobileNPCVaultTraversal.IsSamePhysicalObstacle(
+							edgeCollider, verifiedFurnitureSupportCollider)
+						|| Mathf.Abs(edgeFloor.y - ground.y) > 0.25f)
+						continue;
+
+					// This is just a locally observed safe walking goal.
+					// No physics or task success is faked by setting it.
+					detourWaypoint = ground;
+					detourGoalSnapshot = goal;
+					hasDetourWaypoint = true;
+					return true;
+				}
+			}
+			return false;
 		}
 
 		/// <summary>
