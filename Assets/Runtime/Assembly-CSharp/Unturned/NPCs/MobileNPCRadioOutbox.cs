@@ -21,12 +21,13 @@ namespace SDG.Unturned
         public const ushort VanillaWalkieTalkieID = 1445;
         private const int MaximumPendingReports = 4;
         private const float SendPreparationCooldown = 20f;
-        // Vanilla walkie/earpiece channel is PlayerQuests.radioFrequency:uint.
-        // NPCs have no PlayerQuests or PlayerVoice component; choose one
-        // deterministic tuneable native-frequency value for each living group.
-        // Runtime GroupId is unique within a map session; do not modulo the
-        // identity because unrelated groups would eventually share a channel.
-        // This is simulated text traffic, NOT player microphone voice.
+        // Native player tuning uses PlayerQuests.radioFrequency:uint.
+        // NPCs cannot equip PlayerVoice; transmit carefully simulated text.
+        // Organized faction radios deliberately share a stable channel across
+        // their surviving groups. Unaffiliated survivors keep a separate
+        // short-lived group channel to avoid accidental cross-group leakage.
+        // Player can intercept by manually tuning to that exact uint channel.
+        public const uint FactionChannelStep = 1000u;
         private static readonly HashSet<MobileNPCRadioOutbox> ActiveRadios
             = new HashSet<MobileNPCRadioOutbox>();
         private static float nextGlobalTransmitAt;
@@ -48,10 +49,19 @@ namespace SDG.Unturned
         private Vector3 lastUsefulLootReportPosition;
         private ushort lastUsefulLootReportItemID;
 
-        public uint TunedFrequency => group != null && group.GroupId > 0
-            ? PlayerQuests.DEFAULT_RADIO_FREQUENCY
-                + (uint)group.GroupId
-            : 0u;
+        public uint TunedFrequency
+        {
+            get
+            {
+                if (group == null || group.GroupId <= 0 || faction == null)
+                    return 0u;
+                uint baseFrequency = PlayerQuests.DEFAULT_RADIO_FREQUENCY;
+                MobileNPCFaction.Id current = faction.CurrentFaction;
+                if (current == MobileNPCFaction.Id.Unaffiliated)
+                    return baseFrequency + 10000u + (uint)group.GroupId;
+                return baseFrequency + (uint)current * FactionChannelStep;
+            }
+        }
 
         public static void ResetRadioSessionServer()
         {
@@ -98,9 +108,12 @@ namespace SDG.Unturned
                 if (receiver == null || receiver == this
                     || !receiver.HasRadioReceiverServer
                     || receiver.TunedFrequency != frequency
-                    || receiver.group == null
-                    || receiver.group.GroupId != group.GroupId
+                    || receiver.group == null || receiver.group.GroupId <= 0
                     || receiver.faction == null
+                    // Unaffiliated strangers must not be told other groups'
+                    // secrets just because they lack an assigned faction.
+                    || (message.Faction == MobileNPCFaction.Id.Unaffiliated
+                        && receiver.group.GroupId != message.SenderGroupId)
                     || receiver.faction.CurrentFaction != message.Faction
                     || receiver.vitals != null && receiver.vitals.IsDead)
                     continue;
@@ -165,8 +178,8 @@ namespace SDG.Unturned
             if (bestResponder != null)
                 bestResponder.ReceiveReinforcementRequestServer(message);
 
-            // Same frequency and physically worn earpiece/equipped walkie
-            // criteria as native PlayerVoice radio culling. No chat broadcast.
+            // Players still need actual native receiving equipment and manual
+            // tuning. This message is never relayed as microphone voice.
             bool intercepted = MobileNPCRadioInterceptHUD.CanLocalPlayerIntercept(frequency);
             MobileNPCRadioInterceptHUD.PresentServerTransmission(frequency, message);
             if (Time.time >= nextRadioDiagnosticsAt)
