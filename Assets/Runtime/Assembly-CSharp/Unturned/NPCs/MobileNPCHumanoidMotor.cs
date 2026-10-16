@@ -1249,6 +1249,39 @@ namespace SDG.Unturned
 		/// destination. It never bypasses a door, grants unknown walkable
 		/// floor edges, or commits to an unverified jump.
 		/// </summary>
+		/// <summary>
+		/// An elevated brain destination is a candidate for an off-mesh
+		/// furniture jump ONLY when the requested landing is nearby and
+		/// directly verified as a real horizontal static surface.
+		/// Does not publish that surface as ground to the ordinary A*.
+		/// </summary>
+		private bool IsObservedElevatedObjectGoalServer(Vector3 goal)
+		{
+			if (!Provider.isServer || characterController == null
+				|| !characterController.enabled
+				|| PlanarDistanceSquared(transform.position, goal) > 12.25f
+				|| goal.y - transform.position.y < 0.50f
+				|| goal.y - transform.position.y > 1.10f)
+				return false;
+
+			Vector3 source = goal + Vector3.up * 0.32f;
+			if (!Physics.Raycast(source, Vector3.down, out RaycastHit surface,
+				0.68f, obstacleMask, QueryTriggerInteraction.Ignore))
+				return false;
+			Collider hit = surface.collider;
+			if (hit == null || IsOwnCollider(hit)
+				|| (hit.attachedRigidbody != null && !hit.attachedRigidbody.isKinematic)
+				|| hit.GetComponentInParent<Player>() != null
+				|| hit.GetComponentInParent<Zombie>() != null
+				|| hit.GetComponentInParent<MobileNPCHumanoidVitals>() != null
+				|| hit.GetComponentInParent<InteractableVehicle>() != null
+				|| hit.GetComponentInParent<InteractableDoor>() != null
+				|| Vector3.Dot(surface.normal, Vector3.up) < 0.90f)
+				return false;
+
+			return Mathf.Abs(surface.point.y + 0.05f - goal.y) <= 0.18f;
+		}
+
 		private bool ShouldChooseObstacleJumpServer(Vector3 finalGoal,
 			bool waitingForDoor, bool waitingForLearnedRoute,
 			bool waitingForLadder, out Vector3 jumpDirection)
@@ -1259,14 +1292,19 @@ namespace SDG.Unturned
 				|| IsTraversingLadder || hasPlannedLadderApproach
 				|| waitingForDoor || waitingForLearnedRoute || waitingForLadder
 				|| Time.time < noJumpUntil
-				|| Time.time < nextJumpTime
-				|| Mathf.Abs(finalGoal.y - transform.position.y) > 0.55f)
+				|| Time.time < nextJumpTime)
 				return false;
 
+			float goalHeight = finalGoal.y - transform.position.y;
+			bool goalOnVerifiedObject = goalHeight > 0.55f
+				&& IsObservedElevatedObjectGoalServer(finalGoal);
+			if ((!goalOnVerifiedObject && Mathf.Abs(goalHeight) > 0.55f)
+				|| goalHeight > 1.10f)
+				return false;
 			Vector3 direct = finalGoal - transform.position;
 			direct.y = 0f;
 			float remaining = direct.magnitude;
-			if (remaining < 2.0f)
+			if (remaining < (goalOnVerifiedObject ? 0.85f : 2.0f))
 				return false;
 			jumpDirection = direct / remaining;
 
@@ -1286,7 +1324,7 @@ namespace SDG.Unturned
 				Collider col = ObstacleHitBuffer[i].collider;
 				if (col == null || IsOwnCollider(col))
 					continue;
-				if (col.attachedRigidbody != null
+				if ((col.attachedRigidbody != null && !col.attachedRigidbody.isKinematic)
 					|| col.GetComponentInParent<Player>() != null
 					|| col.GetComponentInParent<Zombie>() != null
 					|| col.GetComponentInParent<MobileNPCHumanoidVitals>() != null
