@@ -38,6 +38,7 @@ namespace SDG.Unturned
 		private MobileNPCHumanoidPerception perception;
 		private MobileNPCInventory inventory;
 		private MobileNPCGroupMember groupMember;
+		private MobileNPCTacticalCombatBehavior tacticalBehavior;
 		private ItemGunAsset selectedGunAsset;
 		private bool selectedGunHasCompatibleMagazine;
 		private uint selectedGunInstanceID;
@@ -143,6 +144,7 @@ namespace SDG.Unturned
 			// This keeps unarmed/melee NPC prefabs unaffected.
 			if (GetComponent<MobileNPCTacticalCombatBehavior>() == null)
 				gameObject.AddComponent<MobileNPCTacticalCombatBehavior>();
+			tacticalBehavior = GetComponent<MobileNPCTacticalCombatBehavior>();
 		}
 
 		private void Update()
@@ -311,6 +313,32 @@ namespace SDG.Unturned
 					* NativeBallisticDelta * selectedGunAsset.ballisticSteps);
 			if (toTarget.sqrMagnitude > weaponRange * weaponRange || toTarget.sqrMagnitude < 0.01f)
 				return;
+
+			// A human does not empty a magazine at an implausible long-range
+			// target after personally observing repeated misses. Consider the
+			// sampled outcomes only (no perfect impact oracle, no unseen target).
+			// Combat mode is braver, but cannot upgrade weapon accuracy or range.
+			if (aim != null)
+			{
+				float likelyHit = aim.GetLearnedHitLikelihoodServer(selectedGunID,
+					toTarget.magnitude, out int observedShots);
+				bool poorHistory = observedShots >= 6 && likelyHit < 0.28f
+					&& toTarget.magnitude > 25f;
+				bool costlyLongShot = roundsRemaining <= Mathf.Max(4, selectedGunAsset.ammoPerShot * 4)
+					&& toTarget.magnitude > 50f && selectedOpticZoom < 2.5f;
+				float holdProbability = MobileNPCSettings.CombatMode ? 0.35f : 0.75f;
+				if ((poorHistory || costlyLongShot) && Random.value < holdProbability)
+				{
+					if (poorHistory && tacticalBehavior != null)
+						tacticalBehavior.TryImproveFiringPositionServer();
+					// Preserve a chance for probing shots. Even elite NPCs can
+					// misjudge lead/drop; combatants still consume real ammunition.
+					nextShotTime = Time.time + Random.Range(
+						MobileNPCSettings.CombatMode ? 0.35f : 0.9f,
+						MobileNPCSettings.CombatMode ? 0.85f : 1.7f);
+					return;
+				}
+			}
 
 			float weaponSpreadDegrees = selectedGunAsset.baseSpreadAngleRadians * Mathf.Rad2Deg;
 			// A human estimates lead/drop from previously SEEN target motion.
