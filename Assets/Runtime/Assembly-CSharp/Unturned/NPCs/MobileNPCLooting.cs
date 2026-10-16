@@ -337,7 +337,15 @@ namespace SDG.Unturned
 			if (bestObservedForRadio != null)
 				radioOutbox.TryQueueObservedUsefulLootServer(bestObservedForRadio);
 
-			if (bestItem == null && !isRememberedSupplyTrip)
+			// The strategic A-Life job controls when an optional piece of
+			// loot can interrupt current patrol, rest or a reserved guard post.
+			// Combat/radio-confirmed evidence is handled earlier and unchanged.
+			float minimumRoutineLootScore = GetRoutinePickupThresholdServer();
+			if (bestItem != null && bestScore < minimumRoutineLootScore)
+				bestItem = null;
+
+			if (bestItem == null && !isRememberedSupplyTrip
+				&& MayLeaveRoutineForRememberedSuppliesServer())
 				TryPlanRememberedSupplySearchServer();
 
 			if (bestItem != null && driver.TryStartLoot(bestItem.transform.position))
@@ -542,6 +550,37 @@ namespace SDG.Unturned
 		/// When real survival/equipment needs are unmet, revisit an observed
 		/// site for the useful item type. Location is a hypothesis, not a spawn.
 		/// </summary>
+		private float GetRoutinePickupThresholdServer()
+		{
+			if (autonomyPlanner == null)
+				return 32f;
+			switch (autonomyPlanner.CurrentJob)
+			{
+				case MobileNPCAutonomyPlanner.Job.Scavenge: return 12f;
+				case MobileNPCAutonomyPlanner.Job.GuardSettlement: return 75f;
+				case MobileNPCAutonomyPlanner.Job.Recover: return 90f;
+				default: return 32f;
+			}
+		}
+
+		private bool MayLeaveRoutineForRememberedSuppliesServer()
+		{
+			if (autonomyPlanner == null)
+				return true;
+			if (autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge)
+				return true;
+			MobileNPCMedicalBehavior medical = GetComponent<MobileNPCMedicalBehavior>();
+			MobileNPCSurvivalNeeds survival = GetComponent<MobileNPCSurvivalNeeds>();
+			// A patrol/guard/recovering NPC may leave its routine only for
+			// a personally known, urgent survival need. Memory itself cannot
+			// guarantee an item is present; normal ItemManager checks still apply.
+			return medical != null && medical.NeedsMedicalSupplies
+				|| survival != null && ((survival.ThirstFraction < 0.40f
+					&& inventory.CountItemType(EItemType.WATER) == 0)
+					|| (survival.HungerFraction < 0.38f
+						&& inventory.CountItemType(EItemType.FOOD) == 0));
+		}
+
 		private void TryPlanRememberedSupplySearchServer()
 		{
 			if (supplyPlanStage != SupplyPlanStage.None
