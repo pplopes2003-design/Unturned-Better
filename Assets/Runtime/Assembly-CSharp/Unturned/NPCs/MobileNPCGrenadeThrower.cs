@@ -71,6 +71,11 @@ namespace SDG.Unturned
                 && raid.TryGetVisibleHostileBaseServer(out raidPoint);
             if (!genuinelyVisible && !visibleRaidBase)
                 return;
+            // The existing anti-grief/combat behavior is unchanged for
+            // regular enemy throws. Only the verified base may use this
+            // component outside a direct Pursuing state.
+            if (!visibleRaidBase && brain.CurrentState != MobileNPCBrain.State.Pursuing)
+                return;
             bool breach = visibleRaidBase
                 && (!genuinelyVisible || Random.value < 0.6f);
             Vector3 origin = transform.position + Vector3.up * 1.45f;
