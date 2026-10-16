@@ -178,6 +178,28 @@ namespace SDG.Unturned
 			return false;
 		}
 
+		/// <summary>Native C4 is only operational when an actual matching
+		/// charge and a vanilla detonator are carried by the SAME survivor.</summary>
+		public bool HasUsableRaidChargeServer()
+		{
+			if (!Provider.isServer) return false;
+			bool hasCharge = false, hasDetonator = false;
+			for (int i = 0; i < slots.Count; ++i)
+			{
+				Item held = slots[i];
+				if (held == null || held.id == 0 || held.amount == 0) continue;
+				ItemAsset asset = Assets.find(EAssetType.ITEM, held.id) as ItemAsset;
+				if (asset is ItemDetonatorAsset) hasDetonator = true;
+				if (asset is ItemChargeAsset charge
+					&& charge.build == EBuild.CHARGE
+					&& charge.barricade != null
+					&& charge.barricade.GetComponentInChildren<InteractableCharge>(true) != null
+					&& (charge.structureDamage > 0f || charge.barricadeDamage > 0f))
+					hasCharge = true;
+			}
+			return hasCharge && hasDetonator;
+		}
+
 		public bool HasRaidLauncherServer()
 		{
 			if (!Provider.isServer) return false;
