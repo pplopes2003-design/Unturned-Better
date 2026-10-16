@@ -804,7 +804,12 @@ namespace SDG.Unturned
 		/// </summary>
 		public bool TryStartLoot(Vector3 itemPosition)
 		{
-			if (!CanAcceptServerInput || !tactics.TryStartLoot(itemPosition, Time.time))
+			// Item access, including a proposed elevated shelf, cannot
+			// displace a genuinely identified live enemy or an ambush.
+			if (!CanAcceptServerInput || brain == null || brain.Target != null
+				|| brain.CurrentState == MobileNPCBrain.State.Pursuing
+				|| IsAmbushPreparing
+				|| !tactics.TryStartLoot(itemPosition, Time.time))
 			{
 				return false;
 			}
