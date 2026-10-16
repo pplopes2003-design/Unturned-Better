@@ -1519,6 +1519,59 @@ namespace SDG.Unturned
 			return true;
 		}
 
+		/// <summary>
+		/// After a FAILED real pickup from the ground, suggest only a
+		/// nearby observed, low STATIC item-support top as a possible
+		/// landing goal. Pickup still happens separately through the
+		/// authoritative ItemManager, and the jump STILL needs the native
+		/// physical ballistic preflight before the actor can move.
+		/// </summary>
+		public bool TryFindObservedElevatedLootFootingServer(Vector3 itemPosition,
+			out Vector3 proposedFooting)
+		{
+			proposedFooting = Vector3.zero;
+			if (!Provider.isServer || !hasInitialized || characterController == null
+				|| !characterController.enabled || vaultTraversal == null
+				|| isPlannedJumping || IsTraversingLadder
+				|| injurySystem != null && injurySystem.MovementMultiplier < 0.95f
+				|| brainDriver == null || brainDriver.Target != null
+				|| brainDriver.CurrentGoal != MobileNPCTactics.Goal.Loot
+				|| PlanarDistanceSquared(itemPosition, transform.position) > 12.25f
+				|| itemPosition.y - transform.position.y < 0.42f
+				|| itemPosition.y - transform.position.y > 1.40f
+				|| !Level.checkSafeIncludingClipVolumes(itemPosition))
+				return false;
+
+			Vector3 rayStart = itemPosition + Vector3.up * 0.28f;
+			if (!Physics.Raycast(rayStart, Vector3.down, out RaycastHit top,
+				0.82f, obstacleMask, QueryTriggerInteraction.Ignore)
+				|| top.collider == null || IsOwnCollider(top.collider)
+				|| top.collider.GetComponentInParent<Player>() != null
+				|| top.collider.GetComponentInParent<Zombie>() != null
+				|| top.collider.GetComponentInParent<MobileNPCHumanoidVitals>() != null
+				|| top.collider.GetComponentInParent<InteractableVehicle>() != null
+				|| top.collider.GetComponentInParent<InteractableDoor>() != null
+				|| top.collider.attachedRigidbody != null
+					&& !top.collider.attachedRigidbody.isKinematic
+				|| top.normal.y < 0.90f)
+				return false;
+			Vector3 footing = top.point + Vector3.up * 0.05f;
+			float climbHeight = footing.y - transform.position.y;
+			if (climbHeight < 0.42f || climbHeight > 1.07f
+				|| Vector3.Distance(footing, itemPosition) > 0.60f
+				|| !Level.checkSafeIncludingClipVolumes(footing)
+				|| IsRouteNodeOccupied(footing,
+					Mathf.Clamp(obstacleProbeRadius, 0.05f,
+					characterController.radius * 0.9f)))
+				return false;
+
+			// A guessed shelf cannot authorize a climb. This merely
+			// proposes a precise top for the normal motor obstacle
+			// comparison and physics-only vault checks.
+			proposedFooting = footing;
+			return true;
+		}
+
 		private bool HasPhysicallyReachedNavigationGoal(Vector3 goal)
 		{
 			if (PlanarDistanceSquared(transform.position, goal)
