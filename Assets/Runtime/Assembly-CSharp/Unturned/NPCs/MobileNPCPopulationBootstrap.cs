@@ -72,16 +72,17 @@ namespace SDG.Unturned
             template.SetActive(false);
 
             CharacterController controller = template.AddComponent<CharacterController>();
-            controller.height = 1.8f;
-            controller.radius = 0.35f;
-            controller.center = new Vector3(0f, 0.9f, 0f);
-            // Player_Server.prefab uses a 60-degree slope limit and a
-            // 0.4m step offset. Apply these native walking parameters to
-            // minor street/sidewalk level changes without triggering a jump.
-            // Taller obstructions still require the verified route/vault system.
-            controller.slopeLimit = 60f;
-            controller.stepOffset = 0.4f;
-            controller.skinWidth = 0.08f;
+            // Match the exact physical walking capsule in the checked-in
+            // Zombie_Server.prefab (same upright 2m body as Player_Server).
+            // Zombies traverse street curbs WITHOUT invoking their jump logic:
+            // the native CharacterController steps over small vertical faces.
+            // A regular curb must not become an obstacle-avoidance/AI event.
+            controller.height = 2f;
+            controller.radius = 0.4f;
+            controller.center = new Vector3(0f, 1f, 0f);
+            controller.slopeLimit = 75f;
+            controller.stepOffset = 0.5f;
+            controller.skinWidth = 0.1f;
             // Match Zombie.start(): zombie CharacterControllers do not use Unity's
             // overlap recovery, which can push agents unpredictably around map geometry.
             controller.enableOverlapRecovery = false;
