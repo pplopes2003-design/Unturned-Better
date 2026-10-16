@@ -43,12 +43,13 @@ namespace SDG.Unturned
 				return;
 			}
 
-			// The wound-care component exclusively owns active bleeding treatment.
-			// Avoid burning a specific rag/dressing as generic HP medicine while
-			// blood loss still needs to be stopped.
+			// The dedicated wound-care component owns bleeding AND fractures.
+			// The generic HP healer must not consume a real splint, rag or
+			// dressing before the injury handler can use it correctly. These
+			// distinct services share only the authentic native inventory.
 			MobileNPCInjurySystem injuries = GetComponent<MobileNPCInjurySystem>();
-			if (injuries != null
-				&& injuries.CurrentBleeding != MobileNPCInjurySystem.BleedingSeverity.None)
+			if (injuries != null && (injuries.CurrentBleeding
+				!= MobileNPCInjurySystem.BleedingSeverity.None || injuries.HasFracturedLeg))
 				return;
 
 			// Do not interrupt an active fight or a higher-priority tactical action.
