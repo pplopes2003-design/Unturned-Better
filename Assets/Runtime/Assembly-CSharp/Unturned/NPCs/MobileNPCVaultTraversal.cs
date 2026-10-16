@@ -24,6 +24,9 @@ namespace SDG.Unturned
             // Diagnostic only: a physical landing on a raised object, not
             // a new walkable navmesh link or an invented "climb" animation.
             public bool LandingOnObjectTop;
+            // Exact physically measured support. This is NOT a new A* graph
+            // edge; the motor must validate real grounded contact first.
+            public Collider LandingSupportCollider;
         }
 
         // PlayerMovement uses JUMP=7 with up to a 25% Parkour skill bonus.
@@ -119,6 +122,7 @@ namespace SDG.Unturned
                 // ground-level landing, even if the ray finds it.
                 && !IsSamePhysicalObstacle(groundCollider, wall.collider);
             bool landingOnTop = false;
+            Collider landingTopCollider = null;
             // A climbable LOW object may be a real intermediate footstep.
             // Use the exact observed collider and measured horizontal top.
             // No generic A* connection across objects is created.
@@ -151,6 +155,7 @@ namespace SDG.Unturned
                     foundTopLanding = true;
                     bestTopDistance = testDistance;
                     landing = candidateLanding;
+                    landingTopCollider = surface.collider;
                     break;
                 }
                 if (!foundTopLanding)
@@ -231,6 +236,7 @@ namespace SDG.Unturned
             plan.TravelDistance = travelDistance;
             plan.MaximumDuration = duration + 0.20f;
             plan.LandingOnObjectTop = landingOnTop;
+            plan.LandingSupportCollider = landingOnTop ? landingTopCollider : null;
             return true;
         }
 
@@ -239,7 +245,7 @@ namespace SDG.Unturned
         /// top. Accept only the SAME registered interactive or the same
         /// kinematic rigidbody, not everything sharing a building root.
         /// </summary>
-        private static bool IsSamePhysicalObstacle(Collider a, Collider b)
+        public static bool IsSamePhysicalObstacle(Collider a, Collider b)
         {
             if (a == null || b == null)
                 return false;
