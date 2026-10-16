@@ -57,6 +57,8 @@ namespace SDG.Unturned
 		private float nextContactBroadcastAt;
 		private float nextKnowledgeConversationAt;
 		private float nextThreatBroadcastAt;
+		private float nextAidAssessmentAt;
+		private MobileNPCGroupMember assignedCoverer;
 		public enum SquadRole { None, Covering, Advancing }
 		private SquadRole squadRole;
 		private float squadRoleUntil;
@@ -96,6 +98,7 @@ namespace SDG.Unturned
 			// Local conversation is rate-limited independently of squad advance orders.
 			// Group identity alone never copies knowledge to absent group members.
 			TryShareExperienceByLocalSpeechServer();
+			TryAidNearbyWoundedMemberServer();
 			if (!Provider.isServer || CurrentSquadRole != SquadRole.Advancing
 				|| pendingAdvanceAt <= 0f || Time.time < pendingAdvanceAt)
 				return;
@@ -103,8 +106,16 @@ namespace SDG.Unturned
 			if (vitals != null && vitals.IsDead)
 				return;
 			MobileNPCBrainDriver brain = GetComponent<MobileNPCBrainDriver>();
-			if (brain != null)
-				brain.TryStartSquadAdvance(pendingAdvanceClue);
+			if (assignedCoverer == null || assignedCoverer.CurrentSquadRole != SquadRole.Covering
+				|| vitals != null && vitals.HealthFraction < 0.45f
+				|| brain == null || !brain.TryStartSquadAdvance(pendingAdvanceClue))
+			{
+				// A failed physical advance was never a successful squad
+				// maneuver. Release the paired role immediately.
+				if (assignedCoverer != null && assignedCoverer.assignedCoverer == this)
+					assignedCoverer.ClearSquadRole();
+				ClearSquadRole();
+			}
 		}
 
 		/// <summary>Assigns this newly spawned individual to the nearest living group, or creates one.</summary>
@@ -187,7 +198,9 @@ namespace SDG.Unturned
 			MobileNPCHumanoidRangedCombat ownWeapon = GetComponent<MobileNPCHumanoidRangedCombat>();
 			bool canCover = CurrentSquadRole == SquadRole.None
 				&& ownWeapon != null && ownWeapon.SelectedGunAsset != null
-				&& ownWeapon.RoundsRemaining > 0 && !ownWeapon.IsReloading;
+				&& ownWeapon.RoundsRemaining > 0 && !ownWeapon.IsReloading
+				&& vitals != null && vitals.HealthFraction >= 0.55f
+				&& HasPhysicalLineToObservedThreatServer(observedPosition);
 			MobileNPCGroupMember advancingAlly = null;
 			Vector3 advancingClue = Vector3.zero;
 			float nearestAdvanceDistance = float.PositiveInfinity;
@@ -239,7 +252,9 @@ namespace SDG.Unturned
 				// One shooter can cover one cautious advancement. This stage
 				// assigns roles only; genuine suppression fire requires its
 				// own line-of-fire, ammunition and ally safety implementation.
+				MobileNPCHumanoidVitals allyVitals = ally.vitals;
 				if (!canCover || ally.CurrentSquadRole != SquadRole.None
+					|| allyVitals != null && allyVitals.HealthFraction < 0.45f
 					|| allyBrain.CurrentState != MobileNPCBrain.State.Investigating
 					|| toAlly.sqrMagnitude >= nearestAdvanceDistance)
 					continue;
@@ -254,6 +269,8 @@ namespace SDG.Unturned
 				advancingAlly.squadRole = SquadRole.Advancing;
 				advancingAlly.squadRoleUntil = Time.time + 7f;
 				advancingAlly.pendingAdvanceClue = advancingClue;
+				assignedCoverer = advancingAlly;
+				advancingAlly.assignedCoverer = this;
 				// Wait for the listener to finish checking the sound before
 				// requesting a short covered movement.
 				advancingAlly.pendingAdvanceAt = Time.time + 1.25f;
@@ -264,6 +281,148 @@ namespace SDG.Unturned
 			}
 		}
 
+
+		/// <summary>
+		/// Covering is a genuine fire-capable assignment, not merely being
+		/// nearby with a gun. The caller personally saw the player and the
+		/// straight firing corridor must not cross world geometry or an ally.
+		/// </summary>
+		private bool HasPhysicalLineToObservedThreatServer(Vector3 observedPosition)
+		{
+			Vector3 muzzle = transform.position + Vector3.up * 1.45f;
+			Vector3 point = observedPosition + Vector3.up * 1.0f;
+			Vector3 delta = point - muzzle;
+			float distance = delta.magnitude;
+			if (distance < 2.5f || distance > 35f
+				|| !IsSquadFireLaneSafeServer(muzzle, delta / distance, distance))
+				return false;
+			RaycastHit[] hits = Physics.RaycastAll(muzzle, delta / distance,
+				distance, RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+			for (int i = 0; i < hits.Length; ++i)
+			{
+				Collider collider = hits[i].collider;
+				if (collider == null || collider.transform.IsChildOf(transform))
+					continue;
+				if (collider.GetComponentInParent<Player>() != null)
+					continue;
+				if (collider.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
+					return false;
+				return false;
+			}
+			return true;
+		}
+
+		/// <summary>
+		/// Cheap per-shot friendly-fire guard. Members still fire with the
+		/// original imperfect ballistics and real ammo, but should not shoot
+		/// directly through a nearby living squadmate's head/body. This
+		/// intentionally does not grant target knowledge or aim correction.
+		/// </summary>
+		public bool IsSquadFireLaneSafeServer(Vector3 muzzle, Vector3 direction,
+			float distance)
+		{
+			if (!Provider.isServer || !initialized || leftGroup || GroupId <= 0
+				|| !groups.TryGetValue(GroupId, out GroupRecord record))
+				return true;
+			if (distance <= 0.1f || direction.sqrMagnitude < 0.5f)
+				return false;
+			foreach (MobileNPCGroupMember ally in record.Members)
+			{
+				if (ally == null || ally == this || ally.leftGroup
+					|| ally.vitals != null && ally.vitals.IsDead)
+					continue;
+				// Two torso/head samples approximate the known humanoid
+				// envelope, including allies about to cross the fire lane.
+				for (int sample = 0; sample < 2; ++sample)
+				{
+					Vector3 body = ally.transform.position
+						+ Vector3.up * (sample == 0 ? 0.95f : 1.55f);
+					float along = Vector3.Dot(body - muzzle, direction);
+					if (along < 0.25f || along > distance)
+						continue;
+					Vector3 closest = muzzle + direction * along;
+					if ((body - closest).sqrMagnitude < 0.82f * 0.82f)
+						return false;
+				}
+			}
+			return true;
+		}
+
+		/// <summary>
+		/// Emergency stock redistribution AFTER combat: a nearby wounded
+		/// survivor may receive a truly owned rag/bandage/splint from a
+		/// healthy teammate. Uses normal inventory ownership transactions;
+		/// treatment remains the existing MedicalBehavior's decision.
+		/// </summary>
+		private void TryAidNearbyWoundedMemberServer()
+		{
+			if (!Provider.isServer || !Level.isLoaded || !initialized || leftGroup
+				|| GroupId <= 0 || vitals == null || vitals.IsDead
+				|| vitals.HealthFraction < 0.65f || Time.time < nextAidAssessmentAt
+				|| !groups.TryGetValue(GroupId, out GroupRecord record))
+				return;
+			nextAidAssessmentAt = Time.time + Random.Range(4.0f, 6.5f);
+			MobileNPCBrainDriver donorBrain = GetComponent<MobileNPCBrainDriver>();
+			if (donorBrain == null || donorBrain.Target != null
+				|| donorBrain.CurrentGoal != MobileNPCTactics.Goal.None)
+				return;
+			MobileNPCInjurySystem donorInjuries = GetComponent<MobileNPCInjurySystem>();
+			if (donorInjuries != null && (donorInjuries.CurrentBleeding
+					!= MobileNPCInjurySystem.BleedingSeverity.None
+					|| donorInjuries.HasFracturedLeg))
+				return;
+			MobileNPCInventory ownInventory = GetComponent<MobileNPCInventory>();
+			if (ownInventory == null)
+				return;
+			foreach (MobileNPCGroupMember ally in record.Members)
+			{
+				if (ally == null || ally == this || ally.leftGroup || !ally.initialized
+					|| ally.vitals == null || ally.vitals.IsDead)
+					continue;
+				Vector3 separation = ally.transform.position - transform.position;
+				if (separation.sqrMagnitude > 2.4f * 2.4f
+					|| Mathf.Abs(separation.y) > 1.0f)
+					continue;
+				MobileNPCBrainDriver patientBrain = ally.GetComponent<MobileNPCBrainDriver>();
+				if (patientBrain == null || patientBrain.Target != null)
+					continue;
+				MobileNPCMedicalBehavior patientMedical = ally.GetComponent<MobileNPCMedicalBehavior>();
+				MobileNPCInjurySystem patientInjuries = ally.GetComponent<MobileNPCInjurySystem>();
+				MobileNPCInventory patientInventory = ally.GetComponent<MobileNPCInventory>();
+				if (patientMedical == null || patientInjuries == null
+					|| patientInventory == null || !patientInventory.HasSpace
+					|| !patientMedical.NeedsMedicalSupplies)
+					continue;
+				bool bandage = patientInjuries.CurrentBleeding
+					!= MobileNPCInjurySystem.BleedingSeverity.None;
+				bool splint = patientInjuries.HasFracturedLeg;
+				if (!bandage && !splint)
+					continue;
+				for (int slot = ownInventory.UsedSlots - 1; slot >= 0; --slot)
+				{
+					if (!ownInventory.TryGetItemSnapshot(slot, out Item offered)
+						|| offered == null
+						|| !(bandage && (offered.id == 393 || offered.id == 95
+							|| offered.id == 394) || splint && offered.id == 96))
+						continue;
+					if (!ownInventory.TryTakeItemServer(slot, out Item transferred))
+						continue;
+					if (!patientInventory.TryStoreTransferredItem(transferred))
+					{
+						if (!ownInventory.TryStoreTransferredItem(transferred))
+							Debug.LogError("[MobileNPCGroupMember] Medical item transfer rollback"
+								+ " failed; preserving error for investigation.", this);
+						return;
+					}
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+					Debug.Log("[MobileNPCGroupMember] Group " + GroupId
+						+ " transferred one owned medical item " + transferred.id
+						+ " to physically nearby injured survivor. No health granted.", this);
+#endif
+					return;
+				}
+			}
+		}
 
 		/// <summary>
 		/// Firsthand witnessed zombie/hostile-NPC danger may be SHOUTED to
@@ -888,6 +1047,7 @@ namespace SDG.Unturned
 			squadRole = SquadRole.None;
 			squadRoleUntil = 0f;
 			pendingAdvanceAt = 0f;
+			assignedCoverer = null;
 		}
 
 		/// <summary>Shares construction progress so a successor leader does not restart the pattern.</summary>
