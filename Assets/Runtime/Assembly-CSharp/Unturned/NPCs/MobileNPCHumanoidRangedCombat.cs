@@ -97,6 +97,21 @@ namespace SDG.Unturned
 		public int RoundsRemaining => roundsRemaining;
 		public ItemGunAsset SelectedGunAsset => selectedGunAsset;
 		public bool IsReloading => Provider.isServer && reloadPending;
+		/// <summary>Only while a real visible living target can be engaged
+		/// with owned loaded ammunition; defensive orders still supersede.</summary>
+		public bool CanHoldDeliberateFiringPositionServer(float distance)
+		{
+			if (!Provider.isServer || selectedGunAsset == null
+				|| selectedGunAsset.projectile != null || reloadPending
+				|| !selectedGunHasCompatibleMagazine || roundsRemaining < Mathf.Max(1, selectedGunAsset.ammoPerShot))
+				return false;
+			float range = selectedOpticZoom >= 2.5f
+				? Mathf.Min(115f, Mathf.Min(selectedGunAsset.range,
+					effectiveRange * Mathf.Min(2.55f, selectedOpticZoom * 0.65f)))
+				: Mathf.Min(effectiveRange, selectedGunAsset.range);
+			return distance >= (selectedOpticZoom >= 2.5f ? 19f : 11f)
+				&& distance <= range * 0.86f;
+		}
 		/// <summary>Only an actually mounted sight is an optical advantage.</summary>
 		public float OpticZoom => Provider.isServer && selectedGunAsset != null
 			&& !reloadPending && roundsRemaining > 0 ? selectedOpticZoom : 1f;
