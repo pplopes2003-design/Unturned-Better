@@ -120,6 +120,8 @@ namespace SDG.Unturned
             template.AddComponent<MobileNPCDeathLoot>();
             template.AddComponent<MobileNPCSurvivalNeeds>();
             template.AddComponent<MobileNPCLooting>();
+            // Coordinated, bounded room-to-room search once actual sites are reached.
+            template.AddComponent<MobileNPCInteriorSurvey>();
             // Trading-group collectors physically deliver goods to their leader.
             template.AddComponent<MobileNPCTraderLogistics>();
             // Vitals already requires the six-body-region InjurySystem.
