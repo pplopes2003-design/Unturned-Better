@@ -1075,7 +1075,13 @@ namespace SDG.Unturned
 			int freeSlot = -1;
 			int recyclableSlot = -1;
 			float earliestRevisit = float.PositiveInfinity;
-			const float sameSectorSqr = 22f * 22f;
+			MobileNPCAutonomyPlanner routine = GetComponent<MobileNPCAutonomyPlanner>();
+			bool searchingRooms = routine != null
+				&& routine.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge;
+			// Scavengers should inspect separate rooms within the same house;
+			// patrols still reserve whole broad sectors against squad crowding.
+			float sectorRadius = searchingRooms ? 7f : 22f;
+			float sameSectorSqr = sectorRadius * sectorRadius;
 			for (int i = 0; i < group.WorkSectorOwners.Length; ++i)
 			{
 				MobileNPCGroupMember owner = group.WorkSectorOwners[i];
@@ -1138,8 +1144,12 @@ namespace SDG.Unturned
 				if (group.WorkSectorOwners[i] != this)
 					continue;
 				group.WorkSectorOwners[i] = null;
+				MobileNPCAutonomyPlanner routine = GetComponent<MobileNPCAutonomyPlanner>();
+				bool inspectedRoom = routine != null
+					&& routine.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge;
 				group.WorkSectorRevisitAfter[i] = Time.time
-					+ (visited ? 70f : blocked ? 40f : 0f);
+					+ (visited ? inspectedRoom ? 28f : 70f
+						: blocked ? 40f : 0f);
 			}
 		}
 
