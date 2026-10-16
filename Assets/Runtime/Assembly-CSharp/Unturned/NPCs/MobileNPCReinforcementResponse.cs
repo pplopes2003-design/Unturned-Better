@@ -52,9 +52,10 @@ namespace SDG.Unturned
         }
 
         /// <summary>
-        /// Score must be computed only AFTER the outbox has authenticated real
-        /// 1445/base radio equipment, channel, faction and group. Only one
-        /// listener per distress call receives the optional assignment.
+        /// Outbox verifies portable TX/RX equipment, faction channel and
+        /// caller identity before dispatch. Other SAME-faction groups can
+        /// voluntarily respond if genuinely nearby and path-capable; never
+        /// import the caller's enemy Transform or teleport.
         /// </summary>
         public float GetResponseScoreServer(MobileNPCRadioMessage message)
         {
@@ -63,8 +64,9 @@ namespace SDG.Unturned
                 || !message.IsFresh(Time.time) || message.Confidence < 0.45f
                 || Time.time < nextEligibleAt || hasAssignment
                 || brain == null || group == null || group.GroupId <= 0
-                || group.GroupId != message.SenderGroupId
+                || message.SenderGroupId <= 0
                 || faction == null || faction.CurrentFaction != message.Faction
+                || faction.CurrentFaction == MobileNPCFaction.Id.Unaffiliated
                 || disposition == null
                 || disposition.CurrentRole == MobileNPCHumanoidDisposition.Role.Neutral
                 || vitals == null || vitals.IsDead
@@ -113,7 +115,9 @@ namespace SDG.Unturned
                 return false;
 
             plannedRendezvous = safeGround;
-            originalGroup = message.SenderGroupId;
+            // Record *this responder's* actual group for lifecycle safety.
+            // Source group can differ on a same-faction channel.
+            originalGroup = group.GroupId;
             originalFaction = message.Faction;
             deadline = Mathf.Min(message.ExpiresAt, Time.time + 48f);
             delayUntil = Time.time + Random.Range(1.25f, 3.25f);
@@ -175,7 +179,7 @@ namespace SDG.Unturned
                 }
                 movingToHelp = true;
                 Debug.Log("[MobileNPCReinforcementResponse] " + name
-                    + " volunteered for a real group radio distress call; traveling by normal navigation.", this);
+                    + " volunteered for a same-faction portable-radio distress call; traveling by normal navigation.", this);
                 return;
             }
 
