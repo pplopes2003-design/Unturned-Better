@@ -47,6 +47,8 @@ namespace SDG.Unturned
 		private Item pendingReloadMagazine;
 		private Item pendingReplacedMagazine;
 		private int roundsRemaining;
+		private float selectedOpticZoom = 1f;
+		private float selectedBulletGravityMultiplier = 1f;
 		private float nextShotTime;
 		private float reloadFinishedAt;
 		private bool reloadPending;
@@ -65,6 +67,17 @@ namespace SDG.Unturned
 		public int RoundsRemaining => roundsRemaining;
 		public ItemGunAsset SelectedGunAsset => selectedGunAsset;
 		public bool IsReloading => Provider.isServer && reloadPending;
+		/// <summary>Only an actually mounted sight is an optical advantage.</summary>
+		public float OpticZoom => Provider.isServer && selectedGunAsset != null
+			&& !reloadPending && roundsRemaining > 0 ? selectedOpticZoom : 1f;
+		public float GetScopedObservationRange(float nakedEyeRange)
+		{
+			return Provider.isServer && OpticZoom >= 2.5f
+				&& selectedGunAsset != null && selectedGunAsset.projectile == null
+				? Mathf.Min(115f, Mathf.Min(selectedGunAsset.range,
+					nakedEyeRange + 12f * Mathf.Min(OpticZoom, 8f)))
+				: nakedEyeRange;
+		}
 
 		private void Awake()
 		{
@@ -427,6 +440,8 @@ namespace SDG.Unturned
 				selectedGunInstanceID = 0;
 				selectedGunAsset = null;
 				selectedGunHasCompatibleMagazine = false;
+				selectedOpticZoom = 1f;
+				selectedBulletGravityMultiplier = 1f;
 				roundsRemaining = 0;
 				return;
 			}
@@ -436,7 +451,39 @@ namespace SDG.Unturned
 			selectedGunInstanceID = gunInstanceID;
 			selectedGunID = gun.id;
 			selectedGunAsset = gunAsset;
+			selectedGunHasCompatibleMagazine = false;
+			selectedOpticZoom = 1f;
+			selectedBulletGravityMultiplier = gunAsset.bulletGravityMultiplier;
 			roundsRemaining = 0;
+			// Native gun state owns actual attachments. A scope from nowhere
+			// must never grant longer-range vision or gun accuracy.
+			if (gun.state != null && gun.state.Length >= 18)
+			{
+				ushort sightId = System.BitConverter.ToUInt16(gun.state, GunStateIndices.SIGHT_ID);
+				ItemSightAsset sight = Assets.find(EAssetType.ITEM, sightId) as ItemSightAsset;
+				if (sight != null)
+				{
+					selectedOpticZoom = Mathf.Clamp(sight.zoom, 1f, 12f);
+					selectedBulletGravityMultiplier *= sight.BallisticGravityMultiplier;
+				}
+				ushort barrelId = System.BitConverter.ToUInt16(gun.state, GunStateIndices.BARREL_ID);
+				ItemBarrelAsset barrel = Assets.find(EAssetType.ITEM, barrelId) as ItemBarrelAsset;
+				if (barrel != null)
+					selectedBulletGravityMultiplier *= barrel.BallisticGravityMultiplier;
+				ushort tacticalId = System.BitConverter.ToUInt16(gun.state, GunStateIndices.TACTICAL_ID);
+				ItemTacticalAsset tactical = Assets.find(EAssetType.ITEM, tacticalId) as ItemTacticalAsset;
+				if (tactical != null)
+					selectedBulletGravityMultiplier *= tactical.BallisticGravityMultiplier;
+				ushort gripId = System.BitConverter.ToUInt16(gun.state, GunStateIndices.GRIP_ID);
+				ItemGripAsset grip = Assets.find(EAssetType.ITEM, gripId) as ItemGripAsset;
+				if (grip != null)
+					selectedBulletGravityMultiplier *= grip.BallisticGravityMultiplier;
+				ushort magazineId = System.BitConverter.ToUInt16(gun.state, GunStateIndices.MAGAZINE_ID);
+				ItemMagazineAsset magazine = Assets.find(EAssetType.ITEM, magazineId) as ItemMagazineAsset;
+				if (magazine != null)
+					selectedBulletGravityMultiplier *= magazine.BallisticGravityMultiplier;
+			}
+			selectedBulletGravityMultiplier = Mathf.Clamp(selectedBulletGravityMultiplier, 0.05f, 5f);
 
 			// Vanilla gun state: magazine ID at bytes 8-9, loaded ammo at byte 10.
 			// The detached magazine stores rounds in Item.amount; its asset defines capacity.
