@@ -1320,6 +1320,21 @@ namespace SDG.Unturned
 				group.SettlementPerimeterPiecesPlaced = Mathf.Min(4, group.SettlementPerimeterPiecesPlaced + 1);
 		}
 
+		/// <summary>Recover group construction progress from an actual saved
+		/// living member. Native structures are NEVER created by a snapshot:
+		/// scene reconciliation must still find the real built pieces.</summary>
+		public void RestoreConstructionProgressServer(int pieces, int perimeter, bool storagePlaced)
+		{
+			if (!Provider.isServer || !initialized || leftGroup || GroupId <= 0
+				|| !groups.TryGetValue(GroupId, out GroupRecord record) || !record.HasSettlement)
+				return;
+			int count = Mathf.Clamp(pieces, 0, 5);
+			int sides = Mathf.Clamp(perimeter, 0, 4);
+			record.SettlementPiecesPlaced = Mathf.Max(record.SettlementPiecesPlaced, count);
+			record.SettlementPerimeterPiecesPlaced = Mathf.Max(record.SettlementPerimeterPiecesPlaced, sides);
+			record.SettlementCentralStoragePlaced |= storagePlaced;
+		}
+
 		/// <summary>Restores a saved group identity and shared settlement anchor after snapshot loading.</summary>
 		public bool SetGroupAnchorServer(int savedGroupId, Vector3 savedAnchor, bool hasSettlement)
 		{
