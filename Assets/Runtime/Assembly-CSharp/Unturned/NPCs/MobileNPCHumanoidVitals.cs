@@ -467,11 +467,20 @@ namespace SDG.Unturned
 
 			SafeDeathStage("disable anatomical hit volumes", () =>
 			{
-				Transform hitboxRoot = transform.Find("MobileNPCHitbox");
-				if (hitboxRoot == null) return;
-				Collider[] hitboxes = hitboxRoot.GetComponentsInChildren<Collider>(true);
-				foreach (Collider collider in hitboxes)
-					if (collider != null) collider.enabled = false;
+				// Hitboxes follow animated bones and are nested INSIDE the
+				// visual skeleton, not the obsolete MobileNPCHitbox folder.
+				// Deactivate before turning any bone into a ragdoll Rigidbody.
+				// Skipping this used to keep corpses damageable and enable
+				// duplicate colliders on each released ragdoll bone.
+				MobileNPCBodyHitbox[] hitboxes =
+					GetComponentsInChildren<MobileNPCBodyHitbox>(true);
+				for (int i = 0; i < hitboxes.Length; i++)
+				{
+					if (hitboxes[i] == null) continue;
+					Collider volume = hitboxes[i].GetComponent<Collider>();
+					if (volume != null) volume.enabled = false;
+					hitboxes[i].enabled = false;
+				}
 			});
 			SafeDeathStage("activate corpse ragdoll", () => ActivateAuthoredRagdoll(hitImpulse));
 			SafeDeathStage("death visual observers", () =>
@@ -800,7 +809,8 @@ namespace SDG.Unturned
 			int usableColliders = 0;
 			for (int i = 0; i < colliders.Length; ++i)
 			{
-				if (colliders[i] != null && !colliders[i].isTrigger)
+				if (colliders[i] != null && !colliders[i].isTrigger
+					&& colliders[i].GetComponent<MobileNPCBodyHitbox>() == null)
 					usableColliders++;
 			}
 			// Never enable a partially authored linked skeleton. NPC_Client
@@ -822,7 +832,8 @@ namespace SDG.Unturned
 			for (int i = 0; i < colliders.Length; ++i)
 			{
 				Collider bodyCollider = colliders[i];
-				if (bodyCollider == null || bodyCollider.isTrigger)
+				if (bodyCollider == null || bodyCollider.isTrigger
+					|| bodyCollider.GetComponent<MobileNPCBodyHitbox>() != null)
 					continue;
 				bodyCollider.enabled = true;
 				++enabledColliders;
