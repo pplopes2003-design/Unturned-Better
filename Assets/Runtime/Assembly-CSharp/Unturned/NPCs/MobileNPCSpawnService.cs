@@ -285,15 +285,46 @@ namespace SDG.Unturned
 			}
 
 			CharacterController controller = spawned.GetComponent<CharacterController>();
-			// Unity can reset IgnoreCollision pairs when an inactive template is
-			// activated. Apply the hitbox/controller exclusion to the live clone.
-			Transform hitboxRoot = spawned.transform.Find("MobileNPCHitbox");
-			if (controller != null && hitboxRoot != null)
+			// Fail closed: a living NPC that cannot be HIT must never join
+			// the population. All six anatomical volumes are CHILDREN of
+			// MobileNPCHitbox; the old root.GetComponent<Collider>() returned
+			// null and did not reapply ANY collision exclusions after spawn.
+			MobileNPCBodyHitbox[] anatomy =
+				spawned.GetComponentsInChildren<MobileNPCBodyHitbox>(true);
+			bool damageVolumesValid = controller != null && controller.enabled
+				&& anatomy.Length == 6;
+			for (int i = 0; i < anatomy.Length; ++i)
 			{
-				Collider hitboxCollider = hitboxRoot.GetComponent<Collider>();
-				if (hitboxCollider != null)
-					Physics.IgnoreCollision(controller, hitboxCollider, true);
+				MobileNPCBodyHitbox marker = anatomy[i];
+				Collider hitbox = marker != null ? marker.GetComponent<Collider>() : null;
+				if (hitbox == null || !hitbox.enabled || hitbox.isTrigger
+					|| !hitbox.gameObject.activeInHierarchy
+					|| (RayMasks.DAMAGE_CLIENT & (1 << hitbox.gameObject.layer)) == 0
+					|| (RayMasks.ENTITY & (1 << hitbox.gameObject.layer)) == 0)
+				{
+					damageVolumesValid = false;
+					continue;
+				}
+				// IgnoreCollision made on the inactive template is not
+				// guaranteed to persist to the live spawned clone.
+				if (controller != null)
+					Physics.IgnoreCollision(controller, hitbox, true);
 			}
+			if (!damageVolumesValid)
+			{
+				error = "Spawn refused: NPC anatomy must have six enabled "
+					+ "non-trigger, raycastable Entity-layer colliders.";
+				Debug.LogError("[MobileNPCSpawnService] " + error
+					+ " Instance=" + spawned.name
+					+ " hitboxCount=" + anatomy.Length + ".", spawned);
+				Object.Destroy(spawned);
+				return false;
+			}
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			Debug.Log("[MobileNPCDamageInvariant] PASS at spawn: "
+				+ anatomy.Length + " live anatomical hitboxes; "
+				+ "DAMAGE_CLIENT and ENTITY ray masks verified.", spawned);
+#endif
 			// Zombie.tick() performs a one-time downward CharacterController.Move after
 			// spawning so the capsule resolves against Unturned's Agent/world collision.
 			// Do this before capturing the motor's home/spawn position.
