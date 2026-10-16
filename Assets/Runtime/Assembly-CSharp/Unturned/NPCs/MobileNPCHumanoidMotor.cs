@@ -2704,7 +2704,7 @@ namespace SDG.Unturned
 			float rise = ground.y - transform.position.y;
 			// Ordinary CharacterController stepOffset can climb small curbs,
 			// but tall ledges should still require a planned route.
-			return rise <= Mathf.Max(0.35f, characterController.stepOffset + characterController.skinWidth + 0.1f)
+			return rise <= Mathf.Max(0.35f, characterController.stepOffset + 0.05f)
 				&& rise >= -1.1f;
 		}
 
@@ -4049,8 +4049,7 @@ namespace SDG.Unturned
 					out Vector3 actualFloor, out Collider floorCollider, out _)
 					|| IsFurnitureSurfaceCollider(floorCollider)
 					|| Mathf.Abs(actualFloor.y - desired.y) > 0.30f
-					|| actualFloor.y - lastY > characterController.stepOffset
-						+ characterController.skinWidth + 0.10f
+					|| actualFloor.y - lastY > characterController.stepOffset + 0.05f
 					|| lastY - actualFloor.y > 0.52f)
 					return false;
 				// The floor may be physically connected yet a low ceiling or
@@ -4377,8 +4376,7 @@ namespace SDG.Unturned
 					// Neighbouring cells may be on different floors even when each
 					// individual ground probe is valid. Don't connect levels the
 					// CharacterController cannot actually step between.
-					if (verticalChange > characterController.stepOffset
-						+ characterController.skinWidth + 0.1f
+					if (verticalChange > characterController.stepOffset + 0.05f
 						|| verticalChange < -1.1f)
 						continue;
 					edge.y = 0f;
