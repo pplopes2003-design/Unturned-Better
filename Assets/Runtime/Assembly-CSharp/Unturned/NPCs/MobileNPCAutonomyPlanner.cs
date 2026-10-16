@@ -47,6 +47,13 @@ namespace SDG.Unturned
         private float blockedWaypointExpiresAt;
         private bool hasBlockedWaypoint;
         private bool hasExplorationSectorLease;
+        // Four finite first-hand scout outcomes per survivor. Group work-sector
+        // leases expire independently; solo survivors also avoid repeating an
+        // already visited or genuinely unreachable district every few seconds.
+        private const int RecentScoutingSiteCapacity = 4;
+        private readonly Vector3[] recentScoutingSites = new Vector3[RecentScoutingSiteCapacity];
+        private readonly float[] recentScoutingSiteExpiresAt = new float[RecentScoutingSiteCapacity];
+        private int nextRecentScoutingSiteSlot;
         private bool initialized;
 
         [System.Serializable]
@@ -64,6 +71,9 @@ namespace SDG.Unturned
             public bool hasBlockedWaypoint;
             public Vector3 blockedWaypoint;
             public float blockedWaypointRemaining;
+            // Optional for old save files. Time.time deadlines are NEVER saved.
+            public Vector3[] recentScoutingSites;
+            public float[] recentScoutingRemaining;
         }
 
         /// <summary>
@@ -89,7 +99,15 @@ namespace SDG.Unturned
                 failedScavengeWaypoints = Mathf.Clamp(consecutiveFailedScavengeWaypoints, 0, 2),
                 hasBlockedWaypoint = hasBlockedWaypoint && now < blockedWaypointExpiresAt,
                 blockedWaypoint = lastBlockedWaypoint,
-                blockedWaypointRemaining = Mathf.Clamp(blockedWaypointExpiresAt - now, 0f, 38f)
+                blockedWaypointRemaining = Mathf.Clamp(blockedWaypointExpiresAt - now, 0f, 38f),
+                recentScoutingSites = (Vector3[])recentScoutingSites.Clone(),
+                recentScoutingRemaining = new float[]
+                {
+                    Remaining(recentScoutingSiteExpiresAt[0] - now, 120f),
+                    Remaining(recentScoutingSiteExpiresAt[1] - now, 120f),
+                    Remaining(recentScoutingSiteExpiresAt[2] - now, 120f),
+                    Remaining(recentScoutingSiteExpiresAt[3] - now, 120f)
+                }
             };
         }
 
@@ -135,6 +153,29 @@ namespace SDG.Unturned
             lastBlockedWaypoint = hasBlockedWaypoint ? snapshot.blockedWaypoint : Vector3.zero;
             blockedWaypointExpiresAt = hasBlockedWaypoint
                 ? now + Remaining(snapshot.blockedWaypointRemaining, 38f) : 0f;
+            // Old saves omit these optional arrays. Revalidate each remembered
+            // physical place in this map, rather than trusting stale geometry
+            // or old Time.time values. These are personal experiences only.
+            for (int i = 0; i < RecentScoutingSiteCapacity; ++i)
+                recentScoutingSiteExpiresAt[i] = 0f;
+            if (snapshot.recentScoutingSites != null
+                && snapshot.recentScoutingRemaining != null)
+            {
+                int count = Mathf.Min(RecentScoutingSiteCapacity,
+                    Mathf.Min(snapshot.recentScoutingSites.Length,
+                        snapshot.recentScoutingRemaining.Length));
+                for (int i = 0; i < count; ++i)
+                {
+                    Vector3 site = snapshot.recentScoutingSites[i];
+                    float remaining = Remaining(snapshot.recentScoutingRemaining[i], 120f);
+                    if (remaining <= 0f || !IsFinite(site.x) || !IsFinite(site.y)
+                        || !IsFinite(site.z) || !Level.checkSafeIncludingClipVolumes(site))
+                        continue;
+                    recentScoutingSites[i] = site;
+                    recentScoutingSiteExpiresAt[i] = now + remaining;
+                }
+            }
+            nextRecentScoutingSiteSlot = 0;
             // No old group sector/guard reservation, movement route, combat
             // target or pre-loading Time.time scheduling survives the reload.
             hasExplorationSectorLease = false;
@@ -397,15 +438,64 @@ namespace SDG.Unturned
                 group.ReleaseActivitySectorServer(visited, blocked);
         }
 
-        /// <summary>Failed routes are learned only from actual physical stalls.</summary>
+        /// <summary>Reject recently experienced scout sectors, not arbitrary
+        /// destinations of combat, radio, medicine or pursuit. Other floors do
+        /// not become forbidden merely because XZ overlaps.</summary>
         public bool IsCandidateAllowedServer(Vector3 candidate)
         {
-            if (!Provider.isServer || !hasBlockedWaypoint
-                || Time.time >= blockedWaypointExpiresAt)
-                return true;
-            Vector3 difference = candidate - lastBlockedWaypoint;
-            difference.y = 0f;
-            return difference.sqrMagnitude > 12f * 12f;
+            if (!Provider.isServer || !IsFinite(candidate.x)
+                || !IsFinite(candidate.y) || !IsFinite(candidate.z))
+                return false;
+            if (hasBlockedWaypoint && Time.time < blockedWaypointExpiresAt)
+            {
+                Vector3 blockedDifference = candidate - lastBlockedWaypoint;
+                blockedDifference.y = 0f;
+                if (blockedDifference.sqrMagnitude <= 12f * 12f)
+                    return false;
+            }
+            for (int i = 0; i < RecentScoutingSiteCapacity; ++i)
+            {
+                if (Time.time >= recentScoutingSiteExpiresAt[i]
+                    || Mathf.Abs(candidate.y - recentScoutingSites[i].y) > 2.5f)
+                    continue;
+                Vector3 difference = candidate - recentScoutingSites[i];
+                difference.y = 0f;
+                if (difference.sqrMagnitude <= 18f * 18f)
+                    return false;
+            }
+            return true;
+        }
+
+        private void RememberScoutingOutcomeServer(Vector3 site, float cooldown)
+        {
+            if (!Provider.isServer || (currentJob != Job.Patrol && currentJob != Job.Scavenge)
+                || !IsFinite(site.x) || !IsFinite(site.y) || !IsFinite(site.z)
+                || !Level.checkSafeIncludingClipVolumes(site))
+                return;
+            // Refresh an already known district instead of flooding the
+            // bounded history with adjacent waypoints from the same place.
+            int slot = -1;
+            for (int i = 0; i < RecentScoutingSiteCapacity; ++i)
+            {
+                if (Time.time >= recentScoutingSiteExpiresAt[i]
+                    || Mathf.Abs(site.y - recentScoutingSites[i].y) > 2.5f)
+                    continue;
+                Vector3 difference = site - recentScoutingSites[i];
+                difference.y = 0f;
+                if (difference.sqrMagnitude <= 18f * 18f)
+                {
+                    slot = i;
+                    break;
+                }
+            }
+            if (slot < 0)
+            {
+                slot = nextRecentScoutingSiteSlot;
+                nextRecentScoutingSiteSlot =
+                    (nextRecentScoutingSiteSlot + 1) % RecentScoutingSiteCapacity;
+            }
+            recentScoutingSites[slot] = site;
+            recentScoutingSiteExpiresAt[slot] = Time.time + cooldown;
         }
 
         public void ReportRoamBlockedServer(Vector3 attemptedWaypoint)
@@ -413,6 +503,7 @@ namespace SDG.Unturned
             if (!Provider.isServer)
                 return;
             ReleaseExplorationSectorServer(false, true);
+            RememberScoutingOutcomeServer(attemptedWaypoint, 55f);
             lastBlockedWaypoint = attemptedWaypoint;
             blockedWaypointExpiresAt = Time.time + 35f;
             hasBlockedWaypoint = true;
@@ -425,11 +516,17 @@ namespace SDG.Unturned
             }
         }
 
-        public void ReportRoamReachedServer()
+        public void ReportRoamReachedServer(Vector3 physicallyReachedWaypoint)
         {
             if (!Provider.isServer)
                 return;
             ReleaseExplorationSectorServer(true, false);
+            // Record a success only when the motor actually arrived.
+            Vector3 difference = physicallyReachedWaypoint - transform.position;
+            difference.y = 0f;
+            if (difference.sqrMagnitude <= 2.5f * 2.5f
+                && Mathf.Abs(physicallyReachedWaypoint.y - transform.position.y) <= 1.5f)
+                RememberScoutingOutcomeServer(physicallyReachedWaypoint, 95f);
             consecutiveFailedScavengeWaypoints = 0;
             if (currentJob == Job.Recover)
                 recoveryNotBefore = Time.time + 36f;
