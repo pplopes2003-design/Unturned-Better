@@ -110,7 +110,18 @@ namespace SDG.Unturned
 				MobileNPCTerritoryRaidPlanner raid =
 					GetComponent<MobileNPCTerritoryRaidPlanner>();
 				if (raid != null && raid.HasRecentHostileBaseIntelServer)
-					inventory.TryCraftRaidExplosiveServer();
+				{
+					// Group stockpile is usable only beside its actual native
+					// storage, never via a magical inventory shared across the map.
+					Items physicallyAccessible = null;
+					MobileNPCSettlementBuilder builder =
+						GetComponent<MobileNPCSettlementBuilder>();
+					if (builder != null && builder.TryGetCentralStorageForRadioServer(
+						out InteractableStorage storage)
+						&& (transform.position - storage.transform.position).sqrMagnitude <= 16f)
+						physicallyAccessible = storage.items;
+					inventory.TryCraftRaidExplosiveServer(physicallyAccessible);
+				}
 			}
 			bool radioLootSearch = radioLootRumor != null
 				&& radioLootRumor.IsActivelySearchingServer;
