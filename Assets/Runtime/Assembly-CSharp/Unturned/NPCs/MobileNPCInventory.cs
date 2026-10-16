@@ -157,6 +157,71 @@ namespace SDG.Unturned
 			return gunSnapshot != null && gunAsset != null && instanceID != 0;
 		}
 
+		/// <summary>
+		/// Real owned melee weapon selection: native per-target damage,
+		/// range and item quality, not an invented NPC-only weapon table.
+		/// Zero-damage tools are not treated as weapons.
+		/// </summary>
+		public bool TryGetBestMeleeServer(out Item weapon, out ItemMeleeAsset asset)
+		{
+			weapon = null;
+			asset = null;
+			if (!Provider.isServer)
+				return false;
+			float best = 0f;
+			for (int i = 0; i < slots.Count; ++i)
+			{
+				Item candidate = slots[i];
+				if (candidate == null)
+					continue;
+				ItemMeleeAsset melee = Assets.find(EAssetType.ITEM, candidate.id) as ItemMeleeAsset;
+				if (melee == null || melee.isPro || melee.isRepair
+					|| melee.playerDamageMultiplier == null
+					|| melee.zombieOrPlayerDamageMultiplier == null)
+					continue;
+				float quality = candidate.quality / 100f;
+				float qualityFactor = quality < 0.5f ? 0.5f + quality : 1f;
+				float playerDamage = melee.playerDamageMultiplier.multiply(ELimb.SPINE);
+				float zombieDamage = melee.zombieOrPlayerDamageMultiplier.multiply(ELimb.SPINE);
+				float strength = Mathf.Max(playerDamage, zombieDamage) * qualityFactor;
+				if (strength <= 0f || float.IsNaN(strength) || float.IsInfinity(strength))
+					continue;
+				float score = strength + Mathf.Clamp(melee.range, 0.8f, 3.2f) * 2f;
+				if (score <= best)
+					continue;
+				best = score;
+				weapon = new Item(candidate.id, candidate.amount, candidate.quality,
+					candidate.state != null ? (byte[])candidate.state.Clone() : new byte[0]);
+				asset = melee;
+			}
+			return weapon != null;
+		}
+
+		/// <summary>
+		/// Apply the same configured durability loss as Unturned's UseableMelee
+		/// to one matching actual owned weapon when a server melee hit lands.
+		/// </summary>
+		public bool TryWearOwnedMeleeServer(ushort itemID)
+		{
+			if (!Provider.isServer || itemID == 0
+				|| !Provider.modeConfigData.Items.ShouldWeaponTakeDamage)
+				return false;
+			for (int i = 0; i < slots.Count; ++i)
+			{
+				Item held = slots[i];
+				if (held == null || held.id != itemID)
+					continue;
+				ItemMeleeAsset melee = Assets.find(EAssetType.ITEM, held.id) as ItemMeleeAsset;
+				if (melee == null || Random.value >= melee.durability || held.quality == 0)
+					return false;
+				byte worn = (byte)Mathf.Max(0, held.quality - melee.wear);
+				slots[i] = new Item(held.id, held.amount, worn,
+					held.state != null ? (byte[])held.state.Clone() : new byte[0]);
+				return true;
+			}
+			return false;
+		}
+
 		/// <summary>Finds the first stored magazine whose calibers intersect the gun's accepted magazine calibers.</summary>
 		public bool TryFindCompatibleMagazine(ItemGunAsset gunAsset, out int slotIndex, out ItemMagazineAsset magazineAsset)
 		{
