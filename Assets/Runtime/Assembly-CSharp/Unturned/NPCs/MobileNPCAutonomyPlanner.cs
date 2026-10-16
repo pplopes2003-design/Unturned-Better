@@ -453,7 +453,20 @@ namespace SDG.Unturned
             Job job = EvaluateRoutineServer();
             if (job == Job.GuardSettlement)
             {
-                if (group != null && group.TryReserveGuardPostServer(out Vector3 post))
+                if (group != null && group.HasSettlement && group.CanPlanSettlement
+                    && MobileNPCArchetypePolicy.ForNPC(gameObject)
+                        == MobileNPCArchetypePolicy.Preset.Trader)
+                {
+                    // Shop steward is NOT a perimeter guard: reserve no watch
+                    // post. Stay by the group's real settlement anchor so
+                    // collectors can reach the seller and transfer stock.
+                    group.ReleaseGuardPostServer();
+                    anchor = group.GroupAnchor;
+                    minStep = 2f;
+                    maxStep = 3.5f;
+                    structurePreference = 0f;
+                }
+                else if (group != null && group.TryReserveGuardPostServer(out Vector3 post))
                 {
                     anchor = post;
                     minStep = 3f;
