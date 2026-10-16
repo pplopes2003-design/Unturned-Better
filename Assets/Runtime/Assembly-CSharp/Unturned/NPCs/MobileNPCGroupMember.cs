@@ -106,7 +106,7 @@ namespace SDG.Unturned
 			if (vitals != null && vitals.IsDead)
 				return;
 			MobileNPCBrainDriver brain = GetComponent<MobileNPCBrainDriver>();
-			if (assignedCoverer == null || assignedCoverer.CurrentSquadRole != SquadRole.Covering
+			if (assignedCoverer == null || !assignedCoverer.CanActuallyCoverAdvanceServer()
 				|| vitals != null && vitals.HealthFraction < 0.45f
 				|| brain == null || !brain.TryStartSquadAdvance(pendingAdvanceClue))
 			{
@@ -249,9 +249,9 @@ namespace SDG.Unturned
 				Vector3 clue = observedPosition + new Vector3(error.x, 0f, error.y);
 				allyBrain.ReportGroupPlayerContactClue(clue, confidence);
 
-				// One shooter can cover one cautious advancement. This stage
-				// assigns roles only; genuine suppression fire requires its
-				// own line-of-fire, ammunition and ally safety implementation.
+				// One physically fire-capable observer can cover one cautious
+				// advance. This NEVER generates suppressive bullets: the native
+				// firearm must still see its own target, aim and debit ammunition.
 				MobileNPCHumanoidVitals allyVitals = ally.vitals;
 				if (!canCover || ally.CurrentSquadRole != SquadRole.None
 					|| allyVitals != null && allyVitals.HealthFraction < 0.45f
@@ -381,7 +381,8 @@ namespace SDG.Unturned
 					continue;
 				Vector3 separation = ally.transform.position - transform.position;
 				if (separation.sqrMagnitude > 2.4f * 2.4f
-					|| Mathf.Abs(separation.y) > 1.0f)
+					|| Mathf.Abs(separation.y) > 1.0f
+					|| !HasClearHandOffLineServer(ally))
 					continue;
 				MobileNPCBrainDriver patientBrain = ally.GetComponent<MobileNPCBrainDriver>();
 				if (patientBrain == null || patientBrain.Target != null)
@@ -394,8 +395,12 @@ namespace SDG.Unturned
 					|| !patientMedical.NeedsMedicalSupplies)
 					continue;
 				bool bandage = patientInjuries.CurrentBleeding
-					!= MobileNPCInjurySystem.BleedingSeverity.None;
-				bool splint = patientInjuries.HasFracturedLeg;
+					!= MobileNPCInjurySystem.BleedingSeverity.None
+					&& !patientInventory.ContainsItemID(393)
+					&& !patientInventory.ContainsItemID(95)
+					&& !patientInventory.ContainsItemID(394);
+				bool splint = patientInjuries.HasFracturedLeg
+					&& !patientInventory.ContainsItemID(96);
 				if (!bandage && !splint)
 					continue;
 				for (int slot = ownInventory.UsedSlots - 1; slot >= 0; --slot)
@@ -422,6 +427,54 @@ namespace SDG.Unturned
 					return;
 				}
 			}
+		}
+
+		/// <summary>
+		/// An actual covering assignment must remain able to fire on the
+		/// personally perceived player before its partner starts a flank.
+		/// Losing sight or reloading releases the proposed coordinated role.
+		/// </summary>
+		private bool CanActuallyCoverAdvanceServer()
+		{
+			if (CurrentSquadRole != SquadRole.Covering || vitals == null
+				|| vitals.IsDead || vitals.HealthFraction < 0.55f)
+				return false;
+			MobileNPCBrainDriver ownBrain = GetComponent<MobileNPCBrainDriver>();
+			MobileNPCHumanoidPerception eyes = GetComponent<MobileNPCHumanoidPerception>();
+			MobileNPCHumanoidRangedCombat weapon =
+				GetComponent<MobileNPCHumanoidRangedCombat>();
+			return ownBrain != null && ownBrain.Target != null
+				&& ownBrain.CurrentGoal != MobileNPCTactics.Goal.Retreat
+				&& eyes != null && eyes.VisiblePlayer != null
+				&& weapon != null && weapon.SelectedGunAsset != null
+				&& weapon.RoundsRemaining > 0 && !weapon.IsReloading
+				&& HasPhysicalLineToObservedThreatServer(eyes.VisiblePlayer.transform.position);
+		}
+
+		private bool HasClearHandOffLineServer(MobileNPCGroupMember recipient)
+		{
+			if (recipient == null)
+				return false;
+			Vector3 from = transform.position + Vector3.up * 1.15f;
+			Vector3 to = recipient.transform.position + Vector3.up * 1.15f;
+			Vector3 delta = to - from;
+			float length = delta.magnitude;
+			if (length < 0.1f || length > 2.8f)
+				return false;
+			RaycastHit[] blockers = Physics.RaycastAll(from, delta / length, length,
+				RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+			for (int i = 0; i < blockers.Length; ++i)
+			{
+				Collider hit = blockers[i].collider;
+				if (hit == null || hit.transform.IsChildOf(transform)
+					|| hit.transform.IsChildOf(recipient.transform))
+					continue;
+				if (hit.GetComponentInParent<Player>() != null
+					|| hit.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
+					continue;
+				return false;
+			}
+			return true;
 		}
 
 		/// <summary>
