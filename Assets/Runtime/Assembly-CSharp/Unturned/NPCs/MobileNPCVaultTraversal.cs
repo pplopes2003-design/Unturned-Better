@@ -68,7 +68,9 @@ namespace SDG.Unturned
             Vector3 direction = desired.normalized;
             Vector3 root = transform.position;
 
-            Vector3 wallProbe = root + Vector3.up * 0.48f;
+            // Shin-height observation also sees genuine short crates
+            // whose flat tops are below the previous 0.48m ray.
+            Vector3 wallProbe = root + Vector3.up * 0.28f;
             if (!Physics.Raycast(wallProbe, direction, out RaycastHit wall,
                 0.95f, obstacleMask, QueryTriggerInteraction.Ignore)
                 || wall.collider == null || IsSelf(wall.collider)
@@ -96,7 +98,10 @@ namespace SDG.Unturned
 
             // Both "regular" and higher Parkour-style leaps are bounded by
             // real Unturned PlayerMovement constants, not arbitrary levitation.
-            float impulse = wallHeight < 0.70f
+            // Use Unturned's ordinary 7 impulse for small hops, and
+            // its existing Parkour bound for taller but still feasible
+            // object tops. Actual ballistic clearance remains decisive.
+            float impulse = wallHeight < 0.60f
                 ? NativeJumpImpulse : ParkourJumpImpulse;
             float apex = impulse * impulse / (2f * gravityAcceleration);
             float clearanceHeight = wallHeight + 0.13f;
