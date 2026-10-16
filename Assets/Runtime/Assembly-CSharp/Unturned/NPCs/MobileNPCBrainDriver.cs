@@ -1146,6 +1146,24 @@ namespace SDG.Unturned
 		/// obtained by physical observation or a nearby spoken leader order.
 		/// The existing motor validates the actual route; this cannot aim at a
 		/// hidden defender, damage a building or override immediate self-defense.</summary>
+		/// <summary>Immediate withdrawal after a real NPC charge is planted.
+		/// A route was independently validated by the charge breacher; the
+		/// ordinary motor/tactics executes retreat, never a teleport.</summary>
+		public bool TryStartChargeWithdrawalServer(Vector3 safePoint)
+		{
+			if (!CanAcceptServerInput || !MobileNPCSettings.CombatMode
+				|| !IsFiniteSquadPoint(safePoint)
+				|| tactics.CurrentGoal == MobileNPCTactics.Goal.SeekCover
+				|| tactics.CurrentGoal == MobileNPCTactics.Goal.Retreat)
+				return false;
+			MobileNPCHumanoidMotor move = GetComponent<MobileNPCHumanoidMotor>();
+			if (move == null || !move.CanReachNearbyCoverServer(safePoint)
+				|| !tactics.TryStartValidatedSquadWithdrawal(safePoint, Time.time))
+				return false;
+			PublishDecisionIfChanged();
+			return true;
+		}
+
 		public bool TryStartRaidStagingServer(Vector3 stagingPoint)
 		{
 			if (!MobileNPCSettings.CombatMode || !CanAcceptServerInput
