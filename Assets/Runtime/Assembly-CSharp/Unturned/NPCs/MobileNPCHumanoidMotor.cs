@@ -1136,6 +1136,7 @@ namespace SDG.Unturned
 					// paths rather than an airborne exposed leap by default.
 					&& brainDriver.CurrentGoal != MobileNPCTactics.Goal.SeekCover
 					&& brainDriver.CurrentGoal != MobileNPCTactics.Goal.Retreat
+					&& brainDriver.CurrentGoal != MobileNPCTactics.Goal.Stalk
 					&& ShouldChooseObstacleJumpServer(destination,
 						waitingForDoorToOpen, waitingForLearnedAccess,
 						waitingForLadderApproach, out chosenJumpDirection)
