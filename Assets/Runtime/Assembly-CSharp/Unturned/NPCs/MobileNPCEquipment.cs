@@ -130,6 +130,13 @@ namespace SDG.Unturned
                     continue;
                 float multiplier = asset.armor + (1f - asset.armor) * (1f - item.quality / 100f);
                 float score = (1f - Mathf.Clamp01(multiplier)) * 100f + item.quality * 0.01f;
+            if (kind == EItemType.MASK && asset is ItemMaskAsset earpiece
+                && earpiece.isEarpiece)
+            {
+                // In survival mode a working receiver is useful; during
+                // raids better physical face protection can still win.
+                score += MobileNPCSettings.CombatMode ? 12f : 36f;
+            }
                 if (score <= best)
                     continue;
                 best = score;
