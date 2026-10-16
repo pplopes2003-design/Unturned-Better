@@ -331,3 +331,12 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 7. Repetir com duas mortes em momentos diferentes: cada reposição deve respeitar seu próprio relógio e a tentativa malsucedida de spawn não deve consumir a reposição pendente.
 
 **Ainda não executado no Unity/Unturned; validar em dev build antes de considerar concluído.**
+
+
+## Player(2).log regression — 15 October 2026
+
+**Status: QUASE PRONTO (static source verified, dev build not yet retested).** The log showed 52 spawn rejections and 12 deferred persistence retries, all caused by the same anatomical collider failure: `Hit_LeftLeg` was no longer on Entity (23) by the time `MobileNPCSpawnService` checked it. `MobileNPCVisualGuard.EnforceRenderableState()` was wrongly repainting every visual descendant to Medium (16), including all six new hitbox children. The guard now activates/re-layers only actual mesh renderers and the ancestors required to draw them; the six hitboxes keep `LayerMasks.ENTITY`. The spawn validator reports the actual layer separately from ray mask errors. No hitbox was added, removed, or resized: the six Player_Server box dimensions are unchanged.
+
+**Dev-build acceptance:** the startup log should no longer contain `Spawn refused` caused by incorrect hitbox layers, and should show a successful `[MobileNPCDamageInvariant] PASS at spawn` followed by NPC activity. Only after a successful spawn should firearm, melee, zombie/animal damage, death, ragdoll and persistence be considered testable; none of those gameplay outcomes is validated by Player(2).log, because the NPCs did not spawn.
+
+**Independent environment warning, still pending:** the game asset bundles reference `Pathfinding.NavmeshCut`, but the public U3-SDK intentionally ships `UnturnedPathfinding_Empty` without the licensed ASPFP backend. Repeated missing-script notices from `LevelObjects.load` are not resolved by the hitbox fix; do not add a dummy NavmeshCut or claim native A* navigation is functional. Keep physics-based fallback navigation as the supported mode until a compatible, licensed backend/asset setup can be verified.
