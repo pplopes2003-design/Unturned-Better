@@ -58,6 +58,21 @@ namespace SDG.Unturned
 #endif
         }
 
+        /// <summary>Native Earpiece is a MASK asset. A worn, owned
+        /// Earpiece receives on the selected channel, never transmits.</summary>
+        public bool HasWornEarpieceServer
+        {
+            get
+            {
+                if (!Provider.isServer || vitals != null && vitals.IsDead
+                    || maskID == 0 || inventory == null)
+                    return false;
+                ItemMaskAsset mask = Assets.find(EAssetType.ITEM, maskID) as ItemMaskAsset;
+                return mask != null && mask.isEarpiece
+                    && inventory.ContainsItemID(maskID);
+            }
+        }
+
         /// <summary>
         /// Mirrors DamageTool.getPlayerArmor's anatomical allocation. Return
         /// 1 when unarmored. Native clothing quality is debited before protection.
