@@ -4905,6 +4905,14 @@ namespace SDG.Unturned
 				&& autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge)
 				effectiveRoamingRadius = Mathf.Min(effectiveRoamingRadius, 110f);
 
+			// A real trading-group courier with a nearly full pack has a
+			// concrete delivery objective: reach a WALKABLE position beside the
+			// living vendor. Reusing arbitrary settlement patrol waypoints may
+			// leave the courier several metres away, never close enough for
+			// the inventory-to-inventory transaction.
+			if (TryChooseTraderDeliveryApproachServer())
+				return;
+
 			// A survivor may finish combat 80m from home and *then* be
 			// assigned guard duty. Without an explicit physical return trip,
 			// every nearby guard waypoint violates the small job radius,
@@ -5047,6 +5055,64 @@ namespace SDG.Unturned
 		/// Spawn sites are weak hints about where to LOOK, not knowledge
 		/// that a specific item currently exists. Never reads ItemManager.
 		/// </summary>
+		/// <summary>
+		/// A courier's delivery destination is a real verified standing area
+		/// within conversational reach of a living group vendor. No teleport,
+		/// path guarantee or remote stock transfer is allowed. If geometry
+		/// rejects the approach, ordinary scouting/restock policy remains.
+		/// </summary>
+		private bool TryChooseTraderDeliveryApproachServer()
+		{
+			if (!Provider.isServer || MobileNPCSettings.CombatMode
+				|| MobileNPCArchetypePolicy.ForNPC(gameObject)
+					!= MobileNPCArchetypePolicy.Preset.Trader)
+				return false;
+			MobileNPCInventory pack = GetComponent<MobileNPCInventory>();
+			MobileNPCGroupMember member = GetComponent<MobileNPCGroupMember>();
+			if (pack == null || pack.FreeSlots > 2 || member == null
+				|| !member.HasSettlement
+				|| !member.TryGetLivingLeaderServer(out MobileNPCGroupMember seller)
+				|| seller == null || seller == member
+				|| MobileNPCArchetypePolicy.ForNPC(seller.gameObject)
+					!= MobileNPCArchetypePolicy.Preset.Trader
+				|| PlanarDistanceSquared(seller.transform.position, member.GroupAnchor) > 9f * 9f
+				|| PlanarDistanceSquared(seller.transform.position, spawnPosition)
+					> HomeTerritoryRadius * HomeTerritoryRadius)
+				return false;
+			// Delivery is handled by MobileNPCTraderLogistics when the
+			// survivor gets within 3.5m. Do not steal every idle tick when
+			// already within transfer reach.
+			if ((seller.transform.position - transform.position).sqrMagnitude <= 3f * 3f)
+				return false;
+			for (int attempt = 0; attempt < 6; ++attempt)
+			{
+				float bearing = Mathf.PI * 2f * attempt / 6f;
+				Vector3 candidate = seller.transform.position
+					+ new Vector3(Mathf.Cos(bearing), 0f, Mathf.Sin(bearing)) * 2.1f;
+				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate,
+					Mathf.Max(1f, roamingSearchHeight),
+					Mathf.Min(4f, Mathf.Max(0f, roamingMaximumDrop)),
+					roamingGroundMask, Mathf.Min(55f, roamingMaximumSlope),
+					out Vector3 ground, out _)
+					|| Mathf.Abs(ground.y - seller.transform.position.y) > 1.25f
+					|| PlanarDistanceSquared(ground, spawnPosition)
+						> HomeTerritoryRadius * HomeTerritoryRadius
+					|| Physics.CheckCapsule(ground + Vector3.up * 0.35f,
+						ground + Vector3.up * 1.65f, 0.34f,
+						RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore))
+					continue;
+				roamingDestination = ground;
+				hasRoamingDestination = true;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+				Debug.Log("[MobileNPCTraderLogistics] Courier " + name
+					+ " returning physically to vendor " + seller.name
+					+ " at " + ground, this);
+#endif
+				return true;
+			}
+			return false;
+		}
+
 		private bool TryChooseLocalLootInspectionSiteServer(float radius,
 			out Vector3 destination)
 		{
