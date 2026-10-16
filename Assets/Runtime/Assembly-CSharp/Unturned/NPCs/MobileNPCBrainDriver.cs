@@ -117,6 +117,8 @@ namespace SDG.Unturned
 
 			// Ambush readiness is only armed by an actual concealed approach.
 			// Repeated perception scans do not reset its countdown.
+			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Regroup)
+				tactics.ClearGoal();
 			bool wasStalking = tactics.CurrentGoal == MobileNPCTactics.Goal.Stalk;
 			if (wasStalking)
 			{
@@ -1079,6 +1081,42 @@ namespace SDG.Unturned
 				TryPlanConcealedApproach();
 			}
 			PublishDecisionIfChanged();
+		}
+
+		/// <summary>
+		/// No knowledge of enemies is transferred. A nearby vocal order only
+		/// allows this individual to evaluate a fresh safe point beside the
+		/// physically present leader. Route and obstacles are checked again.
+		/// </summary>
+		public bool TryStartSquadRegroupServer(Vector3 leaderPosition)
+		{
+			if (!CanAcceptServerInput || brain.Target != null
+				|| brain.CurrentState != MobileNPCBrain.State.Idle
+				|| tactics.CurrentGoal != MobileNPCTactics.Goal.None
+				|| !IsFiniteSquadPoint(leaderPosition))
+				return false;
+			Vector3 offset = transform.position - leaderPosition;
+			offset.y = 0f;
+			if (offset.sqrMagnitude < 16f || offset.sqrMagnitude > 16f * 16f)
+				return false;
+			MobileNPCHumanoidMotor movement = GetComponent<MobileNPCHumanoidMotor>();
+			if (movement == null)
+				return false;
+			Vector3 candidate = leaderPosition + offset.normalized * 2.6f;
+			if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate,
+				1.0f, 1.4f, RayMasks.BLOCK_COLLISION | RayMasks.GROUND2, 65f,
+				out Vector3 ground, out Collider floor, out _)
+				|| floor == null
+				|| floor.GetComponentInParent<Player>() != null
+				|| floor.GetComponentInParent<MobileNPCHumanoidVitals>() != null
+				|| floor.GetComponentInParent<InteractableStorage>() != null
+				|| Mathf.Abs(ground.y - transform.position.y) > 0.65f
+				|| !movement.CanReachNearbyCoverServer(ground))
+				return false;
+			bool assigned = tactics.TryStartGroupRegroup(ground, Time.time);
+			if (assigned)
+				PublishDecisionIfChanged();
+			return assigned;
 		}
 
 		/// <summary>Updates a companion follow destination without overriding an active combat target.</summary>
