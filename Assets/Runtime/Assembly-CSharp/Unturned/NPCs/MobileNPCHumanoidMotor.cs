@@ -169,6 +169,12 @@ namespace SDG.Unturned
 		private bool hasRoamingDestination;
 		private Vector3 roamingDestination;
 		private float nextRoamingDecisionTime;
+		// Suspended A-Life waypoint is a short-lived INTENTION only. It
+		// never stores an ongoing physics route, visible enemy or loot item.
+		private bool hasSuspendedRoutineWaypoint;
+		private Vector3 suspendedRoutineWaypoint;
+		private MobileNPCAutonomyPlanner.Job suspendedRoutineJob;
+		private float suspendedRoutineExpiresAt;
 		private Vector3 lastStuckCheckPosition;
 		private Vector3 lastTrackedStuckGoal;
 		private Vector3 lastMeaningfulRouteProgressPosition;
@@ -393,6 +399,8 @@ namespace SDG.Unturned
 			ResetObservedEntranceSurvey();
 			brainDriver.InitializeServer(spawnPosition);
 			hasRoamingDestination = false;
+			hasSuspendedRoutineWaypoint = false;
+			suspendedRoutineExpiresAt = 0f;
 			nextRoamingDecisionTime = Time.time + Random.Range(2f, 5f);
 			lastStuckCheckPosition = transform.position;
 			lastMeaningfulRouteProgressPosition = transform.position;
@@ -486,6 +494,11 @@ namespace SDG.Unturned
 			if (!hasBrainDestination && autonomyPlanner != null)
 			{
 				MobileNPCAutonomyPlanner.Job routine = autonomyPlanner.EvaluateRoutineServer();
+				if (hasPreviousRoutineJob && routine != previousRoutineJob)
+				{
+					// Old strategy must not resume an obsolete patrol/loot waypoint.
+					hasSuspendedRoutineWaypoint = false;
+				}
 				if (hasPreviousRoutineJob && routine != previousRoutineJob
 					&& hasRoamingDestination)
 				{
@@ -505,7 +518,19 @@ namespace SDG.Unturned
 				// Combat, investigation, confirmed loot, radio and follow orders
 				// preempt online scouting without leaving a false visited sector.
 				if (hasRoamingDestination && autonomyPlanner != null)
+				{
+					MobileNPCAutonomyPlanner.Job routine = autonomyPlanner.CurrentJob;
+					if ((routine == MobileNPCAutonomyPlanner.Job.Patrol
+						|| routine == MobileNPCAutonomyPlanner.Job.Scavenge)
+						&& Level.checkSafeIncludingClipVolumes(roamingDestination))
+					{
+						suspendedRoutineWaypoint = roamingDestination;
+						suspendedRoutineJob = routine;
+						suspendedRoutineExpiresAt = Time.time + 38f;
+						hasSuspendedRoutineWaypoint = true;
+					}
 					autonomyPlanner.ReleaseExplorationSectorServer(false, false);
+				}
 				// Combat, investigation and tactical goals always take precedence over roaming or returning home.
 				hasRoamingDestination = false;
 			}
@@ -532,7 +557,11 @@ namespace SDG.Unturned
 			}
 			else if (roamingEnabled && Time.time >= nextRoamingDecisionTime && !hasRoamingDestination)
 			{
-				TryChooseRoamingDestination();
+				// Once a genuine combat/sound interruption has ended, try
+				// resuming the prior strategic destination ONCE. Every piece
+				// of world ground and group coordination is checked again.
+				if (!TryResumeSuspendedRoutineWaypointServer())
+					TryChooseRoamingDestination();
 			}
 
 			bool waitingForDoorToOpen = false;
@@ -4676,6 +4705,44 @@ namespace SDG.Unturned
 					return true;
 			}
 			return false;
+		}
+
+		/// <summary>
+		/// Resume a firsthand A-Life scouting intention after the native brain
+		/// finishes an interruption. It may have become occupied, blocked,
+		/// too distant, on another floor, or assigned to another teammate.
+		/// Reverify all facts instead of teleporting or reusing stale A*.
+		/// </summary>
+		private bool TryResumeSuspendedRoutineWaypointServer()
+		{
+			if (!hasSuspendedRoutineWaypoint || autonomyPlanner == null)
+				return false;
+			hasSuspendedRoutineWaypoint = false;
+			if (Time.time >= suspendedRoutineExpiresAt
+				|| autonomyPlanner.CurrentJob != suspendedRoutineJob
+				|| !IsWithinHomeTerritory
+				|| !Level.checkSafeIncludingClipVolumes(suspendedRoutineWaypoint)
+				|| !autonomyPlanner.IsCandidateAllowedServer(suspendedRoutineWaypoint)
+				|| PlanarDistanceSquared(suspendedRoutineWaypoint, spawnPosition)
+					> HomeTerritoryRadius * HomeTerritoryRadius
+				|| PlanarDistanceSquared(suspendedRoutineWaypoint, transform.position)
+					< stoppingDistance * stoppingDistance)
+				return false;
+			if (!MobileNPCSpawnService.TryFindSafeGroundPosition(
+				suspendedRoutineWaypoint, 0.95f, 1.25f,
+				(RayMasks.BLOCK_COLLISION | RayMasks.GROUND2),
+				Mathf.Min(75f, characterController.slopeLimit),
+				out Vector3 ground, out Collider support, out _)
+				|| support == null
+				|| support.GetComponentInParent<Player>() != null
+				|| support.GetComponentInParent<Zombie>() != null
+				|| support.GetComponentInParent<MobileNPCHumanoidVitals>() != null
+				|| Mathf.Abs(ground.y - suspendedRoutineWaypoint.y) > 0.45f
+				|| !autonomyPlanner.TryClaimObservedExplorationSectorServer(ground))
+				return false;
+			roamingDestination = ground;
+			hasRoamingDestination = true;
+			return true;
 		}
 
 		private void TryChooseRoamingDestination()
