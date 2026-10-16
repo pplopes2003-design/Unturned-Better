@@ -228,7 +228,11 @@ namespace SDG.Unturned
                 Transform obstacle = sightHits[i].transform;
                 if (obstacle == null || obstacle.IsChildOf(transform)
                     || obstacle == storage || obstacle.IsChildOf(storage)
-                    || storage.IsChildOf(obstacle)
+                    // Ignore only this storage's OWN immediate native prefab
+                    // collider; ignoring arbitrary ancestors of storage could
+                    // incorrectly hide whole buildings between observer/base.
+                    || (storage.parent == obstacle
+                        && obstacle.GetComponentInChildren<InteractableStorage>(true) == storage)
                     || obstacle.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
                     continue;
                 return false;
