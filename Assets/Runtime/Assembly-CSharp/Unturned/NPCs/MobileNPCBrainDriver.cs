@@ -1135,6 +1135,26 @@ namespace SDG.Unturned
 			return assigned;
 		}
 
+		/// <summary>Raid planning supplies an approximate *staging* location
+		/// obtained by physical observation or a nearby spoken leader order.
+		/// The existing motor validates the actual route; this cannot aim at a
+		/// hidden defender, damage a building or override immediate self-defense.</summary>
+		public bool TryStartRaidStagingServer(Vector3 stagingPoint)
+		{
+			if (!MobileNPCSettings.CombatMode || !CanAcceptServerInput
+				|| brain.Target != null || brain.CurrentState != MobileNPCBrain.State.Idle
+				|| tactics.CurrentGoal != MobileNPCTactics.Goal.None
+				|| !IsFiniteSquadPoint(stagingPoint)
+				|| !Level.checkSafeIncludingClipVolumes(stagingPoint))
+				return false;
+			MobileNPCHumanoidMotor movement = GetComponent<MobileNPCHumanoidMotor>();
+			if (movement == null || !movement.CanReachNearbyCoverServer(stagingPoint)
+				|| !tactics.TryStartRaidStaging(stagingPoint, Time.time))
+				return false;
+			PublishDecisionIfChanged();
+			return true;
+		}
+
 		/// <summary>Updates a companion follow destination without overriding an active combat target.</summary>
 		public void SetFollowDestinationServer(Vector3 destination)
 		{
