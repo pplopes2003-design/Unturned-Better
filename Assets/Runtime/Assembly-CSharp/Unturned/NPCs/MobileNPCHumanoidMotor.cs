@@ -4767,7 +4767,8 @@ namespace SDG.Unturned
 				float length = Random.Range(22f, Mathf.Min(58f, Mathf.Max(23f, radius)));
 				Vector3 estimate = transform.position + direction * length;
 				if (PlanarDistanceSquared(estimate, spawnPosition)
-					> HomeTerritoryRadius * HomeTerritoryRadius)
+					> HomeTerritoryRadius * HomeTerritoryRadius
+					|| PlanarDistanceSquared(estimate, spawnPosition) > radius * radius)
 					continue;
 				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(estimate,
 					Mathf.Max(1f, roamingSearchHeight),
