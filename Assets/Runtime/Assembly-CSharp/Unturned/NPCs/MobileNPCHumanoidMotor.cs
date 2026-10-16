@@ -1064,8 +1064,9 @@ namespace SDG.Unturned
 						plannedJumpLanding) < 0.65f;
 					// The predicted top is NOT valid until the capsule
 					// actually touches the SAME physical supporting collider.
+					bool expectedObjectTop = plannedJumpLandsOnObjectTop;
 					bool verifiedTopLanding = actuallyLanded
-						&& plannedJumpLandsOnObjectTop
+						&& expectedObjectTop
 						&& TryVerifyObjectSupportAtCurrentPosition(plannedJumpSupportCollider);
 					if (verifiedTopLanding)
 					{
@@ -1088,7 +1089,7 @@ namespace SDG.Unturned
 					plannedJumpSupportCollider = null;
 					isPlannedJumping = false;
 					suppressJourneyUntil = Time.time + 0.3f;
-					if (!actuallyLanded || !verifiedTopLanding && plannedJumpSupportCollider != null)
+					if (!actuallyLanded || (expectedObjectTop && !verifiedTopLanding))
 					{
 						RememberLocalNavigationDeadEnd(transform.position, destination);
 						noJumpUntil = Time.time + 6f;
