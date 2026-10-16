@@ -175,6 +175,7 @@ namespace SDG.Unturned
 		private Vector3 suspendedRoutineWaypoint;
 		private MobileNPCAutonomyPlanner.Job suspendedRoutineJob;
 		private float suspendedRoutineExpiresAt;
+		private int noviceDirectorHintsUsed;
 		private Vector3 lastStuckCheckPosition;
 		private Vector3 lastTrackedStuckGoal;
 		private Vector3 lastMeaningfulRouteProgressPosition;
@@ -401,6 +402,7 @@ namespace SDG.Unturned
 			hasRoamingDestination = false;
 			hasSuspendedRoutineWaypoint = false;
 			suspendedRoutineExpiresAt = 0f;
+			noviceDirectorHintsUsed = 0;
 			nextRoamingDecisionTime = Time.time + Random.Range(2f, 5f);
 			lastStuckCheckPosition = transform.position;
 			lastMeaningfulRouteProgressPosition = transform.position;
@@ -4745,6 +4747,55 @@ namespace SDG.Unturned
 			return true;
 		}
 
+		/// <summary>Execute a director's coarse bearing using this motor's
+		/// normal real-world ground/path verification. Director never selects
+		/// the destination and never tells us whether an item actually exists.
+		/// </summary>
+		private bool TryUseNoviceExplorationBearingServer(float radius)
+		{
+			if (autonomyPlanner == null || noviceDirectorHintsUsed >= 2
+				|| (autonomyPlanner.CurrentJob != MobileNPCAutonomyPlanner.Job.Patrol
+					&& autonomyPlanner.CurrentJob != MobileNPCAutonomyPlanner.Job.Scavenge)
+				|| !MobileNPCEncounterDirector.TrySuggestNoviceExplorationBearingServer(
+					brainDriver, transform.position, out Vector3 bearing))
+				return false;
+			++noviceDirectorHintsUsed; // bounded initial guidance, NOT permanent GPS.
+			for (int i = 0; i < 5; ++i)
+			{
+				Vector3 direction = Quaternion.AngleAxis(Random.Range(-20f, 20f),
+					Vector3.up) * bearing;
+				float length = Random.Range(22f, Mathf.Min(58f, Mathf.Max(23f, radius)));
+				Vector3 estimate = transform.position + direction * length;
+				if (PlanarDistanceSquared(estimate, spawnPosition)
+					> HomeTerritoryRadius * HomeTerritoryRadius)
+					continue;
+				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(estimate,
+					Mathf.Max(1f, roamingSearchHeight),
+					Mathf.Min(5f, Mathf.Max(0f, roamingMaximumDrop)),
+					roamingGroundMask, Mathf.Min(55f, roamingMaximumSlope),
+					out Vector3 destination, out _)
+					|| Mathf.Abs(destination.y - transform.position.y) > 3.5f
+					|| PlanarDistanceSquared(destination, spawnPosition)
+						> HomeTerritoryRadius * HomeTerritoryRadius
+					|| !autonomyPlanner.IsCandidateAllowedServer(destination))
+					continue;
+				// An approximate direction is not firsthand discovery:
+				// do NOT create a learned loot site or reserve the observed
+				// sector until the NPC physically reaches and inspects it.
+				roamingDestination = destination;
+				hasRoamingDestination = true;
+				lastRoamingDirection = direction;
+				hasLastRoamingDirection = true;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+				Debug.Log("[MobileNPCHumanoidMotor] A-Life novice director hinted a "
+					+ "general search bearing for " + name
+					+ "; walking requires normal physical path, no loot guaranteed.", this);
+#endif
+				return true;
+			}
+			return false;
+		}
+
 		private void TryChooseRoamingDestination()
 		{
 			if (!Provider.isServer || !roamingEnabled)
@@ -4797,6 +4848,12 @@ namespace SDG.Unturned
 				nextRoamingDecisionTime = Time.time + 6f;
 				return;
 			}
+
+			// A short-lived two-layer startup hint may orient a naive
+			// survivor toward a plausible local district. This brain still
+			// chooses, walks, sees and learns for itself.
+			if (TryUseNoviceExplorationBearingServer(effectiveRoamingRadius))
+				return;
 
 			// Prefer actual map structures, but keep searching over open terrain when a
 			// beach, field or remote island has no nearby large objects.
