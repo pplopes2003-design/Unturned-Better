@@ -1999,7 +1999,8 @@ namespace SDG.Unturned
 			const float CHECK_LENGTH = PlayerMovement.SKIN_WIDTH + 0.025f;
 			Vector3 origin = transform.position + Vector3.up * radius;
 			RaycastHit[] hits = Physics.SphereCastAll(origin, radius, Vector3.down, CHECK_LENGTH,
-				RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+				(RayMasks.BLOCK_COLLISION | RayMasks.GROUND2),
+				QueryTriggerInteraction.Ignore);
 			for (int i = 0; i < hits.Length; ++i)
 			{
 				Collider hitCollider = hits[i].collider;
@@ -2016,7 +2017,8 @@ namespace SDG.Unturned
 			// Player.log confirms that BLOCK_COLLISION can see the terrain, so use a
 			// short center ray as a second grounded signal before applying gravity.
 			RaycastHit[] groundHits = Physics.RaycastAll(transform.position + Vector3.up * 0.15f,
-				Vector3.down, 0.30f, RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+				Vector3.down, 0.30f, (RayMasks.BLOCK_COLLISION | RayMasks.GROUND2),
+				QueryTriggerInteraction.Ignore);
 			for (int i = 0; i < groundHits.Length; ++i)
 			{
 				Collider hitCollider = groundHits[i].collider;
