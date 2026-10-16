@@ -292,7 +292,9 @@ namespace SDG.Unturned
 			// capsule around the root.
 			MobileNPCBodyHitbox[] anatomy =
 				spawned.GetComponentsInChildren<MobileNPCBodyHitbox>(true);
+			Transform boneRoot = spawned.transform.Find("HumanoidVisual/Root/Skeleton");
 			bool damageVolumesValid = controller != null && controller.enabled
+				&& boneRoot != null
 				&& anatomy.Length == MobileNPCBodyHitbox.ExpectedAnatomicalVolumes;
 			int[] regionCounts = new int[6];
 			for (int i = 0; i < anatomy.Length; ++i)
@@ -301,6 +303,9 @@ namespace SDG.Unturned
 				Collider hitbox = marker != null ? marker.GetComponent<Collider>() : null;
 				if (hitbox == null || !hitbox.enabled || hitbox.isTrigger
 					|| !hitbox.gameObject.activeInHierarchy
+					|| boneRoot == null
+					|| !hitbox.transform.IsChildOf(boneRoot)
+					|| hitbox.bounds.size.sqrMagnitude <= 0.0001f
 					|| (RayMasks.DAMAGE_CLIENT & (1 << hitbox.gameObject.layer)) == 0
 					|| (RayMasks.ENTITY & (1 << hitbox.gameObject.layer)) == 0)
 				{
