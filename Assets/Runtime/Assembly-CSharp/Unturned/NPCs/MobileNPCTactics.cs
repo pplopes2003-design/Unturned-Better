@@ -24,7 +24,8 @@ namespace SDG.Unturned
 			Flank,
 			Stalk,
 			// Append only: do not renumber existing named goals.
-			Reinforce
+			Reinforce,
+			Regroup
 		}
 
 		private const float LowHealthThreshold = 0.30f;
@@ -233,6 +234,20 @@ namespace SDG.Unturned
 			tacticalDestination = safeRendezvous;
 			hasTacticalDestination = true;
 			goalDeadline = now + 52f;
+			return true;
+		}
+
+		/// <summary>A brief, physically validated rally point near an
+		/// actually audible living squad leader, not a faction teleporter.
+		/// Tactical threats preempt this noncombat goal immediately.</summary>
+		public bool TryStartGroupRegroup(Vector3 safePoint, float now)
+		{
+			if (currentGoal != Goal.None || !IsFinite(safePoint))
+				return false;
+			currentGoal = Goal.Regroup;
+			tacticalDestination = safePoint;
+			hasTacticalDestination = true;
+			goalDeadline = now + 14f;
 			return true;
 		}
 
