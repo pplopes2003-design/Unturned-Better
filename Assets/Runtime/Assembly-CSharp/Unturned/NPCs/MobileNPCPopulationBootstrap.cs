@@ -452,6 +452,15 @@ namespace SDG.Unturned
             // and jumping without any additional Update/GC/physics casts.
             // Root CharacterController owns walking; Entity layer owns
             // non-trigger DAMAGE raycasts, never ragdoll rigidbodies.
+            // The NPC_Client bind-pose has Leg/Hand joints in the MIDDLE
+            // of their authored boxes, not at the toes/fingertips. Follow
+            // the real native BoxCollider envelopes so extremities are
+            // not silently missed by rays.
+            BoxCollider spineEnvelope = spine.GetComponent<BoxCollider>();
+            BoxCollider skullEnvelope = skull.GetComponent<BoxCollider>();
+            if (spineEnvelope == null || skullEnvelope == null
+                || spineEnvelope.size.x < 0.6f || skullEnvelope.size.x < 0.3f)
+                return false;
             Vector3 torsoBase = spine.position;
             Vector3 neckBase = skull.position;
             Vector3 up = (neckBase - torsoBase).normalized;
@@ -460,20 +469,23 @@ namespace SDG.Unturned
             CreateAnatomicalCapsule(spine, controller, "Abdomen",
                 MobileNPCInjurySystem.BodyPart.Torso,
                 Vector3.Lerp(torsoBase, neckBase, 0.04f),
-                Vector3.Lerp(torsoBase, neckBase, 0.52f), 0.235f);
+                Vector3.Lerp(torsoBase, neckBase, 0.52f),
+                Mathf.Min(0.37f, spineEnvelope.size.y * 0.43f));
             CreateAnatomicalCapsule(spine, controller, "Chest",
                 MobileNPCInjurySystem.BodyPart.Torso,
                 Vector3.Lerp(torsoBase, neckBase, 0.48f),
-                Vector3.Lerp(torsoBase, neckBase, 0.96f), 0.245f);
+                Vector3.Lerp(torsoBase, neckBase, 0.96f),
+                Mathf.Min(0.38f, spineEnvelope.size.y * 0.46f));
             CreateAnatomicalSphere(spine, controller, "Pelvis",
                 MobileNPCInjurySystem.BodyPart.Torso,
-                torsoBase - up * 0.07f, 0.245f);
+                torsoBase - up * 0.07f, 0.32f);
             CreateAnatomicalSphere(skull, controller, "Neck",
                 MobileNPCInjurySystem.BodyPart.Torso,
                 neckBase + up * 0.035f, 0.125f);
             CreateAnatomicalSphere(skull, controller, "Head",
                 MobileNPCInjurySystem.BodyPart.Head,
-                neckBase + up * 0.22f, 0.205f);
+                skull.TransformPoint(skullEnvelope.center),
+                Mathf.Max(0.235f, skullEnvelope.size.x * 0.60f));
 
             for (int i = 0; i < 2; i++)
             {
@@ -486,25 +498,36 @@ namespace SDG.Unturned
                     : MobileNPCInjurySystem.BodyPart.RightLeg;
                 Vector3 upperArm = elbows[i].position - shoulders[i].position;
                 Vector3 forearm = wrists[i].position - elbows[i].position;
+                BoxCollider armEnvelope = elbows[i].GetComponent<BoxCollider>();
+                BoxCollider legEnvelope = knees[i].GetComponent<BoxCollider>();
                 if (upperArm.sqrMagnitude < 0.035f || forearm.sqrMagnitude < 0.035f
                     || (knees[i].position - hips[i].position).sqrMagnitude < 0.03f
-                    || (ankles[i].position - knees[i].position).sqrMagnitude < 0.035f)
+                    || (ankles[i].position - knees[i].position).sqrMagnitude < 0.035f
+                    || armEnvelope == null || armEnvelope.size.x < 0.6f
+                    || legEnvelope == null || legEnvelope.size.x < 0.6f)
                     return false;
+                Vector3 armTip = elbows[i].TransformPoint(
+                    armEnvelope.center + Vector3.left
+                    * (armEnvelope.size.x * 0.5f - 0.01f));
+                Vector3 legTip = knees[i].TransformPoint(
+                    legEnvelope.center + Vector3.left
+                    * (legEnvelope.size.x * 0.5f - 0.01f));
                 CreateAnatomicalSphere(shoulders[i], controller, side + "Shoulder",
-                    armPart, shoulders[i].position + upperArm * 0.16f, 0.145f);
+                    armPart, shoulders[i].position + upperArm * 0.16f, 0.16f);
                 CreateAnatomicalCapsule(shoulders[i], controller, side + "UpperArm",
-                    armPart, shoulders[i].position, elbows[i].position, 0.14f);
+                    armPart, shoulders[i].position, elbows[i].position, 0.165f);
                 CreateAnatomicalCapsule(elbows[i], controller, side + "Forearm",
-                    armPart, elbows[i].position, wrists[i].position, 0.115f);
+                    armPart, elbows[i].position,
+                    Vector3.Lerp(wrists[i].position, armTip, 0.70f), 0.17f);
                 CreateAnatomicalSphere(wrists[i], controller, side + "Hand",
-                    armPart, wrists[i].position + forearm.normalized * 0.07f, 0.12f);
+                    armPart, armTip, 0.16f);
 
                 CreateAnatomicalCapsule(hips[i], controller, side + "Thigh",
-                    legPart, hips[i].position, knees[i].position, 0.158f);
+                    legPart, hips[i].position, ankles[i].position, 0.17f);
                 CreateAnatomicalCapsule(knees[i], controller, side + "Shin",
-                    legPart, knees[i].position, ankles[i].position, 0.125f);
+                    legPart, ankles[i].position, legTip, 0.165f);
                 CreateAnatomicalSphere(ankles[i], controller, side + "Foot",
-                    legPart, ankles[i].position, 0.14f);
+                    legPart, legTip, 0.17f);
             }
 
             int count = visual.GetComponentsInChildren<MobileNPCBodyHitbox>(true).Length;
