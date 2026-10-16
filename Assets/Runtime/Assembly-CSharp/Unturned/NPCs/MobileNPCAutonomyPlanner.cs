@@ -323,6 +323,32 @@ namespace SDG.Unturned
             if (lacksMedical && bleeding && hasSpace)
                 recover = Mathf.Min(recover, 11f);
 
+            // Profession is a durable strategic tendency, not a scripted
+            // animation or a replacement for needs/actual world knowledge.
+            // In particular, an unwounded urban survivor should search
+            // buildings before selecting another unmotivated patrol loop.
+            MobileNPCArchetypePolicy.Preset preset =
+                MobileNPCArchetypePolicy.ForNPC(gameObject);
+            switch (preset)
+            {
+                case MobileNPCArchetypePolicy.Preset.Survivor:
+                    if (!combatMode) { scavenge += 36f; patrol -= 8f; guard -= 12f; }
+                    break;
+                case MobileNPCArchetypePolicy.Preset.Trader:
+                    if (!combatMode) { scavenge += 21f; guard += 22f; patrol -= 12f; }
+                    break;
+                case MobileNPCArchetypePolicy.Preset.Raider:
+                    patrol += LightingManager.isNighttime ? 24f : 12f;
+                    scavenge += 9f;
+                    guard -= 8f;
+                    break;
+                case MobileNPCArchetypePolicy.Preset.Military:
+                    patrol += 27f;
+                    guard += 22f;
+                    if (!needsArms) scavenge -= 7f;
+                    break;
+            }
+
             Job best = Job.Patrol;
             float bestScore = patrol;
             if (scavenge > bestScore) { best = Job.Scavenge; bestScore = scavenge; }
@@ -409,12 +435,35 @@ namespace SDG.Unturned
             }
             else if (job == Job.Scavenge)
             {
-                // Once a survivor is ALREADY inside a town, deliberately
-                // inspect neighboring real buildings instead of departing
-                // for a random 15-48m exterior waypoint.
-                minStep = 5f;
-                maxStep = 22f;
-                structurePreference = 1f;
+                // The motor still validates REAL architecture and reachable
+                // floors. Presets change search distance, not loot spawning.
+                MobileNPCArchetypePolicy.Preset preset =
+                    MobileNPCArchetypePolicy.ForNPC(gameObject);
+                minStep = preset == MobileNPCArchetypePolicy.Preset.Raider ? 7f : 5f;
+                maxStep = preset == MobileNPCArchetypePolicy.Preset.Raider ? 32f
+                    : preset == MobileNPCArchetypePolicy.Preset.Trader ? 28f : 22f;
+                structurePreference = preset == MobileNPCArchetypePolicy.Preset.Raider
+                    ? 0.8f : 1f;
+            }
+            else if (job == Job.Patrol)
+            {
+                MobileNPCArchetypePolicy.Preset preset =
+                    MobileNPCArchetypePolicy.ForNPC(gameObject);
+                switch (preset)
+                {
+                    case MobileNPCArchetypePolicy.Preset.Raider:
+                        minStep = 20f; maxStep = 96f; structurePreference = 0.45f;
+                        break;
+                    case MobileNPCArchetypePolicy.Preset.Military:
+                        minStep = 18f; maxStep = 88f; structurePreference = 0.55f;
+                        break;
+                    case MobileNPCArchetypePolicy.Preset.Trader:
+                        minStep = 6f; maxStep = 22f; structurePreference = 0.85f;
+                        break;
+                    default:
+                        minStep = 7f; maxStep = 30f; structurePreference = 0.9f;
+                        break;
+                }
             }
         }
 
