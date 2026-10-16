@@ -71,6 +71,12 @@ namespace SDG.Unturned
 		private static readonly float[] FurnitureExitAngles = { 0f, -45f, 45f };
 		private static readonly float[] FurnitureExitDistances = { 1.6f, 2.2f };
 		private static float nextSharedFurnitureExitSlot;
+		// Optional ONE-candidate physics preflight for a confirmed gunfight,
+		// never an unsolicited exploration goal or new A* connection.
+		private static float nextSharedElevatedTacticProbeTime;
+		private float nextElevatedTacticProbeTime;
+		private Vector3 lastPhysicallyValidatedElevatedTacticGoal;
+		private float validatedElevatedTacticUntil;
 		private static readonly RaycastHit[] ObstacleHitBuffer = new RaycastHit[16];
 		private static readonly Collider[] RouteOccupancyBuffer = new Collider[32];
 		private const int RouteGridSide = 9;
@@ -356,6 +362,8 @@ namespace SDG.Unturned
 			plannedJumpSupportCollider = null;
 			ClearVerifiedFurnitureSupport();
 			nextRaisedObjectLandingDiagnosticTime = 0f;
+			nextElevatedTacticProbeTime = 0f;
+			validatedElevatedTacticUntil = 0f;
 			plannedJumpLanding = Vector3.zero;
 			plannedJumpDirection = Vector3.zero;
 			plannedJumpDestinationSnapshot = Vector3.zero;
@@ -1365,6 +1373,150 @@ namespace SDG.Unturned
 			}
 			nextDetourAttemptTime = Time.time + 1.5f;
 			return false;
+		}
+
+		/// <summary>
+		/// A tactical flank on a low object has a SMALLER distance than a
+		/// normal 3m flank. The brain may accept it ONLY if the motor itself
+		/// recently computed a complete physically verified Unturned jump.
+		/// Candidate validity expires; it is not an omniscient furniture map.
+		/// </summary>
+		public bool HasValidatedRecentElevatedTacticalGoalServer(Vector3 candidate)
+		{
+			return Provider.isServer && hasInitialized
+				&& Time.time < validatedElevatedTacticUntil
+				&& (candidate - lastPhysicallyValidatedElevatedTacticGoal)
+					.sqrMagnitude < 0.16f;
+		}
+
+		/// <summary>
+		/// Propose a nearby REAL furniture-top firing position for a
+		/// visually confirmed combat target, only after ordinary ground
+		/// flanks were tried by the combat behavior. Never moves the
+		/// NPC, changes tactics, or consumes an inventory item itself.
+		/// At most one FULL jump preflight, global cooldown > 0.9sec.
+		/// </summary>
+		public bool TryFindObservedElevatedFiringPositionServer(Vector3 threatPosition,
+			out Vector3 raisedPosition)
+		{
+			raisedPosition = Vector3.zero;
+			validatedElevatedTacticUntil = 0f;
+			if (!Provider.isServer || !hasInitialized
+				|| brainDriver == null || brainDriver.Target == null
+				|| !targetIsVisible || characterController == null
+				|| !characterController.enabled || vaultTraversal == null
+				|| isPlannedJumping || IsTraversingLadder || physicallyCrouched
+				|| Time.time < nextElevatedTacticProbeTime
+				|| Time.time < nextSharedElevatedTacticProbeTime
+				|| injurySystem != null && injurySystem.MovementMultiplier < 0.95f
+				|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat
+				|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.SeekCover
+				|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.Stalk
+				|| !IsGroundedUsingPlayerProbe())
+				return false;
+
+			Vector3 toward = threatPosition - transform.position;
+			toward.y = 0f;
+			float distanceToThreat = toward.magnitude;
+			if (distanceToThreat < 7f || distanceToThreat > 24f)
+				return false;
+
+			nextElevatedTacticProbeTime = Time.time + 4f;
+			nextSharedElevatedTacticProbeTime = Time.time + 0.95f;
+			Vector3 direction = toward / distanceToThreat;
+			float bestScore = float.NegativeInfinity;
+			Vector3 observedGoal = Vector3.zero;
+			Vector3 observedDirection = Vector3.zero;
+			float radius = Mathf.Max(0.05f, characterController.radius * 0.75f);
+			// Three nearby candidates, NOT a map-wide search, and only
+			// one expensive ballistic preflight after geometric filtering.
+			for (int i = 0; i < 3; ++i)
+			{
+				float angle = i == 0 ? 0f : i == 1 ? -35f : 35f;
+				Vector3 testDirection = Quaternion.AngleAxis(angle, Vector3.up)
+					* direction;
+				Vector3 probe = transform.position + Vector3.up * 0.28f;
+				if (!Physics.Raycast(probe, testDirection, out RaycastHit side,
+					0.95f, obstacleMask, QueryTriggerInteraction.Ignore)
+					|| side.collider == null || IsOwnCollider(side.collider)
+					|| side.collider.GetComponentInParent<InteractableDoor>() != null
+					|| side.collider.GetComponentInParent<InteractableVehicle>() != null
+					|| side.collider.GetComponentInParent<Player>() != null
+					|| side.collider.GetComponentInParent<Zombie>() != null
+					|| side.collider.GetComponentInParent<MobileNPCHumanoidVitals>() != null
+					|| side.collider.attachedRigidbody != null
+						&& !side.collider.attachedRigidbody.isKinematic)
+					continue;
+
+				Vector3 above = side.point + testDirection * 0.10f
+					+ Vector3.up * 1.65f;
+				if (!Physics.Raycast(above, Vector3.down, out RaycastHit top,
+					1.9f, obstacleMask, QueryTriggerInteraction.Ignore)
+					|| !MobileNPCVaultTraversal.IsSamePhysicalObstacle(
+						top.collider, side.collider)
+					|| top.normal.y < 0.90f)
+					continue;
+				float height = top.point.y - transform.position.y;
+				if (height < 0.42f || height > 1.02f)
+					continue;
+				Vector3 expected = top.point + Vector3.up * 0.05f;
+				// Before calling expensive ballistic physics, check that
+				// higher ground would actually unblock a firing line.
+				Vector3 futureEye = expected + Vector3.up * 1.45f;
+				Vector3 enemyEye = threatPosition + Vector3.up * 1.0f;
+				Vector3 toEnemy = enemyEye - futureEye;
+				float length = toEnemy.magnitude;
+				if (length < 4f || length > 28f)
+					continue;
+				int hits = Physics.RaycastNonAlloc(futureEye,
+					toEnemy / length, ObstacleHitBuffer, length,
+					obstacleMask, QueryTriggerInteraction.Ignore);
+				if (hits >= ObstacleHitBuffer.Length)
+					continue;
+				bool geometryOccluded = false;
+				for (int h = 0; h < hits; ++h)
+				{
+					Collider hit = ObstacleHitBuffer[h].collider;
+					if (hit == null || IsOwnCollider(hit)
+						|| hit.GetComponentInParent<Player>() != null
+						|| hit.GetComponentInParent<Zombie>() != null
+						|| hit.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
+						continue;
+					if (ObstacleHitBuffer[h].distance < length - 0.65f)
+					{
+						geometryOccluded = true;
+						break;
+					}
+				}
+				if (geometryOccluded)
+					continue;
+				float score = height
+					- Mathf.Abs(angle) * 0.006f
+					- Vector3.Distance(transform.position, expected) * 0.1f;
+				if (score > bestScore)
+				{
+					bestScore = score;
+					observedGoal = expected;
+					observedDirection = testDirection;
+				}
+			}
+			if (bestScore == float.NegativeInfinity)
+				return false;
+			float acceleration = Mathf.Abs(Physics.gravity.y)
+				* Mathf.Clamp(gravityMultiplier, 0.5f, 2f) * 3f;
+			if (!vaultTraversal.TryPlanJumpServer(observedGoal,
+				observedDirection, roamingGroundMask, roamingMaximumSlope,
+				obstacleMask, acceleration, out MobileNPCVaultTraversal.JumpPlan plan)
+				|| !plan.LandingOnObjectTop
+				|| plan.LandingSupportCollider == null
+				|| (plan.Landing - transform.position).sqrMagnitude < 0.75f
+				|| !Level.checkSafeIncludingClipVolumes(plan.Landing))
+				return false;
+
+			raisedPosition = plan.Landing;
+			lastPhysicallyValidatedElevatedTacticGoal = raisedPosition;
+			validatedElevatedTacticUntil = Time.time + 0.95f;
+			return true;
 		}
 
 		private bool HasPhysicallyReachedNavigationGoal(Vector3 goal)
