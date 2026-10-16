@@ -34,6 +34,7 @@ namespace SDG.Unturned
         private float attackAnimationUntil;
         private bool jumpPresentationAttempted;
         private bool missingClimbClipLogged;
+        private bool missingCombatStrikeClipLogged;
 
         private void Awake()
         {
@@ -283,17 +284,24 @@ namespace SDG.Unturned
 
         private void PlayAttackAnimation()
         {
-            if (legacyAnimation == null)
-            {
-                return;
-            }
+            // The actual damage is server-authoritative in MobileNPCHumanoidCombat.
+            // This adapter only animates a committed swing. Weapon vs fists
+            // affects the preferred native clip family, never grants a hit.
+            string[] candidates;
+            bool armed = combat != null && combat.LastAttackUsedMeleeWeapon;
+            if (armed)
+                candidates = Random.value < 0.5f
+                    ? new[] { "Weak", "Strong", "Idle_Melee", "Idle_Swing",
+                        "Idle_Kick_Left", "Idle_Kick_Right" }
+                    : new[] { "Strong", "Weak", "Idle_Swing", "Idle_Melee",
+                        "Idle_Kick_Right", "Idle_Kick_Left" };
+            else
+                candidates = Random.value < 0.5f
+                    ? new[] { "Idle_Punch_Left", "Idle_Punch_Right", "Punch",
+                        "Idle_Kick_Left", "Idle_Kick_Right" }
+                    : new[] { "Idle_Punch_Right", "Idle_Punch_Left", "Punch",
+                        "Idle_Kick_Right", "Idle_Kick_Left" };
 
-            // Prefer the two confirmed native kick/strike clips. Search every legacy
-            // Animation component under the visual rig because some NPC_Client prefab
-            // variants split gestures and locomotion across different child objects.
-            string[] candidates = Random.value < 0.5f
-                ? new[] { "Idle_Kick_Left", "Idle_Kick_Right" }
-                : new[] { "Idle_Kick_Right", "Idle_Kick_Left" };
             Animation clipOwner = null;
             string clipName = null;
             AnimationState state = null;
@@ -301,8 +309,7 @@ namespace SDG.Unturned
             for (int i = 0; i < animations.Length && state == null; ++i)
             {
                 Animation candidate = animations[i];
-                if (candidate == null || candidate == legacyAnimation && candidate[candidates[0]] == null
-                    && candidate[candidates[1]] == null)
+                if (candidate == null)
                     continue;
                 for (int c = 0; c < candidates.Length; ++c)
                 {
@@ -316,10 +323,16 @@ namespace SDG.Unturned
                 }
             }
 
-            if (state == null || clipOwner == null || string.IsNullOrEmpty(clipName))
+            if (state == null || clipOwner == null)
             {
-                Debug.LogWarning("[MobileNPCVisualAnimation] Neither native strike clip (Idle_Kick_Left/Right) "
-                    + "is available on the NPC_Client animation hierarchy.", this);
+                if (!missingCombatStrikeClipLogged)
+                {
+                    Debug.LogWarning("[MobileNPCVisualAnimation] No native "
+                        + (armed ? "weapon swing" : "punch/kick")
+                        + " clip bound on the mobile humanoid rig. Actual melee hit "
+                        + "still uses physical server verification.", this);
+                    missingCombatStrikeClipLogged = true;
+                }
                 return;
             }
 
