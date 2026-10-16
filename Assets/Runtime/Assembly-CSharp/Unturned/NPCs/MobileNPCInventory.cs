@@ -143,10 +143,27 @@ namespace SDG.Unturned
 				Item stored = slots[index];
 				if (stored == null) continue;
 				ItemGunAsset candidate = Assets.find(EAssetType.ITEM, stored.id) as ItemGunAsset;
-				if (candidate == null) continue;
+				// The mobile gun combat path simulates bullet weapons; rocket
+				// launchers require a genuine vanilla projectile/prefab service.
+				if (candidate == null || candidate.projectile != null) continue;
 				float score = Mathf.Clamp(candidate.range, 0f, 300f) * 0.6f
 					+ (255f - candidate.firerate) * 0.08f
 					+ Mathf.Clamp(stored.quality, 0, 100) * 0.05f;
+				// An equipped but empty rifle is not automatically preferable to
+				// another real firearm with a loaded, valid magazine. This is
+				// inventory awareness, NOT fabricated ammunition or a gun buff.
+				if (stored.state != null && stored.state.Length >= 18)
+				{
+					ushort magazineId = System.BitConverter.ToUInt16(stored.state, GunStateIndices.MAGAZINE_ID);
+					ItemMagazineAsset magazine = Assets.find(EAssetType.ITEM, magazineId) as ItemMagazineAsset;
+					if (magazine != null && magazine.CalibersContainAnyOfIds(candidate.magazineCalibers)
+						&& stored.state[GunStateIndices.AMMO] >= Mathf.Max(1, candidate.ammoPerShot))
+						score += 44f;
+					ushort sightId = System.BitConverter.ToUInt16(stored.state, GunStateIndices.SIGHT_ID);
+					ItemSightAsset scope = Assets.find(EAssetType.ITEM, sightId) as ItemSightAsset;
+					if (scope != null && scope.zoom >= 2.5f)
+						score += Mathf.Min(10f, scope.zoom * 1.5f);
+				}
 				if (score <= bestScore) continue;
 				bestScore = score;
 				byte[] stateCopy = stored.state != null ? (byte[])stored.state.Clone() : new byte[0];
