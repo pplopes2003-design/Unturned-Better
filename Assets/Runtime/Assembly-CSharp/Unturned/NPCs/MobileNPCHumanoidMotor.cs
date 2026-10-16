@@ -5020,7 +5020,14 @@ namespace SDG.Unturned
 				Vector3 candidate = levelObject.transform.position + new Vector3(offset.x, 0f, offset.y);
 				if (MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, Mathf.Max(1f, roamingSearchHeight),
 					Mathf.Max(0f, roamingMaximumDrop), roamingGroundMask, roamingMaximumSlope,
-					out Vector3 resolved, out _))
+					out Vector3 resolved, out _)
+					// Do not stop sampling after the FIRST building when this
+					// individual has already physically searched that district.
+					// Check the solo history inside the bounded six-object loop,
+					// before accepting an exterior fallback instead of another POI.
+					&& (autonomyPlanner == null || autonomyPlanner.IsCandidateAllowedServer(resolved))
+					&& PlanarDistanceSquared(resolved, spawnPosition)
+						<= HomeTerritoryRadius * HomeTerritoryRadius)
 				{
 					destination = resolved;
 					return true;
