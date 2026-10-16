@@ -121,6 +121,30 @@ namespace SDG.Unturned
 			return bestProfile;
 		}
 
+		/// <summary>
+		/// Estimate a finite-ammunition engagement from this survivor's own
+		/// observed impacts. The cautious decision never learns exact victim
+		/// locations or turns an unseen target into permission to fire.
+		/// Unknown weapons have a neutral prior, not a perfect hit chance.
+		/// </summary>
+		public float GetLearnedHitLikelihoodServer(ushort gunId, float distance,
+			out int observations)
+		{
+			observations = 0;
+			if (!Provider.isServer || gunId == 0)
+				return 0.5f;
+			byte band = GetBallisticBand(distance);
+			int hits = 0;
+			for (int i = 0; i < ballisticExperience.Count; ++i)
+			{
+				BallisticRecord r = ballisticExperience[i];
+				if (r.gunId != gunId || r.band != band) continue;
+				observations += r.attempts;
+				hits += r.hits;
+			}
+			return (hits + 2f) / (observations + 4f);
+		}
+
 		/// <summary>Only genuine resolved ballistic shot feedback is training data.</summary>
 		public void RecordBallisticOutcomeServer(ushort gunId, float distance, int profile, bool hit)
 		{
