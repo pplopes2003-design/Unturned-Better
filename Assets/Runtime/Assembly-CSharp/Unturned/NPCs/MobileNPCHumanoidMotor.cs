@@ -1260,7 +1260,7 @@ namespace SDG.Unturned
 			if (!Provider.isServer || characterController == null
 				|| !characterController.enabled
 				|| PlanarDistanceSquared(transform.position, goal) > 12.25f
-				|| goal.y - transform.position.y < 0.50f
+				|| goal.y - transform.position.y < 0.40f
 				|| goal.y - transform.position.y > 1.10f)
 				return false;
 
@@ -1296,7 +1296,7 @@ namespace SDG.Unturned
 				return false;
 
 			float goalHeight = finalGoal.y - transform.position.y;
-			bool goalOnVerifiedObject = goalHeight > 0.55f
+			bool goalOnVerifiedObject = goalHeight > 0.35f
 				&& IsObservedElevatedObjectGoalServer(finalGoal);
 			if ((!goalOnVerifiedObject && Mathf.Abs(goalHeight) > 0.55f)
 				|| goalHeight > 1.10f)
