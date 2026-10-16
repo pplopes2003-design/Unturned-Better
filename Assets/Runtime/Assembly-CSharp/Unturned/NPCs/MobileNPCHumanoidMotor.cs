@@ -980,11 +980,24 @@ namespace SDG.Unturned
 				}
 				else if (HasPhysicallyReachedNavigationGoal(destination))
 				{
+					// Movement success is not a successful search or world pickup.
+					// Give the native loot scanner one immediate, physically local
+					// inspection before issuing another speculative roaming leg.
+					bool scavenging = autonomyPlanner != null
+						&& autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge;
+					if (scavenging)
+					{
+						MobileNPCLooting looting = GetComponent<MobileNPCLooting>();
+						if (looting != null)
+							looting.RequestRoutineInspectionServer(roamingDestination);
+					}
 					hasRoamingDestination = false;
 					if (autonomyPlanner != null)
 						autonomyPlanner.ReportRoamReachedServer(roamingDestination);
-					nextRoamingDecisionTime = Time.time + Random.Range(
-						Mathf.Max(1f, roamingPauseMin), Mathf.Max(Mathf.Max(1f, roamingPauseMin), roamingPauseMax));
+					nextRoamingDecisionTime = Time.time + (scavenging
+						? Random.Range(4f, 7f)
+						: Random.Range(Mathf.Max(1f, roamingPauseMin),
+							Mathf.Max(Mathf.Max(1f, roamingPauseMin), roamingPauseMax)));
 				}
 			}
 
