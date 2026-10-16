@@ -2,6 +2,7 @@
 // This file is part of the U3 SDK: https://github.com/smartlydressedgames/u3-sdk/    //
 // Please refer to the included LICENSE.txt for copyright notice and license details. //
 ////////////////////////////////////////////////////////////////////////////////////////
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace SDG.Unturned
@@ -38,6 +39,111 @@ namespace SDG.Unturned
 		private float lastAimUpdateTime;
 		private float accumulatedShotSpread;
 		private bool hasTarget;
+		private const int MaxBallisticRecords = 36;
+		private const int MaxTrainingObservations = 28;
+		private readonly List<BallisticRecord> ballisticExperience = new List<BallisticRecord>(MaxBallisticRecords);
+
+		[System.Serializable]
+		public sealed class BallisticRecord
+		{
+			public ushort gunId;
+			public byte band;
+			public byte profile;
+			public int attempts;
+			public int hits;
+		}
+
+		/// <summary>Individual evidence, never a shared squad-wide aiming solver.</summary>
+		public List<BallisticRecord> ExportBallisticExperienceServer()
+		{
+			List<BallisticRecord> result = new List<BallisticRecord>(ballisticExperience.Count);
+			if (!Provider.isServer) return result;
+			foreach (BallisticRecord b in ballisticExperience)
+				result.Add(new BallisticRecord { gunId = b.gunId, band = b.band,
+					profile = b.profile, attempts = b.attempts, hits = b.hits });
+			return result;
+		}
+
+		public void RestoreBallisticExperienceServer(List<BallisticRecord> records)
+		{
+			if (!Provider.isServer) return;
+			ballisticExperience.Clear();
+			if (records == null) return;
+			foreach (BallisticRecord b in records)
+			{
+				if (b == null || b.gunId == 0 || b.band > 2 || b.profile > 8
+					|| b.attempts < 0 || b.attempts > MaxTrainingObservations
+					|| b.hits < 0 || b.hits > b.attempts
+					|| ballisticExperience.Count >= MaxBallisticRecords)
+					continue;
+				ballisticExperience.Add(new BallisticRecord { gunId = b.gunId,
+					band = b.band, profile = b.profile, attempts = b.attempts, hits = b.hits });
+			}
+		}
+
+		private static byte GetBallisticBand(float distance)
+		{
+			return (byte)(distance < 35f ? 0 : distance < 75f ? 1 : 2);
+		}
+
+		private BallisticRecord FindBallisticRecord(ushort gunId, byte band, int profile)
+		{
+			for (int i = 0; i < ballisticExperience.Count; ++i)
+			{
+				BallisticRecord r = ballisticExperience[i];
+				if (r.gunId == gunId && r.band == band && r.profile == profile)
+					return r;
+			}
+			return null;
+		}
+
+		/// <summary>
+		/// Choose a small imperfect lead/drop guess, not the mathematically optimal
+		/// impact point. A few real hits can shift preferences among nine presets.
+		/// Every preset retains error and exploration; no perfect targeting.
+		/// </summary>
+		private int SelectBallisticProfile(ushort gunId, float distance)
+		{
+			byte band = GetBallisticBand(distance);
+			if (Random.value < 0.23f)
+				return Random.Range(0, 9);
+			int bestProfile = 4;
+			float bestScore = float.NegativeInfinity;
+			for (int i = 0; i < 9; ++i)
+			{
+				BallisticRecord record = FindBallisticRecord(gunId, band, i);
+				float score = record == null ? 0.49f : (record.hits + 1f) / (record.attempts + 2f);
+				// Untried choices are plausible, not immediately trusted.
+				score += Random.Range(-0.065f, 0.065f);
+				if (i == 4) score += 0.045f;
+				if (score > bestScore) { bestScore = score; bestProfile = i; }
+			}
+			return bestProfile;
+		}
+
+		/// <summary>Only genuine resolved ballistic shot feedback is training data.</summary>
+		public void RecordBallisticOutcomeServer(ushort gunId, float distance, int profile, bool hit)
+		{
+			if (!Provider.isServer || gunId == 0 || profile < 0 || profile > 8)
+				return;
+			byte band = GetBallisticBand(distance);
+			BallisticRecord record = FindBallisticRecord(gunId, band, profile);
+			if (record == null)
+			{
+				if (ballisticExperience.Count >= MaxBallisticRecords)
+					ballisticExperience.RemoveAt(0);
+				record = new BallisticRecord { gunId = gunId, band = band,
+					profile = (byte)profile };
+				ballisticExperience.Add(record);
+			}
+			if (record.attempts >= MaxTrainingObservations)
+			{
+				record.attempts = Mathf.Max(1, record.attempts / 2);
+				record.hits = Mathf.Min(record.attempts, record.hits / 2);
+			}
+			++record.attempts;
+			if (hit) ++record.hits;
+		}
 
 		private void Awake()
 		{
@@ -139,6 +245,63 @@ namespace SDG.Unturned
 
 			spread = Mathf.Min(maximumSpreadDegrees + movingSpreadDegrees, spread + accumulatedShotSpread);
 			direction = (Quaternion.Euler(Random.Range(-spread, spread), Random.Range(-spread, spread), 0.0f) * toTarget.normalized).normalized;
+			accumulatedShotSpread += spreadPerShotDegrees;
+			return true;
+		}
+
+		/// <summary>
+		/// A human-like ballistic estimate based only on a currently seen target's
+		/// sampled velocity and the actual firearm's velocity/gravity. Scoped aiming
+		/// improves precision but never gives live future target coordinates.
+		/// </summary>
+		public bool TryGetBallisticShotDirection(Vector3 muzzlePosition, bool isMoving,
+			float skill, float weaponSpreadDegrees, float bulletSpeed, float gravityScale,
+			float opticZoom, ushort gunId, out Vector3 direction, out int chosenProfile)
+		{
+			direction = transform.forward;
+			chosenProfile = -1;
+			if (!Provider.isServer || !hasTarget || trackedTarget == null
+				|| Time.time - targetAcquiredAt < currentReactionTime
+				|| bulletSpeed <= 0.01f)
+				return false;
+			float distance = Vector3.Distance(muzzlePosition,
+				trackedTarget.position + Vector3.up * targetAimHeight);
+			if (distance < 0.5f) return false;
+			bool scoped = opticZoom >= 2.5f && !isMoving;
+			// Focusing through a real optical sight requires extra settling time.
+			if (scoped && Time.time - targetAcquiredAt < currentReactionTime + 0.65f)
+				return false;
+			chosenProfile = SelectBallisticProfile(gunId, distance);
+			float estimatedFlight = Mathf.Min(1.8f, distance / bulletSpeed
+				* Random.Range(0.90f, 1.12f));
+			float leadFraction = 0.35f + (chosenProfile % 3) * 0.23f;
+			float dropFraction = 0.70f + (chosenProfile / 3) * 0.18f;
+			// Estimated velocity comes solely from prior visual samples.
+			// Unsteady, moving or suppressed aim learns nothing about hidden actors.
+			Vector3 aimPoint = trackedTarget.position
+				+ Vector3.up * Mathf.Max(0f, targetAimHeight);
+			if (!isMoving)
+				aimPoint += Vector3.ClampMagnitude(estimatedTargetVelocity, 6f)
+					* estimatedFlight * leadFraction;
+			if (Provider.modeConfigData.Gameplay.Ballistics)
+				aimPoint.y += Mathf.Max(0f, -Physics.gravity.y * gravityScale)
+					* 0.5f * estimatedFlight * estimatedFlight * dropFraction;
+
+			Vector3 delta = aimPoint - muzzlePosition;
+			if (delta.sqrMagnitude < 0.01f) return false;
+			skill = Mathf.Clamp01(skill);
+			float spread = scoped
+				? 0.55f + (1f - skill) * 1.75f
+				: baseSpreadDegrees + (1f - skill) * maximumSpreadDegrees;
+			spread += Mathf.Max(0f, weaponSpreadDegrees);
+			spread += Mathf.Clamp((distance - 35f) * 0.011f, 0f, 1.1f);
+			if (isMoving) spread += movingSpreadDegrees;
+			if (Time.time < suppressedUntil) spread += suppressionSpreadDegrees;
+			spread = Mathf.Clamp((spread + accumulatedShotSpread)
+				* MobileNPCSettings.AimSpreadMultiplier, 0.45f, maximumSpreadDegrees + movingSpreadDegrees);
+			// Per-shot hand tremor is independent of the velocity/drop prediction.
+			direction = (Quaternion.Euler(Random.Range(-spread, spread),
+				Random.Range(-spread, spread), 0f) * delta.normalized).normalized;
 			accumulatedShotSpread += spreadPerShotDegrees;
 			return true;
 		}
