@@ -604,9 +604,12 @@ namespace SDG.Unturned
 			direction.Normalize();
 			// An off-centre push causes the corpse to tip naturally instead of
 			// remaining an upright, static-looking capsule after death.
-			corpseBody.AddForceAtPosition(direction * Mathf.Max(60f, hitImpulse.magnitude),
+			// A 70kg capsule needs a small horizontal off-centre nudge, not
+			// an unbounded impulse that catapults the corpse through scenery.
+			corpseBody.AddForceAtPosition(direction * Mathf.Clamp(
+				hitImpulse.magnitude * 1.3f + 4f, 4f, 13f),
 				corpse.transform.position + Vector3.up * 1.5f, ForceMode.Impulse);
-			corpseBody.AddTorque(Vector3.Cross(Vector3.up, direction) * 35f, ForceMode.Impulse);
+			corpseBody.AddTorque(Vector3.Cross(Vector3.up, direction) * 7f, ForceMode.Impulse);
 			Debug.LogWarning("[MobileNPCHumanoidVitals] Incomplete authored skeletal ragdoll; "
 				+ "activated physical capsule corpse fallback for " + name
 				+ ". This is a rigid-body fall, not articulated bone ragdoll.", this);
@@ -853,16 +856,17 @@ namespace SDG.Unturned
 			if (!articulatedAuthored || authoredBodies.Length != 11
 				|| authoredJoints.Length != 10 || usableColliders < 11)
 			{
-				Debug.LogError("[MobileNPCHumanoidVitals] Articulated skeleton "
-					+ "validation failed: bones=" + authoredBodies.Length
-					+ ", colliders=" + usableColliders + ", joints="
-					+ authoredJoints.Length + ". Leaving corpse in its last "
-					+ "animated pose without an unstable rolling capsule: "
-					+ name + ".", this);
-				// Fail visibly instead of inventing a single rigid capsule that
-				// rolls away. Preserve mesh/clothing and the existing cleanup.
-				for (int i = 0; i < colliders.Length; ++i)
-					if (colliders[i] != null) colliders[i].enabled = false;
+				Debug.LogError("[MobileNPCHumanoidVitals] Native articulated ragdoll "
+					+ "validation failed: authored=" + articulatedAuthored
+					+ ", bodies=" + authoredBodies.Length
+					+ ", colliders=" + usableColliders
+					+ ", joints=" + authoredJoints.Length + ", npc=" + name
+					+ ". Using visibly falling rigid-body fallback; NOT a bone ragdoll.", this);
+				// The previous return froze the last animation frame until
+				// despawn. A failed bone rig now produces visible physical
+				// death while keeping all six live hitboxes disabled.
+				ActivateRigidCorpseFallback(visualRoot, hitImpulse,
+					authoredBodies, colliders);
 				return;
 			}
 			int enabledColliders = 0;
