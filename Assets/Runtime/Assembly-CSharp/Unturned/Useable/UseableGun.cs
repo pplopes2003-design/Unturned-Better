@@ -879,15 +879,6 @@ namespace SDG.Unturned
 		/// </summary>
 		private void fire()
 		{
-			// Gunshots are server-authoritative noise events. Radius scales with weapon range,
-			// with bounds to avoid silent long-range rifles or excessive aggro from short-range guns.
-			if (Provider.isServer && player != null && player.transform != null)
-			{
-				float gunshotRadius = Mathf.Clamp(equippedGunAsset.range * 0.75f, 45.0f, 120.0f);
-				ZombieManager.alertZombiesToNoise(player.transform.position, gunshotRadius);
-				MobileNPCRegistry.NotifyGunfire(player.transform.position, gunshotRadius, player);
-			}
-
 			float quality = player.equipment.quality / 100f;
 
 			if (!equippedGunAsset.infiniteAmmo)
@@ -945,6 +936,14 @@ namespace SDG.Unturned
 				if (thirdAttachments.barrelAsset == null || !thirdAttachments.barrelAsset.isSilenced || player.equipment.state[16] == 0)
 				{
 					AlertTool.alert(transform.position, equippedGunAsset.alertRadius);
+					// The native gun alert above is the ONLY zombie alert. Mobile
+					// survivors are separate server-owned listeners, not vanilla
+					// Player entities, so relay the very same loudness to them.
+					// Keeping this inside the unsilenced-barrel branch preserves
+					// vanilla suppressed shots and worn-out silencers.
+					if (player != null && equippedGunAsset.alertRadius > 0f)
+						MobileNPCRegistry.NotifyGunfire(transform.position,
+							equippedGunAsset.alertRadius, player);
 				}
 
 				if (Provider.modeConfigData.Items.ShouldWeaponTakeDamage && player.equipment.quality > 0 && Random.value < ((ItemWeaponAsset) player.equipment.asset).durability)
