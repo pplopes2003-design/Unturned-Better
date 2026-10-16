@@ -14,8 +14,8 @@ namespace SDG.Unturned
 	[RequireComponent(typeof(MobileNPCBrainDriver))]
 	public sealed class MobileNPCHumanoidCombat : MonoBehaviour
 	{
-		[SerializeField, Min(0.1f)] private float attackRange = 2.0f;
-		[SerializeField, Min(0.1f)] private float attackDamage = 18.0f;
+		[SerializeField, Min(0.1f)] private float attackRange = 1.75f;
+		[SerializeField, Min(0.1f)] private float attackDamage = 12.0f; // Vanilla unarmed PlayerEquipment: 15 * SPINE(0.8).
 		[SerializeField, Min(0.1f)] private float attackCooldown = 1.4f;
 		[SerializeField, Min(0.1f)] private float lineOfSightHeight = 1.1f;
 		[SerializeField] private LayerMask lineOfSightMask = ~0;
@@ -207,7 +207,7 @@ namespace SDG.Unturned
 		{
 			if (inventory != null && inventory.TryGetBestMeleeServer(againstPlayer, out Item held,
 				out ItemMeleeAsset melee))
-				return Mathf.Clamp(melee.range, 1.2f, 3.0f);
+				return Mathf.Clamp(melee.range, 0.8f, 3.0f);
 			return attackRange;
 		}
 
@@ -344,7 +344,7 @@ namespace SDG.Unturned
 				return false;
 			CommitStrikeServer(usedWeapon, usedItem);
 			DamagePlayerParameters parameters = new DamagePlayerParameters(targetPlayer);
-			parameters.cause = EDeathCause.MELEE;
+			parameters.cause = usedWeapon != null ? EDeathCause.MELEE : EDeathCause.PUNCH;
 			parameters.limb = ELimb.SPINE;
 			parameters.killer = Provider.server;
 			parameters.direction = attackDirection.sqrMagnitude > 0.0001f ? attackDirection.normalized : transform.forward;
