@@ -286,13 +286,15 @@ namespace SDG.Unturned
 
 			CharacterController controller = spawned.GetComponent<CharacterController>();
 			// Fail closed: a living NPC that cannot be HIT must never join
-			// the population. All six anatomical volumes are CHILDREN of
-			// MobileNPCHitbox; the old root.GetComponent<Collider>() returned
-			// null and did not reapply ANY collision exclusions after spawn.
+			// the population. Nineteen colliders follow the SAME animated
+			// bones as the skinned NPC. They do not belong to the ragdoll's
+			// rigidbody physics during gameplay, and they are not a static
+			// capsule around the root.
 			MobileNPCBodyHitbox[] anatomy =
 				spawned.GetComponentsInChildren<MobileNPCBodyHitbox>(true);
 			bool damageVolumesValid = controller != null && controller.enabled
-				&& anatomy.Length == 6;
+				&& anatomy.Length == MobileNPCBodyHitbox.ExpectedAnatomicalVolumes;
+			int[] regionCounts = new int[6];
 			for (int i = 0; i < anatomy.Length; ++i)
 			{
 				MobileNPCBodyHitbox marker = anatomy[i];
@@ -305,15 +307,30 @@ namespace SDG.Unturned
 					damageVolumesValid = false;
 					continue;
 				}
+				// Every raycast volume is identified by exact body region,
+				// regardless of which animated bone it follows. Disallow
+				// accidental duplicates/missing hands or feet during spawn.
+				int regionIndex = (int)marker.BodyPart;
+				if (regionIndex < 0 || regionIndex >= regionCounts.Length)
+				{
+					damageVolumesValid = false;
+					continue;
+				}
+				regionCounts[regionIndex]++;
 				// IgnoreCollision made on the inactive template is not
 				// guaranteed to persist to the live spawned clone.
 				if (controller != null)
 					Physics.IgnoreCollision(controller, hitbox, true);
 			}
+			damageVolumesValid &= regionCounts[0] == 1 // head
+				&& regionCounts[1] == 4 // neck, chest, abdomen, pelvis
+				&& regionCounts[2] == 4 && regionCounts[3] == 4 // arms
+				&& regionCounts[4] == 3 && regionCounts[5] == 3; // legs
 			if (!damageVolumesValid)
 			{
-				error = "Spawn refused: NPC anatomy must have six enabled "
-					+ "non-trigger, raycastable Entity-layer colliders.";
+				error = "Spawn refused: NPC anatomy must have nineteen enabled "
+					+ "bone-attached, non-trigger, Entity-layer colliders with "
+					+ "1 head/4 core/4 per arm/3 per leg.";
 				Debug.LogError("[MobileNPCSpawnService] " + error
 					+ " Instance=" + spawned.name
 					+ " hitboxCount=" + anatomy.Length + ".", spawned);
