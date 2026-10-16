@@ -492,7 +492,7 @@ Still pending: build compilation, sound/animation of spoken warnings, actual tac
 
 ## Zombie acoustic regression: restore original gunshots and explosions — 16 Oct 2026
 
-**Status: QUASE PRONTO.** Source-comparison and 17 static regression checks passed. Unity compilation and behavioral approval are still missing. The original U3 SDK `main` code is the behavioral reference; recent branch modifications must not replace native gunshot/grenade semantics.
+**Status: QUASE PRONTO.** Source-comparison and 18 static regression checks passed. Unity compilation and behavioral approval are still missing. The original U3 SDK `main` code is the behavioral reference; recent branch modifications must not replace native gunshot/grenade semantics.
 
 ### Root causes confirmed in source
 
