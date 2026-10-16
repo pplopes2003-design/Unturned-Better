@@ -20,14 +20,19 @@ namespace SDG.Unturned
         [SerializeField, Min(2f)] private float maximumRolloffDistance = 64f;
 
         private MobileNPCHumanoidRangedCombat combat;
+        private MobileNPCHumanoidCombat meleeCombat;
+        private MobileNPCInventory inventory;
+        private float meleeVisualUntil;
         private Transform skeleton;
         private Transform equippedWeaponModel;
-        private ushort displayedGunID;
+        private ushort displayedWeaponID;
         private float nextVisualRefreshTime;
 
         private void Awake()
         {
             combat = GetComponent<MobileNPCHumanoidRangedCombat>();
+            meleeCombat = GetComponent<MobileNPCHumanoidCombat>();
+            inventory = GetComponent<MobileNPCInventory>();
         }
 
         private void OnEnable()
@@ -37,17 +42,27 @@ namespace SDG.Unturned
                 combat = GetComponent<MobileNPCHumanoidRangedCombat>();
             }
 
-            if (combat == null) return;
-            combat.ShotFired += HandleShotFired;
-            combat.ReloadStarted += HandleReloadStarted;
+            if (combat != null)
+            {
+                combat.ShotFired += HandleShotFired;
+                combat.ReloadStarted += HandleReloadStarted;
+            }
+            if (meleeCombat == null)
+                meleeCombat = GetComponent<MobileNPCHumanoidCombat>();
+            if (meleeCombat != null)
+                meleeCombat.AttackStarted += HandleMeleeStrike;
         }
 
         private void OnDisable()
         {
             DestroyWeaponModel();
-            if (combat == null) return;
-            combat.ShotFired -= HandleShotFired;
-            combat.ReloadStarted -= HandleReloadStarted;
+            if (combat != null)
+            {
+                combat.ShotFired -= HandleShotFired;
+                combat.ReloadStarted -= HandleReloadStarted;
+            }
+            if (meleeCombat != null)
+                meleeCombat.AttackStarted -= HandleMeleeStrike;
         }
 
         private void Update()
@@ -62,13 +77,29 @@ namespace SDG.Unturned
         private void RefreshWeaponModel()
         {
             ItemGunAsset gun = combat != null ? combat.SelectedGunAsset : null;
-            ushort desiredID = gun != null ? gun.id : (ushort)0;
-            if (desiredID == displayedGunID && equippedWeaponModel != null) return;
-            if (desiredID == displayedGunID && desiredID == 0) return;
+            ItemAsset active = gun;
+            if (Time.time < meleeVisualUntil)
+            {
+                active = meleeCombat != null && meleeCombat.LastAttackUsedMeleeWeapon
+                    && meleeCombat.LastAttackWeaponID != 0
+                    ? Assets.find(EAssetType.ITEM, meleeCombat.LastAttackWeaponID) as ItemMeleeAsset
+                    : null; // fists put a rifle away while striking
+            }
+            else if (gun == null)
+            {
+                if (inventory == null)
+                    inventory = GetComponent<MobileNPCInventory>();
+                if (inventory != null
+                    && inventory.TryGetBestMeleeServer(out Item owned, out ItemMeleeAsset melee))
+                    active = melee;
+            }
+            ushort desiredID = active != null ? active.id : (ushort)0;
+            if (desiredID == displayedWeaponID && equippedWeaponModel != null) return;
+            if (desiredID == displayedWeaponID && desiredID == 0) return;
 
             DestroyWeaponModel();
-            displayedGunID = desiredID;
-            if (gun == null || Dedicator.IsDedicatedServer) return;
+            displayedWeaponID = desiredID;
+            if (active == null || Dedicator.IsDedicatedServer) return;
 
             if (skeleton == null)
             {
@@ -90,7 +121,7 @@ namespace SDG.Unturned
             Transform leftHook = spine.Find("Left_Shoulder/Left_Arm/Left_Hand/Left_Hook");
             Transform spineHook = spine.Find("Spine_Hook");
             Transform parent = rightHook != null ? rightHook : (spineHook != null ? spineHook : spine);
-            switch (gun.EquipableModelParent)
+            switch (active.EquipableModelParent)
             {
                 case EEquipableModelParent.LeftHook:
                     if (leftHook != null) parent = leftHook;
@@ -103,10 +134,10 @@ namespace SDG.Unturned
                     break;
             }
 
-            GameObject prefab = gun.equipablePrefab != null ? gun.equipablePrefab : gun.item;
+            GameObject prefab = active.equipablePrefab != null ? active.equipablePrefab : active.item;
             if (prefab == null) return;
             Material temporaryMaterial;
-            Transform model = ItemTool.InstantiateItem(100, gun.getState(), false, gun, null, true,
+            Transform model = ItemTool.InstantiateItem(100, active.getState(), false, active, null, true,
                 null, out temporaryMaterial, null, prefabOverride: prefab);
             if (model == null) return;
             model.SetParent(parent, false);
@@ -125,7 +156,15 @@ namespace SDG.Unturned
                 Destroy(equippedWeaponModel.gameObject);
                 equippedWeaponModel = null;
             }
-            displayedGunID = 0;
+            displayedWeaponID = 0;
+        }
+
+        private void HandleMeleeStrike()
+        {
+            // The weapon selector and server physics own the actual hit.
+            // This visual state only follows its authentic committed swing.
+            meleeVisualUntil = Time.time + 1.1f;
+            nextVisualRefreshTime = 0f;
         }
 
         private void HandleShotFired()
