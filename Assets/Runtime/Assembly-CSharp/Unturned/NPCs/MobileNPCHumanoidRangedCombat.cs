@@ -37,6 +37,7 @@ namespace SDG.Unturned
 		private MobileNPCHumanoidAim aim;
 		private MobileNPCHumanoidPerception perception;
 		private MobileNPCInventory inventory;
+		private MobileNPCGroupMember groupMember;
 		private ItemGunAsset selectedGunAsset;
 		private bool selectedGunHasCompatibleMagazine;
 		private uint selectedGunInstanceID;
@@ -71,6 +72,7 @@ namespace SDG.Unturned
 			aim = GetComponent<MobileNPCHumanoidAim>();
 			perception = GetComponent<MobileNPCHumanoidPerception>();
 			inventory = GetComponent<MobileNPCInventory>();
+			groupMember = GetComponent<MobileNPCGroupMember>();
 			roundsRemaining = 0;
 			pendingReloadRounds = 0;
 			selectedGunID = 0;
@@ -237,6 +239,20 @@ namespace SDG.Unturned
 			float weaponSpreadDegrees = selectedGunAsset != null ? selectedGunAsset.baseSpreadAngleRadians * Mathf.Rad2Deg : 0f;
 			if (!aim.TryGetShotDirection(muzzle, IsMoving(), skill, weaponSpreadDegrees, out Vector3 shotDirection))
 			{
+				return;
+			}
+
+			// A verified line of sight to the enemy is not permission to
+			// fire through a friend. Test the ACTUAL randomized projectile
+			// direction against current living squad positions before
+			// reserving ammo or raising ShotFired. No suppression bullets
+			// or target/aim information is provided by group membership.
+			if (groupMember == null)
+				groupMember = GetComponent<MobileNPCGroupMember>();
+			if (groupMember != null
+				&& !groupMember.IsSquadFireLaneSafeServer(muzzle, shotDirection, weaponRange))
+			{
+				nextShotTime = Time.time + 0.22f;
 				return;
 			}
 
