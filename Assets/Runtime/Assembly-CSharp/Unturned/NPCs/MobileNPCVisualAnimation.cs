@@ -35,6 +35,10 @@ namespace SDG.Unturned
         private bool jumpPresentationAttempted;
         private bool missingClimbClipLogged;
         private bool missingCombatStrikeClipLogged;
+        private Transform hitReactionSpine;
+        private float proceduralHitUntil;
+        private float proceduralHitStartedAt;
+        private float proceduralHitMagnitude;
         private static readonly MasterBundleReference<AudioClip> NativePunchAudio =
             new MasterBundleReference<AudioClip>("core.masterbundle", "Sounds/MeleeAttack_02.mp3");
 
@@ -84,6 +88,9 @@ namespace SDG.Unturned
                 }
             }
             ResolveClips();
+            Transform visual = transform.Find("HumanoidVisual");
+            hitReactionSpine = visual != null
+                ? visual.Find("Root/Skeleton/Spine") : null;
         }
 
         private void Start()
@@ -382,8 +389,35 @@ namespace SDG.Unturned
         {
             if (vitals == null || vitals.IsDead || amount <= 0f)
                 return;
-            // Only use an actual hit-reaction clip installed on this prefab.
-            TryPlayActionClip("Hit", "Flinch", "Damage", "Hurt");
+            // This native NPC visual has Punch/Kick/Locomotion but no
+            // authored "Hit"/"Flinch" full-body clips. If another prefab
+            // provides one prefer it; otherwise make a tiny temporary
+            // additive reaction on its REAL animated spine, not a fake clip.
+            if (!TryPlayActionClip("Hit", "Flinch", "Damage", "Hurt")
+                && hitReactionSpine != null && legacyAnimation != null)
+            {
+                proceduralHitStartedAt = Time.time;
+                proceduralHitUntil = Time.time + 0.23f;
+                proceduralHitMagnitude = Mathf.Clamp(amount * 0.14f, 2.5f, 8f);
+            }
+        }
+
+        private void LateUpdate()
+        {
+            if (hitReactionSpine == null || legacyAnimation == null
+                || vitals != null && vitals.IsDead
+                || Time.time >= proceduralHitUntil)
+                return;
+            // Unity's legacy Animation evaluates the normal clip each frame
+            // before LateUpdate. Add the short flinch AFTER that evaluation,
+            // so it neither replaces walking nor permanently edits bind pose.
+            float duration = Mathf.Max(0.05f,
+                proceduralHitUntil - proceduralHitStartedAt);
+            float phase = Mathf.Clamp01((Time.time - proceduralHitStartedAt) / duration);
+            float envelope = Mathf.Sin(phase * Mathf.PI);
+            hitReactionSpine.localRotation *= Quaternion.Euler(
+                -proceduralHitMagnitude * envelope, 0f,
+                proceduralHitMagnitude * envelope * 0.35f);
         }
 
         private void HandleShotFired()
@@ -398,10 +432,10 @@ namespace SDG.Unturned
             TryPlayActionClip("Reload");
         }
 
-        private void TryPlayActionClip(params string[] fragments)
+        private bool TryPlayActionClip(params string[] fragments)
         {
             if (vitals != null && vitals.IsDead)
-                return;
+                return false;
 
             Animation[] animations = GetComponentsInChildren<Animation>(true);
             for (int a = 0; a < animations.Length; ++a)
@@ -429,10 +463,13 @@ namespace SDG.Unturned
                     animation.CrossFade(state.name, Mathf.Min(crossFadeDuration, 0.08f));
                     attackAnimationUntil = Time.time + Mathf.Max(0.15f, state.length);
                     currentClip = state.name;
-                    return;
+                    return true;
                 }
             }
-            // No fabricated animation when the actual NPC_Client rig lacks one.
+            // A missing native clip is not a reason to disable melee or
+            // render an invisible hit reaction. Caller may use a bounded
+            // procedural animation instead.
+            return false;
         }
 
         private void HandleDied()
