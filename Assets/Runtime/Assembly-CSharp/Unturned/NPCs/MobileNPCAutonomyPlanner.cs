@@ -267,6 +267,10 @@ namespace SDG.Unturned
             float hunger = needs != null ? needs.HungerFraction : 1f;
             bool hasSpace = inventory != null && inventory.HasSpace;
             bool hasGun = inventory != null && inventory.CountItemType(EItemType.GUN) > 0;
+            MobileNPCHumanoidRangedCombat ranged = GetComponent<MobileNPCHumanoidRangedCombat>();
+            bool combatMode = MobileNPCSettings.CombatMode;
+            bool needsArms = combatMode && (!hasGun || ranged == null
+                || ranged.SelectedGunAsset == null || ranged.RoundsRemaining <= 0);
             bool lacksFood = needs != null && needs.NeedsFood
                 && inventory != null && inventory.CountItemType(EItemType.FOOD) == 0;
             bool lacksWater = needs != null && needs.NeedsWater
@@ -293,6 +297,17 @@ namespace SDG.Unturned
                 ? 53f + personalityGuardBias + (group.CanPlanSettlement ? 7f : 0f)
                     - (lacksWater || lacksFood || lacksMedical ? 35f : 0f)
                 : -1000f;
+            if (combatMode)
+            {
+                // No hunger/water utilities in this mode: reward real weapons
+                // and compatible ammunition, then defend validated group posts
+                // and patrol existing regional anchors. No imaginary invasions.
+                patrol += 19f;
+                if (hasSpace && Time.time >= scavengeNotBefore)
+                    scavenge += needsArms ? 83f : 14f;
+                if (guard > -100f)
+                    guard += 30f;
+            }
             float recover = Time.time >= recoveryNotBefore
                 ? 8f + (1f - health) * 100f
                     + (vitals != null && Time.time - vitals.LastDamageTime < 9f ? 17f : 0f)
@@ -342,7 +357,8 @@ namespace SDG.Unturned
                 {
                     // Duty shift ends only while idle, not in the middle
                     // of defending the settlement against a known enemy.
-                    guardShiftEndsAt = Time.time + Random.Range(90f, 155f);
+                    guardShiftEndsAt = Time.time + (combatMode
+                        ? Random.Range(135f, 220f) : Random.Range(90f, 155f));
                 }
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
                 Debug.Log("[MobileNPCAutonomyPlanner] " + name + " routine=" + currentJob
