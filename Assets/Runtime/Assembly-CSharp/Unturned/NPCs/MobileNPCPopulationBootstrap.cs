@@ -499,7 +499,7 @@ namespace SDG.Unturned
             Vector3 nativeCenter, Vector3 nativeSize)
         {
             GameObject region = new GameObject("Hit_" + regionName);
-            region.layer = 23; // Native ENTITY raycast layer.
+            region.layer = LayerMasks.ENTITY; // Native ENTITY raycast layer, independent of the visual rig.
             region.transform.SetParent(ownerBone, false);
             region.transform.localPosition = Vector3.zero;
             region.transform.localRotation = Quaternion.identity;
