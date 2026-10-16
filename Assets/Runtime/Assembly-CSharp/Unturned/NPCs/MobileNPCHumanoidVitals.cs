@@ -763,8 +763,18 @@ namespace SDG.Unturned
 				if (colliders[i] != null && !colliders[i].isTrigger)
 					usableColliders++;
 			}
-			if (authoredBodies.Length == 0 || authoredJoints.Length == 0 || usableColliders == 0)
+			// Never enable a partially authored linked skeleton. NPC_Client
+			// has none originally; Ragdoll_Player carries exactly 11 rigid
+			// bodies, 11 colliders and 10 connected joints. A half-created
+			// ragdoll is less safe than the explicit rigid-corpse fallback.
+			if (authoredBodies.Length != 11 || authoredJoints.Length != 10
+				|| usableColliders < 11)
 			{
+				Debug.LogError("[MobileNPCHumanoidVitals] Articulated skeleton "
+					+ "validation failed: bones=" + authoredBodies.Length
+					+ ", colliders=" + usableColliders + ", joints="
+					+ authoredJoints.Length + ". Rigid corpse fallback for "
+					+ name + ".", this);
 				ActivateRigidCorpseFallback(visualRoot, hitImpulse, authoredBodies, colliders);
 				return;
 			}
