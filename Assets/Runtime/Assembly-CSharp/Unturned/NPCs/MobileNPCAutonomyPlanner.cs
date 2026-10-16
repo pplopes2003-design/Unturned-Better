@@ -30,6 +30,8 @@ namespace SDG.Unturned
         private MobileNPCSurvivalNeeds needs;
         private MobileNPCHumanoidVitals vitals;
         private MobileNPCGroupMember group;
+        private MobileNPCMedicalBehavior medicalBehavior;
+        private MobileNPCInjurySystem injuries;
 
         private Job currentJob = Job.Patrol;
         private float nextEvaluationTime;
@@ -37,6 +39,7 @@ namespace SDG.Unturned
         private float recoveryNotBefore;
         private float scavengeNotBefore;
         private float guardNotBefore;
+        private float guardShiftEndsAt;
         private float personalityExploreBias;
         private float personalityGuardBias;
         private int consecutiveFailedScavengeWaypoints;
@@ -55,6 +58,8 @@ namespace SDG.Unturned
             needs = GetComponent<MobileNPCSurvivalNeeds>();
             vitals = GetComponent<MobileNPCHumanoidVitals>();
             group = GetComponent<MobileNPCGroupMember>();
+            medicalBehavior = GetComponent<MobileNPCMedicalBehavior>();
+            injuries = GetComponent<MobileNPCInjurySystem>();
             // Small independent preferences. These are not permanent identity traits.
             personalityExploreBias = Random.Range(-7f, 8f);
             personalityGuardBias = Random.Range(-6f, 7f);
@@ -82,35 +87,68 @@ namespace SDG.Unturned
                 jobCommittedUntil = Time.time + 12f;
             }
 
-            // Threat perception and tactical travel have exclusive ownership of
-            // movement; the routine does not reset or override either one.
+            // Threat perception and tactical travel exclusively own movement.
+            // Never rotate group jobs while a confirmed danger/sensory task
+            // is still in progress.
             if (brain == null || brain.Target != null
                 || brain.CurrentGoal != MobileNPCTactics.Goal.None
                 || brain.CurrentState != MobileNPCBrain.State.Idle)
                 return currentJob;
+
+            // A-Life duty shifts: a guard must occasionally hand over its
+            // physical reserved post, permitting another living squadmate to
+            // guard while this individual scouts/restocks. A tactical threat
+            // above would defer the rotation rather than abandon defense.
+            if (currentJob == Job.GuardSettlement && initialized
+                && Time.time >= guardShiftEndsAt && guardShiftEndsAt > 0f)
+            {
+                if (group != null) group.ReleaseGuardPostServer();
+                guardNotBefore = Time.time + Random.Range(35f, 65f);
+                currentJob = Job.Patrol;
+                jobCommittedUntil = Time.time + 10f;
+                guardShiftEndsAt = 0f;
+            }
 
             float health = vitals != null ? vitals.HealthFraction : 1f;
             float thirst = needs != null ? needs.ThirstFraction : 1f;
             float hunger = needs != null ? needs.HungerFraction : 1f;
             bool hasSpace = inventory != null && inventory.HasSpace;
             bool hasGun = inventory != null && inventory.CountItemType(EItemType.GUN) > 0;
+            bool lacksFood = needs != null && needs.NeedsFood
+                && inventory != null && inventory.CountItemType(EItemType.FOOD) == 0;
+            bool lacksWater = needs != null && needs.NeedsWater
+                && inventory != null && inventory.CountItemType(EItemType.WATER) == 0;
+            bool lacksMedical = medicalBehavior != null && medicalBehavior.NeedsMedicalSupplies;
+            bool bleeding = injuries != null && injuries.CurrentBleeding
+                != MobileNPCInjurySystem.BleedingSeverity.None;
             bool inGroup = group != null && group.GroupId > 0;
             bool hasSettlement = inGroup && group.HasSettlement;
 
+            // A-Life needs utility is tied to items the survivor ACTUALLY
+            // carries. Being thirsty WITH water is not a reason to abandon a
+            // base guard post: SurvivalNeeds will drink it directly.
+            float supplyUrgency = (lacksWater
+                ? 38f + Mathf.Max(0f, 0.70f - thirst) * 135f : 0f)
+                + (lacksFood ? 25f + Mathf.Max(0f, 0.70f - hunger) * 110f : 0f)
+                + (lacksMedical ? (bleeding ? 118f : 85f) : 0f);
             float patrol = 35f + personalityExploreBias;
             float scavenge = hasSpace && Time.time >= scavengeNotBefore
-                ? 19f + Mathf.Max(0f, 0.80f - hunger) * 80f
-                    + Mathf.Max(0f, 0.82f - thirst) * 95f
-                    + (!hasGun ? 16f : 0f)
+                ? 18f + supplyUrgency + (!hasGun ? 16f : 0f)
                 : -1000f;
             float guard = hasSettlement && Time.time >= guardNotBefore
                 && group.HasAvailableGuardPostServer
                 ? 53f + personalityGuardBias + (group.CanPlanSettlement ? 7f : 0f)
+                    - (lacksWater || lacksFood || lacksMedical ? 35f : 0f)
                 : -1000f;
             float recover = Time.time >= recoveryNotBefore
                 ? 8f + (1f - health) * 100f
                     + (vitals != null && Time.time - vitals.LastDamageTime < 9f ? 17f : 0f)
                 : -1000f;
+            // Resting while actively bleeding and without a dressing is a
+            // deadly loop. Search personally known/visible REAL supplies
+            // instead; no magical heal, loot or safe teleport is granted.
+            if (lacksMedical && bleeding && hasSpace)
+                recover = Mathf.Min(recover, 11f);
 
             Job best = Job.Patrol;
             float bestScore = patrol;
@@ -122,7 +160,9 @@ namespace SDG.Unturned
                 : currentJob == Job.GuardSettlement ? guard
                 : currentJob == Job.Recover ? recover : patrol;
             bool emergency = health < 0.30f && best == Job.Recover
-                || (thirst < 0.22f || hunger < 0.22f) && best == Job.Scavenge;
+                || best == Job.Scavenge && (lacksMedical && bleeding
+                    || lacksWater && thirst < 0.27f
+                    || lacksFood && hunger < 0.25f);
             if (initialized && best != currentJob && Time.time < jobCommittedUntil
                 && !emergency && bestScore < currentScore + switchAdvantage)
                 return currentJob;
@@ -144,6 +184,12 @@ namespace SDG.Unturned
                 {
                     // Recover is a short pause, not permanent AI paralysis.
                     jobCommittedUntil = Time.time + Random.Range(6f, 11f);
+                }
+                else if (currentJob == Job.GuardSettlement)
+                {
+                    // Duty shift ends only while idle, not in the middle
+                    // of defending the settlement against a known enemy.
+                    guardShiftEndsAt = Time.time + Random.Range(90f, 155f);
                 }
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
                 Debug.Log("[MobileNPCAutonomyPlanner] " + name + " routine=" + currentJob
