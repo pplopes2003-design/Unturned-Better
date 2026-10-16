@@ -1193,8 +1193,20 @@ namespace SDG.Unturned
 			{
 				if (!playerKnowledge.TrySuggestSearchPoint(Time.time, out Vector3 hint))
 					return;
-				if (MobileNPCSpawnService.TryFindSafeGroundPosition(hint, 5f, 6f,
-					RayMasks.BLOCK_COLLISION, 40f, out Vector3 ground, out _)
+				// An Alien-Isolation-style uncertain search MUST remain a
+				// hypothesis. A 5m-high floor probe used to turn a nearby
+				// sound into a guessed upstairs/rooftop destination. Reject
+				// unsupported hints; walking between levels still requires
+				// a genuine door, staircase or separately learned connector.
+				if (MobileNPCSpawnService.TryFindSafeGroundPosition(hint, 1.0f, 1.5f,
+					(RayMasks.BLOCK_COLLISION | RayMasks.GROUND2), 60f,
+					out Vector3 ground, out Collider support, out _)
+					&& support != null
+					&& support.GetComponentInParent<MobileNPCHumanoidVitals>() == null
+					&& support.GetComponentInParent<Zombie>() == null
+					&& support.GetComponentInParent<Player>() == null
+					&& Mathf.Abs(ground.y - hint.y) <= 0.55f
+					&& Mathf.Abs(ground.y - transform.position.y) <= 0.65f
 					&& brain.TrySetInvestigationHint(ground, Time.time))
 					return;
 			}
