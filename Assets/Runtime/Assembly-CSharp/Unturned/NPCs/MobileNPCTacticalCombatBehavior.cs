@@ -122,6 +122,28 @@ namespace SDG.Unturned
 				return;
 			}
 
+			if (groupMember == null)
+				groupMember = GetComponent<MobileNPCGroupMember>();
+			MobileNPCGroupMember.SquadDirective order = groupMember != null
+				? groupMember.CurrentSquadDirective
+				: MobileNPCGroupMember.SquadDirective.Independent;
+			if (order == MobileNPCGroupMember.SquadDirective.Withdraw
+				&& Time.time >= nextCasualtyWithdrawalAt
+				&& brain.CurrentGoal != MobileNPCTactics.Goal.SeekCover
+				&& brain.CurrentGoal != MobileNPCTactics.Goal.Retreat)
+			{
+				nextCasualtyWithdrawalAt = Time.time + 10f;
+				if (brain.TryStartCautiousSquadWithdrawalServer())
+				{
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+					Debug.Log("[MobileNPCTacticalCombatBehavior] " + name
+						+ " accepted local leader retreat order after personal sight"
+						+ " and physically verified safe escape.", this);
+#endif
+					return;
+				}
+			}
+
 			// A local comrade's death may prompt voluntary short withdrawal,
 			// but ONLY if this individual still personally sees its opponent.
 			// An armed healthy squad remains able to stand and fight. The
@@ -149,6 +171,14 @@ namespace SDG.Unturned
 					return;
 				}
 			}
+
+			// Holding a group firing line forbids opportunistic solo
+			// flanks. Shooting still depends on this individual's own
+			// perception, ammo, cover and friendly-fire checks.
+			if (order == MobileNPCGroupMember.SquadDirective.Hold
+				|| groupMember != null && groupMember.CurrentSquadRole
+					== MobileNPCGroupMember.SquadRole.Covering)
+				return;
 
 			// Reloading takes priority over flank and spacing. ReportIncomingFire uses the
 			// existing server-side cover validation and does not apply any extra damage.
