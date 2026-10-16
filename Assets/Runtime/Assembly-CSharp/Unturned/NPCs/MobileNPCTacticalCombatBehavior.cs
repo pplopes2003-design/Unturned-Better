@@ -32,6 +32,7 @@ namespace SDG.Unturned
 		private MobileNPCHumanoidRangedCombat rangedCombat;
 		private MobileNPCHumanoidVitals vitals;
 		private MobileNPCInventory inventory;
+		private MobileNPCHumanoidMotor motor;
 		private float nextUpdateTime;
 		private float blockedSince = -1f;
 		private float nextFlankTime;
@@ -45,6 +46,7 @@ namespace SDG.Unturned
 			rangedCombat = GetComponent<MobileNPCHumanoidRangedCombat>();
 			vitals = GetComponent<MobileNPCHumanoidVitals>();
 			inventory = GetComponent<MobileNPCInventory>();
+			motor = GetComponent<MobileNPCHumanoidMotor>();
 
 			candidateOffsets[0] = new Vector3(1f, 0f, 0f);
 			candidateOffsets[1] = new Vector3(-1f, 0f, 0f);
@@ -235,7 +237,11 @@ namespace SDG.Unturned
 			{
 				Vector3 raw = targetPosition + directions[i] * flankRadius;
 				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(raw, 5f, 4f, ~0, 38f,
-					out Vector3 candidate, out _))
+					out Vector3 candidate, out Collider groundCollider, out _)
+					|| (groundCollider != null
+						&& (groundCollider.GetComponentInParent<InteractableStorage>() != null
+							|| groundCollider.GetComponentInParent<InteractableBed>() != null
+							|| groundCollider.GetComponentInParent<InteractableMannequin>() != null)))
 					continue;
 
 				if ((candidate - transform.position).sqrMagnitude < 9f)
@@ -270,11 +276,33 @@ namespace SDG.Unturned
 			{
 				brain.TryStartFlank(bestPosition);
 				ResetOcclusion();
+				return;
 			}
-			else if (!targetVisible)
+
+			// Exceptional high ground is ONLY considered when all ordinary
+			// lateral flanks are unavailable. The threat must remain
+			// directly confirmed by current perception in Update, and the
+			// actual firing line must improve. No surprise roof searches,
+			// omniscient target positions, or needless exposed jumping.
+			if (!targetVisible
+				&& brain.CurrentGoal == MobileNPCTactics.Goal.None
+				&& rangedCombat.SelectedGunAsset != null
+				&& rangedCombat.RoundsRemaining > 0 && !rangedCombat.IsReloading
+				&& vitals != null && vitals.HealthFraction >= 0.70f
+				&& motor != null
+				&& motor.TryFindObservedElevatedFiringPositionServer(
+					targetPosition, out Vector3 observedRaised)
+				&& IsClearLineOfFire(observedRaised + Vector3.up * eyeHeight,
+					targetPosition + Vector3.up * targetHeight, target)
+				&& brain.TryStartObservedElevatedFlankServer(observedRaised))
 			{
-				// No validated alternate firing point found. Keep the target memory and let
-				// the existing brain/path recovery handle the obstruction rather than guessing.
+				ResetOcclusion();
+				return;
+			}
+			if (!targetVisible)
+			{
+				// No physically validated better firing location exists;
+				// preserve ordinary target memory and path recovery.
 				blockedSince = Time.time;
 			}
 		}
