@@ -114,11 +114,10 @@ namespace SDG.Unturned
             // A climbable LOW object may be a real intermediate footstep.
             // Use the exact observed collider and measured horizontal top.
             // No generic A* connection across objects is created.
-            if (!hasGroundBeyond || goal.y - root.y > 0.55f)
+            if (!hasGroundBeyond || goal.y - root.y > 0.35f)
             {
                 bool foundTopLanding = false;
                 float bestTopDistance = 0f;
-                float bestTopY = 0f;
                 float firstDistance = Mathf.Clamp(wall.distance + 0.55f, 0.85f, 1.4f);
                 for (int candidateIndex = 0; candidateIndex < 3; ++candidateIndex)
                 {
@@ -141,7 +140,6 @@ namespace SDG.Unturned
                         continue;
                     foundTopLanding = true;
                     bestTopDistance = testDistance;
-                    bestTopY = candidateHeight;
                     landing = candidateLanding;
                     break;
                 }
