@@ -435,3 +435,25 @@ When an investigating brain reaches a genuine sound clue, its next three uncerta
 5. Watch CPU and logging with several NPCs. Discovery is bounded per request, visuals polled every 1.5 seconds, and group shout cooldown is 5 seconds. In release builds, developer diagnostics are compiled out.
 
 **Still outstanding:** actual Unity compile and build validation, persistent group-roles beyond quick tactical assignments, physically audible voice/sound playback of local NPC callouts, proper backpack-driven inventory capacity, equipment on corpses/ragdolls, and deeper coordinated cover/reload/flank evaluation. The director currently offers two short start-of-life orientation hints rather than a full offline A-Life world simulator.
+
+
+## Coordinated combat v2 — 16 Oct 2026
+
+**Status: QUASE PRONTO** — static source checks passed. Actual Unity compile and PlayMode still await dev build. No privileged faction/tactic HUD was added.
+
+### Coordinated actions
+
+- A covering role is assigned only when a shooter is healthy, actually loaded, personally sees the target and has a clear firing corridor. A teammate's cautious 3–7 m advance still requires the existing verified local flank solver; if gunner loses confirmed sight/ammo or the flank is blocked, the proposed pair cancels. A COVERING label never grants suppression fire or aimbot aiming.
+- MobileNPCHumanoidRangedCombat checks each REAL spread-adjusted shot direction against current living squadmates before ammunition is debited. Friendly-fire corridors force a short delay without a shot; personal perception, legitimate shooting, ammo and damage remain unchanged.
+- Healthy nearby groupmates can pass genuine rag, bandage, dressing or splint items to a physically adjacent, noncombat injured group member if that patient actually lacks the item. The handoff respects ≤2.4 m separation, ≤1m height, line-of-sight, server inventory slot reservation and rollback. Original MobileNPCMedicalBehavior must consume the transferred supply and administer care. Never fabricates health or items.
+- On death, a group member's nearby loss informs only same-group survivors within physical hearing range, with wall attenuation. Individual caution remains for 12–20 s; no hidden shooter identity or global group-wide notification. A wounded or low-ammo survivor who individually sees its original target may voluntarily withdraw via the existing Retreat tactical goal, after newly validating nearby real cover or reachable ground. The caller throttles replanning.
+
+### User build validation
+
+1. Spawn two to four compatible hostiles together. Observe natural mutual alerts and log-confirmed Covering/Advancing only with real hearing and a gunner's own line of fire. Block the flanker corridor and verify the attempted maneuver cancels without a teleport.
+2. Cross a teammate through a gunner's actual shot path. The gunner should pause instead of shooting its own team or consuming ammo. Clear the lane and confirm original humanized firing resumes; walls still block bullets.
+3. Hurt a friendly NPC while another healthy friendly nearby owns an actual native rag/dressing/splint. Confirm exactly one item transfers across a physically clear ≤2.4m space and ordinary injury care consumes it later. Behind a wall or farther away, no magical medical handoff.
+4. Kill one squad member within earshot. With another low-HP/low-ammo survivor who can personally see its opponent, expect a cautiously chosen verified fallback if terrain permits. Check no global alarm for distant allies and no knowledge transfer of the killer.
+5. Watch Unity profiler with 4+ NPCs; casualty/medical checks are limited and shooting safety tests loop over the existing ≤4-member group. No new per-frame spatial world scan was added.
+
+Still pending: build compilation, sound/animation of spoken warnings, actual tactical suppression, more sophisticated squad leader orders, radio-mediated long-distance support, ragdoll and complete nav testing. Only user-approved in-build behavior becomes FINALIZADO.
