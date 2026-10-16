@@ -35,6 +35,7 @@ namespace SDG.Unturned
         private float awaitingScanUntil;
         private float nextCandidateAttemptAt;
         private int visitedCount;
+        private int scannedCount;
         private int successfulLootGoals;
         private int failedWaypoints;
 
@@ -83,6 +84,7 @@ namespace SDG.Unturned
             structureAnchor = building;
             assigned = firstSite;
             visitedCount = 0;
+            scannedCount = 0;
             successfulLootGoals = 0;
             failedWaypoints = 0;
             expiresAt = Time.time + 125f;
@@ -131,6 +133,7 @@ namespace SDG.Unturned
                 || (inspectedAt - assigned).sqrMagnitude > 3.5f * 3.5f)
                 return;
             awaitingScan = false;
+            ++scannedCount;
             if (acquiredLootGoal)
                 ++successfulLootGoals;
             if (visitedCount >= MaxInspectionsPerSite)
@@ -343,6 +346,8 @@ namespace SDG.Unturned
 
         private void FinishServer(string reason)
         {
+            if (isActive && autonomy != null && scannedCount >= 2)
+                autonomy.ReportStructureSurveyCompletedServer(origin, scannedCount);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (isActive)
                 Debug.Log("[MobileNPCInteriorSurvey] END npc=" + name
