@@ -815,6 +815,77 @@ namespace SDG.Unturned
 		}
 
 		/// <summary>
+		/// Bounded withdrawal when this NPC heard an ally fall AND personally
+		/// sees the same enemy it was already fighting. Does not import
+		/// anyone's target Transform, teleport, or skip motor path checks.
+		/// Reuses the existing RETREAT goal/death/loot integration.
+		/// </summary>
+		public bool TryStartCautiousSquadWithdrawalServer()
+		{
+			if (!CanAcceptServerInput || brain.Target == null
+				|| brain.CurrentState != MobileNPCBrain.State.Pursuing
+				|| tactics.CurrentGoal == MobileNPCTactics.Goal.SeekCover
+				|| tactics.CurrentGoal == MobileNPCTactics.Goal.Retreat)
+				return false;
+			MobileNPCHumanoidPerception eyes = GetComponent<MobileNPCHumanoidPerception>();
+			Transform target = brain.Target;
+			bool seen = eyes != null
+				&& (eyes.VisiblePlayer != null
+					&& (target == eyes.VisiblePlayer.transform
+						|| target.IsChildOf(eyes.VisiblePlayer.transform))
+					|| eyes.VisibleNPC != null
+					&& (target == eyes.VisibleNPC.transform
+						|| target.IsChildOf(eyes.VisibleNPC.transform))
+					|| eyes.VisibleZombie != null
+					&& (target == eyes.VisibleZombie.transform
+						|| target.IsChildOf(eyes.VisibleZombie.transform)));
+			if (!seen)
+				return false;
+			Vector3 threatPosition = target.position; // fresh personal vision ONLY
+			MobileNPCHumanoidMotor movement = GetComponent<MobileNPCHumanoidMotor>();
+			if (movement == null)
+				return false;
+
+			// Native cover survey already verifies geometry and reachability.
+			Vector3? nearbyCover = TryFindNearbyCoverPoint(threatPosition);
+			if (nearbyCover.HasValue
+				&& (nearbyCover.Value - transform.position).sqrMagnitude > 9f
+				&& movement.CanReachNearbyCoverServer(nearbyCover.Value)
+				&& tactics.TryStartValidatedSquadWithdrawal(nearbyCover.Value, Time.time))
+			{
+				PublishDecisionIfChanged();
+				return true;
+			}
+
+			Vector3 away = transform.position - threatPosition;
+			away.y = 0f;
+			if (away.sqrMagnitude < 0.1f)
+				return false;
+			away.Normalize();
+			for (int i = 0; i < 3; ++i)
+			{
+				Vector3 direction = Quaternion.AngleAxis((i - 1) * 32f,
+					Vector3.up) * away;
+				Vector3 estimate = transform.position + direction * (7f + i);
+				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(estimate,
+					1.0f, 1.5f, RayMasks.BLOCK_COLLISION | RayMasks.GROUND2,
+					60f, out Vector3 verified, out Collider support, out _)
+					|| support == null
+					|| support.GetComponentInParent<InteractableStorage>() != null
+					|| support.GetComponentInParent<MobileNPCHumanoidVitals>() != null
+					|| support.GetComponentInParent<Player>() != null
+					|| Mathf.Abs(verified.y - transform.position.y) > 0.65f
+					|| !movement.CanReachNearbyCoverServer(verified))
+					continue;
+				if (!tactics.TryStartValidatedSquadWithdrawal(verified, Time.time))
+					return false;
+				PublishDecisionIfChanged();
+				return true;
+			}
+			return false;
+		}
+
+		/// <summary>
 		/// Starts moving toward a loot item only when the host has validated that item
 		/// and confirmed inventory capacity. Actual pickup is a separate server action.
 		/// </summary>
