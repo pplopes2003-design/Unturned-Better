@@ -60,6 +60,8 @@ namespace SDG.Unturned
 			public MobileNPCSurvivalNeeds.NeedsSnapshot survival;
 			public MobileNPCInjurySystem.InjurySnapshot injuries;
 			public int noviceDirectorHintsUsed;
+			// Optional first-hand marksmanship learning; old saves default empty.
+			public List<MobileNPCHumanoidAim.BallisticRecord> ballisticPractice;
 		}
 
 		[Serializable]
@@ -384,6 +386,9 @@ namespace SDG.Unturned
 				MobileNPCAutonomyPlanner routine = instance.GetComponent<MobileNPCAutonomyPlanner>();
 				if (routine != null)
 					routine.RestoreSnapshotServer(record.routine);
+				MobileNPCHumanoidAim restoredAim = instance.GetComponent<MobileNPCHumanoidAim>();
+				if (restoredAim != null)
+					restoredAim.RestoreBallisticExperienceServer(record.ballisticPractice);
 			}
 			catch (Exception exception)
 			{
@@ -496,6 +501,9 @@ namespace SDG.Unturned
 				MobileNPCAutonomyPlanner routine = driver.GetComponent<MobileNPCAutonomyPlanner>();
 				if (routine != null)
 					record.routine = routine.ExportSnapshotServer();
+				MobileNPCHumanoidAim savedAim = driver.GetComponent<MobileNPCHumanoidAim>();
+				if (savedAim != null)
+					record.ballisticPractice = savedAim.ExportBallisticExperienceServer();
 
 				save.npcs.Add(record);
 			}
