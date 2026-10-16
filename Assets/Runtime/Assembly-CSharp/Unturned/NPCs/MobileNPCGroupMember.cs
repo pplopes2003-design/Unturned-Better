@@ -29,6 +29,7 @@ namespace SDG.Unturned
 			public readonly HashSet<MobileNPCGroupMember> Members = new HashSet<MobileNPCGroupMember>();
 			public MobileNPCGroupMember Leader;
 			public float LastLeaderObservedCombatAt;
+			public float LastLeaderHeardContactAt;
 			public bool HasSettlement;
 			public int SettlementPiecesPlaced;
 			public int SettlementPerimeterPiecesPlaced;
@@ -155,9 +156,11 @@ namespace SDG.Unturned
 				|| perception.VisibleZombie != null && target == perception.VisibleZombie.transform);
 			if (currentlySeen)
 				group.LastLeaderObservedCombatAt = Time.time;
+			bool heardContact = group.LastLeaderHeardContactAt > 0f
+				&& Time.time - group.LastLeaderHeardContactAt <= 8f;
 			bool recentlyEngaged = group.LastLeaderObservedCombatAt > 0f
 				&& Time.time - group.LastLeaderObservedCombatAt < 26f;
-			if (!currentlySeen && !recentlyEngaged)
+			if (!currentlySeen && !recentlyEngaged && !heardContact)
 				return;
 
 			int nearby = 1;
@@ -181,7 +184,7 @@ namespace SDG.Unturned
 				return;
 			SquadDirective desired;
 			if (!currentlySeen)
-				desired = SquadDirective.Regroup;
+				desired = heardContact ? SquadDirective.Hold : SquadDirective.Regroup;
 			else if (wounded >= 2 || wounded >= 1 && armed == 0)
 				desired = SquadDirective.Withdraw;
 			else if (armed >= 2 && wounded == 0)
@@ -387,6 +390,8 @@ namespace SDG.Unturned
 				Vector2 error = Random.insideUnitCircle * errorRadius;
 				Vector3 clue = observedPosition + new Vector3(error.x, 0f, error.y);
 				allyBrain.ReportGroupPlayerContactClue(clue, confidence);
+				if (ally == group.Leader)
+					group.LastLeaderHeardContactAt = Time.time;
 
 				// One physically fire-capable observer can cover one cautious
 				// advance. This NEVER generates suppressive bullets: the native
@@ -677,6 +682,8 @@ namespace SDG.Unturned
 					* Mathf.Lerp(1.5f, 5.5f, Mathf.Clamp01(distance / range));
 				listener.ReportNoise(observedPosition
 					+ new Vector3(uncertainty.x, 0f, uncertainty.y), 12f);
+				if (ally == group.Leader)
+					group.LastLeaderHeardContactAt = Time.time;
 				++notified;
 			}
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
