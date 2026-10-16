@@ -109,7 +109,7 @@ namespace SDG.Unturned
                 && Level.checkSafeIncludingClipVolumes(landing)
                 // A furniture top behind the first object is not a
                 // ground-level landing, even if the ray finds it.
-                && groundCollider != wall.collider;
+                && !IsSamePhysicalObstacle(groundCollider, wall.collider);
             bool landingOnTop = false;
             // A climbable LOW object may be a real intermediate footstep.
             // Use the exact observed collider and measured horizontal top.
@@ -126,7 +126,7 @@ namespace SDG.Unturned
                     Vector3 fromAbove = root + direction * testDistance + Vector3.up * 1.65f;
                     if (!Physics.Raycast(fromAbove, Vector3.down, out RaycastHit surface,
                         1.9f, obstacleMask, QueryTriggerInteraction.Ignore)
-                        || surface.collider != wall.collider
+                        || !IsSamePhysicalObstacle(surface.collider, wall.collider)
                         || Vector3.Dot(surface.normal, Vector3.up) < 0.90f
                         || Mathf.Abs(surface.point.y - top.point.y) > 0.12f)
                         continue;
@@ -223,6 +223,26 @@ namespace SDG.Unturned
             plan.TravelDistance = travelDistance;
             plan.MaximumDuration = duration + 0.20f;
             return true;
+        }
+
+        /// <summary>
+        /// A furniture prefab may use separate box colliders for its side and
+        /// top. Accept only the SAME registered interactive or the same
+        /// kinematic rigidbody, not everything sharing a building root.
+        /// </summary>
+        private static bool IsSamePhysicalObstacle(Collider a, Collider b)
+        {
+            if (a == null || b == null)
+                return false;
+            if (a == b)
+                return true;
+            Interactable furniture = a.GetComponentInParent<Interactable>();
+            if (furniture != null && !(furniture is InteractableDoor)
+                && furniture == b.GetComponentInParent<Interactable>())
+                return true;
+            return a.attachedRigidbody != null
+                && a.attachedRigidbody == b.attachedRigidbody
+                && a.attachedRigidbody.isKinematic;
         }
 
         private static float bestTopClearance(float topHeight)
