@@ -260,13 +260,16 @@ namespace SDG.Unturned
 				return false;
 			}
 
-			if ((targetNPC.transform.position - transform.position).sqrMagnitude > attackRange * attackRange)
+			if ((targetNPC.transform.position - transform.position).sqrMagnitude > GetMeleeReachServer() * GetMeleeReachServer())
 			{
 				return false;
 			}
 
-			nextAttackTime = Time.time + attackCooldown;
-			AttackStarted?.Invoke();
+			float resolvedDamage = ResolveAttackDamageServer(false,
+				out ItemMeleeAsset usedWeapon, out Item usedItem);
+			if (resolvedDamage <= 0f)
+				return false;
+			CommitStrikeServer(usedWeapon, usedItem);
 			// Apply one health debit and one physical region injury, just like
 			// verified player punches. The real first-hit collider from the
 			// preceding ray is preserved when called from this behavior.
@@ -274,23 +277,30 @@ namespace SDG.Unturned
 				? attackDirection.normalized : transform.forward;
 			Vector3 strikePoint = hitTransform != null ? hitTransform.position
 				: targetNPC.transform.position + Vector3.up * 1.05f;
-			return targetVitals.ApplyValidatedWeaponImpactServer(
-				attackDamage, strikePoint, direction, transform, false, hitTransform);
+			bool landed = targetVitals.ApplyValidatedWeaponImpactServer(
+				resolvedDamage, strikePoint, direction, transform, false, hitTransform);
+			if (landed)
+				WearWeaponOnHitServer(usedWeapon, usedItem);
+			return landed;
 		}
 
 		/// <summary>Damages a vanilla zombie using the game's own server-side zombie damage pipeline.</summary>
 		public bool TryAttack(Zombie targetZombie, Vector3 attackDirection)
 		{
 			if (!Provider.isServer || targetZombie == null || targetZombie.isDead || Time.time < nextAttackTime
-				|| (targetZombie.transform.position - transform.position).sqrMagnitude > attackRange * attackRange)
+				|| (targetZombie.transform.position - transform.position).sqrMagnitude > GetMeleeReachServer() * GetMeleeReachServer())
 				return false;
 
-			nextAttackTime = Time.time + attackCooldown;
-			AttackStarted?.Invoke();
-			ushort damage = (ushort)Mathf.Clamp(Mathf.RoundToInt(attackDamage), 1, ushort.MaxValue);
+			float resolvedDamage = ResolveAttackDamageServer(false,
+				out ItemMeleeAsset usedWeapon, out Item usedItem);
+			if (resolvedDamage <= 0f)
+				return false;
+			CommitStrikeServer(usedWeapon, usedItem);
+			ushort damage = (ushort)Mathf.Clamp(Mathf.RoundToInt(resolvedDamage), 1, ushort.MaxValue);
 			targetZombie.askDamage(damage, attackDirection.sqrMagnitude > 0.0001f
 				? attackDirection.normalized * damage : transform.forward * damage,
 				out _, out _, trackKill: false, dropLoot: true);
+			WearWeaponOnHitServer(usedWeapon, usedItem);
 			return true;
 		}
 
@@ -323,22 +333,26 @@ namespace SDG.Unturned
 			}
 
 			Vector3 offset = targetPlayer.transform.position - transform.position;
-			if (offset.sqrMagnitude > attackRange * attackRange)
+			if (offset.sqrMagnitude > GetMeleeReachServer() * GetMeleeReachServer())
 			{
 				return false;
 			}
 
-			nextAttackTime = Time.time + attackCooldown;
-			AttackStarted?.Invoke();
+			float resolvedDamage = ResolveAttackDamageServer(true,
+				out ItemMeleeAsset usedWeapon, out Item usedItem);
+			if (resolvedDamage <= 0f)
+				return false;
+			CommitStrikeServer(usedWeapon, usedItem);
 			DamagePlayerParameters parameters = new DamagePlayerParameters(targetPlayer);
 			parameters.cause = EDeathCause.MELEE;
 			parameters.limb = ELimb.SPINE;
 			parameters.killer = Provider.server;
 			parameters.direction = attackDirection.sqrMagnitude > 0.0001f ? attackDirection.normalized : transform.forward;
-			parameters.damage = attackDamage;
+			parameters.damage = resolvedDamage;
 			parameters.respectArmor = true;
 			EPlayerKill kill;
 			DamageTool.damagePlayer(parameters, out kill);
+			WearWeaponOnHitServer(usedWeapon, usedItem);
 			return true;
 		}
 	}
