@@ -463,6 +463,13 @@ namespace SDG.Unturned
 		private void TryTransferSuppliesToCentralStorage()
 		{
 			MobileNPCGroupMember currentGroup = GetComponent<MobileNPCGroupMember>();
+			// Trading vendors sell the goods in their OWN inventory through
+			// MobileNPCTradeService. Emptying them into storage every two
+			// seconds would make the shop permanently appear out of stock.
+			// Group couriers replenish that real inventory face to face.
+			if (MobileNPCArchetypePolicy.ForNPC(gameObject)
+				== MobileNPCArchetypePolicy.Preset.Trader)
+				return;
 			if (!Provider.isServer || centralStorage == null || centralStorage.items == null
 				|| inventory == null || inventory.UsedSlots == 0
 				|| currentGroup == null || !currentGroup.CanPlanSettlement
