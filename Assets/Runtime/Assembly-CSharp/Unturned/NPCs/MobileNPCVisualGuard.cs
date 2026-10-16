@@ -59,23 +59,28 @@ namespace SDG.Unturned
             }
 
             int renderLayer = visualRoot.gameObject.layer;
-            Transform[] nodes = visualRoot.GetComponentsInChildren<Transform>(true);
-            for (int i = 0; i < nodes.Length; ++i)
+            // Only touch renderers and the ancestors needed to display them.
+            // The full NPC_Client hierarchy also contains six animated
+            // MobileNPCBodyHitbox children on ENTITY (23). Repainting every
+            // descendant to the visual MEDIUM (16) layer made all NPC spawns
+            // fail the mandatory damage-mask invariant. Activating unrelated
+            // rig nodes here can also undo gameplay/corpse setup.
+            for (int i = 0; i < visualRenderers.Length; ++i)
             {
-                Transform node = nodes[i];
-                if (node == null)
-                {
+                Renderer renderer = visualRenderers[i];
+                if (renderer == null)
                     continue;
-                }
 
-                if (node.gameObject.layer != renderLayer)
+                Transform node = renderer.transform;
+                while (node != null && node != transform)
                 {
-                    node.gameObject.layer = renderLayer;
-                }
-
-                if (!node.gameObject.activeSelf)
-                {
-                    node.gameObject.SetActive(true);
+                    if (node.gameObject.layer != renderLayer)
+                        node.gameObject.layer = renderLayer;
+                    if (!node.gameObject.activeSelf)
+                        node.gameObject.SetActive(true);
+                    if (node == visualRoot)
+                        break;
+                    node = node.parent;
                 }
             }
 
