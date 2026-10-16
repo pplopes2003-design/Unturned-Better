@@ -1042,6 +1042,13 @@ namespace SDG.Unturned
 			}
 
 			Vector3 facingDirection = planarDirection;
+			if (holdDeliberateFire && brainDriver.Target != null)
+			{
+				// Turn only toward a presently visible, legally selected
+				// combatant. A lost/occluded target stops this optical tracking.
+				facingDirection = brainDriver.Target.position - transform.position;
+				facingDirection.y = 0f;
+			}
 			if (brainDriver.IsListening)
 			{
 				// Face the uncertain sound bearing, not the player's hidden live
@@ -1052,7 +1059,8 @@ namespace SDG.Unturned
 			if (facingDirection.sqrMagnitude > 0.0001f)
 			{
 				Quaternion targetRotation = Quaternion.LookRotation(facingDirection, Vector3.up);
-				float steeringSpeed = brainDriver.IsListening ? turnSpeed * 0.35f : turnSpeed;
+				float steeringSpeed = brainDriver.IsListening ? turnSpeed * 0.35f
+					: holdDeliberateFire ? Mathf.Min(110f, turnSpeed * 0.4f) : turnSpeed;
 				transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, steeringSpeed * deltaTime);
 			}
 
