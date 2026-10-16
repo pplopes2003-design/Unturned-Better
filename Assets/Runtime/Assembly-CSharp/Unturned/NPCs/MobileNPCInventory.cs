@@ -207,6 +207,60 @@ namespace SDG.Unturned
 			return false;
 		}
 
+		/// <summary>Swap one real, compatible spare rocket magazine into an
+		/// owned launcher without inventing ammunition. Rolls back the debited
+		/// magazine when native gun state refuses the exchange.</summary>
+		public bool TryReloadOwnedRaidLauncherServer()
+		{
+			if (!Provider.isServer) return false;
+			for (int gunSlot = 0; gunSlot < slots.Count; ++gunSlot)
+			{
+				Item held = slots[gunSlot];
+				ItemGunAsset launcher = held != null
+					? Assets.find(EAssetType.ITEM, held.id) as ItemGunAsset : null;
+				if (!MobileNPCRaidSupplyPolicy.IsRaidLauncher(launcher)
+					|| held.state == null || held.state.Length < 18
+					|| held.state[GunStateIndices.AMMO] >= launcher.ammoPerShot)
+					continue;
+				ushort previousMagazineId = System.BitConverter.ToUInt16(
+					held.state, GunStateIndices.MAGAZINE_ID);
+				byte oldAmmo = held.state[GunStateIndices.AMMO];
+				byte oldQuality = held.state[17];
+				for (int magazineSlot = 0; magazineSlot < slots.Count; ++magazineSlot)
+				{
+					Item magazineItem = slots[magazineSlot];
+					ItemMagazineAsset mag = magazineItem != null
+						? Assets.find(EAssetType.ITEM, magazineItem.id) as ItemMagazineAsset : null;
+					if (mag == null || magazineItem.amount < launcher.ammoPerShot
+						|| !mag.CalibersContainAnyOfIds(launcher.magazineCalibers))
+						continue;
+					uint gunInstance = slotInstanceIDs[gunSlot];
+					if (!TryTakeItemServer(magazineSlot, out Item replacement))
+						return false;
+					if (!TryUpdateGunAmmoServer(gunInstance, replacement.amount,
+						replacement.id, replacement.quality))
+					{
+						if (!TryStoreTransferredItem(replacement))
+							UnturnedLog.warn("[MobileNPCInventory] Lost reserve launcher magazine during rejected swap.");
+						return false;
+					}
+					// Return native old magazine only when it has remaining
+					// rounds; never give a new full one to the shooter.
+					if (oldAmmo > 0 && previousMagazineId != 0)
+					{
+						ItemMagazineAsset oldAsset =
+							Assets.find(EAssetType.ITEM, previousMagazineId) as ItemMagazineAsset;
+						if (oldAsset != null
+							&& !TryStoreTransferredItem(new Item(previousMagazineId,
+								oldAmmo, oldQuality, new byte[0])))
+							UnturnedLog.warn("[MobileNPCInventory] Could not store exchanged partial launcher magazine.");
+					}
+					return true;
+				}
+			}
+			return false;
+		}
+
 		private float nextRaidCraftAt;
 		/// <summary>Craft ONE actual vanilla explosive throwable using a simple
 		/// authored blueprint and owned ingredients. Recipes requiring skill,
