@@ -58,6 +58,7 @@ namespace SDG.Unturned
 		private float nextKnowledgeConversationAt;
 		private float nextThreatBroadcastAt;
 		private float nextAidAssessmentAt;
+		private float nearbyAllyLostUntil;
 		private MobileNPCGroupMember assignedCoverer;
 		public enum SquadRole { None, Covering, Advancing }
 		private SquadRole squadRole;
@@ -72,6 +73,9 @@ namespace SDG.Unturned
 		private const float QuietVoiceRange = 7f;
 		private const float WallHearingMultiplier = 0.42f;
 		private const float ContactBroadcastCooldown = 4f;
+
+		public bool RecentlyHeardSquadmateFallServer => Provider.isServer
+			&& initialized && !leftGroup && Time.time < nearbyAllyLostUntil;
 
 		public int GroupId { get; private set; }
 		public Vector3 GroupAnchor { get; private set; }
@@ -994,8 +998,59 @@ namespace SDG.Unturned
 			}
 		}
 
+		/// <summary>
+		/// A fallen comrade changes the attitude of LOCAL survivors only.
+		/// No universal group/faction death telepathy, no location broadcast
+		/// to members behind distant walls, and no knowledge of the killer.
+		/// </summary>
+		private void ShareAudibleAllyLossServer()
+		{
+			if (!Provider.isServer || !initialized || leftGroup
+				|| !groups.TryGetValue(GroupId, out GroupRecord group))
+				return;
+			int heard = 0;
+			foreach (MobileNPCGroupMember ally in group.Members)
+			{
+				if (ally == null || ally == this || ally.leftGroup
+					|| ally.vitals != null && ally.vitals.IsDead)
+					continue;
+				Vector3 mouth = transform.position + Vector3.up * 1.2f;
+				Vector3 ear = ally.transform.position + Vector3.up * 1.25f;
+				Vector3 delta = ear - mouth;
+				float distance = delta.magnitude;
+				if (distance <= 0.1f || distance > AlertShoutRange)
+					continue;
+				RaycastHit[] hits = Physics.RaycastAll(mouth, delta / distance, distance,
+					RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+				bool blocked = false;
+				for (int i = 0; i < hits.Length; ++i)
+				{
+					Collider obstacle = hits[i].collider;
+					if (obstacle == null || obstacle.transform.IsChildOf(transform)
+						|| obstacle.transform.IsChildOf(ally.transform)
+						|| obstacle.GetComponentInParent<MobileNPCHumanoidVitals>() != null
+						|| obstacle.GetComponentInParent<Player>() != null)
+						continue;
+					blocked = true;
+					break;
+				}
+				if (blocked && distance > AlertShoutRange * WallHearingMultiplier)
+					continue;
+				ally.nearbyAllyLostUntil = Mathf.Max(ally.nearbyAllyLostUntil,
+					Time.time + Random.Range(12f, 20f));
+				++heard;
+			}
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			if (heard > 0)
+				Debug.Log("[MobileNPCGroupMember] Group " + GroupId
+					+ " nearby loss heard by " + heard
+					+ " surviving teammate(s): cautious behavior, no shooter knowledge.", this);
+#endif
+		}
+
 		private void OnDied()
 		{
+			ShareAudibleAllyLossServer();
 			ClearSquadRole();
 			LeaveGroupServer();
 		}
