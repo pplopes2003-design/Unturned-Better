@@ -76,8 +76,10 @@ namespace SDG.Unturned
 		{
 			bool underRecentFire = now - lastShotAt <= 2.5f;
 			bool recentlyDamaged = now - lastDamageAt <= 3.0f;
-			bool criticallyWounded = healthFraction <= CriticalHealthThreshold;
-			bool badlyWounded = healthFraction <= LowHealthThreshold;
+			// Combat mode increases courage, never eliminates mortal risk.
+			// Even the most aggressive fighter still withdraws near death.
+			bool criticallyWounded = healthFraction <= (MobileNPCSettings.CombatMode ? 0.09f : CriticalHealthThreshold);
+			bool badlyWounded = healthFraction <= (MobileNPCSettings.CombatMode ? 0.19f : LowHealthThreshold);
 
 			if (!underRecentFire && !recentlyDamaged && !badlyWounded)
 			{
@@ -111,7 +113,7 @@ namespace SDG.Unturned
 			// a blind flight: a healthy, armed survivor with a truly confirmed
 			// target can stand and return fire when no reachable cover exists.
 			// No-target, unarmed, or seriously wounded survivors still withdraw.
-			if (canReturnFire && healthFraction > 0.55f)
+			if (canReturnFire && healthFraction > (MobileNPCSettings.CombatMode ? 0.38f : 0.55f))
 			{
 				if (currentGoal == Goal.SeekCover || currentGoal == Goal.Retreat)
 					ClearGoal();
