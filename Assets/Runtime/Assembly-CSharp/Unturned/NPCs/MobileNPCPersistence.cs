@@ -581,6 +581,56 @@ namespace SDG.Unturned
 
 		private static readonly List<MobileNPCBrainDriver> ActiveDriverScratch = new List<MobileNPCBrainDriver>(32);
 
+		/// <summary>
+		/// Explicit main-menu factory reset of this mod's NPC history across
+		/// maps and characters. NEVER touch any native Unturned save directory.
+		/// Called only after a second confirmation click in the settings UI.
+		/// A running map must not immediately recreate/defer overwritten data.
+		/// </summary>
+		public static bool TryEraseNPCSnapshotsFromMainMenu(out int deleted, out string reason)
+		{
+			deleted = 0;
+			reason = null;
+			if (Level.isLoaded || Provider.isServer)
+			{
+				reason = "Exit the world before resetting NPC history.";
+				return false;
+			}
+			string directory = Path.Combine(Application.persistentDataPath, "MobileNPCs");
+			if (!Directory.Exists(directory))
+				return true;
+			try
+			{
+				// Only our own named JSON snapshots and their transient copies.
+				// No recursive delete: user files and vanilla saves are untouched.
+				string[] suffixes = { "*.json", "*.json.bak", "*.json.tmp" };
+				for (int suffix = 0; suffix < suffixes.Length; ++suffix)
+				{
+					string[] files = Directory.GetFiles(directory, suffixes[suffix],
+						SearchOption.TopDirectoryOnly);
+					for (int i = 0; i < files.Length; ++i)
+					{
+						File.Delete(files[i]);
+						++deleted;
+					}
+				}
+				FailedRestoreRecords.Clear();
+				preserveExistingSnapshot = false;
+				restoredForCurrentMap = false;
+				currentMapKey = null;
+				Debug.Log("[MobileNPCPersistence] Explicit main-menu history reset. Deleted "
+					+ deleted + " NPC-only snapshot files.");
+				return true;
+			}
+			catch (Exception exception)
+			{
+				reason = exception.Message;
+				Debug.LogWarning("[MobileNPCPersistence] NPC-only history reset incomplete: "
+					+ exception);
+				return false;
+			}
+		}
+
 		private static string GetCurrentMapKey()
 		{
 			string name = Level.info != null ? Level.info.name : "UnknownMap";
