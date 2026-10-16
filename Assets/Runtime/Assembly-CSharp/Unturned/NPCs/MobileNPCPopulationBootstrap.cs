@@ -141,6 +141,9 @@ namespace SDG.Unturned
             // Live Combat-only raids need this optional planner on each new
             // survivor template. Only the actual group leader evaluates it.
             template.AddComponent<MobileNPCTerritoryRaidPlanner>();
+            // Breaching deliberately uses a SEPARATE native Rocket prefab
+            // path, not the normal rifle hitscan/ballistic bullet pipeline.
+            template.AddComponent<MobileNPCRaidLauncher>();
             template.AddComponent<MobileNPCGrenadeThrower>();
             template.AddComponent<MobileNPCCompanionContract>();
 
