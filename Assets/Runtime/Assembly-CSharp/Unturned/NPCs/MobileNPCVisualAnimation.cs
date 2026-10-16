@@ -290,20 +290,23 @@ namespace SDG.Unturned
             // The actual damage is server-authoritative in MobileNPCHumanoidCombat.
             // This adapter only animates a committed swing. Weapon vs fists
             // affects the preferred native clip family, never grants a hit.
-            string[] candidates;
+            // The NPC-only visual prefab explicitly includes actual imported
+            // Punch_Left/Punch_Right from Human/Basic/Punch/Animation.fbx.
+            // NPC_Client did NOT contain them: Idle_Punch_Left/Right were
+            // fabricated clip names, so unarmed strikes could be silent poses.
+            // Its genuine weaponless kicks are Idle_Kick_Left/Right.
             bool armed = combat != null && combat.LastAttackUsedMeleeWeapon;
-            if (armed)
-                candidates = Random.value < 0.5f
-                    ? new[] { "Weak", "Strong", "Idle_Melee", "Idle_Swing",
+            string[] candidates = armed
+                ? (Random.value < 0.5f
+                    ? new[] { "Idle_Kick_Left", "Idle_Kick_Right",
+                        "Punch_Left", "Punch_Right" }
+                    : new[] { "Idle_Kick_Right", "Idle_Kick_Left",
+                        "Punch_Right", "Punch_Left" })
+                : (Random.value < 0.5f
+                    ? new[] { "Punch_Left", "Punch_Right",
                         "Idle_Kick_Left", "Idle_Kick_Right" }
-                    : new[] { "Strong", "Weak", "Idle_Swing", "Idle_Melee",
-                        "Idle_Kick_Right", "Idle_Kick_Left" };
-            else
-                candidates = Random.value < 0.5f
-                    ? new[] { "Idle_Punch_Left", "Idle_Punch_Right", "Punch",
-                        "Idle_Kick_Left", "Idle_Kick_Right" }
-                    : new[] { "Idle_Punch_Right", "Idle_Punch_Left", "Punch",
-                        "Idle_Kick_Right", "Idle_Kick_Left" };
+                    : new[] { "Punch_Right", "Punch_Left",
+                        "Idle_Kick_Right", "Idle_Kick_Left" });
 
             Animation clipOwner = null;
             string clipName = null;
@@ -344,6 +347,12 @@ namespace SDG.Unturned
             currentClip = clipName;
             clipOwner.enabled = true;
             clipOwner.CrossFade(clipName, Mathf.Min(crossFadeDuration, 0.08f));
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Debug.Log("[MobileNPCVisualAnimation] Confirmed native melee clip "
+                + clipName + " for npc=" + name
+                + " weapon=" + (armed ? combat.LastAttackWeaponID.ToString() : "fists")
+                + " length=" + state.length.ToString("F2"), this);
+#endif
         }
 
         private void PlayAuthenticMeleeAudio()
