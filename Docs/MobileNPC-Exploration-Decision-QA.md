@@ -1,0 +1,33 @@
+# Mobile NPC exploration and profession QA (2026-10-16)
+
+Target branch: `feature/npc-ai-foundation`. These checks are **manual Unity Dev Build acceptance**, not proof that a build has passed.
+
+## Integration contracts
+
+- Archetypes (Raider, Trader, Survivor, Military) are computed from the existing **faction + disposition**; they do not replace the mobile NPC brain, combat, ItemManager, native navigation or individual memory.
+- Normal population selects three professions, with the real `LightingManager.isNighttime` influencing the probability of fresh raiders; Combat population selects the two hostile factions. Existing/saved NPCs are not silently retconned when changing the menu mode.
+- The current `MobileNPCAutonomyPlanner` picks Patrol/Scavenge/GuardSettlement/Recover based on genuine needs and acquired gear. Trader groups: actual leader tends the settlement, exploratory members collect, other members guard where available.
+- The motor validates nearby native item-spawn *locations* and real structure geometry as inspection hints. It may not assume the item is currently present.
+- **Reaching a waypoint != inspecting it != transferring a world drop**. The motor requests a native loot scan only after real arrival. `MobileNPCLooting` checks live registered items, LOS, scoring and inventory. The planner separately logs scans and authentic item transfers.
+- Three physically completed, empty scans create a temporary scavenging cooldown; the NPC can patrol an alternative district rather than repeatedly inspecting the same empty floor.
+- Courier delivery must occur within 3.5m of an actual living same-group vendor, when a physically selected surplus item can move from courier inventory to vendor inventory. Seller has finite stock; no magical loot, remote delivery or generic NPC item grants.
+- Do not destroy `MobileNPCTraderLogistics` state upon combat interruption; it retries later only on genuine proximity, without copying memories or currency.
+- Death, melee animations, ragdoll, vehicle use and physical shop building are separate acceptance tracks. This exploration change cannot claim they pass.
+
+## On Washington singleplayer Dev Build
+
+1. Set **Normal** mode and enable NPCs. Observe a newly spawned neutral NPC in a town. It should select scavenging and attempt local native spawn sites or building interiors (not blindly leave town).
+2. Observe physical arrival and logs. Expect `[MobileNPCUrbanScavenge] selected an authored local loot-search site`, then `scan npc=` only after actual nearby scanning. The scan can correctly report `realLootGoal=False` when no item is visible.
+3. Put a reachable, visible **real world item** near a native inspection route and observe pickup. Require `[MobileNPCUrbanScavenge] real pickup` plus an actual inventory change. A scan alone must not increase the real-pickup counter.
+4. Test blocked door, furniture and stairway routes. No pickup through walls; stalled sites should be abandoned and remembered as inaccessible. After several empty physical scans, observe routine switching away from `Scavenge` during the bounded cooldown.
+5. For traders, form an actual same-faction group with a physically established settlement; observe `MobileNPCAutonomyPlanner` jobs. Seller (living leader) should stay near the group settlement. Guards and collectors should not all select the same duty.
+6. With a courier carrying >=10/12 valid inventory slots and a seller with free space, inspect logs for `[MobileNPCTraderLogistics] Courier ... returning physically` and `Real goods delivered`. Verify one real item is removed from courier and added to vendor, not duplicated. With no settlement, no seller, blocked approach or full seller inventory, delivery must NOT happen.
+7. Confirm the trader's actual inventory items remain available for `MobileNPCTradeService`, not automatically emptied by `MobileNPCSettlementBuilder`.
+8. Switch to **Combat** mode and test fresh automatic spawns: `[MobileNPCPreset] Spawned Military` / `Raider`; test raider-vs-military hostility and both factions' aggression toward the player. Existing NPCs retain saved faction/identity rather than being overwritten.
+9. In a long session, monitor `MobileNPCHumanoidMotor.Update`, `MobileNPCLooting.Update`, number of physics probes and FPS. Urban spawn-point inspection is capped at 144 sampled points and 12 physical probes per decision. Optimize if stalls appear.
+
+## Boundaries / next round
+
+- The project does NOT yet guarantee a shop prefab or native vehicle driving. A settlement needs real building assets/items and successful construction before a seller can become stationary; this phase adds *logical* duties and stock delivery only.
+- Native melee playback and articulated ragdoll changes need a new Dev Build and `Player.log` verification; source review alone cannot guarantee their appearance.
+- Do not infer full feature success merely from a clean code diff. Unity compilation, Play Mode behavior, game-time visual observation and profile metrics are still mandatory.
