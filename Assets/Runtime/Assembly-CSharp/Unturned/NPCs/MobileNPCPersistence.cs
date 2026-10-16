@@ -16,7 +16,7 @@ namespace SDG.Unturned
 	/// </summary>
 	internal static class MobileNPCPersistence
 	{
-		private const int CurrentVersion = 6;
+		private const int CurrentVersion = 7;
 		private const float SaveInterval = 30f;
 		private const float DeferredRestoreInterval = 3f;
 		private static float nextSaveTime;
@@ -53,6 +53,11 @@ namespace SDG.Unturned
 			// Version 6 is backward-compatible with version 1-5 snapshots.
 			public List<MobileNPCTravelMemory.LearnedRoute> learnedRoutes
 				= new List<MobileNPCTravelMemory.LearnedRoute>();
+			// Version 7: a surviving individual's strategic intention and
+			// physiological urgency. Absent/null fields in v1-v6 stay default;
+			// no dead survivor's plan is inherited by a fresh replacement.
+			public MobileNPCAutonomyPlanner.RoutineSnapshot routine;
+			public MobileNPCSurvivalNeeds.NeedsSnapshot survival;
 		}
 
 		[Serializable]
@@ -362,6 +367,15 @@ namespace SDG.Unturned
 				MobileNPCTravelMemory travelMemory = instance.GetComponent<MobileNPCTravelMemory>();
 				if (travelMemory != null)
 					travelMemory.RestoreSnapshotServer(record.learnedRoutes);
+
+				// Restore physiological needs BEFORE the A-Life utility planner.
+				// Never restore an old tactical destination or a stale physics path.
+				MobileNPCSurvivalNeeds survival = instance.GetComponent<MobileNPCSurvivalNeeds>();
+				if (survival != null)
+					survival.RestoreSnapshotServer(record.survival);
+				MobileNPCAutonomyPlanner routine = instance.GetComponent<MobileNPCAutonomyPlanner>();
+				if (routine != null)
+					routine.RestoreSnapshotServer(record.routine);
 			}
 			catch (Exception exception)
 			{
@@ -461,6 +475,13 @@ namespace SDG.Unturned
 				MobileNPCTravelMemory travelMemory = driver.GetComponent<MobileNPCTravelMemory>();
 				if (travelMemory != null)
 					record.learnedRoutes = travelMemory.ExportSnapshotServer();
+
+				MobileNPCSurvivalNeeds survival = driver.GetComponent<MobileNPCSurvivalNeeds>();
+				if (survival != null)
+					record.survival = survival.ExportSnapshotServer();
+				MobileNPCAutonomyPlanner routine = driver.GetComponent<MobileNPCAutonomyPlanner>();
+				if (routine != null)
+					record.routine = routine.ExportSnapshotServer();
 
 				save.npcs.Add(record);
 			}
