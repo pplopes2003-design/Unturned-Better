@@ -875,6 +875,15 @@ namespace SDG.Unturned
 				{
 					planarDirection = offset.normalized;
 				}
+				else if (!HasPhysicallyReachedNavigationGoal(destination)
+					&& TryChooseVerifiedFurnitureRunupServer(destination,
+						out Vector3 runupDirection))
+				{
+					// Physically walk back from a nearby elevated top first;
+					// the ordinary jump planner gets an achievable approach
+					// rather than standing beneath the object indefinitely.
+					planarDirection = runupDirection;
+				}
 				else if (hasBrainDestination)
 				{
 					// A detour node or A* intermediary is not the destination of
@@ -1297,6 +1306,67 @@ namespace SDG.Unturned
 		/// destination. It never bypasses a door, grants unknown walkable
 		/// floor edges, or commits to an unverified jump.
 		/// </summary>
+		private bool TryChooseVerifiedFurnitureRunupServer(Vector3 goal,
+			out Vector3 direction)
+		{
+			direction = Vector3.zero;
+			if (routeWaypointIndex < routeWaypoints.Count || hasDetourWaypoint
+				|| isPlannedJumping || IsTraversingLadder
+				|| Time.time < nextDetourAttemptTime
+				|| PlanarDistanceSquared(goal, transform.position)
+					> stoppingDistance * stoppingDistance
+				|| !IsObservedElevatedObjectGoalServer(goal))
+				return false;
+
+			Vector3 retreat = transform.position - goal;
+			retreat.y = 0f;
+			if (retreat.sqrMagnitude < 0.01f)
+			{
+				// At exactly the goal XZ, the player-style jump still
+				// needs some horizontal clearance. A real physically
+				// unblocked backwards approach is the only fallback.
+				retreat = -transform.forward;
+				retreat.y = 0f;
+			}
+			if (retreat.sqrMagnitude < 0.04f)
+				return false;
+			retreat.Normalize();
+			Vector3 chest = transform.position + Vector3.up
+				* Mathf.Max(0.45f, characterController.height * 0.55f);
+			float radius = Mathf.Clamp(obstacleProbeRadius, 0.05f,
+				Mathf.Max(0.05f, characterController.radius * 0.9f));
+			const float approachDistance = 1.8f;
+			for (int i = 0; i < 3; ++i)
+			{
+				float degrees = i == 0 ? 0f : i == 1 ? -45f : 45f;
+				Vector3 candidateDirection = Quaternion.AngleAxis(
+					degrees, Vector3.up) * retreat;
+				if (IsObstacleBlockingAlong(chest, radius,
+					candidateDirection, approachDistance))
+					continue;
+
+				Vector3 candidate = transform.position
+					+ candidateDirection * approachDistance;
+				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(
+					candidate, 1.2f, 1.3f, roamingGroundMask, roamingMaximumSlope,
+					out Vector3 ground, out Collider floorCollider, out _)
+					|| IsFurnitureSurfaceCollider(floorCollider)
+					|| Mathf.Abs(ground.y - transform.position.y) > 0.23f
+					|| IsRouteNodeOccupied(ground, radius)
+					|| !HasContinuousLocalFloor(transform.position, ground))
+					continue;
+
+				detourWaypoint = ground;
+				detourGoalSnapshot = goal;
+				hasDetourWaypoint = true;
+				nextDetourAttemptTime = Time.time + 1.3f;
+				direction = candidateDirection;
+				return true;
+			}
+			nextDetourAttemptTime = Time.time + 1.5f;
+			return false;
+		}
+
 		private bool HasPhysicallyReachedNavigationGoal(Vector3 goal)
 		{
 			if (PlanarDistanceSquared(transform.position, goal)
