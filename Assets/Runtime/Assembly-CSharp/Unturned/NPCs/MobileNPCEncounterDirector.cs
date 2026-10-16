@@ -37,6 +37,88 @@ namespace SDG.Unturned
         private float respiteUntil;
         private bool respiteLogged;
 
+        /// <summary>
+        /// Early-exploration PRIOR, separate from the director's combat pacing.
+        /// Knows ONLY potential world-authored spawn sectors. It doesn't ask
+        /// ItemManager what actually spawned, inspect loot types, player location,
+        /// enemy locations or hidden containers. The returned value is merely an
+        /// uncertain BEARING, not an item location or approved navigation goal.
+        /// </summary>
+        public static bool TrySuggestNoviceExplorationBearingServer(
+            MobileNPCBrainDriver agent, Vector3 origin, out Vector3 bearing)
+        {
+            bearing = Vector3.zero;
+            if (!Provider.isServer || !Level.isLoaded || instance == null
+                || !instance.isActiveAndEnabled || agent == null
+                || !agent.isActiveAndEnabled || agent.Target != null
+                || agent.CurrentGoal != MobileNPCTactics.Goal.None
+                || agent.CurrentState != MobileNPCBrain.State.Idle
+                || LevelItems.spawns == null)
+                return false;
+
+            MobileNPCHumanoidVitals vitals = agent.GetComponent<MobileNPCHumanoidVitals>();
+            if (vitals != null && vitals.IsDead)
+                return false;
+            MobileNPCSupplyKnowledge supply = agent.GetComponent<MobileNPCSupplyKnowledge>();
+            MobileNPCTravelMemory travel = agent.GetComponent<MobileNPCTravelMemory>();
+            // Personal experience replaces startup orientation. The director
+            // is never permitted to overwrite something this NPC learned.
+            if (supply != null && supply.KnownSiteCount > 0
+                || travel != null && travel.RouteCount > 1)
+                return false;
+
+            // Sample only immediate map regions, with a hard CPU budget.
+            // This is not a global omniscient map index or item lookup.
+            Vector2Int center = Regions.GetCoordinateVector2Int(origin);
+            int seen = 0;
+            Vector3 chosen = Vector3.zero;
+            int eligible = 0;
+            for (int dx = -1; dx <= 1; ++dx)
+            {
+                for (int dz = -1; dz <= 1; ++dz)
+                {
+                    int x = center.x + dx;
+                    int z = center.y + dz;
+                    if (x < 0 || z < 0 || x >= Regions.WORLD_SIZE
+                        || z >= Regions.WORLD_SIZE)
+                        continue;
+                    List<ItemSpawnpoint> region = LevelItems.spawns[x, z];
+                    if (region == null || region.Count == 0)
+                        continue;
+                    // Spread sampling across dense authored regions rather
+                    // than reading every spawn point on every NPC tick.
+                    int stride = Mathf.Max(1, region.Count / 16);
+                    for (int i = 0; i < region.Count && seen < 144; i += stride)
+                    {
+                        ++seen;
+                        ItemSpawnpoint point = region[i];
+                        if (point == null)
+                            continue;
+                        Vector3 delta = point.point - origin;
+                        delta.y = 0f;
+                        float distanceSq = delta.sqrMagnitude;
+                        if (distanceSq < 36f * 36f || distanceSq > 138f * 138f)
+                            continue;
+                        // Reservoir-sample a district bearing. Never reveal
+                        // the actual location, table ID or availability.
+                        if (Random.Range(0, ++eligible) == 0)
+                            chosen = delta;
+                    }
+                    if (seen >= 144)
+                        break;
+                }
+                if (seen >= 144)
+                    break;
+            }
+            if (eligible == 0)
+                return false;
+            // Reasonable error simulates vague geographic familiarity.
+            bearing = Quaternion.AngleAxis(Random.Range(-30f, 30f),
+                Vector3.up) * chosen.normalized;
+            bearing.y = 0f;
+            return bearing.sqrMagnitude > 0.2f;
+        }
+
         /// <summary>Global pressure is pacing only; never passed as a target.</summary>
         public static float ObservedPressureServer =>
             Provider.isServer && instance != null ? instance.pressure : 0f;
