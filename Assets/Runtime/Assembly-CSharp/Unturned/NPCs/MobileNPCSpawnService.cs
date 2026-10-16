@@ -285,57 +285,78 @@ namespace SDG.Unturned
 			}
 
 			CharacterController controller = spawned.GetComponent<CharacterController>();
-			// Fail closed: a living NPC that cannot be HIT must never join
-			// the population. Nineteen colliders follow the SAME animated
-			// bones as the skinned NPC. They do not belong to the ragdoll's
-			// rigidbody physics during gameplay, and they are not a static
-			// capsule around the root.
 			MobileNPCBodyHitbox[] anatomy =
 				spawned.GetComponentsInChildren<MobileNPCBodyHitbox>(true);
 			Transform boneRoot = spawned.transform.Find("HumanoidVisual/Root/Skeleton");
 			bool damageVolumesValid = controller != null && controller.enabled
 				&& boneRoot != null
 				&& anatomy.Length == MobileNPCBodyHitbox.ExpectedAnatomicalVolumes;
-			int[] regionCounts = new int[6];
+			int[] regionCounts = new int[MobileNPCBodyHitbox.ExpectedAnatomicalVolumes];
+			string invalidReason = damageVolumesValid ? null
+				: "missing CharacterController/Skeleton or wrong hitbox count";
 			for (int i = 0; i < anatomy.Length; ++i)
 			{
 				MobileNPCBodyHitbox marker = anatomy[i];
-				Collider hitbox = marker != null ? marker.GetComponent<Collider>() : null;
+				BoxCollider hitbox = marker != null
+					? marker.GetComponent<BoxCollider>() : null;
+				string regionProblem = null;
 				if (hitbox == null || !hitbox.enabled || hitbox.isTrigger
 					|| !hitbox.gameObject.activeInHierarchy
-					|| boneRoot == null
-					|| !hitbox.transform.IsChildOf(boneRoot)
-					|| hitbox.bounds.size.sqrMagnitude <= 0.0001f
-					|| (RayMasks.DAMAGE_CLIENT & (1 << hitbox.gameObject.layer)) == 0
-					|| (RayMasks.ENTITY & (1 << hitbox.gameObject.layer)) == 0)
+					|| marker == null || !marker.isActiveAndEnabled)
+					regionProblem = "missing/disabled/trigger BoxCollider or hitbox marker";
+				else if (boneRoot == null || !hitbox.transform.IsChildOf(boneRoot))
+					regionProblem = "hitbox not parented under NPC_Client Skeleton";
+				else if (hitbox.size.x <= 0f || hitbox.size.y <= 0f
+					|| hitbox.size.z <= 0f)
+					regionProblem = "zero-size local BoxCollider";
+				else if (hitbox.gameObject.layer != 23
+					|| (RayMasks.DAMAGE_CLIENT & (1 << 23)) == 0
+					|| (RayMasks.ENTITY & (1 << 23)) == 0)
+					regionProblem = "Entity (23) is not in client damage/server entity masks";
+
+				if (regionProblem != null)
 				{
 					damageVolumesValid = false;
+					// Do NOT rely on Collider.bounds in the first frame:
+					// PhysX broadphase bounds can be stale before transforms
+					// are synchronized, even when authored box.size is valid.
+					if (invalidReason == null)
+						invalidReason = marker != null ? marker.name + ": " + regionProblem
+							: "null hitbox marker";
 					continue;
 				}
-				// Every raycast volume is identified by exact body region,
-				// regardless of which animated bone it follows. Disallow
-				// accidental duplicates/missing hands or feet during spawn.
-				int regionIndex = (int)marker.BodyPart;
-				if (regionIndex < 0 || regionIndex >= regionCounts.Length)
+
+				int part = (int)marker.BodyPart;
+				if (part < 0 || part >= regionCounts.Length)
 				{
 					damageVolumesValid = false;
+					if (invalidReason == null)
+						invalidReason = marker.name + ": invalid body part " + part;
 					continue;
 				}
-				regionCounts[regionIndex]++;
-				// IgnoreCollision made on the inactive template is not
-				// guaranteed to persist to the live spawned clone.
+				regionCounts[part]++;
+				// On an inactive template IgnoreCollision is discarded by
+				// Unity. Reapply on EACH live player-equivalent bone hitbox.
 				if (controller != null)
 					Physics.IgnoreCollision(controller, hitbox, true);
 			}
-			damageVolumesValid &= regionCounts[0] == 1 // head
-				&& regionCounts[1] == 4 // neck, chest, abdomen, pelvis
-				&& regionCounts[2] == 4 && regionCounts[3] == 4 // arms
-				&& regionCounts[4] == 3 && regionCounts[5] == 3; // legs
+
+			for (int part = 0; part < regionCounts.Length; ++part)
+			{
+				if (regionCounts[part] == 1)
+					continue;
+				damageVolumesValid = false;
+				if (invalidReason == null)
+					invalidReason = "body part " + ((MobileNPCInjurySystem.BodyPart)part)
+						+ " has " + regionCounts[part] + " hitboxes; expected exactly one";
+			}
+
 			if (!damageVolumesValid)
 			{
-				error = "Spawn refused: NPC anatomy must have nineteen enabled "
-					+ "bone-attached, non-trigger, Entity-layer colliders with "
-					+ "1 head/4 core/4 per arm/3 per leg.";
+				error = "Spawn refused: native Player_Server anatomy requires "
+					+ "exactly SIX active animated BoxColliders, one each for "
+					+ "Skull, Spine, Left_Arm, Right_Arm, Left_Leg and Right_Leg. "
+					+ "First error: " + invalidReason + ".";
 				Debug.LogError("[MobileNPCSpawnService] " + error
 					+ " Instance=" + spawned.name
 					+ " hitboxCount=" + anatomy.Length + ".", spawned);
@@ -344,8 +365,8 @@ namespace SDG.Unturned
 			}
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
 			Debug.Log("[MobileNPCDamageInvariant] PASS at spawn: "
-				+ anatomy.Length + " live anatomical hitboxes; "
-				+ "DAMAGE_CLIENT and ENTITY ray masks verified.", spawned);
+				+ anatomy.Length + " Player_Server-equivalent anatomical BoxColliders, "
+				+ "all six limbs verified on actual bones and ray masks.", spawned);
 #endif
 			// Zombie.tick() performs a one-time downward CharacterController.Move after
 			// spawning so the capsule resolves against Unturned's Agent/world collision.
