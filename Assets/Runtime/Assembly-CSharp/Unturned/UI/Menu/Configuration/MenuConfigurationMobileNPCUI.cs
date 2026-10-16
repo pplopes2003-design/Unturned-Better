@@ -107,10 +107,12 @@ namespace SDG.Unturned
 			enabledButton.text = "NPC spawning/restoring: " + (MobileNPCSettings.Enabled ? "ON" : "OFF");
 			airdropButton.text = "Airdrop contest: " + (MobileNPCSettings.AirdropContestEnabled ? "ON" : "OFF");
 			roleButton.text = "Manual test-spawn role: " + MobileNPCSettings.DefaultRole;
-			mixButton.text = "World population mix: " + MixLabel(MobileNPCSettings.CurrentPopulationMix);
+			mixButton.text = MobileNPCSettings.CombatMode
+				? "Faccoes (Combate): 66% hostis, 21% amigaveis"
+				: "World population mix: " + MixLabel(MobileNPCSettings.CurrentPopulationMix);
 			gameModeButton.text = "Agressividade: " + (MobileNPCSettings.CombatMode ? "Combate" : "Normal");
 			eraseHistoryButton.text = Time.realtimeSinceStartup < eraseConfirmationDeadline
-				? "CONFIRMAR: apagar historico de NPCs (todos os mapas)"
+				? "CONFIRMAR: apagar NPCs, itens e memorias salvas"
 				: !string.IsNullOrEmpty(eraseStatus) ? eraseStatus
 				: "Apagar historico de NPCs (todos os mapas)";
 		}
@@ -168,6 +170,14 @@ namespace SDG.Unturned
 
 		private static void onClickedMix(ISleekElement button)
 		{
+			if (MobileNPCSettings.CombatMode)
+			{
+				// Combat uses its own hostiles/friendlies mix. Keep the
+				// user's Normal mix untouched for switching back later.
+				eraseStatus = "Modo Combate define as faccoes automaticamente";
+				RefreshLabels();
+				return;
+			}
 			MobileNPCSettings.CurrentPopulationMix = (MobileNPCSettings.PopulationMix)(((int)MobileNPCSettings.CurrentPopulationMix + 1) % 3);
 			RefreshLabels();
 		}
