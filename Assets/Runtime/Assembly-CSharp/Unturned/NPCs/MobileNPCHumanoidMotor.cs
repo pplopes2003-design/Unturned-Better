@@ -1014,8 +1014,11 @@ namespace SDG.Unturned
 				if (isPlannedJumping)
 				{
 					isPlannedJumping = false;
+					plannedJumpLandsOnObjectTop = false;
+					plannedJumpSupportCollider = null;
 					suppressJourneyUntil = Time.time + 0.3f;
 				}
+				ClearVerifiedFurnitureSupport();
 				// Simple buoyant locomotion: hold the root just below the water surface,
 				// rather than applying ground gravity while the capsule is submerged.
 				// Horizontal movement still follows the current AI destination and collision.
@@ -1049,6 +1052,8 @@ namespace SDG.Unturned
 					|| Time.time - plannedJumpStartedAt > plannedJumpMaximumDuration))
 				{
 					isPlannedJumping = false;
+					plannedJumpLandsOnObjectTop = false;
+					plannedJumpSupportCollider = null;
 					suppressJourneyUntil = Time.time + 0.3f;
 				}
 				if (isPlannedJumping && groundedBeforeMove
@@ -1179,6 +1184,8 @@ namespace SDG.Unturned
 				&& planarDisplacement.sqrMagnitude < 0.0004f)
 			{
 				isPlannedJumping = false;
+				plannedJumpLandsOnObjectTop = false;
+				plannedJumpSupportCollider = null;
 				suppressJourneyUntil = Time.time + 0.3f;
 				RememberLocalNavigationDeadEnd(transform.position, destination);
 				noJumpUntil = Time.time + 6f; // prefer physical bypass after failed jump
