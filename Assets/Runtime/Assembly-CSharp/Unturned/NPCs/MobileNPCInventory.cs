@@ -156,7 +156,9 @@ namespace SDG.Unturned
 				{
 					ushort magazineId = System.BitConverter.ToUInt16(stored.state, GunStateIndices.MAGAZINE_ID);
 					ItemMagazineAsset magazine = Assets.find(EAssetType.ITEM, magazineId) as ItemMagazineAsset;
-					if (magazine != null && magazine.CalibersContainAnyOfIds(candidate.magazineCalibers)
+					if (magazine != null && candidate.magazineCalibers != null
+						&& candidate.magazineCalibers.Length > 0
+						&& magazine.CalibersContainAnyOfIds(candidate.magazineCalibers)
 						&& stored.state[GunStateIndices.AMMO] >= Mathf.Max(1, candidate.ammoPerShot))
 						score += 44f;
 					ushort sightId = System.BitConverter.ToUInt16(stored.state, GunStateIndices.SIGHT_ID);
