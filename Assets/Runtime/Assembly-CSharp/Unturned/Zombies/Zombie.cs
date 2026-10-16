@@ -1356,14 +1356,20 @@ namespace SDG.Unturned
 				return;
 			}
 
-			// Start or refresh an investigation for external point alerts. A second
-			// sound can redirect a zombie already investigating, but player pursuit,
-			// internal search legs, and the return-to-spawn leg keep their own state.
-			if (!isInvestigationWanderTarget && !isReturningToSpawn && (!isHunting || huntType == EHuntType.POINT))
+			// Keep vanilla noise priority: an already-point-investigating zombie
+			// only switches to a NEW sound when it is CLOSER than its present
+			// point. Previous custom code replaced it on every remote shot,
+			// including a sound behind its back, and overwrote the search
+			// center even when the new point was never accepted.
+			bool acceptsNewSound = !isInvestigationWanderTarget && !isReturningToSpawn
+				&& (!isHunting || huntType == EHuntType.POINT
+					&& (newPosition - transform.position).sqrMagnitude
+						< (target.position - transform.position).sqrMagnitude);
+			if (acceptsNewSound)
 			{
 				stuckPointRecoveryAttempts = 0;
 				investigationCenter = newPosition;
-				investigationUntil = Time.time + 55.0f;
+				investigationUntil = Time.time + 18f;
 				investigationWandersRemaining = INVESTIGATION_MAX_WANDERS;
 			}
 
@@ -1446,10 +1452,10 @@ namespace SDG.Unturned
 				}
 				else
 				{
-					// A fresh external point alert should redirect an existing point
-					// investigation even when the new sound is farther from the zombie
-					// than its previous destination. Player hunts never enter this branch.
-					if (huntType == EHuntType.POINT && !isReturningToSpawn && !isInvestigationWanderTarget)
+					// The vanilla sound rule switches only to a closer point.
+					// Do not override an ongoing investigation due to distant
+					// gunfire/explosions from another side of the map.
+					if (huntType == EHuntType.POINT && acceptsNewSound)
 					{
 						target.position = newPosition;
 						lastHunted = Time.time;
@@ -2383,9 +2389,13 @@ namespace SDG.Unturned
 					for (int attempt = 0; attempt < 24; ++attempt)
 					{
 						float angle = Random.value * Mathf.PI * 2.0f;
-						float distance = Random.Range(3.5f, 8.0f);
+						float distance = Random.Range(2.5f, 5.0f);
 						Vector3 searchPoint = investigationCenter + new Vector3(Mathf.Cos(angle) * distance, 0.0f, Mathf.Sin(angle) * distance);
-						if ((searchPoint - transform.position).sqrMagnitude < 9.0f || !LevelNavigation.checkNavigation(searchPoint))
+						// The sweep is LOCAL to the sound, never a long walk
+						// from a stuck point to a guessed area across the POI.
+						if ((investigationCenter - transform.position).sqrMagnitude > 11f * 11f
+							|| (searchPoint - transform.position).sqrMagnitude < 9.0f
+							|| !LevelNavigation.checkNavigation(searchPoint))
 						{
 							continue;
 						}
@@ -2398,18 +2408,11 @@ namespace SDG.Unturned
 					}
 				}
 
+				// A noise does not command a zombie to run to a random spawn
+				// somewhere else in its POI. End the bounded local sweep at
+				// the sound site and resume vanilla idle/normal acquisition.
 				investigationWandersRemaining = 0;
-				if (bound < LevelZombies.zombies.Length && LevelZombies.zombies[bound] != null && LevelZombies.zombies[bound].Count > 0)
-				{
-					List<ZombieSpawnpoint> spawnpoints = LevelZombies.zombies[bound];
-					ZombieSpawnpoint spawnpoint = spawnpoints[Random.Range(0, spawnpoints.Count)];
-					isReturningToSpawn = true;
-					alert(spawnpoint.point, false);
-				}
-				else
-				{
-					setTicking(false);
-				}
+				setTicking(false);
 				return;
 			}
 
@@ -3517,7 +3520,9 @@ namespace SDG.Unturned
 					if (!isLeaving && ZombieManager.canSpareWanderer)
 					{
 						float angle = Random.value * Mathf.PI * 2.0f;
-						float dist = Random.Range(4.0f, 8.0f);
+						// Preserve vanilla minor wandering once the zombie is
+						// no longer actively investigating a disturbance.
+						float dist = Random.Range(0.5f, 1.0f);
 
 						isWandering = true;
 						ZombieManager.wanderingCount++;
