@@ -18,6 +18,9 @@ namespace SDG.Unturned
         [SerializeField] private MobileNPCInjurySystem.BodyPart bodyPart
             = MobileNPCInjurySystem.BodyPart.Torso;
 
+        // 1 head + 4 core/neck + 4 regions per arm + 3 per leg.
+        // Every region maps to ONE authoritative NPC health component.
+        public const int ExpectedAnatomicalVolumes = 19;
         public MobileNPCInjurySystem.BodyPart BodyPart => bodyPart;
 
         private void OnEnable()
