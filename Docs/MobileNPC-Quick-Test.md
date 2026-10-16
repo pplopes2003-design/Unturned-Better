@@ -514,3 +514,18 @@ Still pending: build compilation, sound/animation of spoken warnings, actual tac
 7. Compare FPS/profiler with the previous dev build. Removing per-shot AllZombies sweeps and repeated per-victim explosion alerts should reduce extra CPU work, but performance improvement is not yet measured.
 
 **Acceptance:** only mark this audio-routing regression FINALIZADO after observed correct shot/explosion direction, silencer behavior, zombie source investigation and pursuit stability in build; other zombie/navigation systems remain independently QUASE PRONTOS or PENDENTES.
+
+## A-Life independent exploration and genuine outcome memory — 16 Oct 2026
+
+**Status: SOURCE-ONLY.** No Unity compilation/runtime claim. Features shipped in source: `9180ccf6` / `b6a6c12d` / `7a50f84b`.
+
+1. **First life / uncertain guidance:** spawn an untrained solo NPC, no known supply sites or route records. Observe ordinary patrol/scavenge; only two successfully adopted Director *bearings* may be spent in its life. If suggestions have no safe ground/path, they must not exhaust both hints. No nearby player position, loot ID or loot item materializes from a hint. Try a beach/remote island without known item spawnpoints.
+2. **Visited districts:** use a walkable Washington neighborhood with several large buildings. NPC reaching a genuine patrol/scavenge destination marks a private short cooldown. In the next 95s, it should prefer a different sector farther than ~18m over returning to the same entrance every few seconds. When multiple structures are candidates, try alternatives before unstructured terrain.
+3. **Blocked district:** present an unreachable wall/closed door and allow a real physical route failure. NPC should reject nearby repeats for ~55s and choose another reachable sector, not teleport/phase into the building. The blocked place must NOT be reported as reached/successful.
+4. **Immediate priorities:** trigger actual visual enemy, audible shot, nearby footsteps, loot in reach, medical need or group order while scouting. These must supersede routine destination; the interrupted task must NOT count as a visited sector. A suspended, still-safe and unblocked routine point can be resumed once after the event, with native route revalidation.
+5. **Individual vs group knowledge:** spawn 2–4 NPCs of the same group. Separate sector leases prevent crowding; a solitary survivor still avoids their own recently visited points. A stranger or fresh replacement must not inherit deceased scout memory. Combat targets/loot coordinates must never be shared by the Director.
+6. **Save/reload + old saves:** after a verified arrival, save the SAME living NPC and reload before the TTL expires. It must keep its recent-sector avoidance and used-hint count; positions/remaining seconds must be validated against current map. Old v1–v7 records without the new optional arrays still load. Kill this scout and let a fresh NPC spawn: personal sector outcomes must NOT be inherited.
+7. **Different floors:** after visiting one floor, a physically valid nearby goal over 2.5m higher/lower should remain eligible; still requires genuine stairs/ladder/path, no false transition. Check pathfinding warnings separately.
+8. **Performance:** try 1, 20 and 40 NPCs on Washington plus another map. Observe profiler AI/sensors/physics, logs, frame times and save JSON growth. Each NPC retains max 4 recent sites; Director scans at most once per 18–28s on unsuccessful guidance, only while genuinely idle.
+
+**Acceptance:** only after Unity compile, in-game independent exploration behavior, correct save/reload with no shared inherited knowledge, and performance comparison. The movement/global A* and P0 death/hitbox regressions remain separate requirements.
