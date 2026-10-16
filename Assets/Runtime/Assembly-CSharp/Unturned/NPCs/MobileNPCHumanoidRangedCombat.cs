@@ -49,6 +49,7 @@ namespace SDG.Unturned
 		private int roundsRemaining;
 		private float selectedOpticZoom = 1f;
 		private float selectedBulletGravityMultiplier = 1f;
+		private bool selectedGunSoundSuppressed;
 		private float nextShotTime;
 		private float reloadFinishedAt;
 		private bool reloadPending;
@@ -366,7 +367,7 @@ namespace SDG.Unturned
 			// The source is this exact real shot. Use the same sound radius
 			// authored on the native weapon, not bullet travel distance.
 			// This notification is only for the separate mobile-NPC ears.
-			if (selectedGunAsset.alertRadius > 0f)
+			if (!selectedGunSoundSuppressed && selectedGunAsset.alertRadius > 0f)
 				MobileNPCRegistry.NotifyGunfire(transform.position,
 					selectedGunAsset.alertRadius, null, transform);
 
@@ -419,7 +420,7 @@ namespace SDG.Unturned
 			// committed shot. Mobile NPCs do not run UseableGun, so call that
 			// SAME native entry point exactly once with this weapon's
 			// genuine alert radius; do not bypass its navigation/aggro rules.
-			if (selectedGunAsset.alertRadius > 0f)
+			if (!selectedGunSoundSuppressed && selectedGunAsset.alertRadius > 0f)
 				AlertTool.alert(transform.position, selectedGunAsset.alertRadius);
 
 			if (ammoCost > 0 && roundsRemaining < ammoCost)
@@ -620,6 +621,7 @@ namespace SDG.Unturned
 				selectedGunHasCompatibleMagazine = false;
 				selectedOpticZoom = 1f;
 				selectedBulletGravityMultiplier = 1f;
+				selectedGunSoundSuppressed = false;
 				roundsRemaining = 0;
 				return;
 			}
@@ -632,6 +634,7 @@ namespace SDG.Unturned
 			selectedGunHasCompatibleMagazine = false;
 			selectedOpticZoom = 1f;
 			selectedBulletGravityMultiplier = gunAsset.bulletGravityMultiplier;
+			selectedGunSoundSuppressed = false;
 			roundsRemaining = 0;
 			// Native gun state owns actual attachments. A scope from nowhere
 			// must never grant longer-range vision or gun accuracy.
@@ -647,7 +650,13 @@ namespace SDG.Unturned
 				ushort barrelId = System.BitConverter.ToUInt16(gun.state, GunStateIndices.BARREL_ID);
 				ItemBarrelAsset barrel = Assets.find(EAssetType.ITEM, barrelId) as ItemBarrelAsset;
 				if (barrel != null)
+				{
 					selectedBulletGravityMultiplier *= barrel.BallisticGravityMultiplier;
+					// Same vanilla decision as UseableGun: a working, actually
+					// equipped suppressor reduces audible zombie/NPC gun alerts.
+					selectedGunSoundSuppressed = barrel.isSilenced
+						&& gun.state[16] > 0;
+				}
 				ushort tacticalId = System.BitConverter.ToUInt16(gun.state, GunStateIndices.TACTICAL_ID);
 				ItemTacticalAsset tactical = Assets.find(EAssetType.ITEM, tacticalId) as ItemTacticalAsset;
 				if (tactical != null)
