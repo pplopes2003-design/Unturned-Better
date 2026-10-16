@@ -40,8 +40,7 @@ namespace SDG.Unturned
 			if (motor != null && (motor.IsClimbingLadder || motor.IsVaultTraversing))
 				return; // both hands occupied by physical climb or parapet clamber
 			if (!Provider.isServer || brainDriver == null || brainDriver.CurrentState != MobileNPCBrain.State.Pursuing
-				|| brainDriver.IsAmbushPreparing
-				|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat)
+				|| brainDriver.IsAmbushPreparing)
 			{
 				return;
 			}
@@ -71,6 +70,16 @@ namespace SDG.Unturned
 				targetZombie = targetTransform.GetComponentInParent<Zombie>();
 
 			MobileNPCHumanoidVitals targetVitals = targetNPC != null ? targetNPC.GetComponent<MobileNPCHumanoidVitals>() : null;
+			// A wounded survivor should keep retreating, not turn a retreat
+			// into a pursuit. But if a zombie has reached striking distance,
+			// allow a verified short defensive melee hit while escaping.
+			// Never override player/faction targeting or target visibility.
+			if (brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat
+				&& (targetZombie == null || targetZombie.isDead
+					|| (targetZombie.transform.position - transform.position).sqrMagnitude
+						> attackRange * attackRange))
+				return;
+
 			if (targetPlayer != null)
 			{
 				MobileNPCHumanoidDisposition own =
