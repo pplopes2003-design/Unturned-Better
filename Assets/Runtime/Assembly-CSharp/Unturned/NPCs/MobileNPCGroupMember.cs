@@ -56,6 +56,7 @@ namespace SDG.Unturned
 		private bool leftGroup;
 		private float nextContactBroadcastAt;
 		private float nextKnowledgeConversationAt;
+		private float nextThreatBroadcastAt;
 		public enum SquadRole { None, Covering, Advancing }
 		private SquadRole squadRole;
 		private float squadRoleUntil;
@@ -256,9 +257,76 @@ namespace SDG.Unturned
 				// Wait for the listener to finish checking the sound before
 				// requesting a short covered movement.
 				advancingAlly.pendingAdvanceAt = Time.time + 1.25f;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+				Debug.Log("[MobileNPCGroupMember] Group " + GroupId
+					+ " assigned one COVERING and one ADVANCING member after audible firsthand player contact. No wallhack or suppression-fire shortcut.", this);
+#endif
 			}
 		}
 
+
+		/// <summary>
+		/// Firsthand witnessed zombie/hostile-NPC danger may be SHOUTED to
+		/// close squadmates. Recipients only receive a noisy position to
+		/// investigate; they must personally see the actor before engaging.
+		/// Never broadcasts its Transform/target, through walls at full
+		/// volume or across the whole faction.
+		/// </summary>
+		public void BroadcastLocalThreatServer(Vector3 observedPosition)
+		{
+			if (!Provider.isServer || !initialized || leftGroup || GroupId <= 0
+				|| Time.time < nextThreatBroadcastAt || !IsFinitePosition(observedPosition)
+				|| vitals != null && vitals.IsDead
+				|| !groups.TryGetValue(GroupId, out GroupRecord group))
+				return;
+			nextThreatBroadcastAt = Time.time + 5f;
+			float range = motor != null && motor.IsCrouched ? QuietVoiceRange : AlertShoutRange;
+			int notified = 0;
+			foreach (MobileNPCGroupMember ally in group.Members)
+			{
+				if (ally == null || ally == this || !ally.initialized || ally.leftGroup
+					|| ally.vitals != null && ally.vitals.IsDead)
+					continue;
+				Vector3 voice = transform.position + Vector3.up * 1.45f;
+				Vector3 ear = ally.transform.position + Vector3.up * 1.40f;
+				Vector3 delta = ear - voice;
+				float distance = delta.magnitude;
+				if (distance <= 0.1f || distance > range)
+					continue;
+				RaycastHit[] hits = Physics.RaycastAll(voice, delta / distance, distance,
+					RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+				bool blocked = false;
+				for (int i = 0; i < hits.Length; ++i)
+				{
+					Collider obstacle = hits[i].collider;
+					if (obstacle == null || obstacle.transform.IsChildOf(transform)
+						|| obstacle.transform.IsChildOf(ally.transform)
+						|| obstacle.GetComponentInParent<Player>() != null
+						|| obstacle.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
+						continue;
+					blocked = true;
+					break;
+				}
+				if (blocked && distance > range * WallHearingMultiplier)
+					continue;
+				MobileNPCBrainDriver listener = ally.GetComponent<MobileNPCBrainDriver>();
+				if (listener == null || listener.Target != null
+					|| listener.CurrentGoal != MobileNPCTactics.Goal.None)
+					continue;
+				// Do not pass a possibly moving zombie/NPC reference.
+				Vector2 uncertainty = Random.insideUnitCircle
+					* Mathf.Lerp(1.5f, 5.5f, Mathf.Clamp01(distance / range));
+				listener.ReportNoise(observedPosition
+					+ new Vector3(uncertainty.x, 0f, uncertainty.y), 12f);
+				++notified;
+			}
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			if (notified > 0)
+				Debug.Log("[MobileNPCGroupMember] Group " + GroupId
+					+ " communicated verified local non-player threat to "
+					+ notified + " listener(s). No exact target shared.", this);
+#endif
+		}
 
 		/// <summary>
 		/// A relaxed living NPC may tell one firsthand lesson to group mates who can
