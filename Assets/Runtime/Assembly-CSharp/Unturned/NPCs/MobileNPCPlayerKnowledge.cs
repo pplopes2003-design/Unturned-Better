@@ -14,7 +14,7 @@ namespace SDG.Unturned
     /// </summary>
     public sealed class MobileNPCPlayerKnowledge
     {
-        public enum Sense { None, Sight, Sound }
+        public enum Sense { None, Sight, Sound, Report }
 
         private Vector3 lastEvidencePosition;
         private Vector3 observedVelocity;
@@ -43,14 +43,16 @@ namespace SDG.Unturned
                 return false;
 
             float age = Mathf.Max(0f, now - lastEvidenceTime);
-            float lifespan = lastSense == Sense.Sight ? 22f : 14f;
+            float lifespan = lastSense == Sense.Sight ? 22f
+                : lastSense == Sense.Report ? 10f : 14f;
             confidence = initialConfidence * Mathf.Clamp01(1f - age / lifespan);
             if (confidence < 0.16f)
                 return false;
             center = lastEvidencePosition + observedVelocity *
                 (lastSense == Sense.Sight ? Mathf.Min(age, 1.5f) : 0f);
             uncertainty = Mathf.Min(16f, uncertaintyRadius +
-                age * (lastSense == Sense.Sight ? 0.65f : 0.95f));
+                age * (lastSense == Sense.Sight ? 0.65f
+                    : lastSense == Sense.Report ? 1.25f : 0.95f));
             sense = lastSense;
             return true;
         }
@@ -90,20 +92,69 @@ namespace SDG.Unturned
         /// </summary>
         public void ObserveSound(Vector3 position, float confidence, float now)
         {
-            if (!IsFinite(position) || !IsFinite(confidence) || !IsFinite(now))
+            if (!ShouldAcceptIndirectEvidence(position, confidence, now, Sense.Sound))
                 return;
-            // A weak sound must not override a very recent direct sighting.
-            if (hasEvidence && lastSense == Sense.Sight
-                && now - lastEvidenceTime < 1.5f && confidence < 0.95f)
-                return;
+            AcceptIndirectEvidence(position, Mathf.Clamp01(confidence), now, Sense.Sound);
+        }
 
+        /// <summary>
+        /// A teammate's spoken bearing is neither firsthand sight nor the
+        /// actual player's footstep. It decays sooner and begins less precise.
+        /// Voice transmission, hearing range and group authorization are
+        /// already checked by the caller; this class never locates a player.
+        /// </summary>
+        public void ObserveReport(Vector3 position, float confidence, float now)
+        {
+            if (!ShouldAcceptIndirectEvidence(position, confidence, now, Sense.Report))
+                return;
+            AcceptIndirectEvidence(position, Mathf.Min(0.78f, Mathf.Clamp01(confidence)),
+                now, Sense.Report);
+        }
+
+        private bool ShouldAcceptIndirectEvidence(Vector3 position, float confidence,
+            float now, Sense kind)
+        {
+            if (!IsFinite(position) || !IsFinite(confidence) || !IsFinite(now))
+                return false;
+            float age = now - lastEvidenceTime;
+            if (hasEvidence && age >= 0f)
+            {
+                // Recent direct eyesight is more trustworthy than any indirect
+                // clue, however loud/repeated. The ordinary brain handles a
+                // directly seen combat target separately.
+                if (lastSense == Sense.Sight && age < 8f)
+                    return false;
+
+                Vector3 displacement = position - lastEvidencePosition;
+                displacement.y = 0f;
+                float squared = displacement.sqrMagnitude;
+                // Repeated near-identical footsteps/reports must not renew an
+                // investigation indefinitely or refresh the hint budget.
+                if (age < 3.5f && squared <= 8f * 8f
+                    && confidence <= initialConfidence + 0.10f)
+                    return false;
+
+                // Secondhand testimony cannot erase a stronger firsthand
+                // sound simply because a distant teammate shouted a bearing.
+                if (kind == Sense.Report && lastSense == Sense.Sound
+                    && age < 5f && confidence <= initialConfidence + 0.20f)
+                    return false;
+            }
+            return true;
+        }
+
+        private void AcceptIndirectEvidence(Vector3 position, float confidence,
+            float now, Sense kind)
+        {
             lastEvidencePosition = position;
             lastEvidenceTime = now;
             observedVelocity = Vector3.zero;
-            initialConfidence = Mathf.Clamp01(confidence);
-            uncertaintyRadius = Mathf.Lerp(9f, 2.5f, initialConfidence);
+            initialConfidence = confidence;
+            uncertaintyRadius = kind == Sense.Report
+                ? Mathf.Lerp(13f, 5f, confidence)
+                : Mathf.Lerp(9f, 2.5f, confidence);
             hintsIssued = 0;
-            lastSense = Sense.Sound;
+            lastSense = kind;
             hasEvidence = true;
         }
 
@@ -118,7 +169,8 @@ namespace SDG.Unturned
                 return false;
 
             float age = Mathf.Max(0f, now - lastEvidenceTime);
-            float lifetime = lastSense == Sense.Sight ? 22f : 14f;
+            float lifetime = lastSense == Sense.Sight ? 22f
+                : lastSense == Sense.Report ? 10f : 14f;
             float confidence = initialConfidence * Mathf.Clamp01(1f - age / lifetime);
             if (confidence < 0.14f)
                 return false;
@@ -127,12 +179,23 @@ namespace SDG.Unturned
             // but uncertainty quickly dominates that extrapolation.
             float anticipation = lastSense == Sense.Sight ? Mathf.Min(age, 2f) : 0f;
             Vector3 predicted = lastEvidencePosition + observedVelocity * anticipation;
-            float radius = uncertaintyRadius + age * (lastSense == Sense.Sight ? 0.65f : 0.95f);
+            float radius = uncertaintyRadius + age * (lastSense == Sense.Sight ? 0.65f
+                : lastSense == Sense.Report ? 1.25f : 0.95f);
             float ring = Mathf.Min(14f, radius) * Mathf.Sqrt(Random.value);
             float angle = Random.Range(0f, Mathf.PI * 2f);
             searchPoint = predicted + new Vector3(Mathf.Cos(angle) * ring, 0f, Mathf.Sin(angle) * ring);
-            hintsIssued++;
             return true;
+        }
+
+        /// <summary>
+        /// Count a speculative hint only once its endpoint passed the
+        /// server's physical ground/path check and the decision brain took it.
+        /// Invalid floors and walls do not spend this finite hypothesis budget.
+        /// </summary>
+        public void ConfirmSearchPointAccepted()
+        {
+            if (hasEvidence && hintsIssued < 4)
+                ++hintsIssued;
         }
 
         public void Clear()
