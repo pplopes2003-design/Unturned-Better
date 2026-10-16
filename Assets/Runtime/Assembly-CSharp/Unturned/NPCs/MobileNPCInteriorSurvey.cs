@@ -28,6 +28,8 @@ namespace SDG.Unturned
         private bool isActive;
         private bool awaitingScan;
         private Vector3 origin;
+        private Vector3 structureAnchor;
+        private readonly List<RegionCoordinate> structureRegions = new List<RegionCoordinate>(9);
         private Vector3 assigned;
         private float expiresAt;
         private float awaitingScanUntil;
@@ -55,6 +57,11 @@ namespace SDG.Unturned
             if (isActive && Time.time < expiresAt)
                 return false;
 
+            // A collection of roadside item spots alone is not a house.
+            // Confirm there is a map-authored LARGE world object near the
+            // cluster before committing to the interior survey.
+            if (!TryResolveAuthoredStructureServer(firstSite, out Vector3 building))
+                return false;
             candidates.Clear();
             GatherNearbyAuthoredSites(firstSite, SearchClusterRadius, 96);
             int distinct = 0;
@@ -73,6 +80,7 @@ namespace SDG.Unturned
                 return false;
 
             origin = firstSite;
+            structureAnchor = building;
             assigned = firstSite;
             visitedCount = 0;
             successfulLootGoals = 0;
@@ -95,6 +103,9 @@ namespace SDG.Unturned
                 return false;
             return autonomy.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge;
         }
+
+        public bool IsWaitingForInspectionServer => isActive && awaitingScan
+            && Time.time < awaitingScanUntil;
 
         public void ReportArrivedServer(Vector3 actualDestination)
         {
@@ -176,6 +187,8 @@ namespace SDG.Unturned
                 Vector3 raw = point.point;
                 if (Mathf.Abs(raw.y - origin.y) > 4.5f
                     || Mathf.Abs(raw.y - transform.position.y) > 4.5f
+                    || new Vector2(raw.x - structureAnchor.x,
+                        raw.z - structureAnchor.z).sqrMagnitude > 20f * 20f
                     || (raw - assigned).sqrMagnitude < 3.8f * 3.8f
                     || (raw - transform.position).sqrMagnitude < 3.8f * 3.8f
                     || (raw - home).sqrMagnitude > homeRadius * homeRadius
@@ -185,7 +198,9 @@ namespace SDG.Unturned
                 bool previouslyVisited = false;
                 for (int j = 0; j < visitedCount; ++j)
                 {
-                    if ((raw - visited[j]).sqrMagnitude < 4.5f * 4.5f)
+                    if (Mathf.Abs(raw.y - visited[j].y) < 1.8f
+                        && new Vector2(raw.x - visited[j].x,
+                            raw.z - visited[j].z).sqrMagnitude < 4.5f * 4.5f)
                     {
                         previouslyVisited = true;
                         break;
@@ -242,6 +257,50 @@ namespace SDG.Unturned
             nextCandidateAttemptAt = Time.time + 6f;
             if (failedWaypoints >= 2)
                 FinishServer("two-blocked-routes");
+        }
+
+        /// <summary>
+        /// Ground the survey in an actual authored large structure, rather
+        /// than a road with several spawnpoints. This is NOT a room polygon,
+        /// so doors and the native navigation provider still decide whether
+        /// each internal target can physically be visited.
+        /// </summary>
+        private bool TryResolveAuthoredStructureServer(Vector3 site,
+            out Vector3 structure)
+        {
+            structure = Vector3.zero;
+            if (LevelObjects.objects == null)
+                return false;
+            structureRegions.Clear();
+            Regions.getRegionsInRadius(site, 22f, structureRegions);
+            float best = 18f * 18f;
+            for (int r = 0; r < structureRegions.Count; ++r)
+            {
+                RegionCoordinate region = structureRegions[r];
+                if (region.x >= LevelObjects.objects.GetLength(0)
+                    || region.y >= LevelObjects.objects.GetLength(1))
+                    continue;
+                List<LevelObject> objects = LevelObjects.objects[region.x, region.y];
+                if (objects == null)
+                    continue;
+                int step = Mathf.Max(1, objects.Count / 64);
+                for (int i = 0; i < objects.Count; i += step)
+                {
+                    LevelObject obj = objects[i];
+                    if (obj == null || obj.transform == null || obj.asset == null
+                        || obj.asset.type != EObjectType.LARGE)
+                        continue;
+                    Vector3 offset = obj.transform.position - site;
+                    if (Mathf.Abs(offset.y) > 5f)
+                        continue;
+                    float distanceSq = new Vector2(offset.x, offset.z).sqrMagnitude;
+                    if (distanceSq >= best)
+                        continue;
+                    structure = obj.transform.position;
+                    best = distanceSq;
+                }
+            }
+            return best < 18f * 18f;
         }
 
         private void GatherNearbyAuthoredSites(Vector3 site, float radius, int limit)
