@@ -49,6 +49,109 @@ namespace SDG.Unturned
         private bool hasExplorationSectorLease;
         private bool initialized;
 
+        [System.Serializable]
+        public sealed class RoutineSnapshot
+        {
+            public int job;
+            public float exploreBias;
+            public float guardBias;
+            public float commitmentRemaining;
+            public float guardShiftRemaining;
+            public float guardCooldownRemaining;
+            public float scavengeCooldownRemaining;
+            public float recoveryCooldownRemaining;
+            public int failedScavengeWaypoints;
+            public bool hasBlockedWaypoint;
+            public Vector3 blockedWaypoint;
+            public float blockedWaypointRemaining;
+        }
+
+        /// <summary>
+        /// Save personal strategic intention and bounded remaining durations,
+        /// not Time.time timestamps (which are invalid across Unity sessions).
+        /// No travel/guard reservation is serialized as if it were still valid.
+        /// </summary>
+        public RoutineSnapshot ExportSnapshotServer()
+        {
+            if (!Provider.isServer || vitals != null && vitals.IsDead)
+                return null;
+            float now = Time.time;
+            return new RoutineSnapshot
+            {
+                job = (int)currentJob,
+                exploreBias = personalityExploreBias,
+                guardBias = personalityGuardBias,
+                commitmentRemaining = Mathf.Clamp(jobCommittedUntil - now, 0f, 90f),
+                guardShiftRemaining = Mathf.Clamp(guardShiftEndsAt - now, 0f, 160f),
+                guardCooldownRemaining = Mathf.Clamp(guardNotBefore - now, 0f, 120f),
+                scavengeCooldownRemaining = Mathf.Clamp(scavengeNotBefore - now, 0f, 120f),
+                recoveryCooldownRemaining = Mathf.Clamp(recoveryNotBefore - now, 0f, 120f),
+                failedScavengeWaypoints = Mathf.Clamp(consecutiveFailedScavengeWaypoints, 0, 2),
+                hasBlockedWaypoint = hasBlockedWaypoint && now < blockedWaypointExpiresAt,
+                blockedWaypoint = lastBlockedWaypoint,
+                blockedWaypointRemaining = Mathf.Clamp(blockedWaypointExpiresAt - now, 0f, 38f)
+            };
+        }
+
+        /// <summary>
+        /// Rebuild the saved individual's utility context after inventory,
+        /// needs and group were restored. A task is an intention, NOT an old
+        /// tactical route: fresh world/physics checks are still obligatory.
+        /// Old saves lacking RoutineSnapshot keep the new NPC defaults.
+        /// </summary>
+        public void RestoreSnapshotServer(RoutineSnapshot snapshot)
+        {
+            if (!Provider.isServer || snapshot == null || vitals != null && vitals.IsDead)
+                return;
+            if (snapshot.job < (int)Job.Patrol || snapshot.job > (int)Job.Recover)
+                return;
+            if (!IsFinite(snapshot.exploreBias) || !IsFinite(snapshot.guardBias))
+                return;
+
+            personalityExploreBias = Mathf.Clamp(snapshot.exploreBias, -7f, 8f);
+            personalityGuardBias = Mathf.Clamp(snapshot.guardBias, -6f, 7f);
+            currentJob = (Job)snapshot.job;
+            // A guard job has no meaning when its group/base no longer exists.
+            if (currentJob == Job.GuardSettlement
+                && (group == null || !group.HasSettlement))
+                currentJob = Job.Patrol;
+
+            float now = Time.time;
+            jobCommittedUntil = now + Remaining(snapshot.commitmentRemaining, 90f);
+            guardNotBefore = now + Remaining(snapshot.guardCooldownRemaining, 120f);
+            scavengeNotBefore = now + Remaining(snapshot.scavengeCooldownRemaining, 120f);
+            recoveryNotBefore = now + Remaining(snapshot.recoveryCooldownRemaining, 120f);
+            guardShiftEndsAt = currentJob == Job.GuardSettlement
+                ? now + Mathf.Max(2f, Remaining(snapshot.guardShiftRemaining, 160f))
+                : 0f;
+            consecutiveFailedScavengeWaypoints = Mathf.Clamp(snapshot.failedScavengeWaypoints, 0, 2);
+
+            bool validBlockedPosition = IsFinite(snapshot.blockedWaypoint.x)
+                && IsFinite(snapshot.blockedWaypoint.y)
+                && IsFinite(snapshot.blockedWaypoint.z)
+                && Level.checkSafeIncludingClipVolumes(snapshot.blockedWaypoint);
+            hasBlockedWaypoint = snapshot.hasBlockedWaypoint && validBlockedPosition
+                && Remaining(snapshot.blockedWaypointRemaining, 38f) > 0f;
+            lastBlockedWaypoint = hasBlockedWaypoint ? snapshot.blockedWaypoint : Vector3.zero;
+            blockedWaypointExpiresAt = hasBlockedWaypoint
+                ? now + Remaining(snapshot.blockedWaypointRemaining, 38f) : 0f;
+            // No old group sector/guard reservation, movement route, combat
+            // target or pre-loading Time.time scheduling survives the reload.
+            hasExplorationSectorLease = false;
+            initialized = true;
+            nextEvaluationTime = now + Random.Range(0.5f, 2.0f);
+        }
+
+        private static float Remaining(float value, float maximum)
+        {
+            return IsFinite(value) ? Mathf.Clamp(value, 0f, maximum) : 0f;
+        }
+
+        private static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
+        }
+
         public Job CurrentJob => currentJob;
 
         private void Awake()
