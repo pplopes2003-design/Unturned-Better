@@ -124,20 +124,46 @@ namespace SDG.Unturned
 			bool causeBleeding, bool causeFracture, MobileNPCInjurySystem.BleedingSeverity severity,
 			Vector3 hitImpulse, Transform attacker)
 		{
-			if (!Provider.isServer || isDead || lethalTransitionReserved || float.IsNaN(damage) || float.IsInfinity(damage) || damage <= 0f
-				|| !IsFinite(hitImpulse.x) || !IsFinite(hitImpulse.y) || !IsFinite(hitImpulse.z)
-				|| injurySystem == null)
+			if (!Provider.isServer || isDead || lethalTransitionReserved
+				|| float.IsNaN(damage) || float.IsInfinity(damage) || damage <= 0f
+				|| !IsFinite(hitImpulse.x) || !IsFinite(hitImpulse.y)
+				|| !IsFinite(hitImpulse.z))
 				return false;
 
-			// Initialize before recording injury so the first hit on a newly activated NPC
-			// cannot create limb effects while the health state is still uninitialized.
+			// Initialize before the first hit, even on the same frame as
+			// the inactive runtime template was cloned.
 			if (!initialized)
 				InitializeServer();
 			if (!initialized || isDead || lethalTransitionReserved)
 				return false;
 
-			if (!injurySystem.ApplyInjuryEffectsServer(bodyPart, damage, causeBleeding, causeFracture, severity))
-				return false;
+			// Critical invariant: a PHYSICALLY VERIFIED weapon/zombie hit
+			// must debit the authoritative HP once even if optional limb
+			// injury tracking, bleeding or a mod's injury subscriber fails.
+			// The old early return on an unavailable injurySystem could
+			// create exactly the observed "hitmarker but immortal" actor.
+			if (injurySystem != null)
+			{
+				try
+				{
+					if (!injurySystem.ApplyInjuryEffectsServer(bodyPart, damage,
+						causeBleeding, causeFracture, severity))
+						Debug.LogWarning("[MobileNPCHumanoidVitals] Injury effects rejected"
+							+ " on " + name + ", but verified hit will still debit HP.", this);
+				}
+				catch (System.Exception exception)
+				{
+					Debug.LogError("[MobileNPCHumanoidVitals] Optional injury stage"
+						+ " failed; preserving verified HP damage for " + name
+						+ ": " + exception, this);
+				}
+			}
+			else
+			{
+				Debug.LogError("[MobileNPCHumanoidVitals] Missing optional"
+					+ " injury component on " + name + "; applying validated HP"
+					+ " damage regardless.", this);
+			}
 			return ApplyDamage(damage, hitImpulse, attacker);
 		}
 
