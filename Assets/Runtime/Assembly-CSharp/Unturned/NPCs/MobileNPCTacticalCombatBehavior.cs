@@ -157,7 +157,8 @@ namespace SDG.Unturned
 				&& Time.time >= nextCasualtyWithdrawalAt
 				&& brain.CurrentGoal != MobileNPCTactics.Goal.SeekCover
 				&& brain.CurrentGoal != MobileNPCTactics.Goal.Retreat
-				&& (vitals != null && vitals.HealthFraction < 0.60f
+				&& (vitals != null && vitals.HealthFraction
+					< (MobileNPCSettings.CombatMode ? 0.38f : 0.60f)
 					|| rangedCombat.SelectedGunAsset == null
 					|| !rangedCombat.IsReloading && rangedCombat.RoundsRemaining <= 2))
 			{
@@ -214,7 +215,9 @@ namespace SDG.Unturned
 			if (blockedSince < 0f)
 				blockedSince = Time.time;
 
-			if (Time.time - blockedSince >= blockedLineOfFireDelay && Time.time >= nextFlankTime)
+			if (Time.time - blockedSince >= blockedLineOfFireDelay
+					* (MobileNPCSettings.CombatMode ? 0.65f : 1f)
+				&& Time.time >= nextFlankTime)
 				TryChooseFlank(target, false);
 		}
 
@@ -387,7 +390,8 @@ namespace SDG.Unturned
 				}
 			}
 
-			nextFlankTime = Time.time + Mathf.Max(0.5f, flankRetryCooldown);
+			nextFlankTime = Time.time + Mathf.Max(0.5f, flankRetryCooldown
+				* (MobileNPCSettings.CombatMode ? 0.75f : 1f));
 			if (found)
 			{
 				brain.TryStartFlank(bestPosition);
