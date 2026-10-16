@@ -4918,6 +4918,13 @@ namespace SDG.Unturned
 			// a different building, but only if no tactical/combat goal owns
 			// movement and all proposed floor/collision checks pass.
 			MobileNPCInteriorSurvey interiorSurvey = GetComponent<MobileNPCInteriorSurvey>();
+			if (interiorSurvey != null && interiorSurvey.IsWaitingForInspectionServer)
+			{
+				// The NPC is actually inspecting the arrived room. Do not
+				// immediately overwrite the site with another random point.
+				nextRoamingDecisionTime = Time.time + 0.6f;
+				return;
+			}
 			if (autonomyPlanner != null
 				&& autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge
 				&& interiorSurvey != null
@@ -4934,7 +4941,7 @@ namespace SDG.Unturned
 					return;
 				}
 				// A squadmate reserved this room; do not claim progress.
-				interiorSurvey.ReportRoomRouteBlockedServer(nextRoom);
+				interiorSurvey.DeferUnclaimedRoomServer();
 			}
 
 			// A real trading-group courier with a nearly full pack has a
