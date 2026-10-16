@@ -544,6 +544,179 @@ namespace SDG.Unturned
 				+ ". This is a rigid-body fall, not articulated bone ragdoll.", this);
 		}
 
+		/// <summary>
+		/// NPC_Client contains the SAME skeleton and bind-pose bones as the
+		/// native Ragdoll_Player asset, but only one root Rigidbody, six
+		/// disabled hit colliders and ZERO joints. Therefore the old death
+		/// path could NEVER become articulated. Copy the native physical
+		/// configuration onto the existing NPC_Client BONES, so the already
+		/// skinned mesh and clothing follow physics without re-skinning.
+		/// Construction happens only on death, not for 40 living NPCs.
+		/// </summary>
+		private bool TryAuthorNativeBoneRagdoll(Transform visualRoot)
+		{
+			Transform destinationSkeleton = visualRoot != null
+				? visualRoot.Find("Root/Skeleton") : null;
+			GameObject nativePrefab = Resources.Load<GameObject>(
+				"Characters/Ragdoll_Player");
+			Transform sourceSkeleton = nativePrefab != null
+				? nativePrefab.transform.Find("Skeleton") : null;
+			if (destinationSkeleton == null || sourceSkeleton == null)
+			{
+				Debug.LogWarning("[MobileNPCHumanoidVitals] Cannot author articulated NPC "
+					+ "ragdoll: missing NPC_Client Root/Skeleton or Ragdoll_Player "
+					+ "Skeleton native resource for " + name + ".", this);
+				return false;
+			}
+
+			Rigidbody[] sourceBodies = sourceSkeleton.GetComponentsInChildren<Rigidbody>(true);
+			CharacterJoint[] sourceJoints =
+				sourceSkeleton.GetComponentsInChildren<CharacterJoint>(true);
+			if (sourceBodies.Length != 11 || sourceJoints.Length != 10)
+			{
+				Debug.LogError("[MobileNPCHumanoidVitals] Unexpected native "
+					+ "Ragdoll_Player physics layout: bodies=" + sourceBodies.Length
+					+ ", joints=" + sourceJoints.Length + ". Not guessing bone links.", this);
+				return false;
+			}
+
+			Transform[] ownBones = destinationSkeleton.GetComponentsInChildren<Transform>(true);
+			Transform[] sourceTransforms = new Transform[sourceBodies.Length];
+			Transform[] destinationTransforms = new Transform[sourceBodies.Length];
+			// Validate ALL 11 correspondences and native box volumes before
+			// changing any gameplay object. Human skin bind poses are the
+			// original NPC_Client rig, not the ragdoll prefab mesh.
+			for (int i = 0; i < sourceBodies.Length; ++i)
+			{
+				Transform source = sourceBodies[i].transform;
+				Transform match = null;
+				int matches = 0;
+				for (int b = 0; b < ownBones.Length; ++b)
+				{
+					if (ownBones[b].name != source.name)
+						continue;
+					match = ownBones[b];
+					++matches;
+				}
+				if (matches != 1 || source.GetComponent<BoxCollider>() == null)
+				{
+					Debug.LogError("[MobileNPCHumanoidVitals] Missing/ambiguous "
+						+ "bone or collider for native ragdoll bone " + source.name
+						+ ", count=" + matches + ".", this);
+					return false;
+				}
+				// A modified asset must not silently remap joint anatomy.
+				if (Vector3.Distance(match.localPosition, source.localPosition) > 0.025f
+					|| Quaternion.Angle(match.localRotation, source.localRotation) > 4f)
+				{
+					Debug.LogError("[MobileNPCHumanoidVitals] NPC bone bind pose "
+						+ "differs from Ragdoll_Player at " + source.name
+						+ "; disabling unsafe articulated transfer.", this);
+					return false;
+				}
+				sourceTransforms[i] = source;
+				destinationTransforms[i] = match;
+			}
+			for (int j = 0; j < sourceJoints.Length; ++j)
+			{
+				if (sourceJoints[j] == null || sourceJoints[j].connectedBody == null)
+					return false;
+				bool foundCurrent = false, foundConnected = false;
+				for (int i = 0; i < sourceTransforms.Length; ++i)
+				{
+					foundCurrent |= sourceTransforms[i] == sourceJoints[j].transform;
+					foundConnected |= sourceTransforms[i]
+						== sourceJoints[j].connectedBody.transform;
+				}
+				if (!foundCurrent || !foundConnected)
+				{
+					Debug.LogError("[MobileNPCHumanoidVitals] Broken native "
+						+ "ragdoll joint link at " + sourceJoints[j].name + ".", this);
+					return false;
+				}
+			}
+
+			// Native NPC_Client contains an unused root Rigidbody. Keep that
+			// root inert: only skeleton bones may be released on death.
+			Rigidbody oldVisualBody = visualRoot.GetComponent<Rigidbody>();
+			if (oldVisualBody != null)
+			{
+				oldVisualBody.isKinematic = true;
+				oldVisualBody.detectCollisions = false;
+			}
+			Rigidbody[] createdBodies = new Rigidbody[sourceBodies.Length];
+			for (int i = 0; i < sourceBodies.Length; ++i)
+			{
+				Transform target = destinationTransforms[i];
+				Rigidbody sourceBody = sourceBodies[i];
+				// Six NPC_Client bone BoxColliders already exist, disabled
+				// for normal gameplay. Reuse them rather than duplicating
+				// capsule contacts on the same bone.
+				BoxCollider sourceBox = sourceBody.GetComponent<BoxCollider>();
+				BoxCollider box = target.GetComponent<BoxCollider>();
+				if (box == null)
+					box = target.gameObject.AddComponent<BoxCollider>();
+				box.center = sourceBox.center;
+				box.size = sourceBox.size;
+				box.sharedMaterial = sourceBox.sharedMaterial;
+				box.isTrigger = false;
+				box.enabled = false;
+
+				Rigidbody body = target.GetComponent<Rigidbody>();
+				if (body == null)
+					body = target.gameObject.AddComponent<Rigidbody>();
+				body.mass = sourceBody.mass;
+				body.drag = sourceBody.drag;
+				body.angularDrag = sourceBody.angularDrag;
+				body.useGravity = sourceBody.useGravity;
+				body.interpolation = sourceBody.interpolation;
+				body.collisionDetectionMode = sourceBody.collisionDetectionMode;
+				body.constraints = sourceBody.constraints;
+				body.isKinematic = true;
+				body.detectCollisions = false;
+				// Ragdoll_Player uses native Ragdoll physics layer 12,
+				// whereas NPC_Client render bones use Medium layer 16.
+				// Bone renderers are on separate Model_0 / Model_1 objects.
+				target.gameObject.layer = sourceBody.gameObject.layer;
+				createdBodies[i] = body;
+			}
+			for (int j = 0; j < sourceJoints.Length; ++j)
+			{
+				CharacterJoint template = sourceJoints[j];
+				int own = -1, connected = -1;
+				for (int i = 0; i < sourceTransforms.Length; ++i)
+				{
+					if (sourceTransforms[i] == template.transform) own = i;
+					if (sourceTransforms[i] == template.connectedBody.transform) connected = i;
+				}
+				CharacterJoint joint =
+					destinationTransforms[own].GetComponent<CharacterJoint>();
+				if (joint == null)
+					joint = destinationTransforms[own].gameObject.AddComponent<CharacterJoint>();
+				joint.connectedBody = createdBodies[connected];
+				joint.anchor = template.anchor;
+				joint.axis = template.axis;
+				joint.swingAxis = template.swingAxis;
+				joint.autoConfigureConnectedAnchor = template.autoConfigureConnectedAnchor;
+				joint.connectedAnchor = template.connectedAnchor;
+				joint.lowTwistLimit = template.lowTwistLimit;
+				joint.highTwistLimit = template.highTwistLimit;
+				joint.swing1Limit = template.swing1Limit;
+				joint.swing2Limit = template.swing2Limit;
+				joint.twistLimitSpring = template.twistLimitSpring;
+				joint.swingLimitSpring = template.swingLimitSpring;
+				joint.enableCollision = template.enableCollision;
+				joint.enablePreprocessing = template.enablePreprocessing;
+				joint.breakForce = template.breakForce;
+				joint.breakTorque = template.breakTorque;
+				joint.enabled = true;
+			}
+			Debug.Log("[MobileNPCHumanoidVitals] Authored native articulated NPC "
+				+ "ragdoll on original skin skeleton: bones=" + createdBodies.Length
+				+ ", joints=" + sourceJoints.Length + ", npc=" + name + ".", this);
+			return true;
+		}
+
 		private void ActivateAuthoredRagdoll(Vector3 hitImpulse)
 		{
 			Transform visualRoot = transform.Find("HumanoidVisual");
@@ -553,6 +726,12 @@ namespace SDG.Unturned
 				return;
 			}
 
+			// NPC_Client itself has NO articulated ragdoll. Author it from
+			// the SAME skeleton of the native Ragdoll_Player asset before
+			// disabling the live pose writers. Fall back only on missing
+			// incompatible resources/physics.
+			SafeDeathStage("author ragdoll joints", () =>
+				TryAuthorNativeBoneRagdoll(visualRoot));
 			// Stop all animation writers before releasing the authored bone rigidbodies.
 			Animation[] animations = visualRoot.GetComponentsInChildren<Animation>(true);
 			for (int i = 0; i < animations.Length; ++i)
@@ -567,9 +746,16 @@ namespace SDG.Unturned
 					animators[i].enabled = false;
 			}
 
-			Collider[] colliders = visualRoot.GetComponentsInChildren<Collider>(true);
-			Rigidbody[] authoredBodies = visualRoot.GetComponentsInChildren<Rigidbody>(true);
-			Joint[] authoredJoints = visualRoot.GetComponentsInChildren<Joint>(true);
+			Transform actualSkeleton = visualRoot.Find("Root/Skeleton");
+			Collider[] colliders = actualSkeleton != null
+				? actualSkeleton.GetComponentsInChildren<Collider>(true)
+				: visualRoot.GetComponentsInChildren<Collider>(true);
+			Rigidbody[] authoredBodies = actualSkeleton != null
+				? actualSkeleton.GetComponentsInChildren<Rigidbody>(true)
+				: visualRoot.GetComponentsInChildren<Rigidbody>(true);
+			Joint[] authoredJoints = actualSkeleton != null
+				? actualSkeleton.GetComponentsInChildren<Joint>(true)
+				: visualRoot.GetComponentsInChildren<Joint>(true);
 			int usableColliders = 0;
 			for (int i = 0; i < colliders.Length; ++i)
 			{
@@ -591,8 +777,8 @@ namespace SDG.Unturned
 				++enabledColliders;
 			}
 
-			Rigidbody[] bodies = visualRoot.GetComponentsInChildren<Rigidbody>(true);
-			Joint[] joints = visualRoot.GetComponentsInChildren<Joint>(true);
+			Rigidbody[] bodies = authoredBodies;
+			Joint[] joints = authoredJoints;
 			int releasedBodies = 0;
 			Rigidbody impulseBody = null;
 			float nearestSqrDistance = float.PositiveInfinity;
