@@ -139,7 +139,9 @@ namespace SDG.Unturned
                     if (candidateHeight < 0.63f || candidateHeight > 1.07f)
                         continue;
                     float capsuleRadius = Mathf.Clamp(controller.radius * 0.78f, 0.15f, 0.29f);
-                    if (!CapsuleClearAt(candidateLanding, capsuleRadius, obstacleMask))
+                    if (!HasStableObjectTopFootprint(candidateLanding,
+                        wall.collider, direction, capsuleRadius, obstacleMask)
+                        || !CapsuleClearAt(candidateLanding, capsuleRadius, obstacleMask))
                         continue;
                     foundTopLanding = true;
                     bestTopDistance = testDistance;
@@ -245,6 +247,28 @@ namespace SDG.Unturned
             return a.attachedRigidbody != null
                 && a.attachedRigidbody == b.attachedRigidbody
                 && a.attachedRigidbody.isKinematic;
+        }
+
+        private static bool HasStableObjectTopFootprint(Vector3 landing,
+            Collider observed, Vector3 direction, float radius, int mask)
+        {
+            // A narrow chair back or shelf lip might have a flat top ray
+            // but no room for even the NPC's feet. Ground both lateral
+            // support samples against the SAME physically observed object.
+            Vector3 lateral = new Vector3(-direction.z, 0f, direction.x).normalized;
+            float spread = Mathf.Clamp(radius * 0.65f, 0.09f, 0.20f);
+            for (int i = -1; i <= 1; i += 2)
+            {
+                Vector3 rayStart = landing + lateral * (spread * i)
+                    + Vector3.up * 0.65f;
+                if (!Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit,
+                    0.95f, mask, QueryTriggerInteraction.Ignore)
+                    || !IsSamePhysicalObstacle(hit.collider, observed)
+                    || Vector3.Dot(hit.normal, Vector3.up) < 0.90f
+                    || Mathf.Abs(hit.point.y + 0.05f - landing.y) > 0.12f)
+                    return false;
+            }
+            return true;
         }
 
         private static float bestTopClearance(float topHeight)
