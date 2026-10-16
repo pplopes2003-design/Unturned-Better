@@ -104,14 +104,6 @@ namespace SDG.Unturned
                 Object.Destroy(launched);
                 return;
             }
-            int cost = Mathf.Max(1, gun.ammoPerShot);
-            int remaining = held.state[GunStateIndices.AMMO] - cost;
-            if (remaining < 0 || !inventory.TryUpdateGunAmmoServer(gunInstance,
-                (byte)Mathf.Clamp(remaining, 0, byte.MaxValue)))
-            {
-                Object.Destroy(launched);
-                return;
-            }
             launched.name = "MobileNPC_NativeRaidRocket";
             Rocket rocket = launched.AddComponent<Rocket>();
             rocket.ignoreTransform = transform;
@@ -141,6 +133,16 @@ namespace SDG.Unturned
             }
             Grenade nativeGrenade = launched.GetComponent<Grenade>();
             if (nativeGrenade != null) nativeGrenade.killer = CSteamID.Nil;
+            // Configure the native effect first. Commit owned cartridge
+            // exactly once only when the real prefab/Rocket was created.
+            int cost = Mathf.Max(1, gun.ammoPerShot);
+            int remaining = held.state[GunStateIndices.AMMO] - cost;
+            if (remaining < 0 || !inventory.TryUpdateGunAmmoServer(gunInstance,
+                (byte)Mathf.Clamp(remaining, 0, byte.MaxValue)))
+            {
+                Object.Destroy(launched);
+                return;
+            }
             EffectManager.RegisterDebris(launched);
             body.collisionDetectionMode = CollisionDetectionMode.Continuous;
             body.AddForce(direction * gun.ballisticForce
