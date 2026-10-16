@@ -25,6 +25,7 @@ namespace SDG.Unturned
 		private readonly List<InteractableItem> candidates = new List<InteractableItem>(32);
 		private MobileNPCBrainDriver driver;
 		private MobileNPCInventory inventory;
+		private MobileNPCHumanoidMotor motor;
 		private MobileNPCAdaptiveMemory adaptiveMemory;
 		private MobileNPCSupplyKnowledge supplyKnowledge;
 		private MobileNPCGroupMember groupMember;
@@ -60,6 +61,13 @@ namespace SDG.Unturned
 		private uint targetInstanceID;
 		private Vector3 targetPosition;
 		private bool hasTarget;
+		// A single risk-limited top access after a failed real pickup;
+		// neither inventory nor world item is ever fabricated.
+		private bool targetClimbWorthwhile;
+		private bool targetClimbAttempted;
+		private bool targetClimbPending;
+		private float targetClimbExpiresAt;
+		private float nextRaisedPickupAttemptAt;
 		private uint temporarilyInaccessibleInstanceID;
 		private float temporarilyInaccessibleUntil;
 		private float nextScanTime;
@@ -68,6 +76,7 @@ namespace SDG.Unturned
 		{
 			driver = GetComponent<MobileNPCBrainDriver>();
 			inventory = GetComponent<MobileNPCInventory>();
+			motor = GetComponent<MobileNPCHumanoidMotor>();
 			adaptiveMemory = GetComponent<MobileNPCAdaptiveMemory>();
 			supplyKnowledge = GetComponent<MobileNPCSupplyKnowledge>();
 			groupMember = GetComponent<MobileNPCGroupMember>();
@@ -120,7 +129,9 @@ namespace SDG.Unturned
 				return;
 			}
 
-			if (hasTarget && driver.CurrentGoal != MobileNPCTactics.Goal.Loot)
+			if (hasTarget && driver.CurrentGoal != MobileNPCTactics.Goal.Loot
+				&& !(targetClimbPending && Time.time < targetClimbExpiresAt
+					&& driver.Target == null))
 			{
 				// The tactical goal can expire before the item disappears (for example,
 				// when a table or curb blocks the final approach). Do not keep returning
@@ -148,11 +159,39 @@ namespace SDG.Unturned
 				float itemHeight = Mathf.Abs(reachOffset.y);
 				reachOffset.y = 0f;
 				if (reachOffset.sqrMagnitude <= pickupDistance * pickupDistance
-					&& itemHeight <= 2.1f)
+					&& itemHeight <= 2.1f && Time.time >= nextRaisedPickupAttemptAt)
 				{
 					uint attemptedInstanceID = targetInstanceID;
 					bool pickedUp = inventory.TryPickupWorldItemServer(attemptedInstanceID,
 						transform.position, pickupDistance + 0.5f, out string failureReason);
+					// A failed REAL ground-level pickup of sufficiently
+					// valuable loot may justify ONE attempt to physically
+					// climb its observed low support. Never do this merely
+					// because an item was reported via radio or through
+					// a wall: the world instance was locally seen first.
+					if (!pickedUp && !targetClimbAttempted && targetClimbWorthwhile
+						&& inventory.HasSpace && driver.Target == null
+						&& driver.CurrentGoal == MobileNPCTactics.Goal.Loot
+						&& motor != null
+						&& motor.TryFindObservedElevatedLootFootingServer(
+							targetPosition, out Vector3 footing)
+						&& driver.TryStartLoot(footing))
+					{
+						targetClimbAttempted = true;
+						targetClimbPending = true;
+						targetClimbExpiresAt = Time.time + 14f;
+						nextRaisedPickupAttemptAt = Time.time + 1f;
+						nextScanTime = Time.time + scanInterval;
+						return;
+					}
+					if (!pickedUp && targetClimbPending
+						&& Time.time < targetClimbExpiresAt)
+					{
+						nextRaisedPickupAttemptAt = Time.time + 0.9f;
+						// Retain the same real item instance, with a
+						// deadline; wait for physical jump and real transfer.
+						return;
+					}
 					// Any learned source must be an ACTUAL completed transfer, not
 					// seeing loot through walls or a guaranteed respawn table.
 					if (pickedUp && supplyKnowledge != null && targetItemID != 0)
@@ -307,6 +346,7 @@ namespace SDG.Unturned
 					? bestItem.jar.item.id : (ushort)0;
 				targetItemRounds = bestItem.jar != null && bestItem.jar.item != null
 					? bestItem.jar.item.amount : (byte)0;
+				targetClimbWorthwhile = bestScore >= 45f;
 				targetInstanceID = bestID;
 				targetPosition = bestItem.transform.position;
 				hasTarget = true;
@@ -488,6 +528,11 @@ namespace SDG.Unturned
 				driver.ReportDestinationReached();
 			}
 			hasTarget = false;
+			targetClimbWorthwhile = false;
+			targetClimbAttempted = false;
+			targetClimbPending = false;
+			targetClimbExpiresAt = 0f;
+			nextRaisedPickupAttemptAt = 0f;
 			targetInstanceID = 0;
 			targetItemID = 0;
 			targetItemRounds = 0;
