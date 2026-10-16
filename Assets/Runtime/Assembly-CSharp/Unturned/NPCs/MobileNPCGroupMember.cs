@@ -155,7 +155,8 @@ namespace SDG.Unturned
 				|| perception.VisibleZombie != null && target == perception.VisibleZombie.transform);
 			if (currentlySeen)
 				group.LastLeaderObservedCombatAt = Time.time;
-			bool recentlyEngaged = Time.time - group.LastLeaderObservedCombatAt < 26f;
+			bool recentlyEngaged = group.LastLeaderObservedCombatAt > 0f
+				&& Time.time - group.LastLeaderObservedCombatAt < 26f;
 			if (!currentlySeen && !recentlyEngaged)
 				return;
 
