@@ -16,7 +16,7 @@ namespace SDG.Unturned
 	/// </summary>
 	internal static class MobileNPCPersistence
 	{
-		private const int CurrentVersion = 7;
+		private const int CurrentVersion = 8;
 		private const float SaveInterval = 30f;
 		private const float DeferredRestoreInterval = 3f;
 		private static float nextSaveTime;
@@ -41,6 +41,9 @@ namespace SDG.Unturned
 			public float rx, ry, rz, rw;
 			public int role;
 			public int faction;
+			// v8: optional separate occupation; v1-v7 default false.
+			public bool hasOccupation;
+			public int occupation;
 			public int groupId;
 			public float health;
 			public bool hasSettlement;
@@ -327,6 +330,20 @@ namespace SDG.Unturned
 					&& record.faction <= (int)MobileNPCFaction.Id.Traders
 					&& faction.CurrentFaction != (MobileNPCFaction.Id)record.faction)
 					faction.SetFactionServer((MobileNPCFaction.Id)record.faction);
+				MobileNPCOccupation occupation = instance.GetComponent<MobileNPCOccupation>();
+				if (occupation != null)
+				{
+					// Old saves have no occupation flag. Migrate from diplomacy ONCE,
+					// after the original faction has been correctly restored.
+					MobileNPCArchetypePolicy.Preset restoredOccupation =
+						record.hasOccupation && record.occupation >= 0
+						&& record.occupation <= (int)MobileNPCArchetypePolicy.Preset.Military
+							? (MobileNPCArchetypePolicy.Preset)record.occupation
+							: MobileNPCArchetypePolicy.FromIdentity(
+								faction != null ? faction.CurrentFaction : MobileNPCFaction.Id.Unaffiliated,
+								role);
+					occupation.SetOccupationServer(restoredOccupation);
+				}
 	
 				MobileNPCHumanoidVitals restoredVitals = instance.GetComponent<MobileNPCHumanoidVitals>();
 				if (restoredVitals != null && IsFinite(record.health) && record.health > 0f)
@@ -457,6 +474,7 @@ namespace SDG.Unturned
 
 				MobileNPCHumanoidDisposition disposition = driver.GetComponent<MobileNPCHumanoidDisposition>();
 				MobileNPCFaction faction = driver.GetComponent<MobileNPCFaction>();
+				MobileNPCOccupation occupation = driver.GetComponent<MobileNPCOccupation>();
 				NPCRecord record = new NPCRecord
 				{
 					px = savedPosition.x,
@@ -468,6 +486,8 @@ namespace SDG.Unturned
 					rw = driver.transform.rotation.w,
 					role = disposition != null ? (int)disposition.CurrentRole : (int)MobileNPCHumanoidDisposition.Role.Hostile,
 					faction = faction != null ? (int)faction.CurrentFaction : (int)MobileNPCFaction.Id.Unaffiliated,
+					hasOccupation = occupation != null && occupation.HasAssignedOccupation,
+					occupation = (int)MobileNPCArchetypePolicy.ForNPC(driver.gameObject),
 					health = vitals != null ? vitals.CurrentHealth : 100f
 				};
 
