@@ -13,7 +13,7 @@ namespace SDG.Unturned
     /// </summary>
     internal static class MobileNPCPopulationBootstrap
     {
-        private const string VisualResourcePath = "Characters/NPC_Client";
+        private const string VisualResourcePath = "Characters/MobileNPC_Client";
         private static bool subscribed;
         private static GameObject template;
         private static GameObject directorObject;
