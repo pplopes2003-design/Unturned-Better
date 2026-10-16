@@ -51,7 +51,7 @@ namespace SDG.Unturned
                 || Time.time < nextIndividualProbeTime
                 || Time.time < nextSharedProbeTime
                 || gravityAcceleration < 9f
-                || Mathf.Abs(goal.y - transform.position.y) > 0.65f)
+                || Mathf.Abs(goal.y - transform.position.y) > 1.15f)
                 return false;
 
             // One expensive geometric proof globally per ~0.12 sec, one
@@ -69,7 +69,8 @@ namespace SDG.Unturned
             if (!Physics.Raycast(wallProbe, direction, out RaycastHit wall,
                 0.95f, obstacleMask, QueryTriggerInteraction.Ignore)
                 || wall.collider == null || IsSelf(wall.collider)
-                || wall.collider.attachedRigidbody != null
+                || (wall.collider.attachedRigidbody != null
+                    && !wall.collider.attachedRigidbody.isKinematic)
                 || wall.collider.GetComponentInParent<Player>() != null
                 || wall.collider.GetComponentInParent<Zombie>() != null
                 || wall.collider.GetComponentInParent<MobileNPCHumanoidVitals>() != null
@@ -101,14 +102,70 @@ namespace SDG.Unturned
 
             float travelDistance = 1.65f;
             Vector3 landingProbe = root + direction * travelDistance;
-            if (!MobileNPCSpawnService.TryFindSafeGroundPosition(landingProbe,
-                1.25f, 1.6f, groundMask, maxSlope, out Vector3 landing, out _)
-                || Mathf.Abs(landing.y - root.y) > 0.22f
-                || !Level.checkSafeIncludingClipVolumes(landing))
-                return false;
+            bool hasGroundBeyond = MobileNPCSpawnService.TryFindSafeGroundPosition(
+                landingProbe, 1.25f, 1.6f, groundMask, maxSlope,
+                out Vector3 landing, out Collider groundCollider, out _)
+                && Mathf.Abs(landing.y - root.y) <= 0.22f
+                && Level.checkSafeIncludingClipVolumes(landing)
+                // A furniture top behind the first object is not a
+                // ground-level landing, even if the ray finds it.
+                && groundCollider != wall.collider;
+            bool landingOnTop = false;
+            // A climbable LOW object may be a real intermediate footstep.
+            // Use the exact observed collider and measured horizontal top.
+            // No generic A* connection across objects is created.
+            if (!hasGroundBeyond)
+            {
+                bool foundTopLanding = false;
+                float bestTopDistance = 0f;
+                float bestTopY = 0f;
+                float firstDistance = Mathf.Clamp(wall.distance + 0.55f, 0.85f, 1.4f);
+                for (int candidateIndex = 0; candidateIndex < 3; ++candidateIndex)
+                {
+                    float testDistance = firstDistance + candidateIndex * 0.2f;
+                    Vector3 fromAbove = root + direction * testDistance + Vector3.up * 1.65f;
+                    if (!Physics.Raycast(fromAbove, Vector3.down, out RaycastHit surface,
+                        1.9f, obstacleMask, QueryTriggerInteraction.Ignore)
+                        || surface.collider != wall.collider
+                        || Vector3.Dot(surface.normal, Vector3.up) < 0.90f
+                        || Mathf.Abs(surface.point.y - top.point.y) > 0.12f)
+                        continue;
+                    Vector3 candidateLanding = surface.point + Vector3.up * 0.05f;
+                    if (!Level.checkSafeIncludingClipVolumes(candidateLanding))
+                        continue;
+                    float candidateHeight = candidateLanding.y - root.y;
+                    if (candidateHeight < 0.63f || candidateHeight > 1.07f)
+                        continue;
+                    float capsuleRadius = Mathf.Clamp(controller.radius * 0.78f, 0.15f, 0.29f);
+                    if (!CapsuleClearAt(candidateLanding, capsuleRadius, obstacleMask))
+                        continue;
+                    foundTopLanding = true;
+                    bestTopDistance = testDistance;
+                    bestTopY = candidateHeight;
+                    landing = candidateLanding;
+                    break;
+                }
+                if (!foundTopLanding)
+                    return false;
+                travelDistance = bestTopDistance;
+                landingOnTop = true;
+            }
+
             Vector3 flatGoal = goal - root;
             flatGoal.y = 0f;
-            if (Vector3.Dot(flatGoal, direction) < travelDistance + 0.15f)
+            float forwardGoal = Vector3.Dot(flatGoal, direction);
+            // A top landing is permitted either as an intermediate step
+            // toward a more distant goal, or when the actual goal is
+            // physically located on that SAME measured furniture surface.
+            if (landingOnTop)
+            {
+                bool goalOnThisTop = Mathf.Abs(goal.y - landing.y) <= 0.4f
+                    && Vector3.Distance(new Vector3(goal.x, 0f, goal.z),
+                        new Vector3(landing.x, 0f, landing.z)) <= 0.85f;
+                if (!goalOnThisTop && forwardGoal < travelDistance + 0.20f)
+                    return false;
+            }
+            else if (forwardGoal < travelDistance + 0.15f)
                 return false;
 
             float relativeHeight = landing.y - root.y;
@@ -129,6 +186,12 @@ namespace SDG.Unturned
                 / gravityAcceleration;
             float speed = NativeRunSpeed;
             if (forwardDelay + travelDistance / speed > duration - 0.055f)
+                return false;
+            // The chosen landing is a real top. This is only feasible when
+            // feet stay above it until the body finishes traveling forward.
+            if (landingOnTop && impulse * (duration - 0.05f)
+                - 0.5f * gravityAcceleration * (duration - 0.05f)
+                    * (duration - 0.05f) < bestTopClearance(wallHeight))
                 return false;
 
             float radius = Mathf.Clamp(controller.radius * 0.78f, 0.15f, 0.29f);
@@ -160,6 +223,11 @@ namespace SDG.Unturned
             plan.TravelDistance = travelDistance;
             plan.MaximumDuration = duration + 0.20f;
             return true;
+        }
+
+        private static float bestTopClearance(float topHeight)
+        {
+            return Mathf.Max(0.45f, topHeight - 0.10f);
         }
 
         private bool CapsuleClearAt(Vector3 origin, float radius, int mask)
