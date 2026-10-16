@@ -36,6 +36,11 @@ namespace SDG.Unturned
         {
             if (npc == null)
                 return Preset.Survivor;
+            MobileNPCOccupation occupation = npc.GetComponent<MobileNPCOccupation>();
+            if (occupation != null && occupation.HasAssignedOccupation)
+                return occupation.AssignedOccupation;
+            // Older NPCs without an explicit occupation inherit the original
+            // profession/faction mapping only until an occupation is assigned.
             MobileNPCFaction faction = npc.GetComponent<MobileNPCFaction>();
             MobileNPCHumanoidDisposition disposition =
                 npc.GetComponent<MobileNPCHumanoidDisposition>();
@@ -111,6 +116,9 @@ namespace SDG.Unturned
             MobileNPCHumanoidDisposition disposition =
                 npc.GetComponent<MobileNPCHumanoidDisposition>();
             MobileNPCFaction faction = npc.GetComponent<MobileNPCFaction>();
+            MobileNPCOccupation occupation = npc.GetComponent<MobileNPCOccupation>();
+            if (occupation != null)
+                occupation.SetOccupationServer(preset);
             if (disposition != null && disposition.CurrentRole != RoleOf(preset))
                 disposition.SetRoleServer(RoleOf(preset));
             if (faction != null && faction.CurrentFaction != FactionOf(preset))
