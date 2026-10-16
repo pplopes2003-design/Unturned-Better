@@ -553,7 +553,7 @@ namespace SDG.Unturned
 					score = needsSettlementSupplies ? 58f + buildingLootPreference * 20f : 12f + buildingLootPreference * 45f;
 					if (MobileNPCSettings.CombatMode
 						&& MobileNPCRaidSupplyPolicy.IsRaidCharge(item.asset))
-						score += 14f; // Hold only; placement/detonator is not yet coded.
+						score += 14f; // Native charge breaching requires a real detonator and close-range placement.
 					break;
 				}
 				case EItemType.SUPPLY:
@@ -583,6 +583,12 @@ namespace SDG.Unturned
 			// The world item still has to exist, be reachable, and be picked
 			// up through ordinary ItemManager/inventory transactions. Never
 			// conjure a radio or prioritize it above urgent medical supplies.
+			// Native Earpiece is a MASK, not a transmitter. A survivor
+			// benefits by wearing it for reception on its group frequency.
+			if (item.asset is ItemMaskAsset earpiece && earpiece.isEarpiece
+				&& !inventory.ContainsItemID(itemID) && groupMember != null
+				&& groupMember.GroupId > 0)
+				score = Mathf.Max(score, 65f);
 			if (itemID == MobileNPCRadioOutbox.VanillaWalkieTalkieID
 				&& !inventory.ContainsItemID(itemID))
 			{
