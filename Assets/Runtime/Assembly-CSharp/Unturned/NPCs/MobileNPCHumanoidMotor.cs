@@ -4911,12 +4911,9 @@ namespace SDG.Unturned
 				return;
 			}
 
-			// A short-lived two-layer startup hint may orient a naive
-			// survivor toward a plausible local district. This brain still
-			// chooses, walks, sees and learns for itself.
-			if (TryUseNoviceExplorationBearingServer(effectiveRoamingRadius))
-				return;
-
+			// A survivor ALREADY in an urban area first inspects nearby
+			// buildings. A broad novice director compass bearing should NOT
+			// pull him out of town before he has checked the local structures.
 			// Prefer actual map structures, but keep searching over open terrain when a
 			// beach, field or remote island has no nearby large objects.
 			if (Random.value < structurePreference
@@ -4941,6 +4938,11 @@ namespace SDG.Unturned
 				hasRoamingDestination = true;
 				return;
 			}
+
+			// Only if no reachable/novel structure could be nominated,
+			// consult the coarse novice regional guide. This is not a loot oracle.
+			if (TryUseNoviceExplorationBearingServer(effectiveRoamingRadius))
+				return;
 
 			// Continue in a roughly straight line for a while, validating each prospective
 			// ground point. If the NPC approaches the edge of its exploration radius, turn
@@ -5030,7 +5032,9 @@ namespace SDG.Unturned
 					offset.y = 0f;
 					Vector3 fromHome = levelObject.transform.position - spawnPosition;
 					fromHome.y = 0f;
-					if (offset.sqrMagnitude < 36f || offset.sqrMagnitude > radius * radius
+					// No 6-metre exclusion in towns: a NPC spawned INSIDE
+					// or beside the building is exactly who should inspect it.
+					if (offset.sqrMagnitude > radius * radius
 						|| fromHome.sqrMagnitude > HomeTerritoryRadius * HomeTerritoryRadius)
 						continue;
 
@@ -5041,31 +5045,66 @@ namespace SDG.Unturned
 			if (explorationObjects.Count == 0)
 				return false;
 
-			// Try several different nearby large objects; don't get stuck repeatedly
-			// selecting an inaccessible shell or a prop on an unsafe slope.
+			// Focus on nearby REAL large map objects (especially in towns),
+			// not a uniformly random building at the edge of a 110m radius.
+			// At most six structures and six candidate footprints per decision.
+			// Ground/nav/door obstacles remain authoritative; nothing teleports.
+			bool activelyScavenging = autonomyPlanner != null
+				&& autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge;
 			int attempts = Mathf.Min(6, explorationObjects.Count);
 			for (int attempt = 0; attempt < attempts; ++attempt)
 			{
-				int index = Random.Range(0, explorationObjects.Count);
-				LevelObject levelObject = explorationObjects[index];
-				explorationObjects.RemoveAt(index);
+				int chosenIndex = -1;
+				float bestScore = float.PositiveInfinity;
+				for (int i = 0; i < explorationObjects.Count; ++i)
+				{
+					LevelObject obj = explorationObjects[i];
+					if (obj == null || obj.transform == null) continue;
+					float planar = PlanarDistanceSquared(transform.position, obj.transform.position);
+					// Occasional variance prevents one blocked nearby facade
+					// from indefinitely beating every adjacent building.
+					float score = planar * Random.Range(0.75f, 1.25f);
+					if (score < bestScore) { bestScore = score; chosenIndex = i; }
+				}
+				if (chosenIndex < 0) break;
+				LevelObject levelObject = explorationObjects[chosenIndex];
+				explorationObjects.RemoveAt(chosenIndex);
 				if (levelObject == null || levelObject.transform == null)
 					continue;
 
-				Vector2 offset = Random.insideUnitCircle.normalized * Random.Range(3f, 7f);
-				Vector3 candidate = levelObject.transform.position + new Vector3(offset.x, 0f, offset.y);
-				if (MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, Mathf.Max(1f, roamingSearchHeight),
-					Mathf.Max(0f, roamingMaximumDrop), roamingGroundMask, roamingMaximumSlope,
-					out Vector3 resolved, out _)
-					// Do not stop sampling after the FIRST building when this
-					// individual has already physically searched that district.
-					// Check the solo history inside the bounded six-object loop,
-					// before accepting an exterior fallback instead of another POI.
-					&& (autonomyPlanner == null || autonomyPlanner.IsCandidateAllowedServer(resolved))
-					&& PlanarDistanceSquared(resolved, spawnPosition)
-						<= HomeTerritoryRadius * HomeTerritoryRadius)
+				Vector3 center = levelObject.transform.position;
+				// Try several distinct spots within the real object's local
+				// footprint before sampling an exterior facade. In a house,
+				// this gives an actual interior room route which the existing
+				// door/portal/A* motor must physically traverse. A tree or
+				// inaccessible solid geometry simply fails the capsule test.
+				for (int sample = 0; sample < (activelyScavenging ? 6 : 3); ++sample)
 				{
-					destination = resolved;
+					float distance = activelyScavenging && sample < 4
+						? (sample == 0 ? 0f : Random.Range(1f, 3.1f))
+						: Random.Range(3f, 7f);
+					Vector2 shift = Random.insideUnitCircle.normalized * distance;
+					Vector3 candidate = center + new Vector3(shift.x, 0f, shift.y);
+					if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate,
+						Mathf.Max(1f, roamingSearchHeight),
+						Mathf.Max(0f, roamingMaximumDrop), roamingGroundMask,
+						roamingMaximumSlope, out Vector3 grounded, out _)
+						|| Mathf.Abs(grounded.y - transform.position.y) > 2.2f
+						|| PlanarDistanceSquared(grounded, transform.position) < 3.5f * 3.5f
+						|| PlanarDistanceSquared(grounded, spawnPosition)
+							> HomeTerritoryRadius * HomeTerritoryRadius
+						|| Physics.CheckCapsule(grounded + Vector3.up * 0.35f,
+							grounded + Vector3.up * 1.65f, 0.34f,
+							RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore)
+						|| autonomyPlanner != null
+							&& !autonomyPlanner.IsCandidateAllowedServer(grounded))
+						continue;
+					// Only commit the visit when no teammate is already scouting
+					// this room/sector. A successful visit is recorded at arrival.
+					if (autonomyPlanner != null
+						&& !autonomyPlanner.TryClaimObservedExplorationSectorServer(grounded))
+						continue;
+					destination = grounded;
 					return true;
 				}
 			}
