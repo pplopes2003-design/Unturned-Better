@@ -346,7 +346,14 @@ namespace SDG.Unturned
 
         private void FinishServer(string reason)
         {
-            if (isActive && autonomy != null && scannedCount >= 2)
+            // A combat interruption, blocked route or timeout is NOT
+            // evidence that the building was thoroughly searched. Retire
+            // only when this search actually ran out of viable nearby
+            // authored inspection sites or completed its fixed survey budget.
+            if (isActive && autonomy != null && scannedCount >= 2
+                && (reason == "site-budget-exhausted"
+                    || reason == "no-more-valid-authored-sites"
+                    || reason == "complete"))
                 autonomy.ReportStructureSurveyCompletedServer(origin, scannedCount);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (isActive)
