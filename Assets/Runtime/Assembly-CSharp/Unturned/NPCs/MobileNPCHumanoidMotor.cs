@@ -1428,7 +1428,6 @@ namespace SDG.Unturned
 			float bestScore = float.NegativeInfinity;
 			Vector3 observedGoal = Vector3.zero;
 			Vector3 observedDirection = Vector3.zero;
-			float radius = Mathf.Max(0.05f, characterController.radius * 0.75f);
 			// Three nearby candidates, NOT a map-wide search, and only
 			// one expensive ballistic preflight after geometric filtering.
 			for (int i = 0; i < 3; ++i)
