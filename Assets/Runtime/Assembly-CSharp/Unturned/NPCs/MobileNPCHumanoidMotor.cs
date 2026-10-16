@@ -4911,6 +4911,34 @@ namespace SDG.Unturned
 				return;
 			}
 
+			// A scavenger searches nearby MAP-AUTHORED inspection spots
+			// before trying arbitrary building centers. This is not a loot
+			// detector: only native ItemSpawnpoint geometry is consulted, never
+			// ItemManager availability, item IDs, inaccessible containers or
+			// any enemy position. The path must still be physically traversed.
+			if (autonomyPlanner != null
+				&& autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge
+				&& TryChooseLocalLootInspectionSiteServer(effectiveRoamingRadius,
+					out Vector3 inspectionSite)
+				&& (autonomyPlanner.TryClaimObservedExplorationSectorServer(inspectionSite)))
+			{
+				roamingDestination = inspectionSite;
+				hasRoamingDestination = true;
+				Vector3 direction = inspectionSite - transform.position;
+				direction.y = 0f;
+				if (direction.sqrMagnitude > 0.01f)
+				{
+					lastRoamingDirection = direction.normalized;
+					hasLastRoamingDirection = true;
+				}
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+				Debug.Log("[MobileNPCUrbanScavenge] NPC=" + name
+					+ " selected an authored local loot-search site at "
+					+ inspectionSite + " (availability unknown; route unverified).", this);
+#endif
+				return;
+			}
+
 			// A survivor ALREADY in an urban area first inspects nearby
 			// buildings. A broad novice director compass bearing should NOT
 			// pull him out of town before he has checked the local structures.
@@ -4999,6 +5027,75 @@ namespace SDG.Unturned
 
 			// Back off when this terrain patch has no valid candidate; do not search every frame.
 			nextRoamingDecisionTime = Time.time + Random.Range(3f, 7f);
+		}
+
+		/// <summary>
+		/// Bounded urban inspection of local native loot-spawn geometry.
+		/// Spawn sites are weak hints about where to LOOK, not knowledge
+		/// that a specific item currently exists. Never reads ItemManager.
+		/// </summary>
+		private bool TryChooseLocalLootInspectionSiteServer(float radius,
+			out Vector3 destination)
+		{
+			destination = Vector3.zero;
+			if (!Provider.isServer || LevelItems.spawns == null || autonomyPlanner == null)
+				return false;
+			Vector2Int center = Regions.GetCoordinateVector2Int(transform.position);
+			int scanned = 0;
+			int physicalProbes = 0;
+			float bestScore = float.PositiveInfinity;
+			float range = Mathf.Min(radius, 84f);
+			for (int dx = -1; dx <= 1 && scanned < 144; ++dx)
+			{
+				for (int dz = -1; dz <= 1 && scanned < 144; ++dz)
+				{
+					int x = center.x + dx, z = center.y + dz;
+					if (x < 0 || z < 0 || x >= Regions.WORLD_SIZE
+						|| z >= Regions.WORLD_SIZE)
+						continue;
+					List<ItemSpawnpoint> sites = LevelItems.spawns[x, z];
+					if (sites == null || sites.Count == 0)
+						continue;
+					int stride = Mathf.Max(1, sites.Count / 24);
+					for (int i = 0; i < sites.Count && scanned < 144; i += stride)
+					{
+						++scanned;
+						ItemSpawnpoint site = sites[i];
+						if (site == null)
+							continue;
+						Vector3 hint = site.point;
+						float distanceSq = PlanarDistanceSquared(hint, transform.position);
+						if (distanceSq < 5f * 5f || distanceSq > range * range
+							|| PlanarDistanceSquared(hint, spawnPosition)
+								> HomeTerritoryRadius * HomeTerritoryRadius
+							|| Mathf.Abs(hint.y - transform.position.y) > 2.6f
+							|| !autonomyPlanner.IsCandidateAllowedServer(hint))
+							continue;
+						// Limit expensive terrain/capsule probes to twelve per
+						// roaming decision, even on dense city maps.
+						if (physicalProbes++ >= 12)
+								break;
+						if (!MobileNPCSpawnService.TryFindSafeGroundPosition(
+							hint, 1.25f, 2.0f, roamingGroundMask,
+							Mathf.Min(55f, roamingMaximumSlope),
+							out Vector3 ground, out _)
+							|| Mathf.Abs(ground.y - hint.y) > 1.7f
+							|| PlanarDistanceSquared(ground, transform.position) < 4f * 4f
+							|| !autonomyPlanner.IsCandidateAllowedServer(ground)
+							|| Physics.CheckCapsule(ground + Vector3.up * 0.35f,
+								ground + Vector3.up * 1.65f, 0.34f,
+								RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore))
+							continue;
+						float score = distanceSq * Random.Range(0.78f, 1.22f);
+						if (score < bestScore)
+						{
+							bestScore = score;
+							destination = ground;
+						}
+					}
+				}
+			}
+			return bestScore < float.PositiveInfinity;
 		}
 
 		private bool TryChooseStructureExplorationPoint(float radius, out Vector3 destination)
