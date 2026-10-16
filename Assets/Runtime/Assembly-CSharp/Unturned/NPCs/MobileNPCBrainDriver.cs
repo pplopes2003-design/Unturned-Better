@@ -907,11 +907,48 @@ namespace SDG.Unturned
 			else
 			{
 				brain.ReportDestinationReached();
+				if (brain.CurrentState == MobileNPCBrain.State.Investigating)
+					ValidateInvestigationSweepServer();
 				if (investigatingPlayerClue)
 					TryUsePlayerKnowledgeHint();
 			}
 
 			PublishDecisionIfChanged();
+		}
+
+		/// <summary>
+		/// The sensory brain proposes local SEARCH hypotheses, not routes.
+		/// Previously its spiral could point through a wall, onto a rooftop
+		/// or over a courtyard gap and repeatedly jam the motor. Keep only
+		/// personally visited/physically reachable same-floor search probes.
+		/// At most three bounded route validations per reached sensory clue,
+		/// never per frame or during ordinary idle roaming.
+		/// </summary>
+		private void ValidateInvestigationSweepServer()
+		{
+			MobileNPCHumanoidMotor motor = GetComponent<MobileNPCHumanoidMotor>();
+			if (motor == null)
+				return;
+			for (int attempt = 0; attempt < 3
+				&& brain.CurrentState == MobileNPCBrain.State.Investigating; ++attempt)
+			{
+				Vector3 proposed = brain.Destination;
+				if (MobileNPCSpawnService.TryFindSafeGroundPosition(proposed,
+					0.85f, 1.15f, (RayMasks.BLOCK_COLLISION | RayMasks.GROUND2),
+					60f, out Vector3 confirmed, out Collider support, out _)
+					&& support != null
+					&& support.GetComponentInParent<Player>() == null
+					&& support.GetComponentInParent<Zombie>() == null
+					&& support.GetComponentInParent<MobileNPCHumanoidVitals>() == null
+					&& Mathf.Abs(confirmed.y - transform.position.y) <= 0.55f
+					&& motor.CanReachNearbyCoverServer(confirmed)
+					&& brain.TrySetInvestigationHint(confirmed, Time.time))
+					return;
+				// Skipping an invalid hypothesis is NOT claiming arrival or
+				// success. The base brain advances its finite uncertainty
+				// search; if all three are blocked it returns home normally.
+				brain.ReportDestinationReached();
+			}
 		}
 
 		public void TickServer(bool targetIsVisible)
