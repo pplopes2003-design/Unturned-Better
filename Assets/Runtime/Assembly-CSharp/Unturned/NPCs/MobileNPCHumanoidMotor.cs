@@ -131,6 +131,14 @@ namespace SDG.Unturned
 		private float plannedJumpMaximumDuration = 1.1f;
 		private bool plannedJumpUsesVaultPlan;
 		private bool plannedJumpLandsOnObjectTop;
+		private Collider plannedJumpSupportCollider;
+		// This is a SINGLE physical surface learned only after grounded
+		// landing, never a discovered prefab/network-wide climb link.
+		private Collider verifiedFurnitureSupportCollider;
+		private float verifiedFurnitureSupportY;
+		private float verifiedFurnitureSupportValidUntil;
+		private float nextVerifiedFurnitureSupportCheckTime;
+		private readonly RaycastHit[] furnitureSupportProbeHits = new RaycastHit[12];
 		private float nextRaisedObjectLandingDiagnosticTime;
 		private float suppressJourneyUntil;
 		private float nextPlannedJumpProbeTime;
@@ -340,6 +348,8 @@ namespace SDG.Unturned
 				ladderTraversal.ResetTraversal();
 			plannedJumpUsesVaultPlan = false;
 			plannedJumpLandsOnObjectTop = false;
+			plannedJumpSupportCollider = null;
+			ClearVerifiedFurnitureSupport();
 			nextRaisedObjectLandingDiagnosticTime = 0f;
 			plannedJumpLanding = Vector3.zero;
 			plannedJumpDirection = Vector3.zero;
@@ -428,6 +438,9 @@ namespace SDG.Unturned
 			}
 
 			float deltaTime = Time.deltaTime;
+			if (verifiedFurnitureSupportCollider != null
+				&& Time.time >= nextVerifiedFurnitureSupportCheckTime)
+				RefreshVerifiedFurnitureSupportServer();
 			if (deltaTime <= 0.0f)
 			{
 				return;
@@ -1049,7 +1062,19 @@ namespace SDG.Unturned
 				{
 					bool actuallyLanded = Vector3.Distance(transform.position,
 						plannedJumpLanding) < 0.65f;
-					if (actuallyLanded && plannedJumpLandsOnObjectTop
+					// The predicted top is NOT valid until the capsule
+					// actually touches the SAME physical supporting collider.
+					bool verifiedTopLanding = actuallyLanded
+						&& plannedJumpLandsOnObjectTop
+						&& TryVerifyObjectSupportAtCurrentPosition(plannedJumpSupportCollider);
+					if (verifiedTopLanding)
+					{
+						verifiedFurnitureSupportCollider = plannedJumpSupportCollider;
+						verifiedFurnitureSupportY = transform.position.y;
+						verifiedFurnitureSupportValidUntil = Time.time + 0.75f;
+						nextVerifiedFurnitureSupportCheckTime = Time.time + 0.25f;
+					}
+					if (verifiedTopLanding
 						&& Time.time >= nextRaisedObjectLandingDiagnosticTime)
 					{
 						// Report actual CharacterController ground contact,
@@ -1060,9 +1085,10 @@ namespace SDG.Unturned
 							+ "; NPC goal=" + destination + ".", this);
 					}
 					plannedJumpLandsOnObjectTop = false;
+					plannedJumpSupportCollider = null;
 					isPlannedJumping = false;
 					suppressJourneyUntil = Time.time + 0.3f;
-					if (!actuallyLanded)
+					if (!actuallyLanded || !verifiedTopLanding && plannedJumpSupportCollider != null)
 					{
 						RememberLocalNavigationDeadEnd(transform.position, destination);
 						noJumpUntil = Time.time + 6f;
@@ -1562,6 +1588,8 @@ namespace SDG.Unturned
 			plannedJumpMaximumDuration = Mathf.Max(1.1f, duration + 0.25f);
 			plannedJumpUsesVaultPlan = false;
 			plannedJumpLandsOnObjectTop = false;
+			plannedJumpSupportCollider = null;
+			ClearVerifiedFurnitureSupport();
 			plannedJumpStartedAt = Time.time;
 			isPlannedJumping = true;
 			velocity.y = impulse;
@@ -1599,6 +1627,8 @@ namespace SDG.Unturned
 			plannedJumpMaximumDuration = plan.MaximumDuration;
 			plannedJumpUsesVaultPlan = true;
 			plannedJumpLandsOnObjectTop = plan.LandingOnObjectTop;
+			plannedJumpSupportCollider = plan.LandingSupportCollider;
+			ClearVerifiedFurnitureSupport();
 			isPlannedJumping = true;
 			velocity.y = plan.Impulse;
 			// Permit an obstacle-by-obstacle sequence of real jumps after a
@@ -1755,6 +1785,8 @@ namespace SDG.Unturned
 			transform.position = recoveredPosition;
 			velocity.y = 0f;
 			isPlannedJumping = false;
+			plannedJumpSupportCollider = null;
+			ClearVerifiedFurnitureSupport();
 			suppressJourneyUntil = Time.time + 0.35f;
 			ResetObservedEntranceSurvey();
 			System.Array.Clear(recentNavDeadEndExpiry, 0, recentNavDeadEndExpiry.Length);
@@ -3630,6 +3662,78 @@ namespace SDG.Unturned
 		/// broken bridges and false connections across overlapping interiors.
 		/// Called only after the cheap occupancy and height tests passed.
 		/// </summary>
+		private void ClearVerifiedFurnitureSupport()
+		{
+			verifiedFurnitureSupportCollider = null;
+			verifiedFurnitureSupportY = 0f;
+			verifiedFurnitureSupportValidUntil = 0f;
+			nextVerifiedFurnitureSupportCheckTime = 0f;
+		}
+
+		private bool TryVerifyObjectSupportAtCurrentPosition(Collider expected)
+		{
+			if (!Provider.isServer || expected == null || !expected.enabled
+				|| characterController == null || !characterController.enabled)
+				return false;
+			// Probe the true support from just above the capsule's feet:
+			// a ray from above the furniture could mistake a remote shelf
+			// for what the NPC is actually standing on.
+			Vector3 origin = transform.position + Vector3.up * 0.34f;
+			int count = Physics.RaycastNonAlloc(origin, Vector3.down,
+				furnitureSupportProbeHits, 0.63f, obstacleMask,
+				QueryTriggerInteraction.Ignore);
+			if (count <= 0 || count >= furnitureSupportProbeHits.Length)
+				return false;
+			Collider closestCollider = null;
+			float closest = float.PositiveInfinity;
+			RaycastHit nearest = default(RaycastHit);
+			for (int i = 0; i < count; ++i)
+			{
+				RaycastHit hit = furnitureSupportProbeHits[i];
+				if (hit.collider == null || IsOwnCollider(hit.collider))
+					continue;
+				if (hit.distance < closest)
+				{
+					closest = hit.distance;
+					closestCollider = hit.collider;
+					nearest = hit;
+				}
+			}
+			return closestCollider != null
+				&& MobileNPCVaultTraversal.IsSamePhysicalObstacle(
+					closestCollider, expected)
+				&& nearest.normal.y >= 0.88f
+				&& Mathf.Abs(nearest.point.y + 0.05f - transform.position.y) <= 0.18f;
+		}
+
+		private void RefreshVerifiedFurnitureSupportServer()
+		{
+			nextVerifiedFurnitureSupportCheckTime = Time.time + 0.3f;
+			if (verifiedFurnitureSupportCollider == null
+				|| isPlannedJumping || IsTraversingLadder
+				|| !IsGroundedUsingPlayerProbe()
+				|| !TryVerifyObjectSupportAtCurrentPosition(
+					verifiedFurnitureSupportCollider))
+			{
+				ClearVerifiedFurnitureSupport();
+				return;
+			}
+			verifiedFurnitureSupportY = transform.position.y;
+			verifiedFurnitureSupportValidUntil = Time.time + 0.6f;
+		}
+
+		private bool CanUsePhysicallyReachedFurnitureFloor(
+			Collider candidate, Vector3 ground)
+		{
+			return candidate != null
+				&& verifiedFurnitureSupportCollider != null
+				&& Time.time < verifiedFurnitureSupportValidUntil
+				&& MobileNPCVaultTraversal.IsSamePhysicalObstacle(
+					candidate, verifiedFurnitureSupportCollider)
+				&& Mathf.Abs(ground.y - verifiedFurnitureSupportY) <= 0.2f
+				&& PlanarDistanceSquared(transform.position, ground) <= 25f;
+		}
+
 		private static bool IsFurnitureSurfaceCollider(Collider collider)
 		{
 			if (collider == null)
@@ -3652,7 +3756,8 @@ namespace SDG.Unturned
 				0.7f, 0.85f, roamingGroundMask,
 				Mathf.Min(characterController.slopeLimit, roamingMaximumSlope),
 				out Vector3 floor, out Collider floorCollider, out _)
-				|| IsFurnitureSurfaceCollider(floorCollider)
+				|| (IsFurnitureSurfaceCollider(floorCollider)
+					&& !CanUsePhysicallyReachedFurnitureFloor(floorCollider, floor))
 				|| Mathf.Abs(floor.y - midpoint.y) > 0.35f)
 				return false;
 			float riseLimit = characterController.stepOffset
@@ -3735,7 +3840,9 @@ namespace SDG.Unturned
 					if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate,
 						1.6f, 2.2f, roamingGroundMask, roamingMaximumSlope,
 						out Vector3 resolved, out Collider floorCollider, out _)
-						|| IsFurnitureSurfaceCollider(floorCollider))
+						|| (IsFurnitureSurfaceCollider(floorCollider)
+							&& !CanUsePhysicallyReachedFurnitureFloor(
+								floorCollider, resolved)))
 						continue;
 					if (Mathf.Abs(resolved.y - floorY) > maxFloorDelta)
 						continue;
