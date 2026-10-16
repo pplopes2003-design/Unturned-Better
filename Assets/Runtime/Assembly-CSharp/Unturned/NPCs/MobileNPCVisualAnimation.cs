@@ -35,6 +35,8 @@ namespace SDG.Unturned
         private bool jumpPresentationAttempted;
         private bool missingClimbClipLogged;
         private bool missingCombatStrikeClipLogged;
+        private static readonly MasterBundleReference<AudioClip> NativePunchAudio =
+            new MasterBundleReference<AudioClip>("core.masterbundle", "Sounds/MeleeAttack_02.mp3");
 
         private void Awake()
         {
@@ -284,6 +286,7 @@ namespace SDG.Unturned
 
         private void PlayAttackAnimation()
         {
+            PlayAuthenticMeleeAudio();
             // The actual damage is server-authoritative in MobileNPCHumanoidCombat.
             // This adapter only animates a committed swing. Weapon vs fists
             // affects the preferred native clip family, never grants a hit.
@@ -341,6 +344,29 @@ namespace SDG.Unturned
             currentClip = clipName;
             clipOwner.enabled = true;
             clipOwner.CrossFade(clipName, Mathf.Min(crossFadeDuration, 0.08f));
+        }
+
+        private void PlayAuthenticMeleeAudio()
+        {
+            if (Dedicator.IsDedicatedServer)
+                return;
+            AudioClip clip = null;
+            if (combat != null && combat.LastAttackUsedMeleeWeapon
+                && combat.LastAttackWeaponID != 0)
+            {
+                ItemMeleeAsset weapon = Assets.find(EAssetType.ITEM,
+                    combat.LastAttackWeaponID) as ItemMeleeAsset;
+                if (weapon != null)
+                    clip = weapon.use;
+            }
+            if (clip == null)
+                clip = NativePunchAudio.loadAsset();
+            if (clip == null)
+                return;
+            OneShotAudioParameters audio = new OneShotAudioParameters(transform, clip);
+            audio.volume = 0.3f;
+            audio.SetLinearRolloff(1f, 16f);
+            audio.Play();
         }
 
         private void HandleDamageReceived(Transform attacker, float amount)
