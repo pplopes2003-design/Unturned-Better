@@ -71,6 +71,9 @@ namespace SDG.Unturned
 		private uint temporarilyInaccessibleInstanceID;
 		private float temporarilyInaccessibleUntil;
 		private float nextScanTime;
+		private bool routineInspectionPending;
+		private Vector3 routineInspectionSite;
+		private float routineInspectionExpiresAt;
 
 		private void Awake()
 		{
@@ -83,6 +86,36 @@ namespace SDG.Unturned
 			autonomyPlanner = GetComponent<MobileNPCAutonomyPlanner>();
 			radioLootRumor = GetComponent<MobileNPCUsefulLootRumor>();
 			radioOutbox = GetComponent<MobileNPCRadioOutbox>();
+		}
+
+		/// <summary>
+		/// The native motor confirms physical arrival at a speculative map
+		/// inspection point. Request an immediate ordinary visual world-item
+		/// scan on the next free server update; do not materialize or award loot.
+		/// </summary>
+		public void RequestRoutineInspectionServer(Vector3 confirmedArrival)
+		{
+			if (!Provider.isServer || driver == null || inventory == null
+				|| !inventory.HasSpace || autonomyPlanner == null
+				|| autonomyPlanner.CurrentJob != MobileNPCAutonomyPlanner.Job.Scavenge
+				|| driver.Target != null || driver.CurrentGoal != MobileNPCTactics.Goal.None)
+				return;
+			routineInspectionPending = true;
+			routineInspectionSite = confirmedArrival;
+			routineInspectionExpiresAt = Time.time + 7f;
+			nextScanTime = Time.time;
+		}
+
+		private void CompleteRoutineInspectionServer(bool startedRealLootGoal)
+		{
+			if (!routineInspectionPending)
+				return;
+			routineInspectionPending = false;
+			if (Time.time > routineInspectionExpiresAt)
+				return;
+			if (autonomyPlanner != null)
+				autonomyPlanner.ReportLocalInspectionScannedServer(
+					routineInspectionSite, startedRealLootGoal);
 		}
 
 		private void Update()
@@ -99,6 +132,8 @@ namespace SDG.Unturned
 				radioLootRumor = GetComponent<MobileNPCUsefulLootRumor>();
 			if (radioOutbox == null)
 				radioOutbox = GetComponent<MobileNPCRadioOutbox>();
+			if (routineInspectionPending && Time.time > routineInspectionExpiresAt)
+				routineInspectionPending = false;
 			TickSupplyPlanServer();
 			UpdateRememberedSupplyTripServer();
 			// Manufacture only authored vanilla raid supplies from owned
@@ -216,6 +251,8 @@ namespace SDG.Unturned
 					}
 					// Any learned source must be an ACTUAL completed transfer, not
 					// seeing loot through walls or a guaranteed respawn table.
+					if (pickedUp && autonomyPlanner != null)
+						autonomyPlanner.ReportWorldPickupCompletedServer();
 					if (pickedUp && supplyKnowledge != null && targetItemID != 0)
 						supplyKnowledge.RecordSuccessfulPickupServer(targetItemID, targetItemRounds, targetPosition);
 					if (pickedUp && isRememberedSupplyTrip && targetItemID == rememberedItemID)
@@ -370,7 +407,12 @@ namespace SDG.Unturned
 				&& MayLeaveRoutineForRememberedSuppliesServer())
 				TryPlanRememberedSupplySearchServer();
 
-			if (bestItem != null && driver.TryStartLoot(bestItem.transform.position))
+			bool acceptedVisibleLoot = bestItem != null
+				&& driver.TryStartLoot(bestItem.transform.position);
+			// One physical inspection is considered done only after the native
+			// drop scan, LOS filtering, value filtering and tactical handoff.
+			CompleteRoutineInspectionServer(acceptedVisibleLoot);
+			if (acceptedVisibleLoot)
 			{
 				targetItemID = bestItem.jar != null && bestItem.jar.item != null
 					? bestItem.jar.item.id : (ushort)0;
@@ -951,6 +993,7 @@ namespace SDG.Unturned
 
 		private void OnDisable()
 		{
+			routineInspectionPending = false;
 			// Death disables the looting component; tactical reactivation must
 			// not inherit a dead actor's exclusive remembered-site claim.
 			CancelRememberedSupplyTripServer(true);
