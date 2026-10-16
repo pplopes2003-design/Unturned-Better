@@ -1785,50 +1785,24 @@ namespace SDG.Unturned
 			}
 		}
 
-		// Route loud explosions through the existing point-investigation AI. A short
-		// spatial cooldown avoids alerting the region repeatedly for one blast.
-		private static float lastNoiseAlertTime = -1000.0f;
-		private static Vector3 lastNoiseAlertPosition;
-		private const float NOISE_ALERT_COOLDOWN = 0.12f;
-
+		/// <summary>
+		/// Compatibility for earlier custom NPC call sites. Vanilla Unturned
+		/// already owns acoustic alerts through AlertTool.alert(position,
+		/// radius), which respects authored sound radius, navigation regions,
+		/// startle state, and existing pursuit precedence. NEVER dispatch a
+		/// second global AllZombies point-alert pass: that replaced native
+		/// targets and sent zombies away from genuine gunshots/explosions.
+		/// </summary>
 		public static void alertZombiesToNoise(Vector3 position, float radius)
 		{
-			// A sound is a physical event, not a navigation-region event.
-			// Players and mobile NPCs can fire on playable terrain outside all
-			// POI meshes. Requiring tryGetNavigation here made real shots silent
-			// to every zombie as soon as the shooter crossed that boundary.
-			if (!Provider.isServer || !Level.isLoaded || regions == null
-				|| AllZombies == null || float.IsNaN(radius)
-				|| float.IsInfinity(radius) || radius <= 0f
+			if (!Provider.isServer || !Level.isLoaded
+				|| float.IsNaN(radius) || float.IsInfinity(radius) || radius <= 0f
 				|| float.IsNaN(position.x) || float.IsInfinity(position.x)
 				|| float.IsNaN(position.y) || float.IsInfinity(position.y)
-				|| float.IsNaN(position.z) || float.IsInfinity(position.z)
-				|| !Level.checkSafeIncludingClipVolumes(position))
+				|| float.IsNaN(position.z) || float.IsInfinity(position.z))
 				return;
 
-			// Validate the event before consuming the shared spatial cooldown.
-			// A valid source needs no fabricated nav region or zombie teleport.
-			if (Time.time - lastNoiseAlertTime < NOISE_ALERT_COOLDOWN && (position - lastNoiseAlertPosition).sqrMagnitude < 1.0f)
-			{
-				return;
-			}
-
-			lastNoiseAlertTime = Time.time;
-			lastNoiseAlertPosition = position;
-
-			// Noise can be heard across navigation-region boundaries. Use the global
-			// zombie list and the real 3D distance instead of checking only the source region.
-			float sqrRadius = radius * radius;
-			for (int index = 0; index < AllZombies.Count; ++index)
-			{
-				Zombie zombie = AllZombies[index];
-				if (zombie == null || zombie.isDead || (zombie.transform.position - position).sqrMagnitude > sqrRadius)
-				{
-					continue;
-				}
-
-				zombie.alert(position, false);
-			}
+			AlertTool.alert(position, radius);
 		}
 
 		// Ambient migration and horde formation are server-authoritative. They reuse the
