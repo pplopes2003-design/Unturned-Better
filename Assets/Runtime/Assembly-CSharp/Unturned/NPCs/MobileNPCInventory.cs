@@ -164,6 +164,12 @@ namespace SDG.Unturned
 		/// </summary>
 		public bool TryGetBestMeleeServer(out Item weapon, out ItemMeleeAsset asset)
 		{
+			return TryGetBestMeleeServer(false, out weapon, out asset);
+		}
+
+		public bool TryGetBestMeleeServer(bool againstPlayer,
+			out Item weapon, out ItemMeleeAsset asset)
+		{
 			weapon = null;
 			asset = null;
 			if (!Provider.isServer)
@@ -183,7 +189,9 @@ namespace SDG.Unturned
 				float qualityFactor = quality < 0.5f ? 0.5f + quality : 1f;
 				float playerDamage = melee.playerDamageMultiplier.multiply(ELimb.SPINE);
 				float zombieDamage = melee.zombieOrPlayerDamageMultiplier.multiply(ELimb.SPINE);
-				float strength = Mathf.Max(playerDamage, zombieDamage) * qualityFactor;
+				// Do not pick a zombie-only weapon to extend a fist's reach
+				// against a player, or the reverse. Match vanilla multipliers.
+				float strength = (againstPlayer ? playerDamage : zombieDamage) * qualityFactor;
 				if (strength <= 0f || float.IsNaN(strength) || float.IsInfinity(strength))
 					continue;
 				float score = strength + Mathf.Clamp(melee.range, 0.8f, 3.2f) * 2f;
