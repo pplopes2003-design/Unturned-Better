@@ -399,6 +399,43 @@ namespace SDG.Unturned
 				radioOutbox.TryQueueObservedUsefulLootServer(best);
 		}
 
+		/// <summary>Compare native armor/quality of a real visible garment with
+		/// the best garment the NPC already owns. Cosmetic clothing never
+		/// outranks urgent survival and does not imply fabricated armor.
+		/// </summary>
+		private float ScoreNativeClothingUpgradeServer(InteractableItem visible)
+		{
+			ItemClothingAsset candidate = visible != null ? visible.asset as ItemClothingAsset : null;
+			if (candidate == null || inventory == null)
+				return 12f;
+			byte quality = visible.jar != null && visible.jar.item != null
+				? visible.jar.item.quality : (byte)100;
+			float candidateMultiplier = candidate.armor
+				+ (1f - candidate.armor) * (1f - quality / 100f);
+			float ownedBestMultiplier = 1f;
+			bool ownsType = false;
+			for (int i = 0; i < inventory.UsedSlots; ++i)
+			{
+				if (!inventory.TryGetItemSnapshot(i, out Item held) || held == null)
+					continue;
+				ItemClothingAsset owned = Assets.find(EAssetType.ITEM, held.id)
+					as ItemClothingAsset;
+				if (owned == null || owned.type != candidate.type)
+					continue;
+				ownsType = true;
+				float actual = owned.armor
+					+ (1f - owned.armor) * (1f - held.quality / 100f);
+				ownedBestMultiplier = Mathf.Min(ownedBestMultiplier, actual);
+			}
+			if (ownsType && candidateMultiplier >= ownedBestMultiplier - 0.02f)
+				return 9f;
+			float protectionGain = Mathf.Clamp01(ownedBestMultiplier - candidateMultiplier);
+			// Head/torso protective upgrades matter more than a cosmetic mask.
+			if (protectionGain > 0.01f)
+				return 45f + protectionGain * 110f;
+			return ownsType ? 10f : 30f;
+		}
+
 		/// <summary>Ranks drops by situational usefulness first and distance second.</summary>
 		private float ScoreItem(InteractableItem item, float distanceSqr)
 		{
@@ -454,7 +491,10 @@ namespace SDG.Unturned
 					break;
 				}
 				case EItemType.BACKPACK:
-					score = 46f;
+					// An owned backpack now appears on the NPC, but simulated
+					// inventory capacity is NOT derived from vanilla clothing.
+					// Do not pretend it grants extra storage yet.
+					score = inventory.CountItemType(EItemType.BACKPACK) == 0 ? 31f : 10f;
 					break;
 				case EItemType.VEST:
 				case EItemType.HAT:
@@ -462,7 +502,7 @@ namespace SDG.Unturned
 				case EItemType.PANTS:
 				case EItemType.MASK:
 				case EItemType.GLASSES:
-					score = 34f;
+					score = ScoreNativeClothingUpgradeServer(item);
 					break;
 				case EItemType.BARRICADE:
 				case EItemType.STORAGE:
