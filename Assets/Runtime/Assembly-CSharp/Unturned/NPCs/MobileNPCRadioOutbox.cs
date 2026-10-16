@@ -10,9 +10,9 @@ namespace SDG.Unturned
     /// <summary>
     /// Server-local NPC radio queue and single-player text transmitter.
     /// Sends reports among living same-group radio endpoints and to the host-only
-    /// channel/equipment-gated intercept HUD. No native voice packets, physical
-    /// NPC hand equipment or remote client messages. Each NPC endpoint must
-    /// either own 1445 or stand at its powered physical base-radio assembly.
+    /// channel/equipment-gated intercept HUD. No native voice packets.
+    /// ONLY an owned walkie transmits; an ACTUALLY worn earpiece listens.
+    /// No fictional generator-powered storage/vehicle radio endpoint.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(MobileNPCInventory))]
@@ -35,6 +35,7 @@ namespace SDG.Unturned
         private const float PerNpcTransmitInterval = 8f;
         private readonly Queue<MobileNPCRadioMessage> pending = new Queue<MobileNPCRadioMessage>();
         private MobileNPCInventory inventory;
+        private MobileNPCEquipment equipment;
         private MobileNPCGroupMember group;
         private MobileNPCFaction faction;
         private MobileNPCHumanoidVitals vitals;
@@ -70,7 +71,7 @@ namespace SDG.Unturned
                 || Time.time < nextAttemptTransmitAt
                 || Time.time < nextGlobalTransmitAt
                 || Time.time < nextPersonalTransmitAt
-                || !HasOperationalRadioEndpoint)
+                || !HasOwnedPortableRadio)
                 return;
             nextAttemptTransmitAt = Time.time + 0.35f;
             if (!TryPeekFreshReport(out MobileNPCRadioMessage message)
@@ -84,19 +85,18 @@ namespace SDG.Unturned
             if (frequency == 0u)
                 return;
 
-            // Consume airtime only with a real owned portable 1445 OR
-            // near a real stored 1445 at an electrically active group base.
-            // Neither option is an actual NPC PlayerVoice microphone packet.
+            // No native NPC PlayerVoice microphone: reports are simulated,
+            // and only an NPC with a genuinely owned walkie can transmit.
             nextGlobalTransmitAt = Time.time + TransmissionAirtime;
             nextPersonalTransmitAt = Time.time + PerNpcTransmitInterval;
             int delivered = 0;
-            int baseStationReceivers = 0;
+            int earpieceReceivers = 0;
             MobileNPCReinforcementResponse bestResponder = null;
             float bestResponderScore = -1f;
             foreach (MobileNPCRadioOutbox receiver in ActiveRadios)
             {
                 if (receiver == null || receiver == this
-                    || !receiver.HasOperationalRadioEndpoint
+                    || !receiver.HasRadioReceiverServer
                     || receiver.TunedFrequency != frequency
                     || receiver.group == null
                     || receiver.group.GroupId != group.GroupId
@@ -160,7 +160,7 @@ namespace SDG.Unturned
                 }
                 delivered++;
                 if (!receiver.HasOwnedPortableRadio)
-                    baseStationReceivers++;
+                    earpieceReceivers++;
             }
             if (bestResponder != null)
                 bestResponder.ReceiveReinforcementRequestServer(message);
@@ -174,9 +174,9 @@ namespace SDG.Unturned
                 nextRadioDiagnosticsAt = Time.time + 10f;
                 Debug.Log("[MobileNPCRadioOutbox] Physical radio text broadcast: group="
                     + group.GroupId + ", frequency=" + frequency
-                    + ", source=" + (HasOwnedPortableRadio ? "portable" : "powered-base")
+                    + ", source=owned-walkie"
                     + ", NPC receivers=" + delivered
-                    + ", base-station receivers=" + baseStationReceivers
+                    + ", worn-earpiece receivers=" + earpieceReceivers
                     + ", local player intercepted=" + intercepted
                     + ". No microphone audio or remote-client replication.", this);
             }
@@ -186,6 +186,7 @@ namespace SDG.Unturned
         private void Awake()
         {
             inventory = GetComponent<MobileNPCInventory>();
+            equipment = GetComponent<MobileNPCEquipment>();
             group = GetComponent<MobileNPCGroupMember>();
             faction = GetComponent<MobileNPCFaction>();
             vitals = GetComponent<MobileNPCHumanoidVitals>();
@@ -193,28 +194,23 @@ namespace SDG.Unturned
         }
 
         /// <summary>
-        /// Portable ownership permits simulated NPC operation; a separate
-        /// physically operated, electrically active base assembly also qualifies.
-        /// Neither endpoint is native NPC PlayerVoice/PlayerEquipment.
+        /// An owned vanilla Walkie Talkie may transmit simulated NPC text.
+        /// Vanilla PlayerVoice itself cannot be attached to our custom NPC.
         /// </summary>
         public bool HasOwnedPortableRadio => Provider.isServer && inventory != null
             && inventory.ContainsItemID(VanillaWalkieTalkieID)
             && (vitals == null || !vitals.IsDead);
 
-        /// <summary>
-        /// A station is only usable when the NPC is physically next to its
-        /// group's placed container containing 1445 and native active power.
-        /// There is no infinite-distance/base-radio telepathy.
-        /// </summary>
-        private bool HasOperationalRadioEndpoint => HasOwnedPortableRadio
-            || group != null && MobileNPCBaseRadioStation.CanOperateServer(
-                group, transform.position);
+        /// <summary>Matches PlayerVoice.canHearRadio: an owned walkie or an
+        /// actually worn native Earpiece mask. An inventoried mask is not enough.</summary>
+        public bool HasRadioReceiverServer => HasOwnedPortableRadio
+            || equipment != null && equipment.HasWornEarpieceServer;
 
         public int PendingCount => pending.Count;
 
         public bool TryQueueObservedContact(Vector3 lastObservedPlayerPosition)
         {
-            if (!Provider.isServer || !HasOperationalRadioEndpoint || Time.time < nextPrepareAt
+            if (!Provider.isServer || !HasOwnedPortableRadio || Time.time < nextPrepareAt
                 || group == null || group.GroupId <= 0 || faction == null
                 || disposition == null
                 || !disposition.CanEngagePlayers)
@@ -242,7 +238,7 @@ namespace SDG.Unturned
         /// </summary>
         public bool TryQueueObservedAirdrop(Vector3 observedPosition)
         {
-            if (!Provider.isServer || !HasOperationalRadioEndpoint || Time.time < nextPrepareAt
+            if (!Provider.isServer || !HasOwnedPortableRadio || Time.time < nextPrepareAt
                 || group == null || group.GroupId <= 0
                 || faction == null || disposition == null
                 || Vector3.SqrMagnitude(observedPosition - transform.position) > 28f * 28f)
@@ -266,7 +262,7 @@ namespace SDG.Unturned
         {
             if (!Provider.isServer || Time.time < nextPrepareAt
                 || group == null || group.GroupId <= 0 || faction == null
-                || disposition == null || !HasOperationalRadioEndpoint
+                || disposition == null || !HasOwnedPortableRadio
                 || (observedSite - transform.position).sqrMagnitude > 30f * 30f)
                 return false;
             if (!MobileNPCRadioMessage.TryCreate(
@@ -298,7 +294,7 @@ namespace SDG.Unturned
                 || observed.jar == null || observed.jar.item == null
                 || observed.jar.item.id == 0
                 || MobileNPCUsefulLootVision.IntrinsicImportance(observed.asset) < 60f
-                || !HasOperationalRadioEndpoint
+                || !HasOwnedPortableRadio
                 || !MobileNPCUsefulLootVision.CanSeeWorldDropServer(
                     observed, transform, 17f))
                 return false;
@@ -340,7 +336,7 @@ namespace SDG.Unturned
                 || vitals.LastDamageTime < 0f
                 || Time.time - vitals.LastDamageTime > 7f
                 || vitals.HealthFraction > 0.9f || disposition == null
-                || !HasOperationalRadioEndpoint)
+                || !HasOwnedPortableRadio)
                 return false;
 
             Player player = seenThreat.GetComponentInParent<Player>();
@@ -381,7 +377,7 @@ namespace SDG.Unturned
         public bool TryPeekFreshReport(out MobileNPCRadioMessage message)
         {
             message = null;
-            if (!HasOperationalRadioEndpoint)
+            if (!HasOwnedPortableRadio)
                 return false;
 
             while (pending.Count > 0)
