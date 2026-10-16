@@ -227,7 +227,7 @@ Ao observar outra fronteira solidamente bloqueada do MESMO goal e ainda na janel
 
 **Risco importante:** o SDK aberto não confirma runtime do ASPFP nem a compatibilidade de cada prefab/barricade. Não há compilação Unity, performance medida ou gameplay nesta rodada. Foco de aceitação na seção 70 com cenários de loot, combate e 1/10/20/40 NPCs. **`AI-CLIMB-DECISION-01 QUASE PRONTA — AGUARDANDO DEV BUILD`**; `NAV-OBJECT-CLIMB/FOOTING` mesmos status; IA geral, combate, mortes, HUD e zumbis permanecem no guia como pendências próprias.
 
-## 2026-10-15 — LIFE-HITBOX-ANIM-01: corpo integral e anatomia em movimento
+## 2026-10-15 — LIFE-HITBOX-ANIM-01: HISTÓRICO/CANCELADO (19 volumes; prevalece a solução Player_Server de seis)
 
 Pergunta explícita do usuário: "6 hitboxes somente? Isso abrange o corpo todo? Se não, corrija". **NÃO**: seis volumes radiais/médios, fixos ao root, aproximavam cabeça, tronco, braços e pernas, mas deixavam lacunas em mãos, pés, pescoço, ombros/articulações e não acompanhavam poses de corrida/ataque/agachamento. A distribuição antiga de seis não representa toda silhueta/animador.
 
