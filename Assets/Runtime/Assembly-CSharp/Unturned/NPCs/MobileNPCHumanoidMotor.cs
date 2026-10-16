@@ -987,6 +987,9 @@ namespace SDG.Unturned
 						&& autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge;
 					if (scavenging)
 					{
+						MobileNPCInteriorSurvey survey = GetComponent<MobileNPCInteriorSurvey>();
+						if (survey != null)
+							survey.ReportArrivedServer(roamingDestination);
 						MobileNPCLooting looting = GetComponent<MobileNPCLooting>();
 						if (looting != null)
 							looting.RequestRoutineInspectionServer(roamingDestination);
@@ -1012,6 +1015,9 @@ namespace SDG.Unturned
 				// is a deliberate pause, not evidence of a failed destination.
 				// If genuinely unable to steer, abandon this optional waypoint
 				// and sample another real ground point rather than freezing forever.
+				MobileNPCInteriorSurvey survey = GetComponent<MobileNPCInteriorSurvey>();
+				if (survey != null)
+					survey.ReportRoomRouteBlockedServer(roamingDestination);
 				if (autonomyPlanner != null)
 					autonomyPlanner.ReportRoamBlockedServer(roamingDestination);
 				hasRoamingDestination = false;
@@ -2539,6 +2545,9 @@ namespace SDG.Unturned
 					// Keep physical side commitment when it exists.
 					return;
 				}
+				MobileNPCInteriorSurvey survey = GetComponent<MobileNPCInteriorSurvey>();
+				if (survey != null)
+					survey.ReportRoomRouteBlockedServer(roamingDestination);
 				if (autonomyPlanner != null)
 					autonomyPlanner.ReportRoamBlockedServer(roamingDestination);
 				hasRoamingDestination = false;
@@ -4905,6 +4914,29 @@ namespace SDG.Unturned
 				&& autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge)
 				effectiveRoamingRadius = Mathf.Min(effectiveRoamingRadius, 110f);
 
+			// Continue an ALREADY visited urban site before randomly selecting
+			// a different building, but only if no tactical/combat goal owns
+			// movement and all proposed floor/collision checks pass.
+			MobileNPCInteriorSurvey interiorSurvey = GetComponent<MobileNPCInteriorSurvey>();
+			if (autonomyPlanner != null
+				&& autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge
+				&& interiorSurvey != null
+				&& interiorSurvey.TryChooseNextRoomServer(effectiveRoamingRadius,
+					spawnPosition, HomeTerritoryRadius,
+					roamingGroundMask, roamingMaximumSlope,
+					out Vector3 nextRoom))
+			{
+				if (autonomyPlanner.TryClaimObservedExplorationSectorServer(nextRoom))
+				{
+					interiorSurvey.ConfirmNextRoomAssignedServer(nextRoom);
+					roamingDestination = nextRoom;
+					hasRoamingDestination = true;
+					return;
+				}
+				// A squadmate reserved this room; do not claim progress.
+				interiorSurvey.ReportRoomRouteBlockedServer(nextRoom);
+			}
+
 			// A real trading-group courier with a nearly full pack has a
 			// concrete delivery objective: reach a WALKABLE position beside the
 			// living vendor. Reusing arbitrary settlement patrol waypoints may
@@ -4945,6 +4977,8 @@ namespace SDG.Unturned
 			{
 				roamingDestination = inspectionSite;
 				hasRoamingDestination = true;
+				if (interiorSurvey != null)
+					interiorSurvey.TryBeginAtAuthoredSiteServer(inspectionSite);
 				Vector3 direction = inspectionSite - transform.position;
 				direction.y = 0f;
 				if (direction.sqrMagnitude > 0.01f)
