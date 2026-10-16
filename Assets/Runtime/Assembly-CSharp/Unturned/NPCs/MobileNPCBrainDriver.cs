@@ -759,6 +759,34 @@ namespace SDG.Unturned
 			return selected;
 		}
 
+		/// <summary>
+		/// Exceptional SHORT raised flank: a nearby crate is NOT a normal
+		/// navigable floor. Accept ONLY a fresh motor-validated ballistic
+		/// landing while an actual target is confirmed and the NPC is still
+		/// able to choose a flank. Never accept a guessed higher vantage.
+		/// </summary>
+		public bool TryStartObservedElevatedFlankServer(Vector3 verifiedLanding)
+		{
+			if (!CanAcceptServerInput || brain == null || brain.Target == null
+				|| brain.CurrentState != MobileNPCBrain.State.Pursuing
+				|| tactics == null || tactics.CurrentGoal != MobileNPCTactics.Goal.None
+				|| float.IsNaN(verifiedLanding.x) || float.IsInfinity(verifiedLanding.x)
+				|| float.IsNaN(verifiedLanding.y) || float.IsInfinity(verifiedLanding.y)
+				|| float.IsNaN(verifiedLanding.z) || float.IsInfinity(verifiedLanding.z)
+				|| verifiedLanding.y - transform.position.y < 0.40f
+				|| verifiedLanding.y - transform.position.y > 1.10f
+				|| (verifiedLanding - transform.position).sqrMagnitude > 8f)
+				return false;
+			MobileNPCHumanoidMotor motor = GetComponent<MobileNPCHumanoidMotor>();
+			if (motor == null || !motor.HasValidatedRecentElevatedTacticalGoalServer(
+				verifiedLanding))
+				return false;
+
+			bool selected = tactics.TryStartFlank(verifiedLanding, Time.time);
+			PublishDecisionIfChanged();
+			return selected;
+		}
+
 		public void ReportValidatedRetreatPoint(Vector3 safePoint)
 		{
 			if (!CanAcceptServerInput)
