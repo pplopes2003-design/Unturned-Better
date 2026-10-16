@@ -384,3 +384,33 @@ When an investigating brain reaches a genuine sound clue, its next three uncerta
 **Remaining AI tasks:** diagnosis of native ASPFP/\`Pathfinding.NavmeshCut\` absence and multi-room/long-range navigation without the native graph, full combat behavior validation, radio rumors with actual devices, persistent job state across save/load, injury and supply side effects, NPC relationships/trading/HUD, long-range zombie pursuit. Do not classify these as fixed solely from these changes.
 
 **Follow-up during this source pass:** both personally remembered supply sites and uncertain player-knowledge hints used tall ground probes that could silently choose an unrelated higher floor. Their lookup now stays near the original first-hand item/clue elevation and rejects actor/furniture support or cross-floor jumps. This remains speculative *navigation knowledge*, not a guarantee that loot or the unseen enemy is currently there. These fixes also remain QUASE PRONTOS until the Unity build confirms them.
+
+
+## A-Life v7: persistent physiology, jobs and resumed routines — 16 Oct 2026
+
+**Status: QUASE PRONTO — source-reviewed changes only. Not Unity compiled or playtested.**
+
+### Concrete flaws found
+
+- Previous MobileNPCPersistence snapshot **version 6** saved player-equivalent NPC health, inventory, group identity, individual experience/supply locations and learned routes, but not current routine, personal personality biases, hunger, thirst, bleeding, limb condition or broken legs. An old severely thirsty/bleeding NPC was reborn full of water and without any wound on game reload.
+- Medical wound-care logic existed as MobileNPCMedicalBehavior, but the actual \`MobileNPCPopulationBootstrap\` runtime template did **not attach it**. Existing vitals did already require the InjurySystem; the planner's missing-supply utility therefore could never evaluate actual missing bandages/splints, and rag/bandage/splint use wasn't running through the dedicated wound-care loop.
+- An interrupting tactical/sensory destination erased a low-priority patrol/scavenge waypoint. Once combat/noise finished, this survivor would choose a fresh random point, even if the previous verified location was still useful.
+
+### Implemented
+
+- SaveFile \`CurrentVersion=7\` adds optional \`MobileNPCSurvivalNeeds.NeedsSnapshot\`, \`MobileNPCInjurySystem.InjurySnapshot\` and \`MobileNPCAutonomyPlanner.RoutineSnapshot\` to each *living* NPC record. v1-v6 records remain loadable; missing new fields retain the existing default survival/AI initialization. No extra hitbox was created; injury records map exactly to the pre-existing six body parts.
+- Stores actual food/water percentages, limb condition, leg fractures and bleeding severity/location, without applying duplicate damage/treatment at restore. Bleeding restarts on the ordinary medical tick timer; consuming existing items still goes through the existing inventory and medical services.
+- Stores the *individual's* current strategic role (Patrol, Scavenge, GuardSettlement, Recover), personal tendencies, bounded remaining commitments, shift/cooldown timers and a recent unsuccessful location. Uses remaining durations rather than serializing invalid \`Time.time\` from another game session. Guard post/sector ownership and tactical routes are **not** carried over as facts: group and physical navigation services must revalidate. An NPC re-generated after death receives NONE of this individual's saved state.
+- Attaches the already implemented wound-care component (bandage, dressing, splint logic) to the real NPC runtime template; planner late-resolves this component as needed.
+- When native brain/tactical travel interrupts ordinary Patrol/Scavenge movement, the motor temporarily retains the *intent* (the grounded site, job identity, 38-second expiry), releasing any previous group sector lease. If AI returns to leisure without changing job or exceeding the home radius, it checks real near-ground geometry and an available group sector **once** before walking there again. There is no teleportation, wall phase, stale A* reuse, magical item respawn or unseen-target location recovery.
+
+### Player dev-build checks before calling finalized
+
+1. Spawn a neutral NPC; observe its Patrol/Scavenge choice in development log. Approach/fight, stop combat, verify that it can resume an unfinished legitimate exploration waypoint instead of choosing new random coordinates. Test route blocked during the interruption: it must reject and replan normally.
+2. Use authentic shots to inflict torso/leg wounds, fracture and bleeding; check injury and lack of bandages triggers an urgent supply-seeking decision; medical supplies must physically exist and be consumed. The six native Player-equivalent damage regions must stay unchanged.
+3. Save/reload the singleplayer map with a living hungry/thirsty/wounded NPC and an active routine; verify that the same individual retains health, deficits, injuries and job commitment. Healing or eating requires real inventory and should happen during ordinary ticks.
+4. Load an **older v6 saved file**: it should load without rejecting the snapshot, initializing newly added fields with defaults. Verify unchanged inventories, groups, learned locations and routes. Do not overwrite the only copy of a valuable save during testing.
+5. A dead NPC must not regain its individual memory on replacement. All living guards must re-reserve physical group posts on load; abandoned claims must not persist from the previous Unity session.
+6. While observing wounded NPCs near curbs, verify zombie-style \`CharacterController\` ground stepping remains operational and that injury movement multipliers still apply.
+
+**Known remaining work:** Actual Unity C# compile/Play mode verification, native ASPFP backend absence, richer cooperative long-range group logistics/roles, persistent whole-world base actor structures (native game system), full FEAR-like combat tuning, player dialogue HUD, long-range zombie pursuit and ragdoll runtime confirmation.
