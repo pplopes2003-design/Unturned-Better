@@ -289,8 +289,13 @@ namespace SDG.Unturned
                 + (lacksFood ? 25f + Mathf.Max(0f, 0.70f - hunger) * 110f : 0f)
                 + (lacksMedical ? (bleeding ? 118f : 85f) : 0f);
             float patrol = 35f + personalityExploreBias;
+            // Previously patrol (35+) beat normal scavenge (18+), so a
+            // healthy, armed NPC born IN a town never chose to inspect
+            // buildings. Investigation of REAL loot must be a standard
+            // survival job, not only a starvation emergency.
             float scavenge = hasSpace && Time.time >= scavengeNotBefore
-                ? 18f + supplyUrgency + (!hasGun ? 16f : 0f)
+                ? 49f + supplyUrgency + (!hasGun ? 23f : 0f)
+                    + (inGroup && !hasSettlement ? 5f : 0f)
                 : -1000f;
             float guard = hasSettlement && Time.time >= guardNotBefore
                 && group.HasAvailableGuardPostServer
@@ -404,9 +409,12 @@ namespace SDG.Unturned
             }
             else if (job == Job.Scavenge)
             {
-                minStep = 15f;
-                maxStep = 48f;
-                structurePreference = 0.88f;
+                // Once a survivor is ALREADY inside a town, deliberately
+                // inspect neighboring real buildings instead of departing
+                // for a random 15-48m exterior waypoint.
+                minStep = 5f;
+                maxStep = 22f;
+                structurePreference = 1f;
             }
         }
 
@@ -476,7 +484,11 @@ namespace SDG.Unturned
                     continue;
                 Vector3 difference = candidate - recentScoutingSites[i];
                 difference.y = 0f;
-                if (difference.sqrMagnitude <= 18f * 18f)
+                // A house can have several independent accessible rooms.
+                // Scavenging records actual inspected positions with smaller
+                // revisitation radii, while patrol still avoids whole sectors.
+                float visitedRadius = currentJob == Job.Scavenge ? 5f : 18f;
+                if (difference.sqrMagnitude <= visitedRadius * visitedRadius)
                     return false;
             }
             return true;
@@ -498,7 +510,8 @@ namespace SDG.Unturned
                     continue;
                 Vector3 difference = site - recentScoutingSites[i];
                 difference.y = 0f;
-                if (difference.sqrMagnitude <= 18f * 18f)
+                float sameSiteRadius = currentJob == Job.Scavenge ? 5f : 18f;
+                if (difference.sqrMagnitude <= sameSiteRadius * sameSiteRadius)
                 {
                     slot = i;
                     break;
@@ -542,7 +555,8 @@ namespace SDG.Unturned
             difference.y = 0f;
             if (difference.sqrMagnitude <= 2.5f * 2.5f
                 && Mathf.Abs(physicallyReachedWaypoint.y - transform.position.y) <= 1.5f)
-                RememberScoutingOutcomeServer(physicallyReachedWaypoint, 95f);
+                RememberScoutingOutcomeServer(physicallyReachedWaypoint,
+                    currentJob == Job.Scavenge ? 42f : 95f);
             consecutiveFailedScavengeWaypoints = 0;
             if (currentJob == Job.Recover)
                 recoveryNotBefore = Time.time + 36f;
