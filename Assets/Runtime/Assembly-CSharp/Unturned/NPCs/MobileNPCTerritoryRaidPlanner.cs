@@ -68,10 +68,14 @@ namespace SDG.Unturned
             }
             if (Time.time < nextPlanAt) return;
             nextPlanAt = Time.time + Random.Range(5f, 9f);
+            MobileNPCInventory supplies = GetComponent<MobileNPCInventory>();
+            bool ordinaryArmed = gun != null && gun.SelectedGunAsset != null
+                && gun.RoundsRemaining >= 3;
+            bool breachArmed = supplies != null && supplies.HasUsableRaidExplosiveServer();
             if (Time.time >= knowledgeExpiresAt || Time.time < lastRaidAt + 100f
                 || brain.Target != null || brain.CurrentGoal != MobileNPCTactics.Goal.None
                 || brain.CurrentState != MobileNPCBrain.State.Idle
-                || gun == null || gun.SelectedGunAsset == null || gun.RoundsRemaining < 3
+                || (!ordinaryArmed && !breachArmed)
                 || vitals.HealthFraction < 0.42f)
                 return;
 
@@ -147,10 +151,24 @@ namespace SDG.Unturned
 #endif
         }
 
-        private void ObserveRealRivalSettlementServer()
+        public bool HasRecentHostileBaseIntelServer =>
+            Provider.isServer && MobileNPCSettings.CombatMode
+            && group != null && group.CanPlanSettlement
+            && Time.time < knowledgeExpiresAt;
+
+        /// <summary>A launcher may breach ONLY a structure whose defender
+        /// and registered native storage the raider is SEEING right now.
+        /// A rumour/old position never permits a rocket launch.</summary>
+        public bool TryGetVisibleHostileBaseServer(out Vector3 impactPoint)
         {
+            impactPoint = Vector3.zero;
+            if (!Provider.isServer || !MobileNPCSettings.CombatMode
+                || !Level.isLoaded || group == null || !group.CanPlanSettlement
+                || perception == null || faction == null || vitals == null
+                || vitals.IsDead)
+                return false;
             MobileNPCHumanoidDisposition seen = perception.VisibleNPC;
-            if (seen == null || !seen.gameObject.activeInHierarchy) return;
+            if (seen == null || !seen.gameObject.activeInHierarchy) return false;
             MobileNPCFaction rivalFaction = seen.GetComponent<MobileNPCFaction>();
             MobileNPCGroupMember rivalMember = seen.GetComponent<MobileNPCGroupMember>();
             MobileNPCHumanoidVitals rivalVitals = seen.GetComponent<MobileNPCHumanoidVitals>();
@@ -158,13 +176,13 @@ namespace SDG.Unturned
                 || rivalVitals.IsDead || rivalMember.GroupId == group.GroupId
                 || !faction.IsHostileTo(rivalFaction)
                 || !rivalMember.TryGetLivingLeaderServer(out MobileNPCGroupMember rivalLeader))
-                return;
+                return false;
             MobileNPCSettlementBuilder builder =
                 rivalLeader.GetComponent<MobileNPCSettlementBuilder>();
             if (builder == null || !builder.TryGetCentralStorageForRadioServer(
                 out InteractableStorage storage) || storage == null
                 || storage.owner != CSteamID.Nil || storage.group != CSteamID.Nil)
-                return;
+                return false;
             Vector3 basePosition = storage.transform.position;
             // The enemy is personally seen, and its constructed position
             // must ALSO be nearby and personally visible; nobody scans
@@ -173,10 +191,17 @@ namespace SDG.Unturned
                 || (transform.position - basePosition).sqrMagnitude
                     > VisualReconRange * VisualReconRange
                 || !HasCleanSightToStorage(storage.transform, basePosition))
-                return;
+                return false;
+            impactPoint = basePosition;
             knownRivalBase = basePosition;
             lastRivalGroupId = rivalMember.GroupId;
             knowledgeExpiresAt = Time.time + 100f;
+            return true;
+        }
+
+        private void ObserveRealRivalSettlementServer()
+        {
+            TryGetVisibleHostileBaseServer(out _);
         }
 
         private bool HasCleanSightToStorage(Transform storage, Vector3 position)
