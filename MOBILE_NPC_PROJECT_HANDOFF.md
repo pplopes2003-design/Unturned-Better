@@ -1898,3 +1898,13 @@ User: "Já começamos com erros, corrija-os e devemos seguir a divisão de hitbo
 - `7a50f84b` — tentativa de outras estruturas reais se uma sugestão de prédio apontar para setor que o próprio NPC acabou de vasculhar, antes de escolher terreno aberto.
 
 **Status:** integrado e verificado estaticamente em 10 checks de origem/uso, porém **NÃO COMPILADO, NÃO TESTADO EM UNITY**. Não afirmar que NPC explorou, aprendeu, navegou ou salvou corretamente na build. Próximos testes no `Docs/MobileNPC-Quick-Test.md`: solo/dupla, diferença de piso, interrupção combate/ruído, setor inacessível, save e restauração em JSON, morte com reposição, falha de dica e custo 20–40 NPCs. Evitar mudanças em `Player_Server` hitboxes e sistemas zumbi ainda pendentes.
+
+## Continuidade 2026-10-16 — prioridade de evidência e fim de pistas infinitas
+
+**Objetivo da rodada:** continuar integração da percepção, memória e decisão tática sem substituir `MobileNPCBrain/BrainDriver/Tactics`, GOAP e A-Life já existentes. Repositório `pplopes2003-design/Unturned-Better`, branch `feature/npc-ai-foundation`.
+
+**Pontos de falha encontrados na fonte:** `MobileNPCPlayerKnowledge.ObserveSound` anteriormente renovava cada indício semelhante e zerava `hintsIssued`; não distinguia fala de aliado de som ouvido. `BrainDriver.ReportPlayerFootstepClue` e `ReportGroupPlayerContactClue` podiam redefinir investigações já em andamento, perpetuando buscas. O contador de hipóteses era debitado antes de validação física do destino. Slots de busca especulativa do Director podiam ficar ocupados por pistas sem rota/cobertura viável.
+
+**Commits:** `ea071c42`: categorias Sight/Sound/Report em memória privada, envelhecimento e incerteza específicos, menor confiança em testemunho de terceiros e deduplicação de indícios recentes. `6fe00eba`: preserva investigações e tarefas de maior prioridade, classifica relato como indireto, exige checagem de piso e `MobileNPCHumanoidMotor.CanReachNearbyCoverServer` antes de aceitar hipótese, e só então contabiliza orçamento de quatro dicas transitórias. `4643b0fb`: libera `MobileNPCEncounterDirector` leases para hipóteses/coberturas inviáveis e checa plausibilidade antes de reservá-los.
+
+**Validação:** 16 verificações estáticas de integração/ordem e balanço de chaves sem erro, **não equivalem a compilação Unity ou teste de IA em runtime**. A validação final deve inspecionar comportamento com visão perdida, passos contínuos, relato sem confirmação visual, grupo em corredores bloqueados, manutenção de cover/loot/retreat e custo de A* local. Contrato do usuário: continuar desenvolvimento e deixar a Dev Build para o final. Não classificar AI-04, AI-01 nem combate como concluídos por apenas passarem checagem estática.
