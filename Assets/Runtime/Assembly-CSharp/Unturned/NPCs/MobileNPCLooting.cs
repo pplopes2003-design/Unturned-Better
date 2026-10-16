@@ -512,7 +512,9 @@ namespace SDG.Unturned
 							&& heldGun.state[10] <= 8
 							&& !inventory.TryFindCompatibleMagazine(ownedGun,
 								out int reserveSlot, out ItemMagazineAsset reserveAsset);
-						score = runningLow ? 104f : 64f;
+						// Preserve a compatible RPG magazine's higher raid value
+						// even when the NPC also owns a normal rifle.
+						score = Mathf.Max(score, runningLow ? 104f : 64f);
 						if (MobileNPCSettings.CombatMode)
 							score += runningLow ? 34f : 19f;
 					}
