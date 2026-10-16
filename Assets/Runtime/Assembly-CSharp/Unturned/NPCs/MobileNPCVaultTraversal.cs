@@ -141,7 +141,7 @@ namespace SDG.Unturned
                     if (!Level.checkSafeIncludingClipVolumes(candidateLanding))
                         continue;
                     float candidateHeight = candidateLanding.y - root.y;
-                    if (candidateHeight < 0.63f || candidateHeight > 1.07f)
+                    if (candidateHeight < 0.42f || candidateHeight > 1.07f)
                         continue;
                     float capsuleRadius = Mathf.Clamp(controller.radius * 0.78f, 0.15f, 0.29f);
                     if (!HasStableObjectTopFootprint(candidateLanding,
