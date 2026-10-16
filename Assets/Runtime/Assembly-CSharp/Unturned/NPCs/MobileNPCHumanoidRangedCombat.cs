@@ -136,10 +136,6 @@ namespace SDG.Unturned
 				return;
 			}
 
-			// Bullets are simulated independently of later sight, reload or
-			// death of a target. A shot cannot magically track its moving victim.
-			TickInFlightBulletsServer();
-
 			if (!reloadPending && pendingReloadMagazine != null)
 				TryReturnPendingMagazine();
 
@@ -415,6 +411,14 @@ namespace SDG.Unturned
 			{
 				BeginReload();
 			}
+		}
+
+		private void FixedUpdate()
+		{
+			// Match the native 50Hz ballistic simulation where feasible. Physics
+			// contacts are checked during fixed ticks, not at arbitrary render FPS.
+			if (Provider.isServer)
+				TickInFlightBulletsServer();
 		}
 
 		private int FindFreeBulletSlot()
@@ -760,6 +764,10 @@ namespace SDG.Unturned
 		private void OnDisable()
 		{
 			if (!Provider.isServer) return;
+			// Never retain an active muzzle-to-target projectile across object
+			// disable, map reload or respawn of a completely different survivor.
+			for (int i = 0; i < pendingBullets.Length; ++i)
+				pendingBullets[i].Active = false;
 			// A cancelled reload must not silently destroy the magazine removed from storage.
 			TryReturnPendingMagazine();
 			pendingReplacedMagazine = null;
