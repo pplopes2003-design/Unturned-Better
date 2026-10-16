@@ -102,6 +102,8 @@ namespace SDG.Unturned
 
 		private CharacterController characterController;
 		private MobileNPCBrainDriver brainDriver;
+		private MobileNPCHumanoidRangedCombat rangedCombat;
+		private bool wasHoldingDeliberateFire;
 		private MobileNPCAutonomyPlanner autonomyPlanner;
 		private MobileNPCAutonomyPlanner.Job previousRoutineJob;
 		private bool hasPreviousRoutineJob;
@@ -442,6 +444,7 @@ namespace SDG.Unturned
 		{
 			characterController = GetComponent<CharacterController>();
 			brainDriver = GetComponent<MobileNPCBrainDriver>();
+			rangedCombat = GetComponent<MobileNPCHumanoidRangedCombat>();
 			autonomyPlanner = GetComponent<MobileNPCAutonomyPlanner>();
 			injurySystem = GetComponent<MobileNPCInjurySystem>();
 			doorNavigation = GetComponent<MobileNPCDoorNavigation>();
@@ -589,7 +592,32 @@ namespace SDG.Unturned
 			// Previously declared inside the destination block, out of scope for
 			// the later animation, vault and jumping checks in this Update.
 			bool waitingForLadderApproach = false;
-			bool hasDestination = hasBrainDestination || hasRoamingDestination;
+			// A ranged survivor is NOT a melee zombie that must charge the
+			// center of its target. Deliberately stop and aim when a personally
+			// confirmed living threat is at sensible firearm range, while
+			// retaining the pursuit memory and all active defensive goals.
+			bool holdDeliberateFire = false;
+			if (!isUnderwater && !isPlannedJumping && !IsClimbingLadder
+				&& !IsTraversingLadder && targetIsVisible && hasBrainDestination
+				&& brainDriver.CurrentState == MobileNPCBrain.State.Pursuing
+				&& brainDriver.CurrentGoal == MobileNPCTactics.Goal.None
+				&& brainDriver.Target != null && rangedCombat != null)
+			{
+				Vector3 opponentOffset = brainDriver.Target.position - transform.position;
+				opponentOffset.y = 0f;
+				holdDeliberateFire = rangedCombat.CanHoldDeliberateFiringPositionServer(
+					opponentOffset.magnitude);
+			}
+			if (holdDeliberateFire && !wasHoldingDeliberateFire)
+			{
+				// Discard a previously computed *movement* path, never the
+				// perceived combat target or its private evidence.
+				routeWaypoints.Clear();
+				routeWaypointIndex = 0;
+				hasDetourWaypoint = false;
+			}
+			wasHoldingDeliberateFire = holdDeliberateFire;
+			bool hasDestination = (hasBrainDestination && !holdDeliberateFire) || hasRoamingDestination;
 			Vector3 destination = hasBrainDestination ? brainDriver.Destination : roamingDestination;
 			if (hasDestination && !isUnderwater && !isPlannedJumping
 				&& !physicallyCrouched
