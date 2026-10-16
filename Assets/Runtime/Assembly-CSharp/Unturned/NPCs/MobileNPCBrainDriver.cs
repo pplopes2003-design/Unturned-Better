@@ -228,17 +228,20 @@ namespace SDG.Unturned
 				return;
 			if (brain.CurrentState == MobileNPCBrain.State.Pursuing && brain.Target != null)
 				return;
+			// A provisional footfall may start one finite search, never renew it
+			// on every step. Visible contact, a prior investigation, companion
+			// escort and survival/combat errands outrank uncertain footsteps.
+			if (brain.CurrentState == MobileNPCBrain.State.Investigating
+				|| brain.CurrentState == MobileNPCBrain.State.Following
+				|| tactics.CurrentGoal != MobileNPCTactics.Goal.None
+					&& tactics.CurrentGoal != MobileNPCTactics.Goal.Regroup)
+				return;
 			// The visible player is stronger evidence than a guessed footstep.
 			// In particular peaceful NPCs must not duck merely because their
 			// visible, nonhostile neighbor takes a step.
 			MobileNPCHumanoidPerception perception = GetComponent<MobileNPCHumanoidPerception>();
 			if (perception != null && perception.VisiblePlayer != null)
 				return;
-			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Retreat
-				|| tactics.CurrentGoal == MobileNPCTactics.Goal.SeekCover
-				|| tactics.CurrentGoal == MobileNPCTactics.Goal.Stalk)
-				return;
-
 			// Quiet, ambiguous sound: listen and wait for further evidence rather
 			// than always walking to a potentially false position.
 			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Regroup)
@@ -293,6 +296,9 @@ namespace SDG.Unturned
 				|| float.IsNaN(approximatePosition.z) || float.IsInfinity(approximatePosition.z)
 				|| brain.CurrentState == MobileNPCBrain.State.Pursuing
 				|| brain.CurrentState == MobileNPCBrain.State.Following
+				// A radio/voice report cannot repeatedly reset an existing
+				// firsthand investigation nor its original search deadline.
+				|| brain.CurrentState == MobileNPCBrain.State.Investigating
 				|| tactics.CurrentGoal != MobileNPCTactics.Goal.None
 					&& tactics.CurrentGoal != MobileNPCTactics.Goal.Regroup)
 				return;
@@ -309,7 +315,7 @@ namespace SDG.Unturned
 			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Regroup)
 				tactics.ClearGoal();
 			nextGroupContactAt = Time.time + 6f;
-			playerKnowledge.ObserveSound(approximatePosition, confidence, Time.time);
+			playerKnowledge.ObserveReport(approximatePosition, confidence, Time.time);
 			brain.ReportNoise(approximatePosition, Time.time, 12f);
 			investigatingPlayerClue = true;
 			listeningClue = approximatePosition;
@@ -1308,6 +1314,12 @@ namespace SDG.Unturned
 			if (!MobileNPCEncounterDirector.AllowsOptionalEvidenceSearchServer(this))
 				return;
 
+				// A hypothesis only becomes a destination after the same-ground
+			// route feasibility check succeeds. The director does not own
+			// navigation and no hidden target Transform is consulted.
+			MobileNPCHumanoidMotor motor = GetComponent<MobileNPCHumanoidMotor>();
+			if (motor == null)
+				return;
 			for (int attempt = 0; attempt < 2; ++attempt)
 			{
 				if (!playerKnowledge.TrySuggestSearchPoint(Time.time, out Vector3 hint))
@@ -1326,8 +1338,14 @@ namespace SDG.Unturned
 					&& support.GetComponentInParent<Player>() == null
 					&& Mathf.Abs(ground.y - hint.y) <= 0.55f
 					&& Mathf.Abs(ground.y - transform.position.y) <= 0.65f
+					&& motor.CanReachNearbyCoverServer(ground)
 					&& brain.TrySetInvestigationHint(ground, Time.time))
+				{
+					// Commit the finite hint budget only for an accepted, physically
+					// traversable goal; blocked walls/upstairs guesses cost no hint.
+					playerKnowledge.ConfirmSearchPointAccepted();
 					return;
+				}
 			}
 		}
 
