@@ -42,6 +42,7 @@ namespace SDG.Unturned
         private Vector3 knownRivalBase;
         private float knowledgeExpiresAt;
         private int lastRivalGroupId;
+        private InteractableStorage lastPersonallySeenHostileStorage;
 
         private void Awake()
         {
@@ -166,12 +167,26 @@ namespace SDG.Unturned
             && group != null && group.CanPlanSettlement
             && Time.time < knowledgeExpiresAt;
 
+        /// <summary>Native charge planting may target only the concrete
+        /// vanilla storage that the raider can independently see now.</summary>
+        public bool TryGetVisibleHostileStorageServer(out InteractableStorage storage)
+        {
+            storage = null;
+            if (!TryGetVisibleHostileBaseServer(out _)
+                || lastPersonallySeenHostileStorage == null
+                || !lastPersonallySeenHostileStorage.gameObject.activeInHierarchy)
+                return false;
+            storage = lastPersonallySeenHostileStorage;
+            return true;
+        }
+
         /// <summary>A launcher may breach ONLY a structure whose defender
         /// and registered native storage the raider is SEEING right now.
         /// A rumour/old position never permits a rocket launch.</summary>
         public bool TryGetVisibleHostileBaseServer(out Vector3 impactPoint)
         {
             impactPoint = Vector3.zero;
+            lastPersonallySeenHostileStorage = null;
             if (!Provider.isServer || !MobileNPCSettings.CombatMode
                 || !Level.isLoaded || group == null || group.GroupId <= 0
                 || perception == null || faction == null || vitals == null
@@ -202,6 +217,7 @@ namespace SDG.Unturned
                     > VisualReconRange * VisualReconRange
                 || !HasCleanSightToStorage(storage.transform, basePosition))
                 return false;
+            lastPersonallySeenHostileStorage = storage;
             impactPoint = basePosition;
             knownRivalBase = basePosition;
             lastRivalGroupId = rivalMember.GroupId;
