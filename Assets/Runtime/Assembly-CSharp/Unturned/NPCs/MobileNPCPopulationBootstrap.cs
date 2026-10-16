@@ -144,6 +144,7 @@ namespace SDG.Unturned
             // Breaching deliberately uses a SEPARATE native Rocket prefab
             // path, not the normal rifle hitscan/ballistic bullet pipeline.
             template.AddComponent<MobileNPCRaidLauncher>();
+            template.AddComponent<MobileNPCNativeChargeBreacher>();
             template.AddComponent<MobileNPCGrenadeThrower>();
             template.AddComponent<MobileNPCCompanionContract>();
 
