@@ -50,6 +50,11 @@ namespace SDG.Unturned
 			public int settlementPiecesPlaced;
 			public int settlementPerimeterPiecesPlaced;
 			public bool settlementCentralStoragePlaced;
+			// Optional logical occupation of one native, surviving storage.
+			// The actual structure stays in vanilla persistence with owner 0.
+			public uint capturedStorageInstanceId;
+			public float capturedX, capturedY, capturedZ;
+			public int capturedFromGroupId;
 			public float ax, ay, az;
 			public List<ItemRecord> items = new List<ItemRecord>();
 			// Individual experience only; not a global group/faction policy.
@@ -343,6 +348,11 @@ namespace SDG.Unturned
 						record.settlementPiecesPlaced,
 						record.settlementPerimeterPiecesPlaced,
 						record.settlementCentralStoragePlaced);
+					if (IsFinite(record.capturedX) && IsFinite(record.capturedY)
+						&& IsFinite(record.capturedZ))
+						groupMember.RestoreCapturedSectorServer(record.capturedStorageInstanceId,
+							new Vector3(record.capturedX, record.capturedY, record.capturedZ),
+							record.capturedFromGroupId);
 				}
 	
 				MobileNPCInventory inventory = instance.GetComponent<MobileNPCInventory>();
@@ -470,6 +480,12 @@ namespace SDG.Unturned
 					record.settlementPiecesPlaced = groupMember.SettlementPiecesPlaced;
 					record.settlementPerimeterPiecesPlaced = groupMember.SettlementPerimeterPiecesPlaced;
 					record.settlementCentralStoragePlaced = groupMember.SettlementCentralStoragePlaced;
+					record.capturedStorageInstanceId = groupMember.CapturedStorageInstanceId;
+					Vector3 captured = groupMember.CapturedStoragePosition;
+					record.capturedX = captured.x;
+					record.capturedY = captured.y;
+					record.capturedZ = captured.z;
+					record.capturedFromGroupId = groupMember.CapturedFromGroupId;
 					record.ax = anchor.x;
 					record.ay = anchor.y;
 					record.az = anchor.z;
