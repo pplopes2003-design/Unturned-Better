@@ -34,6 +34,11 @@ namespace SDG.Unturned
 			public int SettlementPiecesPlaced;
 			public int SettlementPerimeterPiecesPlaced;
 			public bool SettlementCentralStoragePlaced;
+			// Logical enemy-site OCCUPATION after real local control.
+			// These are NOT native ownership ids or a right to salvage structures.
+			public uint CapturedStorageInstanceId;
+			public Vector3 CapturedStoragePosition;
+			public int CapturedFromGroupId;
 			public MobileNPCHumanoidDisposition.Role Role;
 			public MobileNPCFaction.Id Faction;
 			// Smart-terrain-inspired job claims belong to the living group's
@@ -98,6 +103,12 @@ namespace SDG.Unturned
 			&& groups.TryGetValue(GroupId, out GroupRecord perimeterGroup) ? perimeterGroup.SettlementPerimeterPiecesPlaced : 0;
 		public bool SettlementCentralStoragePlaced => initialized && !leftGroup && GroupId > 0
 			&& groups.TryGetValue(GroupId, out GroupRecord storageGroup) && storageGroup.SettlementCentralStoragePlaced;
+		public uint CapturedStorageInstanceId => Provider.isServer && GroupId > 0
+			&& groups.TryGetValue(GroupId, out GroupRecord claim) ? claim.CapturedStorageInstanceId : 0u;
+		public Vector3 CapturedStoragePosition => Provider.isServer && GroupId > 0
+			&& groups.TryGetValue(GroupId, out GroupRecord claim) ? claim.CapturedStoragePosition : Vector3.zero;
+		public int CapturedFromGroupId => Provider.isServer && GroupId > 0
+			&& groups.TryGetValue(GroupId, out GroupRecord claim) ? claim.CapturedFromGroupId : 0;
 
 		private void Awake()
 		{
@@ -790,6 +801,89 @@ namespace SDG.Unturned
 			return !float.IsNaN(value.x) && !float.IsInfinity(value.x)
 				&& !float.IsNaN(value.y) && !float.IsInfinity(value.y)
 				&& !float.IsNaN(value.z) && !float.IsInfinity(value.z);
+		}
+
+		/// <summary>Require the SAME saved native storage instance, never a
+		/// nearby empty house or a player's private item. Tiny occasional
+		/// queries are okay on capture/reload, not on every NPC update.</summary>
+		private static bool IsNativeUnownedStorageAtServer(Vector3 site, uint instanceID)
+		{
+			if (!Provider.isServer || !Level.isLoaded || instanceID == 0
+				|| !IsFinitePosition(site))
+				return false;
+			List<Transform> nearby = new List<Transform>(16);
+			BarricadeManager.getBarricadesInRadius(site, 2.2f * 2.2f, nearby);
+			for (int i = 0; i < nearby.Count; ++i)
+			{
+				BarricadeDrop drop = BarricadeDrop.FindByTransformFastMaybeNull(nearby[i]);
+				BarricadeData data = drop != null ? drop.GetServersideData() : null;
+				if (drop == null || data == null || drop.instanceID != instanceID
+					|| data.owner != 0UL || data.group != 0UL
+					|| !(drop.asset is ItemBarricadeAsset asset)
+					|| asset.build != EBuild.STORAGE
+					|| drop.model == null || !drop.model.gameObject.activeInHierarchy)
+					continue;
+				return true;
+			}
+			return false;
+		}
+
+		public bool TryRecordCapturedSectorServer(Vector3 site, uint instanceID,
+			int formerGroupId)
+		{
+			if (!Provider.isServer || !MobileNPCSettings.CombatMode
+				|| !CanPlanSettlement || instanceID == 0 || formerGroupId <= 0
+				|| formerGroupId == GroupId
+				|| (site - transform.position).sqrMagnitude > 9f * 9f
+				|| !IsNativeUnownedStorageAtServer(site, instanceID)
+				|| !groups.TryGetValue(GroupId, out GroupRecord record))
+				return false;
+			foreach (GroupRecord other in groups.Values)
+			{
+				if (other.Id != GroupId && other.CapturedStorageInstanceId == instanceID)
+				{
+					// Last physical occupier wins; actual world storage remains
+					// owner 0. Never claim unrelated vanilla player structures.
+					other.CapturedStorageInstanceId = 0;
+					other.CapturedFromGroupId = 0;
+				}
+			}
+			record.CapturedStorageInstanceId = instanceID;
+			record.CapturedStoragePosition = site;
+			record.CapturedFromGroupId = formerGroupId;
+			return true;
+		}
+
+		/// <summary>Old JSON saves default 0; invalid/destroyed physical
+		/// storage never resurrects a territory. Survivors only.</summary>
+		public void RestoreCapturedSectorServer(uint instanceID, Vector3 site, int formerGroupId)
+		{
+			if (!Provider.isServer || !initialized || leftGroup || GroupId <= 0
+				|| formerGroupId <= 0 || instanceID == 0
+				|| !IsNativeUnownedStorageAtServer(site, instanceID)
+				|| !groups.TryGetValue(GroupId, out GroupRecord record))
+				return;
+			record.CapturedStorageInstanceId = instanceID;
+			record.CapturedStoragePosition = site;
+			record.CapturedFromGroupId = formerGroupId;
+		}
+
+		public bool TryGetCapturedSectorServer(out Vector3 site)
+		{
+			site = Vector3.zero;
+			if (!Provider.isServer || GroupId <= 0
+				|| !groups.TryGetValue(GroupId, out GroupRecord record)
+				|| record.CapturedStorageInstanceId == 0)
+				return false;
+			if (!IsNativeUnownedStorageAtServer(record.CapturedStoragePosition,
+				record.CapturedStorageInstanceId))
+			{
+				record.CapturedStorageInstanceId = 0;
+				record.CapturedFromGroupId = 0;
+				return false;
+			}
+			site = record.CapturedStoragePosition;
+			return true;
 		}
 
 		/// <summary>Moves the living group's shared home anchor when its planner chooses a base site.</summary>
