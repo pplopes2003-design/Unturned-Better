@@ -16,17 +16,23 @@ namespace SDG.Unturned
 		private static SleekButtonIcon airdropButton;
 		private static SleekButtonIcon roleButton;
 		private static SleekButtonIcon mixButton;
+		private static SleekButtonIcon gameModeButton;
+		private static SleekButtonIcon eraseHistoryButton;
+		private static float eraseConfirmationDeadline;
+		private static string eraseStatus;
 		private static bool constructed;
 
 		public static void open()
 		{
 			EnsureConstructed();
+			eraseConfirmationDeadline = 0f;
 			RefreshLabels();
 			container.AnimateIntoView();
 		}
 
 		public static void close()
 		{
+			eraseConfirmationDeadline = 0f;
 			if (container != null)
 				container.AnimateOutOfView(0, -1);
 		}
@@ -47,27 +53,31 @@ namespace SDG.Unturned
 			container.SizeScale_Y = 1;
 			MenuUI.container.AddChild(container);
 
-			populationLabel = CreateButton(-130, -100, 260, 40);
+			populationLabel = CreateButton(-130, -195, 260, 40);
 			populationLabel.onClickedButton += onClickedPopulationLabel;
-			SleekButtonIcon populationDown = CreateButton(-230, -100, 80, 40);
+			SleekButtonIcon populationDown = CreateButton(-230, -195, 80, 40);
 			populationDown.text = "-";
 			populationDown.onClickedButton += onClickedPopulationDown;
-			SleekButtonIcon populationUp = CreateButton(150, -100, 80, 40);
+			SleekButtonIcon populationUp = CreateButton(150, -195, 80, 40);
 			populationUp.text = "+";
 			populationUp.onClickedButton += onClickedPopulationUp;
 
-			difficultyButton = CreateButton(-150, -45, 300, 40);
+			difficultyButton = CreateButton(-150, -140, 300, 40);
 			difficultyButton.onClickedButton += onClickedDifficulty;
-			enabledButton = CreateButton(-150, 10, 300, 40);
+			enabledButton = CreateButton(-150, -85, 300, 40);
 			enabledButton.onClickedButton += onClickedEnabled;
-			airdropButton = CreateButton(-150, 65, 300, 40);
+			airdropButton = CreateButton(-150, -30, 300, 40);
 			airdropButton.onClickedButton += onClickedAirdrop;
-			roleButton = CreateButton(-150, 120, 300, 40);
+			roleButton = CreateButton(-150, 25, 300, 40);
 			roleButton.onClickedButton += onClickedRole;
-			mixButton = CreateButton(-170, 175, 340, 40);
+			mixButton = CreateButton(-170, 80, 340, 40);
 			mixButton.onClickedButton += onClickedMix;
+			gameModeButton = CreateButton(-170, 135, 340, 40);
+			gameModeButton.onClickedButton += onClickedGameMode;
+			eraseHistoryButton = CreateButton(-215, 190, 430, 40);
+			eraseHistoryButton.onClickedButton += onClickedEraseHistory;
 
-			SleekButtonIcon back = CreateButton(-100, 230, 200, 40);
+			SleekButtonIcon back = CreateButton(-100, 245, 200, 40);
 			back.text = "Back";
 			back.onClickedButton += onClickedBack;
 			RefreshLabels();
@@ -98,6 +108,11 @@ namespace SDG.Unturned
 			airdropButton.text = "Airdrop contest: " + (MobileNPCSettings.AirdropContestEnabled ? "ON" : "OFF");
 			roleButton.text = "Manual test-spawn role: " + MobileNPCSettings.DefaultRole;
 			mixButton.text = "World population mix: " + MixLabel(MobileNPCSettings.CurrentPopulationMix);
+			gameModeButton.text = "Agressividade: " + (MobileNPCSettings.CombatMode ? "Combate" : "Normal");
+			eraseHistoryButton.text = Time.realtimeSinceStartup < eraseConfirmationDeadline
+				? "CONFIRMAR: apagar historico de NPCs (todos os mapas)"
+				: !string.IsNullOrEmpty(eraseStatus) ? eraseStatus
+				: "Apagar historico de NPCs (todos os mapas)";
 		}
 
 		private static void onClickedPopulationDown(ISleekElement button)
@@ -154,6 +169,38 @@ namespace SDG.Unturned
 		private static void onClickedMix(ISleekElement button)
 		{
 			MobileNPCSettings.CurrentPopulationMix = (MobileNPCSettings.PopulationMix)(((int)MobileNPCSettings.CurrentPopulationMix + 1) % 3);
+			RefreshLabels();
+		}
+
+		private static void onClickedGameMode(ISleekElement button)
+		{
+			MobileNPCSettings.CurrentGameMode = MobileNPCSettings.CombatMode
+				? MobileNPCSettings.GameMode.Normal : MobileNPCSettings.GameMode.Combat;
+			eraseConfirmationDeadline = 0f;
+			eraseStatus = null;
+			RefreshLabels();
+		}
+
+		private static void onClickedEraseHistory(ISleekElement button)
+		{
+			// Two distinct clicks no more than eight seconds apart. No erase in
+			// the running world and no broad Application.persistentDataPath wipe.
+			if (Time.realtimeSinceStartup >= eraseConfirmationDeadline)
+			{
+				eraseConfirmationDeadline = Time.realtimeSinceStartup + 8f;
+				eraseStatus = null;
+				RefreshLabels();
+				return;
+			}
+			eraseConfirmationDeadline = 0f;
+			if (MobileNPCPersistence.TryEraseNPCSnapshotsFromMainMenu(
+				out int removed, out string error))
+				eraseStatus = "Historico apagado (" + removed + " arquivos NPC)";
+			else
+			{
+				eraseStatus = "Falha ao apagar: veja Player.log";
+				Debug.LogWarning("[MobileNPCMenu] Could not reset NPC-only snapshots: " + error);
+			}
 			RefreshLabels();
 		}
 
