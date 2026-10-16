@@ -96,6 +96,10 @@ namespace SDG.Unturned
 
             MobileNPCRegistry.CopyActiveDrivers(nearbyDrivers);
             int nearbyArmed = 1;
+            // A real raid is not launched with mere rifles. At least one
+            // surviving teammate must carry a usable native launcher rocket
+            // or buildable-damaging explosive. If absent, continue scavenging.
+            bool hasBreachEquipment = breachArmed;
             for (int i = 0; i < nearbyDrivers.Count; ++i)
             {
                 MobileNPCBrainDriver allyBrain = nearbyDrivers[i];
@@ -104,15 +108,21 @@ namespace SDG.Unturned
                 MobileNPCHumanoidVitals allyVitals = allyBrain.GetComponent<MobileNPCHumanoidVitals>();
                 MobileNPCHumanoidRangedCombat allyGun =
                     allyBrain.GetComponent<MobileNPCHumanoidRangedCombat>();
+                MobileNPCInventory allyInventory = allyBrain.GetComponent<MobileNPCInventory>();
+                bool allyBreachReady = allyInventory != null
+                    && allyInventory.HasUsableRaidExplosiveServer();
+                bool allyRifleReady = allyGun != null && allyGun.SelectedGunAsset != null
+                    && allyGun.RoundsRemaining >= 2;
                 if (ally == null || ally.GroupId != group.GroupId
                     || allyVitals == null || allyVitals.IsDead || allyVitals.HealthFraction < 0.35f
-                    || allyGun == null || allyGun.SelectedGunAsset == null
-                    || allyGun.RoundsRemaining < 2
+                    || (!allyRifleReady && !allyBreachReady)
                     || !CanSpeakDirectlyTo(ally.transform))
                     continue;
                 ++nearbyArmed;
+                hasBreachEquipment |= allyBreachReady;
             }
-            if (nearbyArmed < 2 || !brain.TryStartRaidStagingServer(stage))
+            if (nearbyArmed < 2 || !hasBreachEquipment
+                || !brain.TryStartRaidStagingServer(stage))
                 return;
             lastRaidAt = Time.time;
 
