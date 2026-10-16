@@ -59,6 +59,7 @@ namespace SDG.Unturned
 			public MobileNPCAutonomyPlanner.RoutineSnapshot routine;
 			public MobileNPCSurvivalNeeds.NeedsSnapshot survival;
 			public MobileNPCInjurySystem.InjurySnapshot injuries;
+			public int noviceDirectorHintsUsed;
 		}
 
 		[Serializable]
@@ -377,6 +378,9 @@ namespace SDG.Unturned
 				MobileNPCInjurySystem injuries = instance.GetComponent<MobileNPCInjurySystem>();
 				if (injuries != null)
 					injuries.RestoreSnapshotServer(record.injuries);
+				MobileNPCHumanoidMotor restoredMotor = instance.GetComponent<MobileNPCHumanoidMotor>();
+				if (restoredMotor != null)
+					restoredMotor.RestoreNoviceHintsUsedServer(record.noviceDirectorHintsUsed);
 				MobileNPCAutonomyPlanner routine = instance.GetComponent<MobileNPCAutonomyPlanner>();
 				if (routine != null)
 					routine.RestoreSnapshotServer(record.routine);
@@ -486,6 +490,9 @@ namespace SDG.Unturned
 				MobileNPCInjurySystem injuries = driver.GetComponent<MobileNPCInjurySystem>();
 				if (injuries != null)
 					record.injuries = injuries.ExportSnapshotServer();
+				MobileNPCHumanoidMotor savedMotor = driver.GetComponent<MobileNPCHumanoidMotor>();
+				if (savedMotor != null)
+					record.noviceDirectorHintsUsed = savedMotor.ExportNoviceHintsUsedServer();
 				MobileNPCAutonomyPlanner routine = driver.GetComponent<MobileNPCAutonomyPlanner>();
 				if (routine != null)
 					record.routine = routine.ExportSnapshotServer();
