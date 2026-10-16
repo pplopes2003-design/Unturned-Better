@@ -212,6 +212,15 @@ namespace SDG.Unturned
                 guardShiftEndsAt = 0f;
             }
 
+            // Components are appended to the inactive runtime template in
+            // stages. Never assume MedicalBehavior already existed at Awake;
+            // resolve once after spawning so the shortage signal actually
+            // reaches this strategic utility evaluator.
+            if (medicalBehavior == null)
+                medicalBehavior = GetComponent<MobileNPCMedicalBehavior>();
+            if (injuries == null)
+                injuries = GetComponent<MobileNPCInjurySystem>();
+
             float health = vitals != null ? vitals.HealthFraction : 1f;
             float thirst = needs != null ? needs.ThirstFraction : 1f;
             float hunger = needs != null ? needs.HungerFraction : 1f;
