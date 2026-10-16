@@ -297,9 +297,15 @@ namespace SDG.Unturned
 				: effectiveRange;
 			float weaponRange = selectedGunAsset.range > 0f
 				? Mathf.Min(scopedRange, selectedGunAsset.range) : effectiveRange;
-			bool nativeBallistics = Provider.modeConfigData.Gameplay.Ballistics
-				&& selectedGunAsset.muzzleVelocity > 0.1f
-				&& selectedGunAsset.ballisticSteps > 0;
+			bool nativeBallistics = Provider.modeConfigData.Gameplay.Ballistics;
+			if (nativeBallistics && (selectedGunAsset.muzzleVelocity <= 0.1f
+				|| selectedGunAsset.ballisticSteps <= 0))
+			{
+				// With ballistics enabled, invalid projectile data must NOT
+				// silently switch this NPC to perfect long-range hitscan.
+				nextShotTime = Time.time + 1f;
+				return;
+			}
 			if (nativeBallistics)
 				weaponRange = Mathf.Min(weaponRange, selectedGunAsset.muzzleVelocity
 					* NativeBallisticDelta * selectedGunAsset.ballisticSteps);
