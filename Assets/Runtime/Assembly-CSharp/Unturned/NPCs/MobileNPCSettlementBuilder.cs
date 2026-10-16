@@ -151,9 +151,19 @@ namespace SDG.Unturned
 				return;
 
 			nextBuildTime = Time.time + Mathf.Max(2f, buildInterval);
-			if (driver.Target != null || driver.CurrentGoal != MobileNPCTactics.Goal.None
-				|| Vector3.Distance(motor.transform.position, planner.ChosenSite) > motor.HomeTerritoryRadius)
+			if (driver.Target != null || driver.CurrentGoal != MobileNPCTactics.Goal.None)
 				return;
+			// Placing world barricades remotely from home was equivalent to
+			// magically constructing from tens of metres away. Ask the regular
+			// navigation brain to walk to the real, chosen site first.
+			if (Vector3.Distance(transform.position, planner.ChosenSite) > 5f)
+			{
+				if (Vector3.Distance(transform.position, planner.ChosenSite)
+					<= motor.HomeTerritoryRadius
+					&& motor.CanReachNearbyCoverServer(planner.ChosenSite))
+					driver.TryStartRememberedSupplySearch(planner.ChosenSite);
+				return;
+			}
 
 			TryPlaceNextPatternPiece();
 		}
@@ -226,65 +236,82 @@ namespace SDG.Unturned
 				Mathf.Clamp(clearanceRadius, 0.4f, 1.2f), obstructionMask, QueryTriggerInteraction.Ignore))
 				return;
 
-			Transform placedBarricade = null;
+			// Finalize placement type before taking the item. If a vanilla
+			// structure's housing anchor does not exist, use a carried simple
+			// barricade instead; do not place a structure and then charge for
+			// a different slot.
 			if (placeStructure)
 			{
-				// Apply vanilla housing rules before placement. Arbitrary coordinates are not
-				// enough for walls/pillars because they must connect to valid housing anchors.
 				string obstructionHint = null;
-				bool validHousingPlacement = UseableHousingUtils.ValidatePendingPlacement(
-					selectedStructureAsset, ref placePosition, angle, ref obstructionHint) == EHousingPlacementResult.Success;
-
-				// A rejected structure must not permanently block a valid barricade pattern.
-				// Try a supported barricade at the same slot instead of retrying the same
-				// incompatible structure on every build interval.
-				bool structurePlaced = validHousingPlacement && StructureManager.dropStructure(
-					new Structure(selectedStructureAsset, selectedStructureAsset.health),
-					placePosition, 0f, angle, 0f, 0UL, 0UL);
-				if (!structurePlaced)
+				if (UseableHousingUtils.ValidatePendingPlacement(selectedStructureAsset,
+					ref placePosition, angle, ref obstructionHint)
+					!= EHousingPlacementResult.Success)
 				{
 					if (!TrySelectBuildable(false, out selectedSlot, out selectedAsset))
 						return;
-
 					placeStructure = false;
-					placePosition = ground + Vector3.up * Mathf.Clamp(selectedAsset.offset, -0.5f, 1.5f);
-					if (Physics.CheckSphere(placePosition + Vector3.up * 1.0f,
-						Mathf.Clamp(clearanceRadius, 0.4f, 1.2f), obstructionMask, QueryTriggerInteraction.Ignore))
-						return;
-
-					placedBarricade = BarricadeManager.dropBarricade(
-						new Barricade(selectedAsset), null, placePosition, 0f, angle, 0f, 0UL, 0UL);
-					if (placedBarricade == null)
+					placePosition = ground + Vector3.up
+						* Mathf.Clamp(selectedAsset.offset, -0.5f, 1.5f);
+					if (Physics.CheckSphere(placePosition + Vector3.up,
+						Mathf.Clamp(clearanceRadius, 0.4f, 1.2f),
+						obstructionMask, QueryTriggerInteraction.Ignore))
 						return;
 				}
+			}
+			ushort expectedId = placeStructure ? selectedStructureAsset.id : selectedAsset.id;
+			if (!inventory.TryTakeItemServer(selectedSlot, out Item committedItem))
+				return;
+			if (committedItem == null || committedItem.id != expectedId)
+			{
+				if (committedItem != null && !inventory.TryStoreTransferredItem(committedItem))
+					UnturnedLog.warn("[MobileNPCSettlementBuilder] Could not roll back an unexpected construction item.");
+				return;
+			}
+			// Native placement is performed only AFTER real inventory debit.
+			// If world placement fails, return the original item unchanged.
+			Transform placedBarricade = null;
+			bool placedSuccessfully;
+			if (placeStructure)
+			{
+				placedSuccessfully = StructureManager.dropStructure(
+					new Structure(selectedStructureAsset, selectedStructureAsset.health),
+					placePosition, 0f, angle, 0f, 0UL, 0UL);
 			}
 			else
 			{
 				Barricade barricade;
 				if (placeGenerator)
 				{
-					// Native generator state encodes powered flag and fuel.
-					// Preserve the REAL inventory item's fuel/state on placement;
-					// new Barricade(asset) would reset both to zero.
-					if (!inventory.TryGetItemSnapshot(selectedSlot, out Item sourceGenerator)
-						|| sourceGenerator == null || sourceGenerator.state == null
-						|| sourceGenerator.state.Length < 3)
+					if (committedItem.state == null || committedItem.state.Length < 3)
+					{
+						if (!inventory.TryStoreTransferredItem(committedItem))
+							UnturnedLog.warn("[MobileNPCSettlementBuilder] Could not restore an invalid generator item.");
 						return;
+					}
 					barricade = new Barricade(selectedAsset, selectedAsset.health,
-						(byte[])sourceGenerator.state.Clone());
+						(byte[])committedItem.state.Clone());
 				}
 				else
 					barricade = new Barricade(selectedAsset);
 				placedBarricade = BarricadeManager.dropBarricade(
 					barricade, null, placePosition, 0f, angle, 0f, 0UL, 0UL);
-				if (placedBarricade == null)
-					return;
+				placedSuccessfully = placedBarricade != null;
 			}
-
-			if (!inventory.TryTakeItemServer(selectedSlot, out _))
+			if (!placedSuccessfully)
 			{
-				UnturnedLog.warn("[MobileNPCSettlementBuilder] Placed a buildable but could not remove its inventory item.");
+				if (!inventory.TryStoreTransferredItem(committedItem))
+					UnturnedLog.warn("[MobileNPCSettlementBuilder] Native placement failed and construction item could not be restored.");
 				return;
+			}
+			// Construction items can be stacked. Charge exactly one buildable
+			// per world object rather than deleting the whole stack.
+			if (committedItem.amount > 1)
+			{
+				Item remainder = new Item(committedItem.id,
+					(byte)(committedItem.amount - 1), committedItem.quality,
+					committedItem.state != null ? (byte[])committedItem.state.Clone() : new byte[0]);
+				if (!inventory.TryStoreTransferredItem(remainder))
+					UnturnedLog.warn("[MobileNPCSettlementBuilder] Could not restore remainder of stacked buildables.");
 			}
 
 			placedPieces++;
@@ -428,12 +455,14 @@ namespace SDG.Unturned
 					|| asset.type == EItemType.GENERATOR)
 					continue;
 
-				if (!centralStorage.items.tryAddItem(item, false))
+				// Debit from the NPC first: if another routine changes the
+				// inventory before this transaction, no duplicate is deposited.
+				if (!inventory.TryTakeItemServer(slot, out Item removed))
 					continue;
-
-				if (!inventory.TryTakeItemServer(slot, out _))
+				if (!centralStorage.items.tryAddItem(removed, false))
 				{
-					UnturnedLog.warn("[MobileNPCSettlementBuilder] Storage accepted an item but inventory transfer failed.");
+					if (!inventory.TryStoreTransferredItem(removed))
+						UnturnedLog.warn("[MobileNPCSettlementBuilder] Storage rejected an item and rollback failed.");
 					continue;
 				}
 				changed = true;
