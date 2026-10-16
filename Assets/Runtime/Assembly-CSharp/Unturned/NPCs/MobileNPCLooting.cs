@@ -604,9 +604,23 @@ namespace SDG.Unturned
 				return;
 
 			// Validate actual map ground; native pathfinding must still walk to it.
+			// The recorded coordinate is the ACTUAL pickup site, not a
+			// map-wide rooftop/floor target. The former 12m-above ray could
+			// snap to an entirely different story and strand the scavenger.
+			// Use only a nearby physical walk-support surface; inaccessible
+			// raised loot may be re-seen and approached by the existing
+			// furniture/jump logic later, not guessed from memory.
 			if (!MobileNPCSpawnService.TryFindSafeGroundPosition(rememberedPosition,
-				12f, 8f, RayMasks.BLOCK_COLLISION, 38f, out Vector3 reachableGround, out _)
-				|| (reachableGround - rememberedPosition).sqrMagnitude > 100f)
+				1.1f, 1.8f, (RayMasks.BLOCK_COLLISION | RayMasks.GROUND2), 60f,
+				out Vector3 reachableGround, out Collider support, out _)
+				|| support == null
+				|| support.GetComponentInParent<InteractableStorage>() != null
+				|| support.GetComponentInParent<InteractableBed>() != null
+				|| support.GetComponentInParent<InteractableMannequin>() != null
+				|| support.GetComponentInParent<Player>() != null
+				|| support.GetComponentInParent<Zombie>() != null
+				|| support.GetComponentInParent<MobileNPCHumanoidVitals>() != null
+				|| Mathf.Abs(reachableGround.y - rememberedPosition.y) > 0.85f)
 				return;
 
 			// The individual discovered this site previously or heard about it
