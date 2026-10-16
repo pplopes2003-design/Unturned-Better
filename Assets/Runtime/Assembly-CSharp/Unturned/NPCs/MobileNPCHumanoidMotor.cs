@@ -1371,7 +1371,7 @@ namespace SDG.Unturned
 					out Vector3 ground, out Collider floorCollider, out _)
 					|| IsFurnitureSurfaceCollider(floorCollider)
 					|| Mathf.Abs(ground.y - transform.position.y)
-					> characterController.stepOffset + characterController.skinWidth + 0.05f
+					> characterController.stepOffset + 0.05f
 					|| IsRouteNodeOccupied(ground, radius)
 					|| !HasContinuousLocalFloor(transform.position, ground))
 					continue;
@@ -4169,8 +4169,9 @@ namespace SDG.Unturned
 					&& !CanUsePhysicallyReachedFurnitureFloor(floorCollider, floor))
 				|| Mathf.Abs(floor.y - midpoint.y) > 0.35f)
 				return false;
-			float riseLimit = characterController.stepOffset
-				+ characterController.skinWidth + 0.10f;
+			// Route evidence must be at most the true native walking step;
+			// skin width is a collision tolerance, NOT another 10cm ledge.
+			float riseLimit = characterController.stepOffset + 0.05f;
 			return floor.y - from.y <= riseLimit
 				&& to.y - floor.y <= riseLimit
 				&& from.y - floor.y <= 0.55f
