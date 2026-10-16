@@ -709,7 +709,8 @@ namespace SDG.Unturned
 				joint.enablePreprocessing = template.enablePreprocessing;
 				joint.breakForce = template.breakForce;
 				joint.breakTorque = template.breakTorque;
-				joint.enabled = true;
+				// CharacterJoint derives from Joint/Component, NOT
+				// Behaviour; the physics link is active when added.
 			}
 			Debug.Log("[MobileNPCHumanoidVitals] Authored native articulated NPC "
 				+ "ragdoll on original skin skeleton: bones=" + createdBodies.Length
