@@ -32,10 +32,12 @@ namespace SDG.Unturned
 		private MobileNPCHumanoidRangedCombat rangedCombat;
 		private MobileNPCHumanoidVitals vitals;
 		private MobileNPCInventory inventory;
+		private MobileNPCGroupMember groupMember;
 		private MobileNPCHumanoidMotor motor;
 		private float nextUpdateTime;
 		private float blockedSince = -1f;
 		private float nextFlankTime;
+		private float nextCasualtyWithdrawalAt;
 		private Transform subscribedTarget;
 		private readonly Vector3[] candidateOffsets = new Vector3[8];
 
@@ -46,6 +48,7 @@ namespace SDG.Unturned
 			rangedCombat = GetComponent<MobileNPCHumanoidRangedCombat>();
 			vitals = GetComponent<MobileNPCHumanoidVitals>();
 			inventory = GetComponent<MobileNPCInventory>();
+			groupMember = GetComponent<MobileNPCGroupMember>();
 			motor = GetComponent<MobileNPCHumanoidMotor>();
 
 			candidateOffsets[0] = new Vector3(1f, 0f, 0f);
@@ -117,6 +120,34 @@ namespace SDG.Unturned
 			{
 				ResetOcclusion();
 				return;
+			}
+
+			// A local comrade's death may prompt voluntary short withdrawal,
+			// but ONLY if this individual still personally sees its opponent.
+			// An armed healthy squad remains able to stand and fight. The
+			// individual brain validates real cover and local travel before
+			// overriding a less urgent flank goal; this never grants knowledge
+			// of the killer, damage immunity, or teleportation.
+			if (groupMember == null)
+				groupMember = GetComponent<MobileNPCGroupMember>();
+			if (groupMember != null && groupMember.RecentlyHeardSquadmateFallServer
+				&& Time.time >= nextCasualtyWithdrawalAt
+				&& brain.CurrentGoal != MobileNPCTactics.Goal.SeekCover
+				&& brain.CurrentGoal != MobileNPCTactics.Goal.Retreat
+				&& (vitals != null && vitals.HealthFraction < 0.60f
+					|| rangedCombat.SelectedGunAsset == null
+					|| !rangedCombat.IsReloading && rangedCombat.RoundsRemaining <= 2))
+			{
+				nextCasualtyWithdrawalAt = Time.time + 11f;
+				if (brain.TryStartCautiousSquadWithdrawalServer())
+				{
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+					Debug.Log("[MobileNPCTacticalCombatBehavior] " + name
+						+ " chose casualty-driven fallback after own visual confirmation"
+						+ " and verified local retreat route.", this);
+#endif
+					return;
+				}
 			}
 
 			// Reloading takes priority over flank and spacing. ReportIncomingFire uses the
