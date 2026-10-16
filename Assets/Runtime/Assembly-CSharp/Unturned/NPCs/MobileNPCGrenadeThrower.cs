@@ -66,8 +66,9 @@ namespace SDG.Unturned
             // native depot plus living rival defender, not a remembered GPS.
             MobileNPCTerritoryRaidPlanner raid =
                 GetComponent<MobileNPCTerritoryRaidPlanner>();
+            Vector3 raidPoint = Vector3.zero;
             bool visibleRaidBase = MobileNPCSettings.CombatMode && raid != null
-                && raid.TryGetVisibleHostileBaseServer(out Vector3 raidPoint);
+                && raid.TryGetVisibleHostileBaseServer(out raidPoint);
             if (!genuinelyVisible && !visibleRaidBase)
                 return;
             bool breach = visibleRaidBase
