@@ -54,6 +54,12 @@ namespace SDG.Unturned
 			{
 				fractured = false;
 			}
+
+			internal void RestoreSnapshot(float savedCondition, bool savedFracture)
+			{
+				condition = Mathf.Clamp(savedCondition, 0f, 100f);
+				fractured = savedFracture;
+			}
 		}
 
 		[SerializeField, Min(0.1f)] private float lightBleedDamagePerSecond = 0.35f;
@@ -73,6 +79,62 @@ namespace SDG.Unturned
 		private float nextBleedTick;
 		private BleedingSeverity bleeding;
 		private BodyPart bleedingPart;
+
+		[Serializable]
+		public sealed class InjurySnapshot
+		{
+			// Exactly six original player-equivalent body regions, NOT
+			// additional colliders or altered damage hitboxes.
+			public float[] condition = new float[6];
+			public bool leftLegFractured;
+			public bool rightLegFractured;
+			public int bleedingSeverity;
+			public int bleedingPart;
+		}
+
+		public InjurySnapshot ExportSnapshotServer()
+		{
+			if (!Provider.isServer || vitals == null || vitals.IsDead)
+				return null;
+			return new InjurySnapshot
+			{
+				condition = new float[] {
+					head.Condition, torso.Condition, leftArm.Condition,
+					rightArm.Condition, leftLeg.Condition, rightLeg.Condition },
+				leftLegFractured = leftLeg.IsFractured,
+				rightLegFractured = rightLeg.IsFractured,
+				bleedingSeverity = (int)bleeding,
+				bleedingPart = (int)bleedingPart
+			};
+		}
+
+		/// <summary>Restore only previously observed physical injury state,
+		/// without applying health damage twice or invoking a new hit.</summary>
+		public void RestoreSnapshotServer(InjurySnapshot snapshot)
+		{
+			if (!Provider.isServer || vitals == null || vitals.IsDead
+				|| snapshot == null || snapshot.condition == null
+				|| snapshot.condition.Length != 6
+				|| snapshot.bleedingSeverity < (int)BleedingSeverity.None
+				|| snapshot.bleedingSeverity > (int)BleedingSeverity.Heavy
+				|| !IsValidPart((BodyPart)snapshot.bleedingPart))
+				return;
+			for (int i = 0; i < snapshot.condition.Length; ++i)
+				if (float.IsNaN(snapshot.condition[i])
+					|| float.IsInfinity(snapshot.condition[i]))
+					return;
+			head.RestoreSnapshot(snapshot.condition[0], false);
+			torso.RestoreSnapshot(snapshot.condition[1], false);
+			leftArm.RestoreSnapshot(snapshot.condition[2], false);
+			rightArm.RestoreSnapshot(snapshot.condition[3], false);
+			leftLeg.RestoreSnapshot(snapshot.condition[4], snapshot.leftLegFractured);
+			rightLeg.RestoreSnapshot(snapshot.condition[5], snapshot.rightLegFractured);
+			bleeding = (BleedingSeverity)snapshot.bleedingSeverity;
+			bleedingPart = (BodyPart)snapshot.bleedingPart;
+			nextBleedTick = Time.time + Mathf.Max(0.1f, bleedTickInterval);
+			// The next normal medical/locomotion ticks read the restored
+			// actual injury; no treatment or extra hit is fabricated.
+		}
 
 		public event Action<BleedingSeverity, BodyPart> BleedingChanged;
 		public event Action<BodyPart, float, bool> PartConditionChanged;
