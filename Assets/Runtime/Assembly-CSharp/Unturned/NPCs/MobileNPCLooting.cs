@@ -101,6 +101,17 @@ namespace SDG.Unturned
 				radioOutbox = GetComponent<MobileNPCRadioOutbox>();
 			TickSupplyPlanServer();
 			UpdateRememberedSupplyTripServer();
+			// Manufacture only authored vanilla raid supplies from owned
+			// ingredients after firsthand hostile-base intelligence. The
+			// inventory service rate-limits costly blueprint catalog scans.
+			if (MobileNPCSettings.CombatMode && driver.Target == null
+				&& driver.CurrentGoal == MobileNPCTactics.Goal.None)
+			{
+				MobileNPCTerritoryRaidPlanner raid =
+					GetComponent<MobileNPCTerritoryRaidPlanner>();
+				if (raid != null && raid.HasRecentHostileBaseIntelServer)
+					inventory.TryCraftRaidExplosiveServer();
+			}
 			bool radioLootSearch = radioLootRumor != null
 				&& radioLootRumor.IsActivelySearchingServer;
 
@@ -452,6 +463,9 @@ namespace SDG.Unturned
 					break;
 				case EItemType.GUN:
 					score = inventory.CountItemType(EItemType.GUN) == 0 ? 82f : 43f;
+					if (MobileNPCSettings.CombatMode
+						&& MobileNPCRaidSupplyPolicy.IsRaidLauncher(item.asset))
+						score += inventory.HasRaidLauncherServer() ? 14f : 115f;
 					if (MobileNPCSettings.CombatMode)
 						score += inventory.CountItemType(EItemType.GUN) == 0 ? 38f : 20f;
 					break;
@@ -464,6 +478,9 @@ namespace SDG.Unturned
 						&& !grenade.isSticky && !grenade.explodeOnImpact
 						&& inventory.CountItemType(EItemType.THROWABLE) < 2
 						? 64f : 10f;
+					if (MobileNPCSettings.CombatMode
+						&& MobileNPCRaidSupplyPolicy.IsBreachThrowable(item.asset))
+						score += inventory.HasUsableRaidExplosiveServer() ? 22f : 96f;
 					break;
 				}
 				case EItemType.MELEE:
@@ -473,6 +490,9 @@ namespace SDG.Unturned
 				{
 					score = 20f;
 					ItemMagazineAsset magazine = item.asset as ItemMagazineAsset;
+					if (MobileNPCSettings.CombatMode && magazine != null
+						&& inventory.IsCompatibleRaidMagazineServer(magazine))
+						score = 165f;
 					if (magazine != null && inventory.TryGetBestGun(out Item heldGun, out ItemGunAsset ownedGun)
 						&& ownedGun.magazineCalibers != null && magazine.calibers != null
 						&& magazine.CalibersContainAnyOfIds(ownedGun.magazineCalibers))
@@ -518,6 +538,9 @@ namespace SDG.Unturned
 						&& inventory.CountItemType(EItemType.BARRICADE) + inventory.CountItemType(EItemType.STORAGE)
 						+ inventory.CountItemType(EItemType.STRUCTURE) < 3;
 					score = needsSettlementSupplies ? 58f + buildingLootPreference * 20f : 12f + buildingLootPreference * 45f;
+					if (MobileNPCSettings.CombatMode
+						&& MobileNPCRaidSupplyPolicy.IsRaidCharge(item.asset))
+						score += 14f; // Hold only; placement/detonator is not yet coded.
 					break;
 				}
 				case EItemType.SUPPLY:
