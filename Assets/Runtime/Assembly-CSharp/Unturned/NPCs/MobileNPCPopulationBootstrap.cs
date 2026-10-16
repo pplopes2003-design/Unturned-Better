@@ -115,6 +115,13 @@ namespace SDG.Unturned
             template.AddComponent<MobileNPCDeathLoot>();
             template.AddComponent<MobileNPCSurvivalNeeds>();
             template.AddComponent<MobileNPCLooting>();
+            // Vitals already requires the six-body-region InjurySystem.
+            // Without MedicalBehavior on the real runtime template, the
+            // A-Life planner can never observe missing bandages/splints and
+            // a bleeding survivor can never stop hemorrhage with native
+            // dressing items, even though both services exist in source.
+            if (template.GetComponent<MobileNPCMedicalBehavior>() == null)
+                template.AddComponent<MobileNPCMedicalBehavior>();
             template.AddComponent<MobileNPCMedicalUse>();
             template.AddComponent<MobileNPCSettlementPlanner>();
             template.AddComponent<MobileNPCSettlementBuilder>();
