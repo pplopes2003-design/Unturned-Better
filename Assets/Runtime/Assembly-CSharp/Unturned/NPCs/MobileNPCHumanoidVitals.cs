@@ -842,12 +842,21 @@ namespace SDG.Unturned
 			Joint[] authoredJoints = actualSkeleton != null
 				? actualSkeleton.GetComponentsInChildren<Joint>(true)
 				: visualRoot.GetComponentsInChildren<Joint>(true);
+			// The SIX live anatomical hitboxes occupy the SAME bones and
+			// BoxColliders as six of the eleven native ragdoll volumes. Their
+			// MobileNPCBodyHitbox components were disabled on death, so excluding
+			// colliders with that marker makes a complete 11-bone ragdoll look
+			// incomplete (5/11) and forces the rigid capsule fallback every time.
+			// Validate the authored bone bodies themselves, not the gameplay marker.
 			int usableColliders = 0;
-			for (int i = 0; i < colliders.Length; ++i)
+			for (int i = 0; i < authoredBodies.Length; ++i)
 			{
-				if (colliders[i] != null && !colliders[i].isTrigger
-					&& colliders[i].GetComponent<MobileNPCBodyHitbox>() == null)
-					usableColliders++;
+				Rigidbody bone = authoredBodies[i];
+				BoxCollider box = bone != null ? bone.GetComponent<BoxCollider>() : null;
+				if (bone != null && box != null && !box.isTrigger
+					&& box.size.x > 0f && box.size.y > 0f && box.size.z > 0f
+					&& actualSkeleton != null && bone.transform.IsChildOf(actualSkeleton))
+					++usableColliders;
 			}
 			// Never enable a partially authored linked skeleton. NPC_Client
 			// has none originally; Ragdoll_Player carries exactly 11 rigid
@@ -870,12 +879,14 @@ namespace SDG.Unturned
 				return;
 			}
 			int enabledColliders = 0;
-			for (int i = 0; i < colliders.Length; ++i)
+			for (int i = 0; i < authoredBodies.Length; ++i)
 			{
-				Collider bodyCollider = colliders[i];
-				if (bodyCollider == null || bodyCollider.isTrigger
-					|| bodyCollider.GetComponent<MobileNPCBodyHitbox>() != null)
+				Rigidbody bone = authoredBodies[i];
+				BoxCollider bodyCollider = bone != null ? bone.GetComponent<BoxCollider>() : null;
+				if (bodyCollider == null)
 					continue;
+				// The gameplay hitbox MARKER stays disabled; only its native
+				// physical collider is reactivated to articulate the corpse.
 				bodyCollider.enabled = true;
 				++enabledColliders;
 			}
