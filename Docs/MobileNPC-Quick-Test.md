@@ -355,3 +355,30 @@ If the runtime bootstrap cannot initialize, create a test GameObject with a vali
 **Independent pending work:** A* \`Pathfinding.NavmeshCut\` is missing from the SDK/runtime, so native ASPFP routing is unavailable. Keep the bounded physical fallback without pretending native graph routes exist. Remaining AI test areas: room/door transitions, complex stair and furniture vault, noncombat scavenging, dialog HUD, zombies outside regions, faction/group reinforcement, ranged engagement balance, injury/medical behavior and longer-term A-Life/uncertainty; do not mark these complete solely because this patch compiles.
 
 **Close-zombie self-defense — QUASE PRONTO.** The current melee implementation skipped every attack while `Retreat` was active, even if a zombie was already within its 2m melee range. Retreat still has movement priority, but a *visually selected, valid Zombie target at actual melee range* may now receive one ordinary cooldown- and line-of-sight-validated defensive hit. This does not authorize attacking friends, punching an unseen zombie, shooting while fleeing, or unlimited melee damage. Retest a wounded unarmed NPC cornered by a zombie; it should attempt to defend itself without stopping the retreat route.
+
+
+## Zombie movement parity and A-Life decision review — 16 Oct 2026
+
+**Status: QUASE PRONTO — source changes reviewed, player-build observations NOT yet obtained.**
+
+### Native zombie vs NPC navigation
+
+Verified the checked-in native \`Assets/Resources/Characters/Zombie_Server.prefab\`: \`CharacterController\` is height 2.0, radius 0.4, center (0,1,0), slope 75°, step offset 0.5, skin width 0.1; \`Player_Server.prefab\` has step 0.4 and slope 60. The NPC runtime root had height 1.8, radius 0.35, step 0.4 and slope 60. This discrepancy was real and could impair small curbs.
+
+The NPC's spawned root now matches **Zombie_Server** on those six physical values and retains \`LayerMasks.AGENT\` and \`enableOverlapRecovery=false\`. The native \`NonPathfindingZombieMovementComponent.Move\` uses \`Physics.gravity.y * 2\` when moving, unlike the NPC's near-zero grounded vertical correction. The NPC now uses this zombie-equivalent downward contact **only while ordinarily grounded**; ladders, swimming, jumping and verified vault arcs retain their own motion, CharacterController collisions remain authoritative.
+
+The next-stride ground probe no longer blindly raycasts 5 metres above the NPC (risk of selecting another floor/roof), and recognizes only a nearby genuine world-support surface; it excludes player/zombie/NPC bodies and furniture. The physical-ground confirmation also recognizes \`GROUND2\` when the map uses that secondary terrain layer. Local detour, floor-connector and grid-edge rise thresholds are based on the real 0.5m step (plus 0.05m tolerance), not on skin width incorrectly granting extra ledge-climbing capacity. Tall walls, railings, rooftops and upper floors still require a physical route, ladder or jump.
+
+**Required dev-build tests:** Washington asphalt→sidewalk→asphalt without any jump; curb corners; shallow steps; steep ramp; doorway thresholds; vault over a genuinely high obstacle; no teleport through walls or furniture; compare with a nearby native zombie on the same curb. Examine \`[MobileNPCHumanoidMotor] Blocked\` logs after a stuck episode. Confirm that changes to the larger capsule did not regress narrow doors or ordinary spawn clearance.
+
+### A-Life online planning and decision brain
+
+The original online planner's utility lacked resource **ownership**: an NPC with water could leave guard because its thirst bar was low, and a bleeding NPC with no wound dressings could enter a repeated \`Recover\` loop. Job scoring now considers native inventory holdings, \`MobileNPCMedicalBehavior.NeedsMedicalSupplies\`, active bleeding, food/water shortage, health and combat interruption. It does not synthesize items, automatically heal or read hidden spawns.
+
+\`GuardSettlement\` now uses bounded, individually timed guard shifts while idle, releasing the *existing* \`MobileNPCGroupMember\` post reservation and giving other members an opportunity to take over. It does not abandon a confirmed combat encounter mid-defense. Visible loot selection is now gated by \`MobileNPCAutonomyPlanner.CurrentJob\`: scavengers actively collect; patrols require worthwhile items; guards/recovering NPCs mostly preserve their duties except urgent resources. Remembered supply trips can preempt non-scavenger duties only for real medical, food or water emergencies. Every actual item still requires local sighting or personally remembered/communicated clues and a genuine \`ItemManager\` transfer.
+
+When an investigating brain reaches a genuine sound clue, its next three uncertainty-search spiral candidates are now smaller, same-floor, ground-checked and validated by bounded local route planning before becoming a movement destination. Inaccessible guesses are **skipped, not treated as visited**; the ordinary search deadline/return and player knowledge advisory remain the existing systems.
+
+**Required dev-build tests:** wounded/bleeding no-bandage NPC chooses Scavenge instead of Recover, but still only picks up real loot; full inventory does not generate impossible item jobs; equipped guard does not abandon post for junk; after a guard shift another NPC can reserve the same post; confirmed zombie/player combat preempts routine; sound investigation checks actual adjoining accessible rooms instead of repeatedly colliding with walls, and never uses the unseen player's current Transform.
+
+**Remaining AI tasks:** diagnosis of native ASPFP/\`Pathfinding.NavmeshCut\` absence and multi-room/long-range navigation without the native graph, full combat behavior validation, radio rumors with actual devices, persistent job state across save/load, injury and supply side effects, NPC relationships/trading/HUD, long-range zombie pursuit. Do not classify these as fixed solely from these changes.
