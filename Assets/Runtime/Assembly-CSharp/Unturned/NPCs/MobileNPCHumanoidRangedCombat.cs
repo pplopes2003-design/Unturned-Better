@@ -56,6 +56,36 @@ namespace SDG.Unturned
 		private bool waitingForBurstPause;
 		// Reused hit buffer avoids allocating and sorting a new RaycastAll array for every shot.
 		private readonly RaycastHit[] shotHits = new RaycastHit[64];
+		private const float NativeBallisticDelta = 0.02f; // UseableGun.BALLISTICS_DELTA_TIME
+		private const int MaxInFlightBullets = 6;
+		private const int MaxStepChecksPerActorFrame = 5;
+		private const int MaxSharedBulletChecksPerFrame = 100;
+		private static int sharedBallisticFrame = -1;
+		private static int sharedBallisticChecks;
+		private readonly PendingBullet[] pendingBullets = new PendingBullet[MaxInFlightBullets];
+
+		private struct PendingBullet
+		{
+			public bool Active;
+			public Vector3 Position;
+			public Vector3 Velocity;
+			public Vector3 InitialDirection;
+			public float NextStepTime;
+			public float DistanceTravelled;
+			public float MaximumRange;
+			public float GravityMultiplier;
+			public float ActualDamage;
+			public float IntendedDistance;
+			public int RemainingSteps;
+			public int Profile;
+			public ushort GunId;
+			public Player TargetPlayer;
+			public MobileNPCHumanoidDisposition TargetNPC;
+			public Zombie TargetZombie;
+			public MobileNPCHumanoidDisposition OwnDisposition;
+			public MobileNPCAdaptiveMemory.ExperienceKind Context;
+		}
+		
 
 		/// <summary>Raised on the server when a shot is committed. Hook prefab audio/animation here.</summary>
 		public event System.Action ShotFired;
@@ -106,6 +136,10 @@ namespace SDG.Unturned
 				return;
 			}
 
+			// Bullets are simulated independently of later sight, reload or
+			// death of a target. A shot cannot magically track its moving victim.
+			TickInFlightBulletsServer();
+
 			if (!reloadPending && pendingReloadMagazine != null)
 				TryReturnPendingMagazine();
 
@@ -149,8 +183,10 @@ namespace SDG.Unturned
 				RefreshSelectedGun();
 			}
 
-			if (selectedGunAsset == null)
+			if (selectedGunAsset == null || selectedGunAsset.projectile != null)
 			{
+				// Actual launched rocket/grenade prefab weapons need a separate
+				// native projectile service, never emulate them as rifle hitscan.
 				return;
 			}
 
@@ -242,16 +278,36 @@ namespace SDG.Unturned
 			Vector3 muzzle = transform.position + Vector3.up * muzzleHeight;
 			Vector3 targetPoint = targetTransform.position + Vector3.up * targetHeight;
 			Vector3 toTarget = targetPoint - muzzle;
-			float weaponRange = selectedGunAsset != null && selectedGunAsset.range > 0f
-				? Mathf.Min(effectiveRange, selectedGunAsset.range) : effectiveRange;
+			// Scoped distance is bounded by the real weapon and a hard cap,
+			// never the map size. With no scope retain ordinary short/medium range.
+			float scopedRange = selectedOpticZoom >= 2.5f
+				? Mathf.Min(115f, Mathf.Max(effectiveRange, effectiveRange * Mathf.Min(2.55f, selectedOpticZoom * 0.65f)))
+				: effectiveRange;
+			float weaponRange = selectedGunAsset.range > 0f
+				? Mathf.Min(scopedRange, selectedGunAsset.range) : effectiveRange;
+			bool nativeBallistics = Provider.modeConfigData.Gameplay.Ballistics
+				&& selectedGunAsset.muzzleVelocity > 0.1f
+				&& selectedGunAsset.ballisticSteps > 0;
+			if (nativeBallistics)
+				weaponRange = Mathf.Min(weaponRange, selectedGunAsset.muzzleVelocity
+					* NativeBallisticDelta * selectedGunAsset.ballisticSteps);
 			if (toTarget.sqrMagnitude > weaponRange * weaponRange || toTarget.sqrMagnitude < 0.01f)
-			{
 				return;
-			}
 
-			float weaponSpreadDegrees = selectedGunAsset != null ? selectedGunAsset.baseSpreadAngleRadians * Mathf.Rad2Deg : 0f;
-			if (!aim.TryGetShotDirection(muzzle, IsMoving(), skill, weaponSpreadDegrees, out Vector3 shotDirection))
+			float weaponSpreadDegrees = selectedGunAsset.baseSpreadAngleRadians * Mathf.Rad2Deg;
+			// A human estimates lead/drop from previously SEEN target motion.
+			// The authored gun and attachment physics will actually carry the shot.
+			float bulletSpeed = nativeBallistics ? selectedGunAsset.muzzleVelocity : 10000f;
+			if (!aim.TryGetBallisticShotDirection(muzzle, IsMoving(), skill,
+				weaponSpreadDegrees, bulletSpeed, selectedBulletGravityMultiplier,
+				selectedOpticZoom, selectedGunID, out Vector3 shotDirection,
+				out int selectedBallisticProfile))
+				return;
+			int availableBulletSlot = nativeBallistics ? FindFreeBulletSlot() : -1;
+			if (nativeBallistics && availableBulletSlot < 0)
 			{
+				// Too many live rounds: wait, don't fabricate a direct-hit shortcut.
+				nextShotTime = Time.time + 0.1f;
 				return;
 			}
 
@@ -317,98 +373,36 @@ namespace SDG.Unturned
 				nextShotTime = Time.time + Mathf.Max(0.05f, GetSecondsPerShot() * intervalScale * learnedCadence);
 			}
 
-			// Find the nearest external collider without allocating a per-shot array or sorting all hits.
-			int hitCount = Physics.RaycastNonAlloc(muzzle, shotDirection, shotHits, weaponRange, hitMask, QueryTriggerInteraction.Ignore);
-			RaycastHit nearestHit = default(RaycastHit);
-			float nearestHitDistance = float.PositiveInfinity;
-			for (int i = 0; i < hitCount; ++i)
+			PendingBullet committed = new PendingBullet
 			{
-				Transform hitTransform = shotHits[i].transform;
-				if (hitTransform == null || hitTransform == transform || hitTransform.IsChildOf(transform))
-				{
-					continue;
-				}
-				if (shotHits[i].distance < nearestHitDistance)
-				{
-					nearestHitDistance = shotHits[i].distance;
-					nearestHit = shotHits[i];
-				}
-			}
-
-			// A full non-alloc buffer may have omitted closer colliders. Fall back to the
-			// allocating query only in this uncommon saturation case to preserve hit correctness.
-			if (hitCount == shotHits.Length)
+				Active = nativeBallistics,
+				Position = muzzle,
+				Velocity = shotDirection * bulletSpeed,
+				InitialDirection = shotDirection,
+				NextStepTime = Time.time + NativeBallisticDelta,
+				MaximumRange = weaponRange,
+				GravityMultiplier = selectedBulletGravityMultiplier,
+				ActualDamage = GetWeaponDamage(),
+				IntendedDistance = toTarget.magnitude,
+				RemainingSteps = nativeBallistics ? selectedGunAsset.ballisticSteps : 1,
+				Profile = selectedBallisticProfile,
+				GunId = selectedGunID,
+				TargetPlayer = targetPlayer,
+				TargetNPC = targetNPC,
+				TargetZombie = targetZombie,
+				OwnDisposition = ownDisposition,
+				Context = shotContext
+			};
+			if (nativeBallistics)
+				pendingBullets[availableBulletSlot] = committed;
+			else
 			{
-				RaycastHit[] overflowHits = Physics.RaycastAll(muzzle, shotDirection, weaponRange, hitMask, QueryTriggerInteraction.Ignore);
-				nearestHitDistance = float.PositiveInfinity;
-				for (int i = 0; i < overflowHits.Length; ++i)
-				{
-					Transform hitTransform = overflowHits[i].transform;
-					if (hitTransform == null || hitTransform == transform || hitTransform.IsChildOf(transform)) continue;
-					if (overflowHits[i].distance < nearestHitDistance)
-					{
-						nearestHitDistance = overflowHits[i].distance;
-						nearestHit = overflowHits[i];
-					}
-				}
+				// Respect the original game's optional non-ballistic gameplay mode.
+				if (TryGetNearestExternalHit(muzzle, shotDirection, weaponRange, out RaycastHit hit))
+					CompleteCommittedShot(committed, ApplyShotImpact(hit, committed), true);
+				else
+					CompleteCommittedShot(committed, false, true);
 			}
-
-			bool contactedSelectedTarget = false;
-			if (!float.IsPositiveInfinity(nearestHitDistance))
-			{
-				RaycastHit hit = nearestHit;
-
-				Player hitPlayer = hit.transform.GetComponent<Player>();
-				if (hitPlayer == null)
-				{
-					hitPlayer = hit.transform.GetComponentInParent<Player>();
-				}
-
-				if (hitPlayer != null && hitPlayer == targetPlayer && hitPlayer.life != null && !hitPlayer.life.isDead)
-				{
-					DamagePlayerParameters parameters = new DamagePlayerParameters(hitPlayer);
-					parameters.cause = EDeathCause.GUN;
-					parameters.limb = ELimb.SPINE;
-					parameters.killer = Provider.server;
-					parameters.direction = shotDirection;
-					parameters.damage = GetWeaponDamage();
-					parameters.respectArmor = true;
-					EPlayerKill kill;
-					DamageTool.damagePlayer(parameters, out kill);
-					// Valid physical contact, not a guarantee of an unarmored kill.
-					contactedSelectedTarget = true;
-				}
-				else if (targetNPC != null)
-				{
-					MobileNPCHumanoidDisposition hitNPC = hit.transform.GetComponent<MobileNPCHumanoidDisposition>();
-					if (hitNPC == null) hitNPC = hit.transform.GetComponentInParent<MobileNPCHumanoidDisposition>();
-					MobileNPCHumanoidVitals hitVitals = hitNPC != null ? hitNPC.GetComponent<MobileNPCHumanoidVitals>() : null;
-					if (hitNPC == targetNPC && hitVitals != null
-						&& MobileNPCHumanoidDisposition.AreHostile(ownDisposition, hitNPC))
-					{
-						float hitDamage = GetWeaponDamage();
-						contactedSelectedTarget = hitVitals.ApplyValidatedWeaponImpactServer(
-							hitDamage, hit.point, shotDirection, transform, true, hit.transform);
-					}
-				}
-				else if (targetZombie != null)
-				{
-					Zombie hitZombie = hit.transform.GetComponent<Zombie>();
-					if (hitZombie == null) hitZombie = hit.transform.GetComponentInParent<Zombie>();
-					if (hitZombie == targetZombie && !hitZombie.isDead)
-					{
-						int roundedDamage = Mathf.Clamp(Mathf.RoundToInt(GetWeaponDamage()), 1, ushort.MaxValue);
-						hitZombie.askDamage((ushort)roundedDamage, shotDirection * roundedDamage,
-							out _, out _, trackKill: false, dropLoot: true);
-						contactedSelectedTarget = true;
-					}
-				}
-			}
-
-			// Only a committed, ammo-accounted shot produces feedback. Misses, obstruction
-			// and validated target contact are distinguishable; no hidden hit oracle is used.
-			if (adaptiveMemory != null)
-				adaptiveMemory.RecordOwnOutcomeServer(shotContext, transform.position, contactedSelectedTarget);
 
 			// Vanilla Player guns use AlertTool.alert() for an unsuppressed
 			// committed shot. Mobile NPCs do not run UseableGun, so call that
@@ -421,6 +415,171 @@ namespace SDG.Unturned
 			{
 				BeginReload();
 			}
+		}
+
+		private int FindFreeBulletSlot()
+		{
+			for (int i = 0; i < pendingBullets.Length; ++i)
+				if (!pendingBullets[i].Active) return i;
+			return -1;
+		}
+
+		private bool TryGetNearestExternalHit(Vector3 origin, Vector3 direction,
+			float distance, out RaycastHit hit)
+		{
+			hit = default(RaycastHit);
+			int count = Physics.RaycastNonAlloc(origin, direction, shotHits,
+				distance, hitMask, QueryTriggerInteraction.Ignore);
+			float nearest = float.PositiveInfinity;
+			for (int i = 0; i < count; ++i)
+			{
+				Transform t = shotHits[i].transform;
+				if (t == null || t == transform || t.IsChildOf(transform)) continue;
+				if (shotHits[i].distance < nearest)
+				{
+					nearest = shotHits[i].distance;
+					hit = shotHits[i];
+				}
+			}
+			// A full NonAlloc buffer may omit the nearest collider.
+			if (count == shotHits.Length)
+			{
+				RaycastHit[] overflow = Physics.RaycastAll(origin, direction,
+					distance, hitMask, QueryTriggerInteraction.Ignore);
+				nearest = float.PositiveInfinity;
+				for (int i = 0; i < overflow.Length; ++i)
+				{
+					Transform t = overflow[i].transform;
+					if (t == null || t == transform || t.IsChildOf(transform)) continue;
+					if (overflow[i].distance < nearest)
+					{
+						nearest = overflow[i].distance;
+						hit = overflow[i];
+					}
+				}
+			}
+			return !float.IsPositiveInfinity(nearest);
+		}
+
+		private void TickInFlightBulletsServer()
+		{
+			if (sharedBallisticFrame != Time.frameCount)
+			{
+				sharedBallisticFrame = Time.frameCount;
+				sharedBallisticChecks = 0;
+			}
+			int checks = 0;
+			for (int i = 0; i < pendingBullets.Length; ++i)
+			{
+				PendingBullet bullet = pendingBullets[i];
+				if (!bullet.Active) continue;
+				while (bullet.Active && Time.time >= bullet.NextStepTime
+					&& checks < MaxStepChecksPerActorFrame
+					&& sharedBallisticChecks < MaxSharedBulletChecksPerFrame)
+				{
+					++checks;
+					++sharedBallisticChecks;
+					float speed = bullet.Velocity.magnitude;
+					float stepLength = Mathf.Min(speed * NativeBallisticDelta,
+						bullet.MaximumRange - bullet.DistanceTravelled);
+					if (stepLength <= 0.001f || bullet.RemainingSteps <= 0)
+					{
+						CompleteCommittedShot(bullet, false, false);
+						bullet.Active = false;
+						break;
+					}
+					Vector3 direction = bullet.Velocity / Mathf.Max(speed, 0.001f);
+					if (TryGetNearestExternalHit(bullet.Position, direction, stepLength,
+						out RaycastHit hit))
+					{
+						bool contacted = ApplyShotImpact(hit, bullet);
+						CompleteCommittedShot(bullet, contacted, false);
+						bullet.Active = false;
+						break;
+					}
+					// Same semi-implicit native 50Hz update as UseableGun:
+					// position advances, then vertical velocity takes gravity.
+					bullet.Position += bullet.Velocity * NativeBallisticDelta;
+					bullet.Velocity.y += Physics.gravity.y
+						* bullet.GravityMultiplier * NativeBallisticDelta;
+					bullet.DistanceTravelled += stepLength;
+					bullet.RemainingSteps--;
+					bullet.NextStepTime += NativeBallisticDelta;
+					if (bullet.RemainingSteps <= 0 ||
+						bullet.DistanceTravelled >= bullet.MaximumRange - 0.01f)
+					{
+						CompleteCommittedShot(bullet, false, false);
+						bullet.Active = false;
+					}
+				}
+				pendingBullets[i] = bullet;
+		}
+		}
+
+		private bool ApplyShotImpact(RaycastHit hit, PendingBullet bullet)
+		{
+			if (hit.transform == null) return false;
+			Player hitPlayer = hit.transform.GetComponent<Player>();
+			if (hitPlayer == null)
+				hitPlayer = hit.transform.GetComponentInParent<Player>();
+			if (hitPlayer != null && hitPlayer == bullet.TargetPlayer
+				&& hitPlayer.life != null && !hitPlayer.life.isDead)
+			{
+				DamagePlayerParameters parameters = new DamagePlayerParameters(hitPlayer);
+				parameters.cause = EDeathCause.GUN;
+				parameters.limb = ELimb.SPINE;
+				parameters.killer = Provider.server;
+				parameters.direction = bullet.Velocity.normalized;
+				parameters.damage = bullet.ActualDamage;
+				parameters.respectArmor = true;
+				EPlayerKill kill;
+				DamageTool.damagePlayer(parameters, out kill);
+				return true;
+			}
+			if (bullet.TargetNPC != null)
+			{
+				MobileNPCHumanoidDisposition hitNPC =
+					hit.transform.GetComponentInParent<MobileNPCHumanoidDisposition>();
+				MobileNPCHumanoidVitals vitals =
+					hitNPC != null ? hitNPC.GetComponent<MobileNPCHumanoidVitals>() : null;
+				if (hitNPC == bullet.TargetNPC && vitals != null && !vitals.IsDead
+					&& MobileNPCHumanoidDisposition.AreHostile(bullet.OwnDisposition, hitNPC))
+					return vitals.ApplyValidatedWeaponImpactServer(
+						bullet.ActualDamage, hit.point, bullet.Velocity.normalized,
+						transform, true, hit.transform);
+			}
+			if (bullet.TargetZombie != null)
+			{
+				Zombie hitZombie = hit.transform.GetComponentInParent<Zombie>();
+				if (hitZombie == bullet.TargetZombie && !hitZombie.isDead)
+				{
+					int impact = Mathf.Clamp(Mathf.RoundToInt(bullet.ActualDamage), 1, ushort.MaxValue);
+					hitZombie.askDamage((ushort)impact,
+						bullet.Velocity.normalized * impact,
+						out _, out _, trackKill: false, dropLoot: true);
+					return true;
+				}
+			}
+			return false;
+		}
+
+		private void CompleteCommittedShot(PendingBullet bullet, bool contacted,
+			bool instantaneous)
+		{
+			// Do not grade a miss after the victim disappeared or moved out
+			// of sight, as the shooter has no trustworthy visual feedback.
+			bool observed = instantaneous
+				|| perception != null && (bullet.TargetPlayer != null
+					&& perception.VisiblePlayer == bullet.TargetPlayer
+					|| bullet.TargetNPC != null && perception.VisibleNPC == bullet.TargetNPC
+					|| bullet.TargetZombie != null && perception.VisibleZombie == bullet.TargetZombie);
+			if (!contacted && !observed) return;
+			MobileNPCAdaptiveMemory memory = GetComponent<MobileNPCAdaptiveMemory>();
+			if (memory != null)
+				memory.RecordOwnOutcomeServer(bullet.Context, transform.position, contacted);
+			if (aim != null && bullet.Profile >= 0 && observed)
+				aim.RecordBallisticOutcomeServer(bullet.GunId, bullet.IntendedDistance,
+					bullet.Profile, contacted);
 		}
 
 		private void RefreshSelectedGun()
