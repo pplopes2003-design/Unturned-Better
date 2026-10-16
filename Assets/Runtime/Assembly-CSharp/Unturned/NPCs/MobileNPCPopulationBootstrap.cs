@@ -150,9 +150,9 @@ namespace SDG.Unturned
                 visualTransforms[i].gameObject.layer = visualRenderLayer;
             }
 
-            // Anatomical damage volumes are attached AFTER legacy visual
-            // colliders/scripts are disabled. They follow live animated
-            // bones (not a static six-volume upright approximation).
+            // Player-exact six hitboxes are attached AFTER disabling the
+            // NPC_Client's native physics colliders, to follow animation
+            // without duplicating physical movement or corpse colliders.
 
             Camera mainCamera = Camera.main;
             if (mainCamera != null)
@@ -413,169 +413,106 @@ namespace SDG.Unturned
                 + " Experimental local entities only; local NPC snapshots are persisted, but network replication is not implemented.");
         }
 
+        /// <summary>
+        /// Player_Server and Player_Client use exactly SIX BoxColliders:
+        /// Skull, Spine, Left_Arm, Right_Arm, Left_Leg, Right_Leg.
+        /// These are the exact same player collider centers/sizes read
+        /// from checked-in Player_Server.prefab, NOT inferred from NPC
+        /// proportions and NOT added to the native ragdoll physics bones.
+        /// A single child on each existing NPC_Client animated bone
+        /// owns an Entity-layer hit box; the six original NPC_Client
+        /// bone colliders stay disabled until ragdoll authoring at death.
+        /// </summary>
         private static bool CreateAnimatedAnatomicalHitboxes(
             Transform visual, CharacterController controller)
         {
-            Transform skeleton = visual.Find("Root/Skeleton");
-            Transform spine = skeleton != null ? skeleton.Find("Spine") : null;
+            Transform skeleton = visual != null
+                ? visual.Find("Root/Skeleton") : null;
+            Transform spine = skeleton != null
+                ? skeleton.Find("Spine") : null;
             Transform skull = spine != null ? spine.Find("Skull") : null;
-            Transform[] shoulders = new Transform[2];
-            Transform[] elbows = new Transform[2];
-            Transform[] wrists = new Transform[2];
-            Transform[] hips = new Transform[2];
-            Transform[] knees = new Transform[2];
-            Transform[] ankles = new Transform[2];
-            for (int i = 0; i < 2; i++)
-            {
-                string side = i == 0 ? "Left" : "Right";
-                shoulders[i] = spine != null ? spine.Find(side + "_Shoulder") : null;
-                elbows[i] = shoulders[i] != null
-                    ? shoulders[i].Find(side + "_Arm") : null;
-                wrists[i] = elbows[i] != null
-                    ? elbows[i].Find(side + "_Hand") : null;
-                hips[i] = skeleton != null ? skeleton.Find(side + "_Hip") : null;
-                knees[i] = hips[i] != null ? hips[i].Find(side + "_Leg") : null;
-                ankles[i] = knees[i] != null
-                    ? knees[i].Find(side + "_Foot") : null;
-            }
-            if (controller == null || spine == null || skull == null)
-                return false;
-            for (int i = 0; i < 2; i++)
-                if (shoulders[i] == null || elbows[i] == null
-                    || wrists[i] == null || hips[i] == null
-                    || knees[i] == null || ankles[i] == null)
-                    return false;
+            Transform leftShoulder = spine != null
+                ? spine.Find("Left_Shoulder") : null;
+            Transform rightShoulder = spine != null
+                ? spine.Find("Right_Shoulder") : null;
+            Transform leftArm = leftShoulder != null
+                ? leftShoulder.Find("Left_Arm") : null;
+            Transform rightArm = rightShoulder != null
+                ? rightShoulder.Find("Right_Arm") : null;
+            Transform leftHip = skeleton != null
+                ? skeleton.Find("Left_Hip") : null;
+            Transform rightHip = skeleton != null
+                ? skeleton.Find("Right_Hip") : null;
+            Transform leftLeg = leftHip != null
+                ? leftHip.Find("Left_Leg") : null;
+            Transform rightLeg = rightHip != null
+                ? rightHip.Find("Right_Leg") : null;
 
-            // All positions are measured from the NPC_Client's actual
-            // bind-pose bones. Parenting to the upstream animated joint
-            // makes body/limb hitboxes follow locomotion, aiming, crouching
-            // and jumping without any additional Update/GC/physics casts.
-            // Root CharacterController owns walking; Entity layer owns
-            // non-trigger DAMAGE raycasts, never ragdoll rigidbodies.
-            // The NPC_Client bind-pose has Leg/Hand joints in the MIDDLE
-            // of their authored boxes, not at the toes/fingertips. Follow
-            // the real native BoxCollider envelopes so extremities are
-            // not silently missed by rays.
-            BoxCollider spineEnvelope = spine.GetComponent<BoxCollider>();
-            BoxCollider skullEnvelope = skull.GetComponent<BoxCollider>();
-            if (spineEnvelope == null || skullEnvelope == null
-                || spineEnvelope.size.x < 0.6f || skullEnvelope.size.x < 0.3f)
+            if (controller == null || spine == null || skull == null
+                || leftArm == null || rightArm == null
+                || leftLeg == null || rightLeg == null)
+            {
+                Debug.LogError("[MobileNPCPopulationBootstrap] Cannot attach exact "
+                    + "Player_Server anatomy: missing a required NPC_Client bone.");
                 return false;
-            Vector3 torsoBase = spine.position;
-            Vector3 neckBase = skull.position;
-            Vector3 up = (neckBase - torsoBase).normalized;
-            if ((neckBase - torsoBase).sqrMagnitude < 0.18f)
-                return false;
-            CreateAnatomicalCapsule(spine, controller, "Abdomen",
-                MobileNPCInjurySystem.BodyPart.Torso,
-                Vector3.Lerp(torsoBase, neckBase, 0.04f),
-                Vector3.Lerp(torsoBase, neckBase, 0.52f),
-                Mathf.Min(0.37f, spineEnvelope.size.y * 0.43f));
-            CreateAnatomicalCapsule(spine, controller, "Chest",
-                MobileNPCInjurySystem.BodyPart.Torso,
-                Vector3.Lerp(torsoBase, neckBase, 0.48f),
-                Vector3.Lerp(torsoBase, neckBase, 0.96f),
-                Mathf.Min(0.38f, spineEnvelope.size.y * 0.46f));
-            CreateAnatomicalSphere(spine, controller, "Pelvis",
-                MobileNPCInjurySystem.BodyPart.Torso,
-                torsoBase - up * 0.07f, 0.32f);
-            CreateAnatomicalSphere(skull, controller, "Neck",
-                MobileNPCInjurySystem.BodyPart.Torso,
-                neckBase + up * 0.035f, 0.125f);
-            CreateAnatomicalSphere(skull, controller, "Head",
+            }
+
+            // The checked-in Player_Server prefab is the source of these
+            // EXACT bone-local BoxCollider dimensions. No extra anatomy:
+            // Left/Right arms and legs remain ONE hitbox each.
+            CreateNativePlayerDamageBox(skull, controller, "Head",
                 MobileNPCInjurySystem.BodyPart.Head,
-                skull.TransformPoint(skullEnvelope.center),
-                Mathf.Max(0.235f, skullEnvelope.size.x * 0.60f));
-
-            for (int i = 0; i < 2; i++)
-            {
-                string side = i == 0 ? "Left" : "Right";
-                MobileNPCInjurySystem.BodyPart armPart = i == 0
-                    ? MobileNPCInjurySystem.BodyPart.LeftArm
-                    : MobileNPCInjurySystem.BodyPart.RightArm;
-                MobileNPCInjurySystem.BodyPart legPart = i == 0
-                    ? MobileNPCInjurySystem.BodyPart.LeftLeg
-                    : MobileNPCInjurySystem.BodyPart.RightLeg;
-                Vector3 upperArm = elbows[i].position - shoulders[i].position;
-                Vector3 forearm = wrists[i].position - elbows[i].position;
-                BoxCollider armEnvelope = elbows[i].GetComponent<BoxCollider>();
-                BoxCollider legEnvelope = knees[i].GetComponent<BoxCollider>();
-                if (upperArm.sqrMagnitude < 0.035f || forearm.sqrMagnitude < 0.035f
-                    || (knees[i].position - hips[i].position).sqrMagnitude < 0.03f
-                    || (ankles[i].position - knees[i].position).sqrMagnitude < 0.035f
-                    || armEnvelope == null || armEnvelope.size.x < 0.6f
-                    || legEnvelope == null || legEnvelope.size.x < 0.6f)
-                    return false;
-                Vector3 armTip = elbows[i].TransformPoint(
-                    armEnvelope.center + Vector3.left
-                    * (armEnvelope.size.x * 0.5f - 0.01f));
-                Vector3 legTip = knees[i].TransformPoint(
-                    legEnvelope.center + Vector3.left
-                    * (legEnvelope.size.x * 0.5f - 0.01f));
-                CreateAnatomicalSphere(shoulders[i], controller, side + "Shoulder",
-                    armPart, shoulders[i].position + upperArm * 0.16f, 0.16f);
-                CreateAnatomicalCapsule(shoulders[i], controller, side + "UpperArm",
-                    armPart, shoulders[i].position, elbows[i].position, 0.165f);
-                CreateAnatomicalCapsule(elbows[i], controller, side + "Forearm",
-                    armPart, elbows[i].position,
-                    Vector3.Lerp(wrists[i].position, armTip, 0.70f), 0.17f);
-                CreateAnatomicalSphere(wrists[i], controller, side + "Hand",
-                    armPart, armTip, 0.16f);
-
-                CreateAnatomicalCapsule(hips[i], controller, side + "Thigh",
-                    legPart, hips[i].position, ankles[i].position, 0.17f);
-                CreateAnatomicalCapsule(knees[i], controller, side + "Shin",
-                    legPart, ankles[i].position, legTip, 0.165f);
-                CreateAnatomicalSphere(ankles[i], controller, side + "Foot",
-                    legPart, legTip, 0.17f);
-            }
+                new Vector3(-0.45f, 0f, 0f),
+                new Vector3(0.7f, 0.7f, 0.7f));
+            CreateNativePlayerDamageBox(spine, controller, "Torso",
+                MobileNPCInjurySystem.BodyPart.Torso,
+                new Vector3(-0.4f, 0f, 0f),
+                new Vector3(0.9f, 1f, 0.6f));
+            CreateNativePlayerDamageBox(leftArm, controller, "LeftArm",
+                MobileNPCInjurySystem.BodyPart.LeftArm,
+                new Vector3(-0.4f, 0f, 0f),
+                new Vector3(0.8f, 0.4f, 0.4f));
+            CreateNativePlayerDamageBox(rightArm, controller, "RightArm",
+                MobileNPCInjurySystem.BodyPart.RightArm,
+                new Vector3(-0.4f, 0f, 0f),
+                new Vector3(0.8f, 0.4f, 0.4f));
+            CreateNativePlayerDamageBox(leftLeg, controller, "LeftLeg",
+                MobileNPCInjurySystem.BodyPart.LeftLeg,
+                new Vector3(-0.4f, -0.05f, 0f),
+                new Vector3(0.8f, 0.4f, 0.4f));
+            CreateNativePlayerDamageBox(rightLeg, controller, "RightLeg",
+                MobileNPCInjurySystem.BodyPart.RightLeg,
+                new Vector3(-0.4f, 0.05f, 0f),
+                new Vector3(0.8f, 0.4f, 0.4f));
 
             int count = visual.GetComponentsInChildren<MobileNPCBodyHitbox>(true).Length;
-            Debug.Log("[MobileNPCPopulationBootstrap] Bone-attached anatomical "
-                + "hitboxes=" + count + " (head, neck, chest, abdomen, pelvis, "
-                + "shoulders, arms, forearms, hands, thighs, shins, feet). "
-                + "All follow NPC_Client's original animated skeleton; physics "
-                + "controller remains on Agent and hits use Entity.");
+            Debug.Log("[MobileNPCPopulationBootstrap] Player-exact six animated "
+                + "damage boxes built: Skull, Spine, Left_Arm, Right_Arm, "
+                + "Left_Leg, Right_Leg. Native Player_Server centers and sizes; "
+                + "separate from the ragdoll's bone colliders.");
             return count == MobileNPCBodyHitbox.ExpectedAnatomicalVolumes;
         }
 
-        private static void CreateAnatomicalCapsule(Transform ownerBone,
-            CharacterController controller, string name,
+        private static void CreateNativePlayerDamageBox(Transform ownerBone,
+            CharacterController controller, string regionName,
             MobileNPCInjurySystem.BodyPart part,
-            Vector3 fromWorld, Vector3 toWorld, float radius)
+            Vector3 nativeCenter, Vector3 nativeSize)
         {
-            GameObject hit = new GameObject("Hit_" + name);
-            hit.layer = 23; // Unturned ENTITY, separate from skin/ragdoll layer.
-            hit.transform.SetParent(ownerBone, false);
-            Vector3 direction = toWorld - fromWorld;
-            hit.transform.localPosition =
-                ownerBone.InverseTransformPoint((fromWorld + toWorld) * 0.5f);
-            hit.transform.localRotation = Quaternion.FromToRotation(
-                Vector3.up, ownerBone.InverseTransformDirection(direction.normalized));
-            CapsuleCollider collider = hit.AddComponent<CapsuleCollider>();
-            collider.direction = 1;
-            collider.center = Vector3.zero;
-            collider.radius = radius;
-            collider.height = direction.magnitude + radius * 2f;
-            collider.isTrigger = false;
-            hit.AddComponent<MobileNPCBodyHitbox>().Configure(part);
-            Physics.IgnoreCollision(collider, controller, true);
-        }
+            GameObject region = new GameObject("Hit_" + regionName);
+            region.layer = 23; // Native ENTITY raycast layer.
+            region.transform.SetParent(ownerBone, false);
+            region.transform.localPosition = Vector3.zero;
+            region.transform.localRotation = Quaternion.identity;
+            region.transform.localScale = Vector3.one;
 
-        private static void CreateAnatomicalSphere(Transform ownerBone,
-            CharacterController controller, string name,
-            MobileNPCInjurySystem.BodyPart part, Vector3 centerWorld, float radius)
-        {
-            GameObject hit = new GameObject("Hit_" + name);
-            hit.layer = 23;
-            hit.transform.SetParent(ownerBone, false);
-            hit.transform.localPosition = ownerBone.InverseTransformPoint(centerWorld);
-            SphereCollider collider = hit.AddComponent<SphereCollider>();
-            collider.center = Vector3.zero;
-            collider.radius = radius;
-            collider.isTrigger = false;
-            hit.AddComponent<MobileNPCBodyHitbox>().Configure(part);
-            Physics.IgnoreCollision(collider, controller, true);
+            BoxCollider box = region.AddComponent<BoxCollider>();
+            box.center = nativeCenter;
+            box.size = nativeSize;
+            box.isTrigger = false;
+            region.AddComponent<MobileNPCBodyHitbox>().Configure(part);
+            // Keep the NPC_Client original colliders disabled during
+            // movement. They are activated ONLY as ragdoll after death.
+            Physics.IgnoreCollision(box, controller, true);
         }
 
         private static string GetHierarchyPath(Transform node, Transform root)
