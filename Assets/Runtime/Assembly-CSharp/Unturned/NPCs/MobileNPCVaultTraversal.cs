@@ -88,7 +88,7 @@ namespace SDG.Unturned
                 || Vector3.Dot(top.normal, Vector3.up) < 0.84f)
                 return false;
             float wallHeight = top.point.y - root.y;
-            if (wallHeight < 0.65f || wallHeight > 1.02f)
+            if (wallHeight < 0.42f || wallHeight > 1.02f)
                 return false;
 
             // Both "regular" and higher Parkour-style leaps are bounded by
@@ -114,7 +114,7 @@ namespace SDG.Unturned
             // A climbable LOW object may be a real intermediate footstep.
             // Use the exact observed collider and measured horizontal top.
             // No generic A* connection across objects is created.
-            if (!hasGroundBeyond)
+            if (!hasGroundBeyond || goal.y - root.y > 0.55f)
             {
                 bool foundTopLanding = false;
                 float bestTopDistance = 0f;
