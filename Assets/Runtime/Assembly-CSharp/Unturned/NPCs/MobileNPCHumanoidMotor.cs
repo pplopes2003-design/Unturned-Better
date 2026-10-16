@@ -572,6 +572,9 @@ namespace SDG.Unturned
 				{
 					hasPartialLocalFrontier = false;
 					ResetObservedEntranceSurvey();
+					// A failed native corridor for the OLD goal must not
+					// delay an unrelated incoming combat or rescue task.
+					nativeNearObstructionRetryUntil = 0f;
 					hasDetourWaypoint = false;
 					routeWaypoints.Clear();
 					routeWaypointIndex = 0;
