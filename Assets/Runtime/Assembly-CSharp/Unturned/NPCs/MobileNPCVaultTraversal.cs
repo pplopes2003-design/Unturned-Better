@@ -21,6 +21,9 @@ namespace SDG.Unturned
             public float ForwardDelay;
             public float TravelDistance;
             public float MaximumDuration;
+            // Diagnostic only: a physical landing on a raised object, not
+            // a new walkable navmesh link or an invented "climb" animation.
+            public bool LandingOnObjectTop;
         }
 
         // PlayerMovement uses JUMP=7 with up to a 25% Parkour skill bonus.
@@ -84,7 +87,7 @@ namespace SDG.Unturned
             Vector3 topOrigin = wall.point + direction * 0.10f + Vector3.up * 1.65f;
             if (!Physics.Raycast(topOrigin, Vector3.down, out RaycastHit top,
                 1.9f, obstacleMask, QueryTriggerInteraction.Ignore)
-                || top.collider != wall.collider
+                || !IsSamePhysicalObstacle(top.collider, wall.collider)
                 || Vector3.Dot(top.normal, Vector3.up) < 0.84f)
                 return false;
             float wallHeight = top.point.y - root.y;
@@ -220,6 +223,7 @@ namespace SDG.Unturned
             plan.ForwardDelay = forwardDelay;
             plan.TravelDistance = travelDistance;
             plan.MaximumDuration = duration + 0.20f;
+            plan.LandingOnObjectTop = landingOnTop;
             return true;
         }
 
