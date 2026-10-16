@@ -130,6 +130,8 @@ namespace SDG.Unturned
 		private float plannedJumpForwardDistance;
 		private float plannedJumpMaximumDuration = 1.1f;
 		private bool plannedJumpUsesVaultPlan;
+		private bool plannedJumpLandsOnObjectTop;
+		private float nextRaisedObjectLandingDiagnosticTime;
 		private float suppressJourneyUntil;
 		private float nextPlannedJumpProbeTime;
 		private static float nextSharedPlannedJumpProbeSlot;
@@ -337,6 +339,8 @@ namespace SDG.Unturned
 			if (ladderTraversal != null)
 				ladderTraversal.ResetTraversal();
 			plannedJumpUsesVaultPlan = false;
+			plannedJumpLandsOnObjectTop = false;
+			nextRaisedObjectLandingDiagnosticTime = 0f;
 			plannedJumpLanding = Vector3.zero;
 			plannedJumpDirection = Vector3.zero;
 			plannedJumpDestinationSnapshot = Vector3.zero;
@@ -1045,6 +1049,17 @@ namespace SDG.Unturned
 				{
 					bool actuallyLanded = Vector3.Distance(transform.position,
 						plannedJumpLanding) < 0.65f;
+					if (actuallyLanded && plannedJumpLandsOnObjectTop
+						&& Time.time >= nextRaisedObjectLandingDiagnosticTime)
+					{
+						// Report actual CharacterController ground contact,
+						// not merely an AI intent to climb. Rate-limited.
+						nextRaisedObjectLandingDiagnosticTime = Time.time + 12f;
+						Debug.Log("[MobileNPCHumanoidMotor] Physical landing on an "
+							+ "observed climbable object at " + transform.position
+							+ "; NPC goal=" + destination + ".", this);
+					}
+					plannedJumpLandsOnObjectTop = false;
 					isPlannedJumping = false;
 					suppressJourneyUntil = Time.time + 0.3f;
 					if (!actuallyLanded)
@@ -1546,6 +1561,7 @@ namespace SDG.Unturned
 			plannedJumpForwardDistance = travel;
 			plannedJumpMaximumDuration = Mathf.Max(1.1f, duration + 0.25f);
 			plannedJumpUsesVaultPlan = false;
+			plannedJumpLandsOnObjectTop = false;
 			plannedJumpStartedAt = Time.time;
 			isPlannedJumping = true;
 			velocity.y = impulse;
@@ -1582,6 +1598,7 @@ namespace SDG.Unturned
 			plannedJumpForwardDistance = plan.TravelDistance;
 			plannedJumpMaximumDuration = plan.MaximumDuration;
 			plannedJumpUsesVaultPlan = true;
+			plannedJumpLandsOnObjectTop = plan.LandingOnObjectTop;
 			isPlannedJumping = true;
 			velocity.y = plan.Impulse;
 			// Permit an obstacle-by-obstacle sequence of real jumps after a
