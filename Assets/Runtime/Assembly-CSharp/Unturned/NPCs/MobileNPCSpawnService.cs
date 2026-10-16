@@ -309,10 +309,15 @@ namespace SDG.Unturned
 				else if (hitbox.size.x <= 0f || hitbox.size.y <= 0f
 					|| hitbox.size.z <= 0f)
 					regionProblem = "zero-size local BoxCollider";
-				else if (hitbox.gameObject.layer != 23
-					|| (RayMasks.DAMAGE_CLIENT & (1 << 23)) == 0
-					|| (RayMasks.ENTITY & (1 << 23)) == 0)
-					regionProblem = "Entity (23) is not in client damage/server entity masks";
+				else if (hitbox.gameObject.layer != LayerMasks.ENTITY)
+					regionProblem = "wrong hitbox layer " + hitbox.gameObject.layer
+						+ " (expected Entity " + LayerMasks.ENTITY
+						+ "; visual Medium=" + LayerMasks.MEDIUM + ")";
+				else if ((RayMasks.DAMAGE_CLIENT & RayMasks.ENTITY) == 0)
+					regionProblem = "DAMAGE_CLIENT mask excludes Entity; mask=0x"
+						+ RayMasks.DAMAGE_CLIENT.ToString("X8");
+				else if ((RayMasks.ENTITY & (1 << LayerMasks.ENTITY)) == 0)
+					regionProblem = "RayMasks.ENTITY does not match LayerMasks.ENTITY";
 
 				if (regionProblem != null)
 				{
