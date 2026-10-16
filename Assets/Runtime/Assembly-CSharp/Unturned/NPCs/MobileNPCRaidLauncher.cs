@@ -52,7 +52,7 @@ namespace SDG.Unturned
                 || Time.time < nextAttemptAt || planner == null || inventory == null
                 || vitals == null || vitals.IsDead || vitals.HealthFraction < 0.35f
                 || faction == null || group == null || brain == null
-                || !group.CanPlanSettlement)
+                || group.GroupId <= 0)
                 return;
             nextAttemptAt = Time.time + Random.Range(2.5f, 4.5f);
             if (!planner.TryGetVisibleHostileBaseServer(out Vector3 impact))
