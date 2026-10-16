@@ -37,7 +37,24 @@ namespace SDG.Unturned
 			float maximumDropDistance, LayerMask groundMask, float maximumSlopeAngle,
 			out Vector3 position, out string error)
 		{
+			// Backward-compatible call: spawns and AI behaviors do not need
+			// source-collider metadata. Navigation can opt in below.
+			return TryFindSafeGroundPosition(candidate, searchHeight,
+				maximumDropDistance, groundMask, maximumSlopeAngle,
+				out position, out _, out error);
+		}
+
+		/// <summary>
+		/// Return the actual collider hit as well as the grounded point so
+		/// navigation can refuse treating storage or decorative barricades
+		/// as walkable floor. No assumption about authored building geometry.
+		/// </summary>
+		public static bool TryFindSafeGroundPosition(Vector3 candidate, float searchHeight,
+			float maximumDropDistance, LayerMask groundMask, float maximumSlopeAngle,
+			out Vector3 position, out Collider groundCollider, out string error)
+		{
 			position = Vector3.zero;
+			groundCollider = null;
 			error = null;
 
 			if (!Provider.isServer)
@@ -79,6 +96,7 @@ namespace SDG.Unturned
 			}
 
 			position = resolved;
+			groundCollider = hit.collider;
 			return true;
 		}
 
