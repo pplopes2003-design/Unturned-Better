@@ -64,10 +64,12 @@ namespace SDG.Unturned
 
 		public float Hunger => hunger;
 		public float Thirst => thirst;
-		public float HungerFraction => hunger / 100f;
-		public float ThirstFraction => thirst / 100f;
-		public bool NeedsFood => hunger <= 65f;
-		public bool NeedsWater => thirst <= 65f;
+		// Combat mode suspends the physiological timer, it does not overwrite
+		// the NPC's previous hunger/thirst if the player later returns to Normal.
+		public float HungerFraction => MobileNPCSettings.CombatMode ? 1f : hunger / 100f;
+		public float ThirstFraction => MobileNPCSettings.CombatMode ? 1f : thirst / 100f;
+		public bool NeedsFood => !MobileNPCSettings.CombatMode && hunger <= 65f;
+		public bool NeedsWater => !MobileNPCSettings.CombatMode && thirst <= 65f;
 
 		private void Awake()
 		{
@@ -79,6 +81,14 @@ namespace SDG.Unturned
 		{
 			if (!Provider.isServer || !Level.isLoaded || vitals == null || inventory == null || vitals.IsDead)
 				return;
+			if (MobileNPCSettings.CombatMode)
+			{
+				// No hunger/thirst damage or food consumption. Other vitals,
+				// bleeding, bullets and medical behavior remain real.
+				nextDamageTime = Time.time + Mathf.Max(1f, damageInterval);
+				nextThinkTime = Time.time + Mathf.Max(0.5f, thinkInterval);
+				return;
+			}
 
 			float elapsedMinutes = Time.deltaTime / 60f;
 			hunger = Mathf.Clamp(hunger - hungerDrainPerMinute * elapsedMinutes, 0f, 100f);
@@ -112,6 +122,7 @@ namespace SDG.Unturned
 		/// <summary>Used by loot scoring to prioritize food or water when the agent is running low.</summary>
 		public float GetNeedPriority(EItemType type)
 		{
+			if (MobileNPCSettings.CombatMode) return 0f;
 			if (type == EItemType.FOOD)
 				return NeedsFood ? 60f + (1f - HungerFraction) * 35f : 20f;
 			if (type == EItemType.WATER)
