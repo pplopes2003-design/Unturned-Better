@@ -137,6 +137,25 @@ namespace SDG.Unturned
 			if (!initialized || isDead || lethalTransitionReserved)
 				return false;
 
+			// Use ONLY real, actually held wearable equipment. Native
+			// armor multipliers respect head/torso/arm/leg differences and
+			// clothing quality. Never change anatomical hitbox count or
+			// short-circuit the validated health/death lifecycle.
+			MobileNPCEquipment worn = GetComponent<MobileNPCEquipment>();
+			if (worn != null)
+			{
+				try
+				{
+					damage *= worn.ApplyValidatedBodyArmorServer(bodyPart);
+				}
+				catch (System.Exception exception)
+				{
+					Debug.LogError("[MobileNPCHumanoidVitals] Optional armor evaluation"
+						+ " failed, continuing with validated damage: " + exception, this);
+				}
+			}
+			damage = Mathf.Max(0.001f, damage);
+
 			// Critical invariant: a PHYSICALLY VERIFIED weapon/zombie hit
 			// must debit the authoritative HP once even if optional limb
 			// injury tracking, bleeding or a mod's injury subscriber fails.
