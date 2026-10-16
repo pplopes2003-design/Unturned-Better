@@ -18,6 +18,7 @@ namespace SDG.Unturned
 		private const string AirdropKey = "MobileNPCs.AirdropContest";
 		private const string RoleKey = "MobileNPCs.DefaultRole";
 		private const string MixKey = "MobileNPCs.PopulationMix";
+		private const string GameModeKey = "MobileNPCs.GameMode";
 
 		public enum PopulationMix
 		{
@@ -25,6 +26,25 @@ namespace SDG.Unturned
 			HostileHeavy = 1,
 			Peaceful = 2
 		}
+
+		// Different from accuracy/reaction-time difficulty: this changes goals,
+		// scarcity pressure and risk appetite, not eyesight or aimbot skill.
+		public enum GameMode { Normal = 0, Combat = 1 }
+
+		private static GameMode currentGameMode = (GameMode)Mathf.Clamp(
+			PlayerPrefs.GetInt(GameModeKey, (int)GameMode.Normal), 0, 1);
+
+		public static GameMode CurrentGameMode
+		{
+			get => currentGameMode;
+			set
+			{
+				currentGameMode = value == GameMode.Combat ? GameMode.Combat : GameMode.Normal;
+				PlayerPrefs.SetInt(GameModeKey, (int)currentGameMode);
+				Save();
+			}
+		}
+		public static bool CombatMode => currentGameMode == GameMode.Combat;
 
 		public enum Difficulty
 		{
@@ -73,6 +93,14 @@ namespace SDG.Unturned
 		public static MobileNPCHumanoidDisposition.Role SelectPopulationRole()
 		{
 			int roll = Random.Range(0, 100);
+			// Combat focuses on a contested world, not every NPC attacking the
+			// player. Survivors still need opposing factions to defend each other.
+			if (CombatMode)
+			{
+				if (roll < 66) return MobileNPCHumanoidDisposition.Role.Hostile;
+				if (roll < 87) return MobileNPCHumanoidDisposition.Role.Friendly;
+				return MobileNPCHumanoidDisposition.Role.Neutral;
+			}
 			switch (CurrentPopulationMix)
 			{
 				case PopulationMix.HostileHeavy:
