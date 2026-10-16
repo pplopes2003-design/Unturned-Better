@@ -227,8 +227,22 @@ namespace SDG.Unturned
 				damage > 32f && UnityEngine.Random.value < 0.4f
 				? MobileNPCInjurySystem.BleedingSeverity.Heavy
 				: MobileNPCInjurySystem.BleedingSeverity.Light;
-			return ApplyDamageToPart(damage, part, bleed, fracture, severity,
+			bool accepted = ApplyDamageToPart(damage, part, bleed, fracture, severity,
 				hitDirection * Mathf.Min(damage, 100f), attacker);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			if (!accepted)
+				Debug.LogError("[MobileNPCDamageInvariant] A server-validated "
+					+ (isFirearm ? "bullet" : "melee/bite") + " impact reached "
+					+ "NPC vitals but was NOT debited: npc=" + name
+					+ ", attacker=" + (attacker != null ? attacker.name : "<world>")
+					+ ", part=" + part + ", damage=" + damage.ToString("F1")
+					+ ", initialized=" + initialized + ", dead=" + isDead
+					+ ", reserved=" + lethalTransitionReserved + ".", this);
+			else if (CurrentHealth <= 0f && !isDead)
+				Debug.LogError("[MobileNPCDeathInvariant] Lethal validated hit "
+					+ "did not enter death state on " + name + ".", this);
+#endif
+			return accepted;
 		}
 
 		/// <summary>
