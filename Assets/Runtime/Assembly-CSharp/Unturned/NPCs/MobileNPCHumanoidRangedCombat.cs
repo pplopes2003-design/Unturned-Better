@@ -367,7 +367,17 @@ namespace SDG.Unturned
 				}
 				roundsRemaining = nextRounds;
 			}
-			ShotFired?.Invoke();
+			// A broken optional muzzle/VFX listener must not swallow a
+			// committed, ammo-accounted ballistic shot and leave a phantom
+			// missing projectile in the world.
+			try { ShotFired?.Invoke(); }
+			catch (System.Exception exception)
+			{
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+				Debug.LogWarning("[MobileNPCRanged] Shot presentation callback failed: "
+					+ exception.Message, this);
+#endif
+			}
 			// NPC shots must be audible stimuli to other mobile NPCs, not only
 			// vanilla zombies. This uses the same server registry path as player gunfire.
 			// The source is this exact real shot. Use the same sound radius
