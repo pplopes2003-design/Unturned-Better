@@ -305,7 +305,9 @@ namespace SDG.Unturned
 					Blueprint native = source.blueprints[j];
 					if (!IsSimpleSettlementBlueprint(native)) continue;
 					ItemAsset output = native.outputs[0].FindItemAsset();
-					if (!MobileNPCRaidSupplyPolicy.IsBreachThrowable(output)) continue;
+					if (!MobileNPCRaidSupplyPolicy.IsBreachThrowable(output)
+						&& !MobileNPCRaidSupplyPolicy.IsRaidCharge(output))
+						continue;
 					// Borrow exact authored inputs only from a verified native group
 					// storage that the caller physically approaches; no phantom items.
 					if (verifiedSharedStorage != null)
