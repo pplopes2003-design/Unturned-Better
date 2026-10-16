@@ -58,6 +58,7 @@ namespace SDG.Unturned
 			// no dead survivor's plan is inherited by a fresh replacement.
 			public MobileNPCAutonomyPlanner.RoutineSnapshot routine;
 			public MobileNPCSurvivalNeeds.NeedsSnapshot survival;
+			public MobileNPCInjurySystem.InjurySnapshot injuries;
 		}
 
 		[Serializable]
@@ -373,6 +374,9 @@ namespace SDG.Unturned
 				MobileNPCSurvivalNeeds survival = instance.GetComponent<MobileNPCSurvivalNeeds>();
 				if (survival != null)
 					survival.RestoreSnapshotServer(record.survival);
+				MobileNPCInjurySystem injuries = instance.GetComponent<MobileNPCInjurySystem>();
+				if (injuries != null)
+					injuries.RestoreSnapshotServer(record.injuries);
 				MobileNPCAutonomyPlanner routine = instance.GetComponent<MobileNPCAutonomyPlanner>();
 				if (routine != null)
 					routine.RestoreSnapshotServer(record.routine);
@@ -479,6 +483,9 @@ namespace SDG.Unturned
 				MobileNPCSurvivalNeeds survival = driver.GetComponent<MobileNPCSurvivalNeeds>();
 				if (survival != null)
 					record.survival = survival.ExportSnapshotServer();
+				MobileNPCInjurySystem injuries = driver.GetComponent<MobileNPCInjurySystem>();
+				if (injuries != null)
+					record.injuries = injuries.ExportSnapshotServer();
 				MobileNPCAutonomyPlanner routine = driver.GetComponent<MobileNPCAutonomyPlanner>();
 				if (routine != null)
 					record.routine = routine.ExportSnapshotServer();
