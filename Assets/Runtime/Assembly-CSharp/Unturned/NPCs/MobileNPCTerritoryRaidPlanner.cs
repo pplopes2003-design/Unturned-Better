@@ -173,7 +173,7 @@ namespace SDG.Unturned
         {
             impactPoint = Vector3.zero;
             if (!Provider.isServer || !MobileNPCSettings.CombatMode
-                || !Level.isLoaded || group == null || !group.CanPlanSettlement
+                || !Level.isLoaded || group == null || group.GroupId <= 0
                 || perception == null || faction == null || vitals == null
                 || vitals.IsDead)
                 return false;
