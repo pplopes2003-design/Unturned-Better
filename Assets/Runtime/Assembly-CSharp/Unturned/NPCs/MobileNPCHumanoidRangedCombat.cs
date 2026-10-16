@@ -283,7 +283,12 @@ namespace SDG.Unturned
 			ShotFired?.Invoke();
 			// NPC shots must be audible stimuli to other mobile NPCs, not only
 			// vanilla zombies. This uses the same server registry path as player gunfire.
-			MobileNPCRegistry.NotifyGunfire(transform.position, Mathf.Max(20f, weaponRange), null, transform);
+			// The source is this exact real shot. Use the same sound radius
+			// authored on the native weapon, not bullet travel distance.
+			// This notification is only for the separate mobile-NPC ears.
+			if (selectedGunAsset.alertRadius > 0f)
+				MobileNPCRegistry.NotifyGunfire(transform.position,
+					selectedGunAsset.alertRadius, null, transform);
 
 			shotsRemainingInBurst = Mathf.Max(0, shotsRemainingInBurst - 1);
 			if (shotsRemainingInBurst == 0)
@@ -392,9 +397,12 @@ namespace SDG.Unturned
 			if (adaptiveMemory != null)
 				adaptiveMemory.RecordOwnOutcomeServer(shotContext, transform.position, contactedSelectedTarget);
 
-			// Gunfire is a world stimulus: vanilla zombies investigate the shot position
-			// regardless of which mobile faction fired it.
-			ZombieManager.alertZombiesToNoise(transform.position, Mathf.Max(20f, weaponRange));
+			// Vanilla Player guns use AlertTool.alert() for an unsuppressed
+			// committed shot. Mobile NPCs do not run UseableGun, so call that
+			// SAME native entry point exactly once with this weapon's
+			// genuine alert radius; do not bypass its navigation/aggro rules.
+			if (selectedGunAsset.alertRadius > 0f)
+				AlertTool.alert(transform.position, selectedGunAsset.alertRadius);
 
 			if (ammoCost > 0 && roundsRemaining < ammoCost)
 			{
