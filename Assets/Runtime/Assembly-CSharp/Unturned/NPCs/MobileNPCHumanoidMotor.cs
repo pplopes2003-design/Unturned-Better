@@ -235,6 +235,11 @@ namespace SDG.Unturned
 		private bool observedEntranceSurveyWasBrainGoal;
 		private int observedEntranceSurveySide;
 		private float nextRoutePlanTime;
+		// If the native graph sends us straight through a table, cabinet
+		// or newly placed barricade, briefly let collision-aware local A*
+		// try a different real route instead of requesting the same path.
+		private float nativeNearObstructionRetryUntil;
+		private float nextNativeObstructionDiagnosticAt;
 		private float nextLocalRoutePlanTime;
 		private float nextVerticalRoutePlanTime;
 		private int consecutiveVerticalPlanFailures;
@@ -338,6 +343,8 @@ namespace SDG.Unturned
 			suppressJourneyUntil = 0f;
 			nextPlannedJumpProbeTime = 0f;
 			nextLocalRoutePlanTime = 0f;
+			nativeNearObstructionRetryUntil = 0f;
+			nextNativeObstructionDiagnosticAt = 0f;
 			nextVerticalRoutePlanTime = 0f;
 			consecutiveVerticalPlanFailures = 0;
 			failedVerticalGoal = Vector3.zero;
@@ -2545,7 +2552,9 @@ namespace SDG.Unturned
 				Vector3 candidate = transform.position + direction * step;
 				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate,
 					Mathf.Max(1f, roamingSearchHeight), Mathf.Max(0f, roamingMaximumDrop),
-					roamingGroundMask, roamingMaximumSlope, out Vector3 resolved, out _))
+					roamingGroundMask, roamingMaximumSlope,
+					out Vector3 resolved, out Collider floorCollider, out _)
+					|| IsFurnitureSurfaceCollider(floorCollider))
 					continue;
 
 				Vector3 resolvedOffset = resolved - transform.position;
@@ -3178,22 +3187,63 @@ namespace SDG.Unturned
 
 		private bool TryBuildNativeAStarRoute(Vector3 destination)
 		{
-			if (nativeAStarRouteProvider == null
+			if (Time.time < nativeNearObstructionRetryUntil
+				|| nativeAStarRouteProvider == null
 				|| !nativeAStarRouteProvider.TryGetRoute(transform.position, destination, routeWaypoints))
-			{
 				return false;
-			}
 
 			routeWaypointIndex = 0;
 			if (routeWaypoints.Count > 0
 				&& (routeWaypoints[0] - transform.position).sqrMagnitude <= 0.36f)
-			{
 				routeWaypoints.RemoveAt(0);
-			}
 
 			if (routeWaypoints.Count == 0)
 				return false;
 
+			// A globally calculated route may not contain a newly placed
+			// dresser, bed, cupboard or barricade. Reject only an IMMEDIATE,
+			// physically blocked step, not a distant path behind real doors.
+			// Later segments remain subject to periodic motor validation.
+			Vector3 next = routeWaypoints[0];
+			Vector3 difference = next - transform.position;
+			if (Mathf.Abs(difference.y) <= 0.8f)
+			{
+				difference.y = 0f;
+				float distance = difference.magnitude;
+				if (distance > 0.2f)
+				{
+					Vector3 origin = transform.position
+						+ Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f);
+					float radius = Mathf.Clamp(obstacleProbeRadius, 0.05f,
+						Mathf.Max(0.05f, characterController.radius * 0.9f));
+					float sample = Mathf.Min(distance, Mathf.Max(0.5f, obstacleProbeDistance));
+					Vector3 direction = difference / distance;
+					if (IsObstacleBlockingAlong(origin, radius, direction, sample)
+						&& !IsOnlyTemporaryActorBlockingAlong(origin, radius, direction, sample)
+						&& (doorNavigation == null
+							|| !doorNavigation.IsTraversableUnlockedDoorEdgeServer(
+								origin, direction, radius,
+								Mathf.Min(sample, 2.5f), obstacleMask)))
+					{
+						routeWaypoints.Clear();
+						routeWaypointIndex = 0;
+						hasPartialLocalFrontier = false;
+						nativeNearObstructionRetryUntil = Time.time + 6f;
+						nextLocalRoutePlanTime = Time.time;
+						if (Time.time >= nextNativeObstructionDiagnosticAt)
+						{
+							nextNativeObstructionDiagnosticAt = Time.time + 6f;
+							Debug.LogWarning("[MobileNPCHumanoidMotor] Native A* first step "
+								+ "physically blocked (check interior furniture, barricades or walls). "
+								+ "Local collision-aware route will be attempted; backend="
+								+ nativeAStarRouteProvider.ObservedBackendName
+								+ ", status=" + nativeAStarRouteProvider.DiagnosticStatus
+								+ ", position=" + transform.position + ".", this);
+						}
+						return false;
+					}
+				}
+			}
 			return true;
 		}
 
@@ -3520,13 +3570,29 @@ namespace SDG.Unturned
 		/// broken bridges and false connections across overlapping interiors.
 		/// Called only after the cheap occupancy and height tests passed.
 		/// </summary>
+		private static bool IsFurnitureSurfaceCollider(Collider collider)
+		{
+			if (collider == null)
+				return false;
+			// A storage cupboard / display, bed, mannequin or sentry is
+			// furniture/barricade, not architectural flooring. Checking the
+			// actual HIT collider avoids relying on asset names or guessing
+			// nearby world props; ordinary floors/ramps/platforms remain valid.
+			Interactable interactive = collider.GetComponentInParent<Interactable>();
+			return interactive is InteractableStorage
+				|| interactive is InteractableBed
+				|| interactive is InteractableMannequin
+				|| interactive is InteractableSentry;
+		}
+
 		private bool HasContinuousLocalFloor(Vector3 from, Vector3 to)
 		{
 			Vector3 midpoint = (from + to) * 0.5f;
 			if (!MobileNPCSpawnService.TryFindSafeGroundPosition(midpoint,
 				0.7f, 0.85f, roamingGroundMask,
 				Mathf.Min(characterController.slopeLimit, roamingMaximumSlope),
-				out Vector3 floor, out _)
+				out Vector3 floor, out Collider floorCollider, out _)
+				|| IsFurnitureSurfaceCollider(floorCollider)
 				|| Mathf.Abs(floor.y - midpoint.y) > 0.35f)
 				return false;
 			float riseLimit = characterController.stepOffset
@@ -3608,7 +3674,8 @@ namespace SDG.Unturned
 						(z - RouteGridCenter) * localCellSize);
 					if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate,
 						1.6f, 2.2f, roamingGroundMask, roamingMaximumSlope,
-						out Vector3 resolved, out _))
+						out Vector3 resolved, out Collider floorCollider, out _)
+						|| IsFurnitureSurfaceCollider(floorCollider))
 						continue;
 					if (Mathf.Abs(resolved.y - floorY) > maxFloorDelta)
 						continue;
