@@ -138,6 +138,9 @@ namespace SDG.Unturned
             template.AddComponent<MobileNPCUsefulLootRumor>();
             template.AddComponent<MobileNPCReinforcementResponse>();
             template.AddComponent<MobileNPCUnknownBaseIntel>();
+            // Live Combat-only raids need this optional planner on each new
+            // survivor template. Only the actual group leader evaluates it.
+            template.AddComponent<MobileNPCTerritoryRaidPlanner>();
             template.AddComponent<MobileNPCGrenadeThrower>();
             template.AddComponent<MobileNPCCompanionContract>();
 
