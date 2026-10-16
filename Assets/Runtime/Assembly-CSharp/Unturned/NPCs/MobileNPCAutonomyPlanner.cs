@@ -348,7 +348,34 @@ namespace SDG.Unturned
                     if (!combatMode) { scavenge += 36f; patrol -= 8f; guard -= 12f; }
                     break;
                 case MobileNPCArchetypePolicy.Preset.Trader:
-                    if (!combatMode) { scavenge += 21f; guard += 22f; patrol -= 12f; }
+                    if (!combatMode)
+                    {
+                        // Traders are NOT all identical guards. The living
+                        // group leader tends its real settlement, while
+                        // ordinary members divide between patrol/security
+                        // and expeditions according to their SAVED personal
+                        // exploration bias. No fake shop/stock is created.
+                        patrol -= 12f;
+                        if (!hasSettlement)
+                        {
+                            scavenge += 37f; // earn supplies before a shop exists
+                        }
+                        else if (group != null && group.CanPlanSettlement)
+                        {
+                            guard += 62f; // seller/home steward
+                            scavenge -= 16f;
+                        }
+                        else if (personalityExploreBias >= 0f)
+                        {
+                            scavenge += 49f; // traveling collector
+                            guard -= 17f;
+                        }
+                        else
+                        {
+                            guard += 36f; // patrol/settlement security
+                            scavenge -= 8f;
+                        }
+                    }
                     break;
                 case MobileNPCArchetypePolicy.Preset.Raider:
                     patrol += LightingManager.isNighttime ? 24f : 12f;
@@ -471,7 +498,23 @@ namespace SDG.Unturned
                         minStep = 18f; maxStep = 88f; structurePreference = 0.55f;
                         break;
                     case MobileNPCArchetypePolicy.Preset.Trader:
-                        minStep = 6f; maxStep = 22f; structurePreference = 0.85f;
+                        if (group != null && group.HasSettlement
+                            && (group.CanPlanSettlement
+                                || inventory != null && inventory.FreeSlots <= 2))
+                        {
+                            // A seller remains near the REAL settlement, and
+                            // a heavily loaded collector returns physically.
+                            // Returning does not silently deposit items or
+                            // grant them to teammates through group memory.
+                            anchor = group.GroupAnchor;
+                            minStep = 3f; maxStep = 9f;
+                            structurePreference = 0f;
+                        }
+                        else
+                        {
+                            minStep = 6f; maxStep = 22f;
+                            structurePreference = 0.85f;
+                        }
                         break;
                     default:
                         minStep = 7f; maxStep = 30f; structurePreference = 0.9f;
