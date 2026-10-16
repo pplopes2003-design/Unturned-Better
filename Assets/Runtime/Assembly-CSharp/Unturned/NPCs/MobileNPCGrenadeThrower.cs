@@ -46,8 +46,7 @@ namespace SDG.Unturned
             if (!Provider.isServer || !Level.isLoaded || Time.time < nextCheck)
                 return;
             nextCheck = Time.time + CheckEvery;
-            if (Time.time < nextThrowAt || brain == null || brain.Target == null
-                || brain.CurrentState != MobileNPCBrain.State.Pursuing
+            if (Time.time < nextThrowAt || brain == null
                 || brain.CurrentGoal == MobileNPCTactics.Goal.Retreat
                 || brain.CurrentGoal == MobileNPCTactics.Goal.SeekCover
                 || brain.IsAmbushPreparing || vitals == null || vitals.IsDead
@@ -56,17 +55,26 @@ namespace SDG.Unturned
                 return;
 
             Transform enemy = brain.Target;
-            bool genuinelyVisible = perception.VisiblePlayer != null
+            bool genuinelyVisible = enemy != null && (
+                perception.VisiblePlayer != null
                     && enemy.IsChildOf(perception.VisiblePlayer.transform)
                 || perception.VisibleNPC != null
                     && enemy.IsChildOf(perception.VisibleNPC.transform)
                 || perception.VisibleZombie != null
-                    && enemy.IsChildOf(perception.VisibleZombie.transform);
-            if (!genuinelyVisible)
+                    && enemy.IsChildOf(perception.VisibleZombie.transform));
+            // A breach target must be a *currently visible* rival-built
+            // native depot plus living rival defender, not a remembered GPS.
+            MobileNPCTerritoryRaidPlanner raid =
+                GetComponent<MobileNPCTerritoryRaidPlanner>();
+            bool visibleRaidBase = MobileNPCSettings.CombatMode && raid != null
+                && raid.TryGetVisibleHostileBaseServer(out Vector3 raidPoint);
+            if (!genuinelyVisible && !visibleRaidBase)
                 return;
-
+            bool breach = visibleRaidBase
+                && (!genuinelyVisible || Random.value < 0.6f);
             Vector3 origin = transform.position + Vector3.up * 1.45f;
-            Vector3 target = enemy.position + Vector3.up * 0.3f;
+            Vector3 target = breach ? raidPoint + Vector3.up * 0.3f
+                : enemy.position + Vector3.up * 0.3f;
             Vector3 horizontal = target - origin;
             horizontal.y = 0f;
             float range = horizontal.magnitude;
@@ -82,7 +90,8 @@ namespace SDG.Unturned
                 if (asset == null || !asset.isExplosive || asset.isSticky
                     || asset.explodeOnImpact || asset.throwable == null
                     || asset.range < 3f || asset.fuseLength < 1.5f
-                    || asset.fuseLength > 5f)
+                    || asset.fuseLength > 5f
+                    || (breach && !MobileNPCRaidSupplyPolicy.IsBreachThrowable(asset)))
                     continue;
 
                 // Require predicted target far enough from the thrower AND
@@ -202,7 +211,7 @@ namespace SDG.Unturned
                     {
                         Collider obstacle = ObstructionHits[hitIndex].collider;
                         if (obstacle == null || obstacle.transform.IsChildOf(transform)
-                            || obstacle.transform.IsChildOf(enemy))
+                            || (enemy != null && obstacle.transform.IsChildOf(enemy)))
                             continue;
                         return false;
                     }
