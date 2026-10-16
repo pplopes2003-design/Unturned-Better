@@ -234,6 +234,14 @@ namespace SDG.Unturned
             return false;
         }
 
+        /// <summary>Another squadmate owns this destination. Wait briefly
+        /// rather than recording a fake navigation failure or visit.</summary>
+        public void DeferUnclaimedRoomServer()
+        {
+            if (Provider.isServer && isActive)
+                nextCandidateAttemptAt = Time.time + 6f;
+        }
+
         public void ConfirmNextRoomAssignedServer(Vector3 destination)
         {
             if (!isActive || !CanExploreServer())
