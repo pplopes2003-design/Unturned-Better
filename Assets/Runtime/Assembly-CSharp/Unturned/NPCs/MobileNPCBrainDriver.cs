@@ -490,8 +490,11 @@ namespace SDG.Unturned
 				if (away.sqrMagnitude > 0.01f)
 				{
 					Vector3 candidate = transform.position + away.normalized * 9f;
-					if (MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, 12f, 8f, ~0, 38f,
-						out Vector3 safeRetreat, out _))
+					if (MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, 1.2f, 1.0f,
+						RayMasks.BLOCK_COLLISION, 60f, out Vector3 safeRetreat, out _)
+						&& (Mathf.Abs(safeRetreat.y - transform.position.y) <= 0.55f
+							|| (GetComponent<MobileNPCHumanoidMotor>() is MobileNPCHumanoidMotor retreatMotor
+								&& retreatMotor.CanReachNearbyCoverServer(safeRetreat))))
 					{
 						tactics.ReportValidatedRetreatPoint(safeRetreat, Time.time);
 					}
@@ -617,9 +620,22 @@ namespace SDG.Unturned
 				{
 					Vector3 direction = Quaternion.AngleAxis(angles[a], Vector3.up) * away;
 					Vector3 rawCandidate = transform.position + direction * distances[d];
-					if (!MobileNPCSpawnService.TryFindSafeGroundPosition(rawCandidate, 12f, 8f, ~0, 38f,
+					// Defensive points must be local accessible FLOOR, not an
+					// upstairs room or roof acquired from a 12m vertical ray.
+					if (!MobileNPCSpawnService.TryFindSafeGroundPosition(rawCandidate,
+						1.2f, 1.0f, RayMasks.BLOCK_COLLISION, 60f,
 						out Vector3 candidate, out _))
 						continue;
+					// A nearby elevation change can still be accessible by
+					// vanilla stepping, but nontrivial rises need a verified path.
+					float coverRise = Mathf.Abs(candidate.y - transform.position.y);
+					if (coverRise > 0.55f)
+					{
+						if (motor == null || complexCornerCoverChecks >= maxComplexCornerCoverChecks
+							|| !motor.CanReachNearbyCoverServer(candidate))
+							continue;
+						++complexCornerCoverChecks;
+					}
 					if (Time.time < recentlyUnreachableCoverUntil
 						&& (candidate - recentlyUnreachableCover).sqrMagnitude < 9f)
 						continue;
