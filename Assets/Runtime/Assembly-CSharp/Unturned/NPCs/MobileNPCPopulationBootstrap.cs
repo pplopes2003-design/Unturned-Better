@@ -120,6 +120,8 @@ namespace SDG.Unturned
             template.AddComponent<MobileNPCDeathLoot>();
             template.AddComponent<MobileNPCSurvivalNeeds>();
             template.AddComponent<MobileNPCLooting>();
+            // Trading-group collectors physically deliver goods to their leader.
+            template.AddComponent<MobileNPCTraderLogistics>();
             // Vitals already requires the six-body-region InjurySystem.
             // Without MedicalBehavior on the real runtime template, the
             // A-Life planner can never observe missing bandages/splints and
