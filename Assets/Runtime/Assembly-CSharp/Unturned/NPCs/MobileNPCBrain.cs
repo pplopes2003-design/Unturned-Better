@@ -194,7 +194,7 @@ namespace SDG.Unturned
 				if (investigationSearchCount < 3)
 				{
 					float angle = (investigationSearchCount * 137.5f) * Mathf.Deg2Rad;
-					float radius = 3.5f + investigationSearchCount * 2.0f;
+					float radius = 3.5f + investigationSearchCount * 1.15f;
 					Vector3 offset = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * radius;
 					destination = investigationCenter + offset;
 					investigationSearchCount++;
