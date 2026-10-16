@@ -95,6 +95,8 @@ namespace SDG.Unturned
             template.AddComponent<MobileNPCHumanoidPerception>();
             template.AddComponent<MobileNPCHumanoidDisposition>();
             template.AddComponent<MobileNPCFaction>();
+            // Personal profession and diplomatic faction remain independent.
+            template.AddComponent<MobileNPCOccupation>();
             template.AddComponent<MobileNPCHumanoidVitals>();
             template.AddComponent<MobileNPCAdaptiveMemory>();
             template.AddComponent<MobileNPCTravelMemory>();
