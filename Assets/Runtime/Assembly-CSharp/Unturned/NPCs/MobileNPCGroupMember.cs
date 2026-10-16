@@ -414,10 +414,18 @@ namespace SDG.Unturned
 						|| !(bandage && (offered.id == 393 || offered.id == 95
 							|| offered.id == 394) || splint && offered.id == 96))
 						continue;
+					// Same reservation/rollback discipline as native inventory
+					// transactions. A failed handoff must not consume medicine.
+					if (!patientInventory.TryReserveSlotServer())
+						return;
 					if (!ownInventory.TryTakeItemServer(slot, out Item transferred))
-						continue;
-					if (!patientInventory.TryStoreTransferredItem(transferred))
 					{
+						patientInventory.ReleaseReservedSlotServer();
+						continue;
+					}
+					if (!patientInventory.TryStoreReservedItemServer(transferred))
+					{
+						patientInventory.ReleaseReservedSlotServer();
 						if (!ownInventory.TryStoreTransferredItem(transferred))
 							Debug.LogError("[MobileNPCGroupMember] Medical item transfer rollback"
 								+ " failed; preserving error for investigation.", this);
