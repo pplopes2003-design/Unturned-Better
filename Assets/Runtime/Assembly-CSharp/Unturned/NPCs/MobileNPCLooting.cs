@@ -452,6 +452,8 @@ namespace SDG.Unturned
 					break;
 				case EItemType.GUN:
 					score = inventory.CountItemType(EItemType.GUN) == 0 ? 82f : 43f;
+					if (MobileNPCSettings.CombatMode)
+						score += inventory.CountItemType(EItemType.GUN) == 0 ? 38f : 20f;
 					break;
 				case EItemType.THROWABLE:
 				{
@@ -480,6 +482,8 @@ namespace SDG.Unturned
 							&& !inventory.TryFindCompatibleMagazine(ownedGun,
 								out int reserveSlot, out ItemMagazineAsset reserveAsset);
 						score = runningLow ? 104f : 64f;
+						if (MobileNPCSettings.CombatMode)
+							score += runningLow ? 34f : 19f;
 					}
 					break;
 				}
@@ -487,7 +491,8 @@ namespace SDG.Unturned
 				case EItemType.WATER:
 				{
 					MobileNPCSurvivalNeeds needs = GetComponent<MobileNPCSurvivalNeeds>();
-					score = needs != null ? needs.GetNeedPriority(type) : 52f;
+					score = MobileNPCSettings.CombatMode ? -1000f
+						: needs != null ? needs.GetNeedPriority(type) : 52f;
 					break;
 				}
 				case EItemType.BACKPACK:
