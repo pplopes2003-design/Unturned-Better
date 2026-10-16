@@ -72,7 +72,9 @@ namespace SDG.Unturned
             MobileNPCInventory supplies = GetComponent<MobileNPCInventory>();
             bool ordinaryArmed = gun != null && gun.SelectedGunAsset != null
                 && gun.RoundsRemaining >= 3;
-            bool breachArmed = supplies != null && supplies.HasUsableRaidExplosiveServer();
+            bool breachArmed = supplies != null
+                && (supplies.HasUsableRaidExplosiveServer()
+                    || supplies.HasUsableRaidChargeServer());
             if (Time.time >= knowledgeExpiresAt || Time.time < lastRaidAt + 100f
                 || brain.Target != null || brain.CurrentGoal != MobileNPCTactics.Goal.None
                 || brain.CurrentState != MobileNPCBrain.State.Idle
@@ -111,7 +113,8 @@ namespace SDG.Unturned
                     allyBrain.GetComponent<MobileNPCHumanoidRangedCombat>();
                 MobileNPCInventory allyInventory = allyBrain.GetComponent<MobileNPCInventory>();
                 bool allyBreachReady = allyInventory != null
-                    && allyInventory.HasUsableRaidExplosiveServer();
+                    && (allyInventory.HasUsableRaidExplosiveServer()
+                        || allyInventory.HasUsableRaidChargeServer());
                 bool allyRifleReady = allyGun != null && allyGun.SelectedGunAsset != null
                     && allyGun.RoundsRemaining >= 2;
                 if (ally == null || ally.GroupId != group.GroupId
