@@ -25,7 +25,9 @@ namespace SDG.Unturned
 			Stalk,
 			// Append only: do not renumber existing named goals.
 			Reinforce,
-			Regroup
+			Regroup,
+			// Added after existing goals to preserve snapshot/diagnostic IDs.
+			RaidStaging
 		}
 
 		private const float LowHealthThreshold = 0.30f;
@@ -250,6 +252,20 @@ namespace SDG.Unturned
 			tacticalDestination = safePoint;
 			hasTacticalDestination = true;
 			goalDeadline = now + 14f;
+			return true;
+		}
+
+		/// <summary>Approach a truly observed rival group base from a
+		/// reachable staging point. This is NOT a direct enemy target or
+		/// permission to damage any structure. Contact is reacquired normally.</summary>
+		public bool TryStartRaidStaging(Vector3 safePoint, float now)
+		{
+			if (currentGoal != Goal.None || !IsFinite(safePoint))
+				return false;
+			currentGoal = Goal.RaidStaging;
+			tacticalDestination = safePoint;
+			hasTacticalDestination = true;
+			goalDeadline = now + 48f;
 			return true;
 		}
 
