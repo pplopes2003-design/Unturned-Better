@@ -1365,7 +1365,11 @@ namespace SDG.Unturned
 				&& (!isHunting || huntType == EHuntType.POINT
 					&& (newPosition - transform.position).sqrMagnitude
 						< (target.position - transform.position).sqrMagnitude);
-			if (acceptsNewSound)
+			// Only a real external alert (vanilla AlertTool uses startling)
+			// starts the optional search window. Movement waypoints,
+			// tiny ambient shuffles and local pursuit recovery do not
+			// secretly become 18-second sound investigations.
+			if (acceptsNewSound && isStartling)
 			{
 				stuckPointRecoveryAttempts = 0;
 				investigationCenter = newPosition;
@@ -2468,8 +2472,14 @@ namespace SDG.Unturned
 					{
 						isReturningToSpawn = false;
 					}
-					else
+					else if (Time.time < investigationUntil
+						&& investigationWandersRemaining > 0
+						&& (investigationCenter - transform.position).sqrMagnitude
+							<= 11f * 11f)
 					{
+						// Only sweep the place we actually reached. A failed
+						// long-range route resumes vanilla idle instead of
+						// running to random places on the other side of a POI.
 						isInvestigationIdle = true;
 						investigationIdleUntil = Time.time + Random.Range(0.35f, 0.8f);
 						setTicking(true);
