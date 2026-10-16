@@ -1203,16 +1203,18 @@ namespace SDG.Unturned
 				|| disposition.CurrentRole != MobileNPCHumanoidDisposition.Role.Hostile
 				|| !playerKnowledge.TryGetEvidence(Time.time, out Vector3 clue,
 					out float confidence, out float uncertainty, out _)
-				|| confidence < 0.34f || uncertainty > 12f
-				// Director arbitrates only BONUS speculative stalking. Current
-				// direct visual combat, heard shot/footsteps and legitimate
-				// retreat/cover remain entirely unchanged.
-				|| !MobileNPCEncounterDirector.AllowsOptionalEvidenceSearchServer(this))
+				|| confidence < 0.34f || uncertainty > 12f)
 				return;
 
 			Vector3 toClue = clue - transform.position;
 			toClue.y = 0f;
 			if (toClue.sqrMagnitude < 16f || toClue.sqrMagnitude > 900f)
+				return;
+			// Acquire optional group search capacity only for a clue that is
+			// geographically plausible, never for a far-away or expired hint.
+			// Direct perception, urgent combat and ordinary clue investigation
+			// remain outside this Director budget.
+			if (!MobileNPCEncounterDirector.AllowsOptionalEvidenceSearchServer(this))
 				return;
 
 			float bestScore = float.NegativeInfinity;
@@ -1296,8 +1298,16 @@ namespace SDG.Unturned
 
 			if (bestScore > float.NegativeInfinity
 				&& tactics.TryStartStalk(selected, Time.time))
+			{
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
 				Debug.Log("[MobileNPCBrainDriver] Cautious concealed approach chosen for "
 					+ name + "; evidenceConfidence=" + confidence.ToString("F2") + ".", this);
+#endif
+				return;
+			}
+			// No real sheltered route was found. Do not monopolize one
+			// squadmate search slot for the next eight seconds.
+			MobileNPCEncounterDirector.ReleaseOptionalEvidenceSearchServer(this);
 		}
 
 		/// <summary>
@@ -1323,7 +1333,10 @@ namespace SDG.Unturned
 			for (int attempt = 0; attempt < 2; ++attempt)
 			{
 				if (!playerKnowledge.TrySuggestSearchPoint(Time.time, out Vector3 hint))
+				{
+					MobileNPCEncounterDirector.ReleaseOptionalEvidenceSearchServer(this);
 					return;
+				}
 				// An Alien-Isolation-style uncertain search MUST remain a
 				// hypothesis. A 5m-high floor probe used to turn a nearby
 				// sound into a guessed upstairs/rooftop destination. Reject
@@ -1347,6 +1360,9 @@ namespace SDG.Unturned
 					return;
 				}
 			}
+			// All proposals were rejected by real ground/route checks; the
+			// other squad members may now spend their optional evidence budget.
+			MobileNPCEncounterDirector.ReleaseOptionalEvidenceSearchServer(this);
 		}
 
 		private void OnEnable()
