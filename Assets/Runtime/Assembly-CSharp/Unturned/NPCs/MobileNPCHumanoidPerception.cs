@@ -239,6 +239,7 @@ namespace SDG.Unturned
 			MobileNPCHumanoidDisposition best = null;
 			float bestDistanceSquared = GetObservationRange(npcSightRange);
 			bestDistanceSquared *= bestDistanceSquared;
+			int distantOpticalChecks = 0;
 			Vector3 eye = transform.position + Vector3.up * eyeHeight;
 
 			for (int i = 0; i < candidateDrivers.Count; ++i)
@@ -272,6 +273,9 @@ namespace SDG.Unturned
 					continue;
 				}
 
+				// Prevent scope scanning from raycasting every remote actor.
+				if (distanceSquared > npcSightRange * npcSightRange
+					&& ++distantOpticalChecks > 3) continue;
 				Transform nearestTransform = FindNearestSightTransform(eye, direction, Mathf.Sqrt(distanceSquared));
 
 				// Fail closed when the ray did not confirm a collider before the target.
@@ -311,6 +315,7 @@ namespace SDG.Unturned
 			Zombie best = null;
 			float bestDistanceSquared = GetObservationRange(npcSightRange);
 			bestDistanceSquared *= bestDistanceSquared;
+			int distantOpticalChecks = 0;
 			Vector3 eye = transform.position + Vector3.up * eyeHeight;
 			for (int i = 0; i < zombies.Count; ++i)
 			{
@@ -332,6 +337,9 @@ namespace SDG.Unturned
 					&& distanceSquared > 64f)
 					continue;
 
+				// Three remote optical LOS probes per scan, even near big hordes.
+				if (distanceSquared > npcSightRange * npcSightRange
+					&& ++distantOpticalChecks > 3) continue;
 				float distance = Mathf.Sqrt(distanceSquared);
 				Transform nearestTransform = FindNearestSightTransform(eye, direction, distance);
 				if (nearestTransform == null)
