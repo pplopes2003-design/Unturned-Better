@@ -35,6 +35,7 @@ namespace SDG.Unturned
 		private MobileNPCHumanoidMotor motor;
 		private MobileNPCBrainDriver driver;
 		private float nextBuildTime;
+		private float nextStorageDeliveryAt;
 		private int placedPieces;
 		private bool centralStoragePlaced;
 		private bool generatorPlaced;
@@ -57,7 +58,16 @@ namespace SDG.Unturned
 				|| !member.HasSettlement || planner == null || !planner.HasChosenSite
 				|| centralStorage == null || !centralStorage.gameObject.activeInHierarchy
 				|| centralStorage.items == null
+				|| centralStorage.owner != CSteamID.Nil || centralStorage.group != CSteamID.Nil
 				|| (centralStorage.transform.position - member.GroupAnchor).sqrMagnitude > 3.5f * 3.5f)
+				return false;
+			BarricadeDrop nativeDrop =
+				BarricadeDrop.FindByTransformFastMaybeNull(centralStorage.transform);
+			BarricadeData nativeData = nativeDrop != null ? nativeDrop.GetServersideData() : null;
+			if (nativeDrop == null || nativeData == null
+				|| nativeData.owner != 0UL || nativeData.group != 0UL
+				|| !(nativeDrop.asset is ItemBarricadeAsset)
+				|| ((ItemBarricadeAsset)nativeDrop.asset).build != EBuild.STORAGE)
 				return false;
 			storage = centralStorage;
 			return true;
@@ -109,7 +119,11 @@ namespace SDG.Unturned
 			// Move carried supplies into the vanilla container whenever its server-side
 			// InteractableStorage has finished initialization. Keep construction items
 			// in the NPC inventory so the settlement can continue expanding.
-			TryTransferSuppliesToCentralStorage();
+			if (Time.time >= nextStorageDeliveryAt)
+			{
+				nextStorageDeliveryAt = Time.time + 2f;
+				TryTransferSuppliesToCentralStorage();
+			}
 
 			// Leader succession must discover an ALREADY BUILT real storage
 			// even when the shared pattern is complete (placedPieces >= max).
@@ -362,6 +376,15 @@ namespace SDG.Unturned
 					if (candidate == null || candidate.items == null
 						|| candidate.owner != CSteamID.Nil || candidate.group != CSteamID.Nil)
 						continue;
+					BarricadeDrop nativeStorage =
+						BarricadeDrop.FindByTransformFastMaybeNull(candidate.transform);
+					BarricadeData nativeData = nativeStorage != null
+						? nativeStorage.GetServersideData() : null;
+					if (nativeData == null || nativeData.owner != 0UL
+						|| nativeData.group != 0UL
+						|| !(nativeStorage.asset is ItemBarricadeAsset)
+						|| ((ItemBarricadeAsset)nativeStorage.asset).build != EBuild.STORAGE)
+						continue;
 
 					float distanceSquared = (candidate.transform.position - planner.ChosenSite).sqrMagnitude;
 					if (distanceSquared >= bestDistanceSquared)
@@ -439,8 +462,12 @@ namespace SDG.Unturned
 		/// </summary>
 		private void TryTransferSuppliesToCentralStorage()
 		{
+			MobileNPCGroupMember currentGroup = GetComponent<MobileNPCGroupMember>();
 			if (!Provider.isServer || centralStorage == null || centralStorage.items == null
-				|| inventory == null || inventory.UsedSlots == 0)
+				|| inventory == null || inventory.UsedSlots == 0
+				|| currentGroup == null || !currentGroup.CanPlanSettlement
+				|| !TryGetCentralStorageForRadioServer(out _)
+				|| (transform.position - centralStorage.transform.position).sqrMagnitude > 4f * 4f)
 				return;
 
 			bool changed = false;
