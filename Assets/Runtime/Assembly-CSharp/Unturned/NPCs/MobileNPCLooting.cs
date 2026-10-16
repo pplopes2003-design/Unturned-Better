@@ -566,6 +566,19 @@ namespace SDG.Unturned
 					break;
 			}
 
+			// C4 raid requires BOTH the actual native charge AND a
+			// separate ItemDetonatorAsset. Prefer finding the missing half;
+			// no virtual detonator, no arbitrary charge/blueprint substitution.
+			if (MobileNPCSettings.CombatMode)
+			{
+				if (item.asset is ItemDetonatorAsset
+					&& !inventory.ContainsItemID(itemID))
+					score = Mathf.Max(score, 125f);
+				else if (MobileNPCRaidSupplyPolicy.IsRaidCharge(item.asset)
+					&& !inventory.ContainsItemID(itemID))
+					score = Mathf.Max(score, 104f);
+			}
+
 			// A first genuine portable walkie has group survival utility.
 			// The world item still has to exist, be reachable, and be picked
 			// up through ordinary ItemManager/inventory transactions. Never
