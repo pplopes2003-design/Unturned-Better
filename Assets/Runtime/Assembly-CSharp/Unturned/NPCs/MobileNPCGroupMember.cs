@@ -28,6 +28,7 @@ namespace SDG.Unturned
 			public Vector3 Anchor;
 			public readonly HashSet<MobileNPCGroupMember> Members = new HashSet<MobileNPCGroupMember>();
 			public MobileNPCGroupMember Leader;
+			public float LastLeaderObservedCombatAt;
 			public bool HasSettlement;
 			public int SettlementPiecesPlaced;
 			public int SettlementPerimeterPiecesPlaced;
@@ -59,6 +60,13 @@ namespace SDG.Unturned
 		private float nextThreatBroadcastAt;
 		private float nextAidAssessmentAt;
 		private float nearbyAllyLostUntil;
+		private float nextLeaderDirectiveAt;
+		private float nextRegroupExecutionAt;
+		private float directiveUntil;
+		private SquadDirective currentDirective;
+		public enum SquadDirective { Independent, Hold, Probe, Withdraw, Regroup }
+		public SquadDirective CurrentSquadDirective => Provider.isServer && !leftGroup
+			&& Time.time < directiveUntil ? currentDirective : SquadDirective.Independent;
 		private MobileNPCGroupMember assignedCoverer;
 		public enum SquadRole { None, Covering, Advancing }
 		private SquadRole squadRole;
@@ -103,6 +111,7 @@ namespace SDG.Unturned
 			// Group identity alone never copies knowledge to absent group members.
 			TryShareExperienceByLocalSpeechServer();
 			TryAidNearbyWoundedMemberServer();
+			TryIssueLeaderDirectiveServer();
 			if (!Provider.isServer || CurrentSquadRole != SquadRole.Advancing
 				|| pendingAdvanceAt <= 0f || Time.time < pendingAdvanceAt)
 				return;
@@ -120,6 +129,131 @@ namespace SDG.Unturned
 					assignedCoverer.ClearSquadRole();
 				ClearSquadRole();
 			}
+		}
+
+		/// <summary>
+		/// Living leader's small-group coordination: surveys ONLY teammates
+		/// actually within audible local speech. A faction ID never implies
+		/// automatic long-range communication or shared targets.
+		/// </summary>
+		private void TryIssueLeaderDirectiveServer()
+		{
+			if (!Provider.isServer || !initialized || leftGroup || GroupId <= 0
+				|| Time.time < nextLeaderDirectiveAt || vitals != null && vitals.IsDead
+				|| !groups.TryGetValue(GroupId, out GroupRecord group)
+				|| group.Leader != this || group.Members.Count < 2)
+				return;
+			nextLeaderDirectiveAt = Time.time + Random.Range(3.5f, 5.0f);
+			MobileNPCBrainDriver brain = GetComponent<MobileNPCBrainDriver>();
+			MobileNPCHumanoidPerception perception = GetComponent<MobileNPCHumanoidPerception>();
+			if (brain == null || perception == null)
+				return;
+			Transform target = brain.Target;
+			bool currentlySeen = target != null &&
+				(perception.VisiblePlayer != null && target == perception.VisiblePlayer.transform
+				|| perception.VisibleNPC != null && target == perception.VisibleNPC.transform
+				|| perception.VisibleZombie != null && target == perception.VisibleZombie.transform);
+			if (currentlySeen)
+				group.LastLeaderObservedCombatAt = Time.time;
+			bool recentlyEngaged = Time.time - group.LastLeaderObservedCombatAt < 26f;
+			if (!currentlySeen && !recentlyEngaged)
+				return;
+
+			int nearby = 1;
+			int wounded = vitals != null && vitals.HealthFraction < 0.40f ? 1 : 0;
+			MobileNPCHumanoidRangedCombat ownWeapon = GetComponent<MobileNPCHumanoidRangedCombat>();
+			int armed = ownWeapon != null && ownWeapon.SelectedGunAsset != null
+				&& ownWeapon.RoundsRemaining > 2 && !ownWeapon.IsReloading ? 1 : 0;
+			foreach (MobileNPCGroupMember ally in group.Members)
+			{
+				if (ally == null || ally == this || !CanExchangeOrdersServer(ally))
+					continue;
+				++nearby;
+				if (ally.vitals != null && ally.vitals.HealthFraction < 0.40f)
+					++wounded;
+				MobileNPCHumanoidRangedCombat weapon = ally.GetComponent<MobileNPCHumanoidRangedCombat>();
+				if (weapon != null && weapon.SelectedGunAsset != null
+					&& weapon.RoundsRemaining > 2 && !weapon.IsReloading)
+					++armed;
+			}
+			if (nearby < 2)
+				return;
+			SquadDirective desired;
+			if (!currentlySeen)
+				desired = SquadDirective.Regroup;
+			else if (wounded >= 2 || wounded >= 1 && armed == 0)
+				desired = SquadDirective.Withdraw;
+			else if (armed >= 2 && wounded == 0)
+				desired = SquadDirective.Probe;
+			else
+				desired = SquadDirective.Hold;
+
+			ApplyLocalDirectiveServer(desired, this);
+			foreach (MobileNPCGroupMember ally in group.Members)
+			{
+				if (ally != null && ally != this && CanExchangeOrdersServer(ally))
+					ApplyLocalDirectiveServer(desired, ally);
+			}
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			Debug.Log("[MobileNPCGroupMember] Group " + GroupId + " leader "
+				+ name + " issued local " + desired + " to " + nearby
+				+ " audible member(s): visibly fighting=" + currentlySeen
+				+ ", injured=" + wounded + ", armed=" + armed
+				+ ". Individual vision and route validation still apply.", this);
+#endif
+		}
+
+		private void ApplyLocalDirectiveServer(SquadDirective requested, MobileNPCGroupMember member)
+		{
+			if (member == null || member.leftGroup
+				|| member.vitals != null && member.vitals.IsDead)
+				return;
+			member.currentDirective = requested;
+			member.directiveUntil = Time.time + 6.5f;
+			if (requested == SquadDirective.Withdraw)
+				member.ClearSquadRole();
+			if (requested != SquadDirective.Regroup || member == this
+				|| Time.time < member.nextRegroupExecutionAt)
+				return;
+			MobileNPCBrainDriver brain = member.GetComponent<MobileNPCBrainDriver>();
+			if (brain == null || brain.Target != null
+				|| brain.CurrentState != MobileNPCBrain.State.Idle
+				|| brain.CurrentGoal != MobileNPCTactics.Goal.None)
+				return;
+			member.nextRegroupExecutionAt = Time.time + 12f;
+			// A few metres apart is enough for regroup; actual destination
+			// may be rejected due to terrain, door or other collision.
+			if ((member.transform.position - transform.position).sqrMagnitude > 5f * 5f)
+				brain.TryStartSquadRegroupServer(transform.position);
+		}
+
+		private bool CanExchangeOrdersServer(MobileNPCGroupMember ally)
+		{
+			if (ally == null || ally == this || ally.leftGroup || !ally.initialized
+				|| ally.GroupId != GroupId || ally.vitals != null && ally.vitals.IsDead)
+				return false;
+			float range = motor != null && motor.IsCrouched ? QuietVoiceRange : 14f;
+			Vector3 start = transform.position + Vector3.up * 1.45f;
+			Vector3 end = ally.transform.position + Vector3.up * 1.45f;
+			Vector3 delta = end - start;
+			float distance = delta.magnitude;
+			if (distance <= 0.1f || distance > range)
+				return false;
+			RaycastHit[] hits = Physics.RaycastAll(start, delta / distance, distance,
+				RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+			bool blocked = false;
+			for (int i = 0; i < hits.Length; ++i)
+			{
+				Collider hit = hits[i].collider;
+				if (hit == null || hit.transform.IsChildOf(transform)
+					|| hit.transform.IsChildOf(ally.transform)
+					|| hit.GetComponentInParent<Player>() != null
+					|| hit.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
+					continue;
+				blocked = true;
+				break;
+			}
+			return !blocked || distance <= range * WallHearingMultiplier;
 		}
 
 		/// <summary>Assigns this newly spawned individual to the nearest living group, or creates one.</summary>
