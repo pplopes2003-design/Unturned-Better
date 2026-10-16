@@ -55,6 +55,9 @@ namespace SDG.Unturned
         private readonly float[] recentScoutingSiteExpiresAt = new float[RecentScoutingSiteCapacity];
         private int nextRecentScoutingSiteSlot;
         private bool initialized;
+        // One completed local structure survey, bounded in time and location.
+        private Vector3 lastCompletedStructureSurvey;
+        private float completedStructureRevisitAfter;
         // Confirmed local scans, not mere arrival at candidate waypoints.
         private int consecutiveEmptyInspections;
         private int confirmedInspectionScans;
@@ -75,6 +78,8 @@ namespace SDG.Unturned
             public int emptyInspections;
             public int inspectionScans;
             public int realPickups;
+            public Vector3 completedStructure;
+            public float structureRevisitRemaining;
             public bool hasBlockedWaypoint;
             public Vector3 blockedWaypoint;
             public float blockedWaypointRemaining;
@@ -107,6 +112,8 @@ namespace SDG.Unturned
                 emptyInspections = Mathf.Clamp(consecutiveEmptyInspections, 0, 3),
                 inspectionScans = Mathf.Clamp(confirmedInspectionScans, 0, 1000000),
                 realPickups = Mathf.Clamp(confirmedWorldPickups, 0, 1000000),
+                completedStructure = lastCompletedStructureSurvey,
+                structureRevisitRemaining = Remaining(completedStructureRevisitAfter - now, 150f),
                 hasBlockedWaypoint = hasBlockedWaypoint && now < blockedWaypointExpiresAt,
                 blockedWaypoint = lastBlockedWaypoint,
                 blockedWaypointRemaining = Mathf.Clamp(blockedWaypointExpiresAt - now, 0f, 38f),
@@ -156,6 +163,12 @@ namespace SDG.Unturned
             consecutiveEmptyInspections = Mathf.Clamp(snapshot.emptyInspections, 0, 3);
             confirmedInspectionScans = Mathf.Clamp(snapshot.inspectionScans, 0, 1000000);
             confirmedWorldPickups = Mathf.Clamp(snapshot.realPickups, 0, 1000000);
+            Vector3 completed = snapshot.completedStructure;
+            bool validStructure = IsFinite(completed.x) && IsFinite(completed.y)
+                && IsFinite(completed.z) && Level.checkSafeIncludingClipVolumes(completed);
+            lastCompletedStructureSurvey = validStructure ? completed : Vector3.zero;
+            completedStructureRevisitAfter = validStructure
+                ? now + Remaining(snapshot.structureRevisitRemaining, 150f) : 0f;
 
             bool validBlockedPosition = IsFinite(snapshot.blockedWaypoint.x)
                 && IsFinite(snapshot.blockedWaypoint.y)
@@ -588,6 +601,14 @@ namespace SDG.Unturned
             if (!Provider.isServer || !IsFinite(candidate.x)
                 || !IsFinite(candidate.y) || !IsFinite(candidate.z))
                 return false;
+            if (currentJob == Job.Scavenge && Time.time < completedStructureRevisitAfter
+                && Mathf.Abs(candidate.y - lastCompletedStructureSurvey.y) <= 4.5f)
+            {
+                Vector3 difference = candidate - lastCompletedStructureSurvey;
+                difference.y = 0f;
+                if (difference.sqrMagnitude <= 15f * 15f)
+                    return false;
+            }
             if (hasBlockedWaypoint && Time.time < blockedWaypointExpiresAt)
             {
                 Vector3 blockedDifference = candidate - lastBlockedWaypoint;
@@ -651,6 +672,27 @@ namespace SDG.Unturned
         /// is normal; after three barren inspections, try a patrol/different
         /// district rather than repeating the same speculative loot objective.
         /// </summary>
+        /// <summary>A structure with at least two actually reached and
+        /// scanned spots is temporarily retired from this NPC's optional
+        /// scavenging queue. Not a claim that every room is empty, and never
+        /// a global/faction-wide knowledge broadcast.</summary>
+        public void ReportStructureSurveyCompletedServer(Vector3 anchor,
+            int physicallyScannedLocations)
+        {
+            if (!Provider.isServer || physicallyScannedLocations < 2
+                || (vitals != null && vitals.IsDead)
+                || !IsFinite(anchor.x) || !IsFinite(anchor.y) || !IsFinite(anchor.z)
+                || !Level.checkSafeIncludingClipVolumes(anchor))
+                return;
+            lastCompletedStructureSurvey = anchor;
+            completedStructureRevisitAfter = Time.time + 120f;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Debug.Log("[MobileNPCInteriorSurvey] Retired surveyed cluster npc=" + name
+                + " anchor=" + anchor + " visited=" + physicallyScannedLocations
+                + " revisitAfter=120s.", this);
+#endif
+        }
+
         public void ReportLocalInspectionScannedServer(Vector3 inspectedPoint,
             bool startedRealLootGoal)
         {
