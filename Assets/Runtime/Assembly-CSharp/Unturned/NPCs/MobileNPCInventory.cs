@@ -160,7 +160,8 @@ namespace SDG.Unturned
 						&& candidate.magazineCalibers.Length > 0
 						&& magazine.CalibersContainAnyOfIds(candidate.magazineCalibers)
 						&& stored.state[GunStateIndices.AMMO] >= Mathf.Max(1, candidate.ammoPerShot))
-						score += 44f;
+						// A usable loaded sidearm beats an impressive but empty rifle.
+						score += 175f;
 					ushort sightId = System.BitConverter.ToUInt16(stored.state, GunStateIndices.SIGHT_ID);
 					ItemSightAsset scope = Assets.find(EAssetType.ITEM, sightId) as ItemSightAsset;
 					if (scope != null && scope.zoom >= 2.5f)
