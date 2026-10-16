@@ -112,6 +112,11 @@ namespace SDG.Unturned
             // twice (confirmed twice-initialized components in Player.log).
             if (template.GetComponent<MobileNPCInventory>() == null)
                 template.AddComponent<MobileNPCInventory>();
+            // Native clothes/armor must come only from acquired real items.
+            // Keeping the items in NPCInventory preserves saves, trade and
+            // corpse loot instead of fabricating cosmetic equipment.
+            if (template.GetComponent<MobileNPCEquipment>() == null)
+                template.AddComponent<MobileNPCEquipment>();
             template.AddComponent<MobileNPCDeathLoot>();
             template.AddComponent<MobileNPCSurvivalNeeds>();
             template.AddComponent<MobileNPCLooting>();
