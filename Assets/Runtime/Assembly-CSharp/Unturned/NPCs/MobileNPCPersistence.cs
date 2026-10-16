@@ -44,6 +44,12 @@ namespace SDG.Unturned
 			public int groupId;
 			public float health;
 			public bool hasSettlement;
+			// Optional group construction progress (old JSON defaults to zero).
+			// Structures are owned by vanilla world persistence, never duplicated
+			// from this compact per-survivor record.
+			public int settlementPiecesPlaced;
+			public int settlementPerimeterPiecesPlaced;
+			public bool settlementCentralStoragePlaced;
 			public float ax, ay, az;
 			public List<ItemRecord> items = new List<ItemRecord>();
 			// Individual experience only; not a global group/faction policy.
@@ -333,6 +339,10 @@ namespace SDG.Unturned
 						groupMember.SetGroupAnchorServer(record.groupId, savedAnchor, record.hasSettlement);
 					else if (record.hasSettlement)
 						groupMember.SetGroupAnchorServer(savedAnchor);
+					groupMember.RestoreConstructionProgressServer(
+						record.settlementPiecesPlaced,
+						record.settlementPerimeterPiecesPlaced,
+						record.settlementCentralStoragePlaced);
 				}
 	
 				MobileNPCInventory inventory = instance.GetComponent<MobileNPCInventory>();
@@ -457,6 +467,9 @@ namespace SDG.Unturned
 					record.groupId = groupMember.GroupId;
 					Vector3 anchor = groupMember.GroupAnchor;
 					record.hasSettlement = groupMember.HasSettlement;
+					record.settlementPiecesPlaced = groupMember.SettlementPiecesPlaced;
+					record.settlementPerimeterPiecesPlaced = groupMember.SettlementPerimeterPiecesPlaced;
+					record.settlementCentralStoragePlaced = groupMember.SettlementCentralStoragePlaced;
 					record.ax = anchor.x;
 					record.ay = anchor.y;
 					record.az = anchor.z;
