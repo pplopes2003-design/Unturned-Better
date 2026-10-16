@@ -31,3 +31,17 @@ Target branch: `feature/npc-ai-foundation`. These checks are **manual Unity Dev 
 - The project does NOT yet guarantee a shop prefab or native vehicle driving. A settlement needs real building assets/items and successful construction before a seller can become stationary; this phase adds *logical* duties and stock delivery only.
 - Native melee playback and articulated ragdoll changes need a new Dev Build and `Player.log` verification; source review alone cannot guarantee their appearance.
 - Do not infer full feature success merely from a clean code diff. Unity compilation, Play Mode behavior, game-time visual observation and profile metrics are still mandatory.
+
+## Multi-room and independent occupation acceptance (2026-10-16 follow-up)
+
+- `MobileNPCOccupation` is a **separate personal occupation** from `MobileNPCFaction` diplomatic identity. The first automatic spawn usually maps Raider -> Raiders, Trader -> Traders, Survivor -> Scavengers, Military -> Military, but later occupation changes MUST NOT silently change faction, targeting or remembered group identity.
+- JSON v8 persists both occupation and faction; loading older v1-v7 snapshots infers occupation from their original faction only once. Back up any valuable save before testing this migration.
+- An authored urban item-spawn **cluster** near an actual large map object may initiate `MobileNPCInteriorSurvey`. A single isolated roadside spawn is insufficient. It tries at most four physically visited inspection sites; actual loot is optional, not guaranteed.
+- Each site must follow `[MobileNPCInteriorSurvey] NEXT -> ARRIVED -> INSPECTED`, with the ordinary motor, ground/capsule and native door/stair routing. A `NEXT` line alone is not success. The loot scanner and completed ItemManager transfer remain separately logged.
+- Occupied or invalid floors, closed/locked doors, furniture and walls must not be bypassed. A failed route records no inspection success. Combat interrupts the route and may later resume the routine, but must never classify the interrupted survey as fully completed.
+- On completing at least two genuine inspections and exhausting/budgeting the cluster, expect a temporary personal 120-second survey memory (`Retired surveyed cluster`). Other NPCs do not magically learn the location was empty. Persistence stores the remaining cooldown, not an obsolete Time.time timestamp.
+- Test upstairs and downstairs loot points in the same building; separate floors must not be merged into the same visited-point slot. Multi-floor traversal remains subject to real native stairs/ladder and may fail on maps without valid navigation access.
+- Observe FPS in dense Washington city blocks with 20 and then 40 NPCs. Surveys are initiated by optional roaming decisions, limited to nearby map regions, with 96 spawn candidates and at most 10 grounded/capsule probes per room decision. They must not run every frame.
+- After a mode or occupation change, verify factions remain in control of player hostility and NPC-vs-NPC diplomacy. The combat-mode population choices apply to **fresh automatic spawns**; old saved actors keep their own faction and profession.
+
+**Static source cross-reference checks are NOT a Unity compilation or playtest.** Inspect the first new `Player.log` for compiler errors, spawned actor profession/faction audits, survey state transitions, successful ItemManager transfers and main-thread profiler cost.
