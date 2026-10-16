@@ -3229,8 +3229,7 @@ namespace SDG.Unturned
 		{
 			if (!Provider.isServer || isDead || isStunned || isLeaving || seeker == null
 				|| !seeker.CanMove || !isHunting || isReturningToSpawn
-				|| (huntType != EHuntType.PLAYER && huntType != EHuntType.POINT)
-				|| delta <= 0f)
+				|| huntType != EHuntType.PLAYER || delta <= 0f)
 				return false;
 
 			Vector3 destination;
@@ -3238,15 +3237,12 @@ namespace SDG.Unturned
 				destination = player.transform.position;
 			else if (mobileNPCTarget != null && !mobileNPCTarget.IsDead)
 				destination = mobileNPCTarget.transform.position;
-			else if (huntType == EHuntType.POINT && player == null && mobileNPCTarget == null)
-			{
-				// A validated gunshot/explosion is an investigation destination,
-				// NOT privileged knowledge of the shooter. Hunt state/timeout is
-				// still governed by the native POINT investigation logic.
-				destination = target.position;
-			}
 			else
 				return false;
+			// POINT sound investigations always remain on vanilla seeker.Move.
+			// This off-nav direct-controller/side-detour was only meant to
+			// preserve a living pursuit beyond POI bounds, and must not
+			// steer gunshot/explosion investigations in unrelated directions.
 
 			// Return to native pathfinding only when BOTH pursuer and target
 			// are within a navigable area. A player reentering a POI should
