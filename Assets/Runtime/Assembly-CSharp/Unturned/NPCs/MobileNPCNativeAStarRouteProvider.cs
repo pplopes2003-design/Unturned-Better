@@ -30,6 +30,7 @@ namespace SDG.Unturned
 		private bool initialized;
 		private float nextInitializationAttemptTime;
 		private string diagnosticStatus = "waiting-for-backend";
+		private string observedBackendName = "none";
 		private bool requestPending;
 		private bool routeReady;
 		private bool lastPathFailed;
@@ -52,6 +53,8 @@ namespace SDG.Unturned
 		public bool LastPathFailed => lastPathFailed;
 		/// <summary>Compact runtime state for debugging without per-frame log spam.</summary>
 		public string DiagnosticStatus => diagnosticStatus;
+		/// <summary>The real backend seen on the current Unity runtime, not a claim about ASPFP.</summary>
+		public string ObservedBackendName => observedBackendName;
 
 		/// <summary>
 		/// Returns true only when a completed native A* route is ready for consumption.
@@ -138,7 +141,11 @@ namespace SDG.Unturned
 				}
 
 				startPathMethod.Invoke(seeker, args);
-				diagnosticStatus = "request-pending";
+				// Callbacks can complete synchronously in some ASPFP
+				// implementations. Never overwrite a completed/error
+				// diagnostic with a fictitious pending state.
+				if (requestPending)
+					diagnosticStatus = "request-pending";
 				return false;
 			}
 			catch (Exception)
@@ -164,18 +171,24 @@ namespace SDG.Unturned
 		{
 			if (initialized || Time.time < nextInitializationAttemptTime)
 				return;
-			nextInitializationAttemptTime = Time.time + 2.0f;
+			nextInitializationAttemptTime = Time.time + 3.0f;
 
-			// Do not attach a generic Seeker to an unrelated or empty A* instance.
-			// Unturned selects this backend only in builds that include the licensed
-			// ASPFP integration; the public SDK otherwise selects UnturnedPathfinding_Empty.
+			// Only the runtime knows whether the licensed ASPFP backend
+			// exists. A call made BEFORE level/pathfinding initialization
+			// must not permanently disable this NPC's provider.
 			IUnturnedPathfindingInterface activeBackend = UnturnedPathfinding.Get();
+			observedBackendName = activeBackend != null
+				? activeBackend.GetType().Name : "null";
 			if (activeBackend == null)
-				return;
-			if (activeBackend.GetType().Name != "UnturnedPathfinding_ASPFP")
 			{
+				diagnosticStatus = "native-backend-not-initialized";
+				return;
+			}
+			if (observedBackendName != "UnturnedPathfinding_ASPFP")
+			{
+				// Empty SDK backend remains an honest fallback. Recheck
+				// slowly in case game initialization later selects ASPFP.
 				SetDiagnosticStatus("native-aspfp-backend-unavailable", true);
-				initialized = true;
 				return;
 			}
 
