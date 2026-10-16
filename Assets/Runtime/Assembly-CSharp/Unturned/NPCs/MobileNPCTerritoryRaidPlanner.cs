@@ -43,6 +43,9 @@ namespace SDG.Unturned
         private float knowledgeExpiresAt;
         private int lastRivalGroupId;
         private InteractableStorage lastPersonallySeenHostileStorage;
+        private InteractableStorage lastConfirmedEnemyStorage;
+        private uint lastConfirmedNativeStorageId;
+        private float nextGarrisonAt;
 
         private void Awake()
         {
@@ -69,6 +72,12 @@ namespace SDG.Unturned
             }
             if (Time.time < nextPlanAt) return;
             nextPlanAt = Time.time + Random.Range(5f, 9f);
+            // Occupying requires actually reaching the earlier personally
+            // observed native structure, plus physically clearing defenders.
+            // No radio report or shared group registry grants capture rights.
+            if (TryConcludePhysicalOccupationServer())
+                return;
+            TryAssignCapturedSiteGuardServer();
             MobileNPCInventory supplies = GetComponent<MobileNPCInventory>();
             bool ordinaryArmed = gun != null && gun.SelectedGunAsset != null
                 && gun.RoundsRemaining >= 3;
@@ -221,6 +230,11 @@ namespace SDG.Unturned
                 || !HasCleanSightToStorage(storage.transform, basePosition))
                 return false;
             lastPersonallySeenHostileStorage = storage;
+            lastConfirmedEnemyStorage = storage;
+            BarricadeDrop confirmedDrop =
+                BarricadeDrop.FindByTransformFastMaybeNull(storage.transform);
+            lastConfirmedNativeStorageId = confirmedDrop != null
+                ? confirmedDrop.instanceID : 0;
             impactPoint = basePosition;
             knownRivalBase = basePosition;
             lastRivalGroupId = rivalMember.GroupId;
@@ -231,6 +245,108 @@ namespace SDG.Unturned
         private void ObserveRealRivalSettlementServer()
         {
             TryGetVisibleHostileBaseServer(out _);
+        }
+
+        private bool TryConcludePhysicalOccupationServer()
+        {
+            if (!Provider.isServer || !MobileNPCSettings.CombatMode
+                || !group.CanPlanSettlement || lastConfirmedEnemyStorage == null
+                || lastConfirmedNativeStorageId == 0 || lastRivalGroupId <= 0
+                || Time.time > knowledgeExpiresAt + 35f
+                || vitals.HealthFraction < 0.27f || brain.Target != null
+                || brain.CurrentGoal != MobileNPCTactics.Goal.None
+                || brain.CurrentState != MobileNPCBrain.State.Idle)
+                return false;
+            // Native world instance and ownership must be identical to the
+            // originally SEEN NPC group storage. Do not claim arbitrary nil
+            // owner scenery, houses, or the private player's property.
+            BarricadeDrop original = BarricadeDrop.FindByTransformFastMaybeNull(
+                lastConfirmedEnemyStorage.transform);
+            BarricadeData data = original != null ? original.GetServersideData() : null;
+            if (original == null || data == null
+                || original.instanceID != lastConfirmedNativeStorageId
+                || data.owner != 0UL || data.group != 0UL
+                || !(original.asset is ItemBarricadeAsset asset)
+                || asset.build != EBuild.STORAGE
+                || !lastConfirmedEnemyStorage.gameObject.activeInHierarchy
+                || (lastConfirmedEnemyStorage.transform.position - knownRivalBase)
+                    .sqrMagnitude > 3.5f * 3.5f)
+                return false;
+            Vector3 site = lastConfirmedEnemyStorage.transform.position;
+            if ((transform.position - site).sqrMagnitude > 8f * 8f
+                || !HasCleanSightToStorage(lastConfirmedEnemyStorage.transform, site)
+                || group.CapturedStorageInstanceId == lastConfirmedNativeStorageId)
+                return false;
+
+            MobileNPCRegistry.CopyActiveDrivers(nearbyDrivers);
+            int nearbyOccupiers = 1;
+            for (int i = 0; i < nearbyDrivers.Count; ++i)
+            {
+                MobileNPCBrainDriver other = nearbyDrivers[i];
+                if (other == null || other == brain) continue;
+                MobileNPCHumanoidVitals otherVitals =
+                    other.GetComponent<MobileNPCHumanoidVitals>();
+                if (otherVitals == null || otherVitals.IsDead) continue;
+                float distanceSquared = (other.transform.position - site).sqrMagnitude;
+                MobileNPCFaction otherFaction = other.GetComponent<MobileNPCFaction>();
+                MobileNPCGroupMember otherGroup = other.GetComponent<MobileNPCGroupMember>();
+                // Any active hostile fighter in or near the actual base
+                // prevents claiming. Eliminating a squad doesn't remotely
+                // capture its location from halfway across the map.
+                if (distanceSquared < 26f * 26f && otherFaction != null
+                    && faction.IsHostileTo(otherFaction))
+                    return false;
+                if (otherGroup != null && otherGroup.GroupId == group.GroupId
+                    && distanceSquared <= 12f * 12f)
+                    ++nearbyOccupiers;
+            }
+            if (nearbyOccupiers < 2
+                || !group.TryRecordCapturedSectorServer(site,
+                    lastConfirmedNativeStorageId, lastRivalGroupId))
+                return false;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Debug.Log("[MobileNPCTerritoryRaidPlanner] Group "
+                + group.GroupId + " established logical occupation at native"
+                + " storage instance " + lastConfirmedNativeStorageId
+                + " after clearing a rival and physically taking the site."
+                + " Native world object ownership was NOT overwritten.", this);
+#endif
+            return true;
+        }
+
+        private void TryAssignCapturedSiteGuardServer()
+        {
+            if (!MobileNPCSettings.CombatMode || !group.CanPlanSettlement
+                || Time.time < nextGarrisonAt
+                || !group.TryGetCapturedSectorServer(out Vector3 captured))
+                return;
+            nextGarrisonAt = Time.time + Random.Range(22f, 32f);
+            // Defending the conquest is an ordinary LOCAL travel job, not
+            // a new artificial sentry or map-wide teleport.
+            MobileNPCRegistry.CopyActiveDrivers(nearbyDrivers);
+            for (int i = 0; i < nearbyDrivers.Count; ++i)
+            {
+                MobileNPCBrainDriver ally = nearbyDrivers[i];
+                if (ally == null || ally == brain
+                    || (ally.transform.position - captured).sqrMagnitude > 25f * 25f)
+                    continue;
+                MobileNPCGroupMember allyGroup =
+                    ally.GetComponent<MobileNPCGroupMember>();
+                MobileNPCHumanoidVitals allyVitals =
+                    ally.GetComponent<MobileNPCHumanoidVitals>();
+                if (allyGroup == null || allyGroup.GroupId != group.GroupId
+                    || allyVitals == null || allyVitals.IsDead)
+                    continue;
+                Vector3 offset = ally.transform.position - captured;
+                offset.y = 0f;
+                if (offset.sqrMagnitude < 0.01f) offset = Vector3.forward;
+                Vector3 candidate = captured + offset.normalized * 7f;
+                if (MobileNPCSpawnService.TryFindSafeGroundPosition(candidate,
+                    2f, 2f, RayMasks.BLOCK_COLLISION | RayMasks.GROUND2,
+                    40f, out Vector3 guard, out _)
+                    && ally.TryStartRaidStagingServer(guard))
+                    break;
+            }
         }
 
         private bool HasCleanSightToStorage(Transform storage, Vector3 position)
