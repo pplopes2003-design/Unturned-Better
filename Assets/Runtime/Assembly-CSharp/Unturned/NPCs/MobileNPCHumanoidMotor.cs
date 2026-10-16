@@ -3330,6 +3330,7 @@ namespace SDG.Unturned
 							|| collider.GetComponentInParent<Player>() != null
 							|| collider.GetComponentInParent<Zombie>() != null
 							|| collider.GetComponentInParent<MobileNPCHumanoidVitals>() != null
+							|| IsFurnitureSurfaceCollider(collider)
 							|| Vector3.Angle(groundHit.normal, Vector3.up)
 								> Mathf.Min(characterController.slopeLimit, roamingMaximumSlope))
 							continue;
@@ -3546,7 +3547,8 @@ namespace SDG.Unturned
 				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(desired,
 					0.46f, 0.55f, roamingGroundMask,
 					Mathf.Min(characterController.slopeLimit, roamingMaximumSlope),
-					out Vector3 actualFloor, out _)
+					out Vector3 actualFloor, out Collider floorCollider, out _)
+					|| IsFurnitureSurfaceCollider(floorCollider)
 					|| Mathf.Abs(actualFloor.y - desired.y) > 0.30f
 					|| actualFloor.y - lastY > characterController.stepOffset
 						+ characterController.skinWidth + 0.10f
