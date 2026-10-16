@@ -1058,6 +1058,13 @@ namespace SDG.Unturned
 			MobileNPCBrain.State previousState = brain.CurrentState;
 			Transform previousTarget = brain.Target;
 			brain.Tick(Time.time, targetIsVisible);
+			// A raid's rally point is a soft noncombat objective. The moment a
+			// survivor personally acquires a real enemy, ordinary combat,
+			// cover and pursuit replace that staging waypoint. Normal mode
+			// must likewise cancel a pending Combat-only rally.
+			if (tactics.CurrentGoal == MobileNPCTactics.Goal.RaidStaging
+				&& (brain.Target != null || !MobileNPCSettings.CombatMode))
+				tactics.ClearGoal();
 			// When the ordinary brain loses the remembered target, its second
 			// advisory layer can propose a nearby search, not reveal live position.
 			if (previousState == MobileNPCBrain.State.Investigating
