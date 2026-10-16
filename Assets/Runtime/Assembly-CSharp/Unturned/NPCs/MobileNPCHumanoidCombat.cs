@@ -22,6 +22,10 @@ namespace SDG.Unturned
 		[SerializeField, Min(0.02f)] private float combatCheckInterval = 0.1f;
 
 		private MobileNPCBrainDriver brainDriver;
+		private MobileNPCInventory inventory;
+		private MobileNPCHumanoidRangedCombat rangedCombat;
+		public bool LastAttackUsedMeleeWeapon { get; private set; }
+		public ushort LastAttackWeaponID { get; private set; }
 		private float nextAttackTime;
 		private float nextCombatCheckTime;
 		private readonly RaycastHit[] lineOfSightHits = new RaycastHit[16];
@@ -32,6 +36,8 @@ namespace SDG.Unturned
 		private void Awake()
 		{
 			brainDriver = GetComponent<MobileNPCBrainDriver>();
+			inventory = GetComponent<MobileNPCInventory>();
+			rangedCombat = GetComponent<MobileNPCHumanoidRangedCombat>();
 		}
 
 		private void Update()
@@ -70,6 +76,7 @@ namespace SDG.Unturned
 				targetZombie = targetTransform.GetComponentInParent<Zombie>();
 
 			MobileNPCHumanoidVitals targetVitals = targetNPC != null ? targetNPC.GetComponent<MobileNPCHumanoidVitals>() : null;
+			float currentReach = GetMeleeReachServer();
 			// A wounded survivor should keep retreating, not turn a retreat
 			// into a pursuit. But if a zombie has reached striking distance,
 			// allow a verified short defensive melee hit while escaping.
@@ -77,7 +84,7 @@ namespace SDG.Unturned
 			if (brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat
 				&& (targetZombie == null || targetZombie.isDead
 					|| (targetZombie.transform.position - transform.position).sqrMagnitude
-						> attackRange * attackRange))
+						> currentReach * currentReach))
 				return;
 
 			if (targetPlayer != null)
@@ -102,13 +109,13 @@ namespace SDG.Unturned
 			Vector3 origin = transform.position + Vector3.up * lineOfSightHeight;
 			Vector3 targetPoint = targetTransform.position + Vector3.up * lineOfSightHeight;
 			Vector3 offset = targetPoint - origin;
-			if (offset.sqrMagnitude > attackRange * attackRange || offset.sqrMagnitude < 0.0001f)
+			if (offset.sqrMagnitude > currentReach * currentReach || offset.sqrMagnitude < 0.0001f)
 			{
 				return;
 			}
 
 			int hitCount = Physics.RaycastNonAlloc(origin, offset.normalized, lineOfSightHits,
-				attackRange, lineOfSightMask, QueryTriggerInteraction.Ignore);
+				currentReach, lineOfSightMask, QueryTriggerInteraction.Ignore);
 			float nearestDistance = float.PositiveInfinity;
 			Transform nearestTransform = null;
 			if (hitCount == lineOfSightHits.Length)
@@ -116,7 +123,7 @@ namespace SDG.Unturned
 				// A saturated NonAlloc buffer is not guaranteed to contain the nearest
 				// collider, so use the allocating fallback only for this rare case.
 				RaycastHit[] overflowHits = Physics.RaycastAll(origin, offset.normalized,
-					attackRange, lineOfSightMask, QueryTriggerInteraction.Ignore);
+					currentReach, lineOfSightMask, QueryTriggerInteraction.Ignore);
 				for (int i = 0; i < overflowHits.Length; ++i)
 				{
 					Transform hitTransform = overflowHits[i].transform;
@@ -177,12 +184,68 @@ namespace SDG.Unturned
 				if (hitZombie != targetZombie) return;
 			}
 
+			// Avoid an unrealistic simultaneous full-auto burst and heavy melee
+			// hit except when an enemy is physically crowding the NPC.
+			if (rangedCombat != null && rangedCombat.SelectedGunAsset != null
+				&& rangedCombat.RoundsRemaining > 0 && !rangedCombat.IsReloading
+				&& offset.sqrMagnitude > 1.15f * 1.15f
+				&& !brainDriver.HoldRangedFireForCloseAssault)
+				return;
+
 			if (targetPlayer != null)
 				TryAttack(targetPlayer, offset.normalized);
 			else if (targetNPC != null)
 				TryAttack(targetNPC, offset.normalized, nearestTransform);
 			else
 				TryAttack(targetZombie, offset.normalized);
+		}
+
+		/// <summary>Attacks come from actually owned weapons or natural fists.
+		/// Never instantiate imaginary equipment. The vanilla melee range is
+		/// capped for collision safety against thin walls and doors.</summary>
+		private float GetMeleeReachServer()
+		{
+			if (inventory != null && inventory.TryGetBestMeleeServer(out Item held,
+				out ItemMeleeAsset melee))
+				return Mathf.Clamp(melee.range, 1.2f, 3.0f);
+			return attackRange;
+		}
+
+		private float ResolveAttackDamageServer(bool playerTarget,
+			out ItemMeleeAsset selected, out Item heldItem)
+		{
+			selected = null;
+			heldItem = null;
+			if (inventory == null
+				|| !inventory.TryGetBestMeleeServer(out Item item, out ItemMeleeAsset melee))
+				return attackDamage;
+			IDamageMultiplier multiplier = playerTarget
+				? (IDamageMultiplier)melee.playerDamageMultiplier
+				: melee.zombieOrPlayerDamageMultiplier;
+			if (multiplier == null)
+				return attackDamage;
+			float damage = multiplier.multiply(ELimb.SPINE);
+			if (float.IsNaN(damage) || float.IsInfinity(damage) || damage <= 0f)
+				return attackDamage;
+			float condition = item.quality / 100f;
+			damage *= condition < 0.5f ? 0.5f + condition : 1f;
+			selected = melee;
+			heldItem = item;
+			return damage;
+		}
+
+		private void CommitStrikeServer(ItemMeleeAsset weapon, Item heldItem)
+		{
+			nextAttackTime = Time.time + Mathf.Max(0.35f, attackCooldown);
+			LastAttackUsedMeleeWeapon = weapon != null;
+			LastAttackWeaponID = heldItem != null ? heldItem.id : (ushort)0;
+			AttackStarted?.Invoke();
+		}
+
+		private void WearWeaponOnHitServer(ItemMeleeAsset weapon, Item heldItem)
+		{
+			if (weapon != null && heldItem != null && inventory != null)
+				inventory.TryWearOwnedMeleeServer(heldItem.id);
 		}
 
 		/// <summary>Damages an opposing mobile NPC using its server-authoritative vitals.</summary>
