@@ -303,17 +303,16 @@ namespace SDG.Unturned
             // fabricated clip names, so unarmed strikes could be silent poses.
             // Its genuine weaponless kicks are Idle_Kick_Left/Right.
             bool armed = combat != null && combat.LastAttackUsedMeleeWeapon;
-            string[] candidates = armed
-                ? (Random.value < 0.5f
-                    ? new[] { "Idle_Kick_Left", "Idle_Kick_Right",
-                        "Punch_Left", "Punch_Right" }
-                    : new[] { "Idle_Kick_Right", "Idle_Kick_Left",
-                        "Punch_Right", "Punch_Left" })
-                : (Random.value < 0.5f
-                    ? new[] { "Punch_Left", "Punch_Right",
-                        "Idle_Kick_Left", "Idle_Kick_Right" }
-                    : new[] { "Punch_Right", "Punch_Left",
-                        "Idle_Kick_Right", "Idle_Kick_Left" });
+            // The checked-in Human/Basic/Punch FBX has Punch_Left/Right,
+            // while Human/Basic/NPC has the kick clips. Both fist attacks
+            // and held melee items need an ARM strike first; prioritizing
+            // kicks for armed attacks made weapons visibly attack with feet.
+            // A weapon-specific swing asset can replace this fallback later.
+            string[] candidates = Random.value < 0.5f
+                ? new[] { "Punch_Left", "Punch_Right",
+                    "Idle_Kick_Left", "Idle_Kick_Right" }
+                : new[] { "Punch_Right", "Punch_Left",
+                    "Idle_Kick_Right", "Idle_Kick_Left" };
 
             Animation clipOwner = null;
             string clipName = null;
@@ -353,7 +352,22 @@ namespace SDG.Unturned
             attackAnimationUntil = Time.time + Mathf.Max(0.2f, state.length);
             currentClip = clipName;
             clipOwner.enabled = true;
+            if (!clipOwner.gameObject.activeInHierarchy)
+            {
+                Debug.LogError("[MobileNPCVisualAnimation] Committed melee strike "
+                    + "has a bound clip but its Animation owner is inactive: "
+                    + clipOwner.name + " clip=" + clipName + ".", this);
+                return;
+            }
             clipOwner.CrossFade(clipName, Mathf.Min(crossFadeDuration, 0.08f));
+            // A valid AnimationState is NOT proof that CrossFade accepted
+            // the command. Explicitly start a one-shot if no playback began.
+            // This is visual-only and never applies a second damage event.
+            if (!clipOwner.IsPlaying(clipName))
+                clipOwner.Play(clipName);
+            if (!clipOwner.IsPlaying(clipName))
+                Debug.LogError("[MobileNPCVisualAnimation] Melee clip refused playback: "
+                    + clipName + " owner=" + clipOwner.name + ".", this);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             Debug.Log("[MobileNPCVisualAnimation] Confirmed native melee clip "
                 + clipName + " for npc=" + name
