@@ -760,7 +760,7 @@ namespace SDG.Unturned
 				// anchors and launches the corpse like a rolling ball.
 				joint.autoConfigureConnectedAnchor = false;
 				joint.connectedAnchor = createdBodies[connected].transform
-					.InverseTransformPoint(target.TransformPoint(template.anchor));
+					.InverseTransformPoint(destinationTransforms[own].TransformPoint(template.anchor));
 				joint.lowTwistLimit = template.lowTwistLimit;
 				joint.highTwistLimit = template.highTwistLimit;
 				joint.swing1Limit = template.swing1Limit;
