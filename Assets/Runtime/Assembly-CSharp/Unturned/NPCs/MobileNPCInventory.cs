@@ -700,6 +700,28 @@ namespace SDG.Unturned
 			return false;
 		}
 
+		/// <summary>Server-authoritative clothing wear for the exact equipped
+		/// inventory item. Mirrors native player armor quality loss: one point
+		/// per protected verified hit, only if configured by Unturned.
+		/// Item stays in inventory and retains identity/state for saves/loot.
+		/// </summary>
+		public bool TryDegradeWornClothingQualityServer(int slot, ushort expectedID)
+		{
+			if (!Provider.isServer || slot < 0 || slot >= slots.Count
+				|| expectedID == 0 || !Provider.modeConfigData.Items.ShouldClothingTakeDamage)
+				return false;
+			Item stored = slots[slot];
+			if (stored == null || stored.id != expectedID || stored.quality == 0)
+				return false;
+			ItemClothingAsset clothing = Assets.find(EAssetType.ITEM, stored.id) as ItemClothingAsset;
+			if (clothing == null)
+				return false;
+			slots[slot] = new Item(stored.id, stored.amount,
+				(byte)(stored.quality - 1),
+				stored.state != null ? (byte[])stored.state.Clone() : new byte[0]);
+			return true;
+		}
+
 		/// <summary>Returns a defensive copy so callers cannot mutate stored state.</summary>
 		public bool TryGetItemSnapshot(int slot, out Item snapshot)
 		{
