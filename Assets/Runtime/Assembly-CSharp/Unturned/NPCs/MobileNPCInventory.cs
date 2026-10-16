@@ -124,6 +124,92 @@ namespace SDG.Unturned
 			return count;
 		}
 
+		/// <summary>Raid stockpile is private, finite and actually carried.
+		/// A charge is NOT considered deployable until there is a native
+		/// charge-placement/detonator implementation. Do not count a held
+		/// C4-looking object as an already functional breach charge.</summary>
+		public bool HasUsableRaidExplosiveServer()
+		{
+			if (!Provider.isServer) return false;
+			for (int i = 0; i < slots.Count; ++i)
+			{
+				Item held = slots[i];
+				if (held == null || held.id == 0 || held.amount == 0) continue;
+				ItemAsset asset = Assets.find(EAssetType.ITEM, held.id) as ItemAsset;
+				if (MobileNPCRaidSupplyPolicy.IsBreachThrowable(asset))
+					return true;
+				if (!MobileNPCRaidSupplyPolicy.IsRaidLauncher(asset)
+					|| held.state == null || held.state.Length < 18) continue;
+				ItemGunAsset gun = (ItemGunAsset)asset;
+				ushort magId = System.BitConverter.ToUInt16(held.state,
+					GunStateIndices.MAGAZINE_ID);
+				ItemMagazineAsset mag = Assets.find(EAssetType.ITEM, magId) as ItemMagazineAsset;
+				if (mag != null && mag.CalibersContainAnyOfIds(gun.magazineCalibers)
+					&& held.state[GunStateIndices.AMMO] >= gun.ammoPerShot)
+					return true;
+			}
+			return false;
+		}
+
+		public bool TryGetLoadedRaidLauncherServer(out uint instanceID, out Item gun,
+			out ItemGunAsset asset, out ItemMagazineAsset magazine)
+		{
+			instanceID = 0; gun = null; asset = null; magazine = null;
+			if (!Provider.isServer) return false;
+			for (int i = 0; i < slots.Count; ++i)
+			{
+				Item held = slots[i];
+				if (held == null || held.state == null || held.state.Length < 18) continue;
+				ItemGunAsset candidate = Assets.find(EAssetType.ITEM, held.id) as ItemGunAsset;
+				if (!MobileNPCRaidSupplyPolicy.IsRaidLauncher(candidate)) continue;
+				ushort magId = System.BitConverter.ToUInt16(held.state,
+					GunStateIndices.MAGAZINE_ID);
+				ItemMagazineAsset loaded = Assets.find(EAssetType.ITEM, magId) as ItemMagazineAsset;
+				if (loaded == null || !loaded.CalibersContainAnyOfIds(candidate.magazineCalibers)
+					|| held.state[GunStateIndices.AMMO] < candidate.ammoPerShot)
+					continue;
+				instanceID = slotInstanceIDs[i];
+				gun = new Item(held.id, held.amount, held.quality,
+					(byte[])held.state.Clone());
+				asset = candidate;
+				magazine = loaded;
+				return true;
+			}
+			return false;
+		}
+
+		private float nextRaidCraftAt;
+		/// <summary>Craft ONE actual vanilla explosive throwable using a simple
+		/// authored blueprint and owned ingredients. Recipes requiring skill,
+		/// workstations, quests, target items or special operations remain off-limits.
+		/// No homemade recipes or ingredient lists are invented here.</summary>
+		public bool TryCraftRaidExplosiveServer()
+		{
+			if (!Provider.isServer || !Level.isLoaded || !MobileNPCSettings.CombatMode
+				|| Time.time < nextRaidCraftAt || HasUsableRaidExplosiveServer())
+				return false;
+			nextRaidCraftAt = Time.time + UnityEngine.Random.Range(35f, 55f);
+			List<ItemAsset> catalog = new List<ItemAsset>();
+			Assets.find(catalog);
+			for (int i = 0; i < catalog.Count; ++i)
+			{
+				ItemAsset source = catalog[i];
+				if (source == null || source.blueprints == null) continue;
+				for (int j = 0; j < source.blueprints.Count; ++j)
+				{
+				Blueprint native = source.blueprints[j];
+				if (!IsSimpleSettlementBlueprint(native)) continue;
+				ItemAsset output = native.outputs[0].FindItemAsset();
+				if (!MobileNPCRaidSupplyPolicy.IsBreachThrowable(output)) continue;
+				// Existing inventory crafting commits and consumes actual native
+				// inputs and puts the game's output in an owned inventory slot.
+				if (TryCraftOneSimpleOutputServer(native, output))
+					return true;
+			}
+			}
+			return false;
+		}
+
 		/// <summary>Chooses the best stored vanilla gun using its range, fire delay and condition.</summary>
 		public bool TryGetBestGun(out Item gunSnapshot, out ItemGunAsset gunAsset)
 		{
