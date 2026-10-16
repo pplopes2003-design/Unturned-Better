@@ -176,6 +176,9 @@ namespace SDG.Unturned
 		private MobileNPCAutonomyPlanner.Job suspendedRoutineJob;
 		private float suspendedRoutineExpiresAt;
 		private int noviceDirectorHintsUsed;
+		// Failed bearings never consume an individual's two lifetime hints.
+		// Back off between map-spawn sampling attempts, even when none exists.
+		private float nextNoviceBearingAttemptAt;
 		private Vector3 lastStuckCheckPosition;
 		private Vector3 lastTrackedStuckGoal;
 		private Vector3 lastMeaningfulRouteProgressPosition;
@@ -416,6 +419,7 @@ namespace SDG.Unturned
 			hasSuspendedRoutineWaypoint = false;
 			suspendedRoutineExpiresAt = 0f;
 			noviceDirectorHintsUsed = 0;
+			nextNoviceBearingAttemptAt = Time.time + Random.Range(2f, 6f);
 			nextRoamingDecisionTime = Time.time + Random.Range(2f, 5f);
 			lastStuckCheckPosition = transform.position;
 			lastMeaningfulRouteProgressPosition = transform.position;
@@ -950,7 +954,7 @@ namespace SDG.Unturned
 				{
 					hasRoamingDestination = false;
 					if (autonomyPlanner != null)
-						autonomyPlanner.ReportRoamReachedServer();
+						autonomyPlanner.ReportRoamReachedServer(roamingDestination);
 					nextRoamingDecisionTime = Time.time + Random.Range(
 						Mathf.Max(1f, roamingPauseMin), Mathf.Max(Mathf.Max(1f, roamingPauseMin), roamingPauseMax));
 				}
@@ -4767,12 +4771,17 @@ namespace SDG.Unturned
 		private bool TryUseNoviceExplorationBearingServer(float radius)
 		{
 			if (autonomyPlanner == null || noviceDirectorHintsUsed >= 2
+				|| Time.time < nextNoviceBearingAttemptAt
 				|| (autonomyPlanner.CurrentJob != MobileNPCAutonomyPlanner.Job.Patrol
-					&& autonomyPlanner.CurrentJob != MobileNPCAutonomyPlanner.Job.Scavenge)
-				|| !MobileNPCEncounterDirector.TrySuggestNoviceExplorationBearingServer(
-					brainDriver, transform.position, out Vector3 bearing))
+					&& autonomyPlanner.CurrentJob != MobileNPCAutonomyPlanner.Job.Scavenge))
 				return false;
-			++noviceDirectorHintsUsed; // bounded initial guidance, NOT permanent GPS.
+			// The optional director is sampled at most once per bounded interval.
+			// A failed hint or blocked world geometry must NOT spend the survivor's
+			// lifetime experience budget nor burn physics probes every roam cycle.
+			nextNoviceBearingAttemptAt = Time.time + Random.Range(18f, 28f);
+			if (!MobileNPCEncounterDirector.TrySuggestNoviceExplorationBearingServer(
+				brainDriver, transform.position, out Vector3 bearing))
+				return false;
 			for (int i = 0; i < 5; ++i)
 			{
 				Vector3 direction = Quaternion.AngleAxis(Random.Range(-20f, 20f),
@@ -4800,6 +4809,9 @@ namespace SDG.Unturned
 				hasRoamingDestination = true;
 				lastRoamingDirection = direction;
 				hasLastRoamingDirection = true;
+				// A hint is used only after real grounded destination validation.
+				// It is never counted from a failed proposal or mere map spawn.
+				++noviceDirectorHintsUsed;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
 				Debug.Log("[MobileNPCHumanoidMotor] A-Life novice director hinted a "
 					+ "general search bearing for " + name
