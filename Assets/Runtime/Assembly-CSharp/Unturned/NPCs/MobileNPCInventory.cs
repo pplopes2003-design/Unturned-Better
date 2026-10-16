@@ -266,7 +266,7 @@ namespace SDG.Unturned
 		/// authored blueprint and owned ingredients. Recipes requiring skill,
 		/// workstations, quests, target items or special operations remain off-limits.
 		/// No homemade recipes or ingredient lists are invented here.</summary>
-		public bool TryCraftRaidExplosiveServer()
+		public bool TryCraftRaidExplosiveServer(Items verifiedSharedStorage = null)
 		{
 			if (!Provider.isServer || !Level.isLoaded || !MobileNPCSettings.CombatMode
 				|| Time.time < nextRaidCraftAt || HasUsableRaidExplosiveServer())
@@ -280,15 +280,17 @@ namespace SDG.Unturned
 				if (source == null || source.blueprints == null) continue;
 				for (int j = 0; j < source.blueprints.Count; ++j)
 				{
-				Blueprint native = source.blueprints[j];
-				if (!IsSimpleSettlementBlueprint(native)) continue;
-				ItemAsset output = native.outputs[0].FindItemAsset();
-				if (!MobileNPCRaidSupplyPolicy.IsBreachThrowable(output)) continue;
-				// Existing inventory crafting commits and consumes actual native
-				// inputs and puts the game's output in an owned inventory slot.
-				if (TryCraftOneSimpleOutputServer(native, output))
-					return true;
-			}
+					Blueprint native = source.blueprints[j];
+					if (!IsSimpleSettlementBlueprint(native)) continue;
+					ItemAsset output = native.outputs[0].FindItemAsset();
+					if (!MobileNPCRaidSupplyPolicy.IsBreachThrowable(output)) continue;
+					// Borrow exact authored inputs only from a verified native group
+					// storage that the caller physically approaches; no phantom items.
+					if (verifiedSharedStorage != null)
+						TryStageBlueprintInputsFromStorage(native, verifiedSharedStorage);
+					if (TryCraftOneSimpleOutputServer(native, output))
+						return true;
+				}
 			}
 			return false;
 		}
