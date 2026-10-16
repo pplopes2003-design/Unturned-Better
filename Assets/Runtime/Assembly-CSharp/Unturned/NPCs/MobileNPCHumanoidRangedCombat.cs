@@ -513,7 +513,10 @@ namespace SDG.Unturned
 						out RaycastHit hit))
 					{
 						bool contacted = ApplyShotImpact(hit, bullet);
-						CompleteCommittedShot(bullet, contacted, false);
+						// A bullet hitting an intervening wall is not evidence
+						// that drop/lead compensation was wrong. Keep the miss for
+						// tactical cadence, but exclude it from ballistic training.
+						CompleteCommittedShot(bullet, contacted, false, contacted);
 						bullet.Active = false;
 						break;
 					}
@@ -584,7 +587,7 @@ namespace SDG.Unturned
 		}
 
 		private void CompleteCommittedShot(PendingBullet bullet, bool contacted,
-			bool instantaneous)
+			bool instantaneous, bool validBallisticFeedback = true)
 		{
 			// Do not grade a miss after the victim disappeared or moved out
 			// of sight, as the shooter has no trustworthy visual feedback.
@@ -597,7 +600,8 @@ namespace SDG.Unturned
 			MobileNPCAdaptiveMemory memory = GetComponent<MobileNPCAdaptiveMemory>();
 			if (memory != null)
 				memory.RecordOwnOutcomeServer(bullet.Context, transform.position, contacted);
-			if (aim != null && bullet.Profile >= 0 && observed)
+			if (aim != null && bullet.Profile >= 0 && observed
+				&& validBallisticFeedback)
 				aim.RecordBallisticOutcomeServer(bullet.GunId, bullet.IntendedDistance,
 					bullet.Profile, contacted);
 		}
