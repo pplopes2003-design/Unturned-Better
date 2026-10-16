@@ -5099,11 +5099,9 @@ namespace SDG.Unturned
 						|| autonomyPlanner != null
 							&& !autonomyPlanner.IsCandidateAllowedServer(grounded))
 						continue;
-					// Only commit the visit when no teammate is already scouting
-					// this room/sector. A successful visit is recorded at arrival.
-					if (autonomyPlanner != null
-						&& !autonomyPlanner.TryClaimObservedExplorationSectorServer(grounded))
-						continue;
+					// This is only a proposal; the caller FIRST verifies its
+					// home/job radius and THEN requests the group lease exactly
+					// once. Invalid suggestions never reserve a work sector.
 					destination = grounded;
 					return true;
 				}
