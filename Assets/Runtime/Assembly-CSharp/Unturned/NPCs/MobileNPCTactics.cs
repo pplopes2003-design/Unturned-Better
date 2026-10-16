@@ -124,6 +124,23 @@ namespace SDG.Unturned
 			return true;
 		}
 
+		/// <summary>
+		/// A nearby comrade falling may justify a short voluntary fallback.
+		/// This is the existing RETREAT goal, not a new combat brain; its
+		/// position must be physically validated by the caller first.
+		/// </summary>
+		public bool TryStartValidatedSquadWithdrawal(Vector3 safePoint, float now)
+		{
+			if (!IsFinite(safePoint) || currentGoal == Goal.SeekCover
+				|| currentGoal == Goal.Retreat)
+				return false;
+			currentGoal = Goal.Retreat;
+			tacticalDestination = safePoint;
+			hasTacticalDestination = true;
+			goalDeadline = now + 9f;
+			return true;
+		}
+
 		/// <summary>Accept a retreat point only after the host validates it as safe.</summary>
 		public bool ReportValidatedRetreatPoint(Vector3 safePoint, float now)
 		{
