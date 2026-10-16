@@ -877,16 +877,10 @@ namespace SDG.Unturned
 					// Do not acknowledge arrival until the *actual requested goal*
 					// is physically within stopping distance, with no artificial
 					// bridging across stairs or different floors.
-					if (PlanarDistanceSquared(transform.position, destination)
-						<= stoppingDistance * stoppingDistance
-						&& Mathf.Abs(destination.y - transform.position.y)
-						<= Mathf.Max(0.45f, characterController.stepOffset + 0.2f))
+					if (HasPhysicallyReachedNavigationGoal(destination))
 						brainDriver.ReportDestinationReached();
 				}
-				else if (PlanarDistanceSquared(transform.position, destination)
-				<= stoppingDistance * stoppingDistance
-				&& Mathf.Abs(destination.y - transform.position.y)
-				<= Mathf.Max(0.45f, characterController.stepOffset + 0.2f))
+				else if (HasPhysicallyReachedNavigationGoal(destination))
 				{
 					hasRoamingDestination = false;
 					if (autonomyPlanner != null)
@@ -1291,6 +1285,23 @@ namespace SDG.Unturned
 		/// destination. It never bypasses a door, grants unknown walkable
 		/// floor edges, or commits to an unverified jump.
 		/// </summary>
+		private bool HasPhysicallyReachedNavigationGoal(Vector3 goal)
+		{
+			if (PlanarDistanceSquared(transform.position, goal)
+				> stoppingDistance * stoppingDistance
+				|| Mathf.Abs(goal.y - transform.position.y)
+				> Mathf.Max(0.45f, characterController.stepOffset + 0.2f))
+				return false;
+
+			// Do not report item/cover reached from the GROUND just
+			// because the same XZ is beneath an elevated crate top.
+			// Only the observed actual XYZ/contact can complete it.
+			if (goal.y - transform.position.y > 0.35f
+				&& IsObservedElevatedObjectGoalServer(goal))
+				return false;
+			return true;
+		}
+
 		/// <summary>
 		/// An elevated brain destination is a candidate for an off-mesh
 		/// furniture jump ONLY when the requested landing is nearby and
