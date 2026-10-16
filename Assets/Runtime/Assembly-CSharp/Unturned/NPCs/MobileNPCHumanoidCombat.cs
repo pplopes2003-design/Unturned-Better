@@ -239,7 +239,21 @@ namespace SDG.Unturned
 			nextAttackTime = Time.time + Mathf.Max(0.35f, attackCooldown);
 			LastAttackUsedMeleeWeapon = weapon != null;
 			LastAttackWeaponID = heldItem != null ? heldItem.id : (ushort)0;
-			AttackStarted?.Invoke();
+			// Visual/audio subscribers are optional. One broken animation must
+			// never abort validated melee HP damage or make an NPC immortal.
+			System.Action listeners = AttackStarted;
+			if (listeners != null)
+			{
+				foreach (System.Delegate observer in listeners.GetInvocationList())
+				{
+					try { ((System.Action)observer)(); }
+					catch (System.Exception ex)
+					{
+						Debug.LogError("[MobileNPCHumanoidCombat] Optional attack presentation "
+							+ "failed; melee damage remains authoritative: " + ex, this);
+					}
+				}
+			}
 		}
 
 		private void WearWeaponOnHitServer(ItemMeleeAsset weapon, Item heldItem)
