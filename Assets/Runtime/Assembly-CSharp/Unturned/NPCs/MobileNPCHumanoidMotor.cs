@@ -306,6 +306,19 @@ namespace SDG.Unturned
 		private int nextNavDeadEndSlot;
 		private static float nextSharedUnknownRouteSlot;
 
+		/// <summary>Limited, per-individual beginning-of-life guidance is
+		/// progress, not a rechargeable resource after save/reload.</summary>
+		public int ExportNoviceHintsUsedServer()
+		{
+			return Provider.isServer ? noviceDirectorHintsUsed : 0;
+		}
+
+		public void RestoreNoviceHintsUsedServer(int used)
+		{
+			if (Provider.isServer && hasInitialized)
+				noviceDirectorHintsUsed = Mathf.Clamp(used, 0, 2);
+		}
+
 		public bool IsInitialized => hasInitialized;
 		public bool IsMoving { get; private set; }
 		/// <summary>Server-local home anchor captured when this NPC initializes.</summary>
