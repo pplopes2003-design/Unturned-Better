@@ -75,8 +75,12 @@ namespace SDG.Unturned
             controller.height = 1.8f;
             controller.radius = 0.35f;
             controller.center = new Vector3(0f, 0.9f, 0f);
-            controller.slopeLimit = 38f;
-            controller.stepOffset = 0.3f;
+            // Player_Server.prefab uses a 60-degree slope limit and a
+            // 0.4m step offset. Apply these native walking parameters to
+            // minor street/sidewalk level changes without triggering a jump.
+            // Taller obstructions still require the verified route/vault system.
+            controller.slopeLimit = 60f;
+            controller.stepOffset = 0.4f;
             controller.skinWidth = 0.08f;
             // Match Zombie.start(): zombie CharacterControllers do not use Unity's
             // overlap recovery, which can push agents unpredictably around map geometry.
