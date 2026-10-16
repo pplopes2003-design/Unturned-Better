@@ -189,6 +189,9 @@ namespace SDG.Unturned
 				return;
 			}
 
+			// Genuine nearby noise interrupts optional noncombat regroup.
+			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Regroup)
+				tactics.ClearGoal();
 			investigatingPlayerClue = false;
 			investigatingFootstepOnly = false;
 			brain.ReportNoise(position, Time.time, duration);
@@ -288,7 +291,8 @@ namespace SDG.Unturned
 				|| float.IsNaN(approximatePosition.z) || float.IsInfinity(approximatePosition.z)
 				|| brain.CurrentState == MobileNPCBrain.State.Pursuing
 				|| brain.CurrentState == MobileNPCBrain.State.Following
-				|| tactics.CurrentGoal != MobileNPCTactics.Goal.None)
+				|| tactics.CurrentGoal != MobileNPCTactics.Goal.None
+					&& tactics.CurrentGoal != MobileNPCTactics.Goal.Regroup)
 				return;
 
 			MobileNPCHumanoidVitals vitals = GetComponent<MobileNPCHumanoidVitals>();
@@ -300,6 +304,8 @@ namespace SDG.Unturned
 			MobileNPCHumanoidPerception perception = GetComponent<MobileNPCHumanoidPerception>();
 			if (perception != null && perception.VisiblePlayer != null)
 				return;
+			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Regroup)
+				tactics.ClearGoal();
 			nextGroupContactAt = Time.time + 6f;
 			playerKnowledge.ObserveSound(approximatePosition, confidence, Time.time);
 			brain.ReportNoise(approximatePosition, Time.time, 12f);
@@ -448,6 +454,8 @@ namespace SDG.Unturned
 
 			listenUntil = 0f;
 			CancelAmbush();
+			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Regroup)
+				tactics.ClearGoal();
 			tactics.ReportIncomingFire(Time.time);
 			// Keep a valid cover/retreat destination long enough to travel toward it.
 			// Repeated nearby gunshots previously reset the target every frame/shot.
