@@ -27,6 +27,36 @@ namespace SDG.Unturned
 
 		private MobileNPCHumanoidVitals vitals;
 		private MobileNPCInventory inventory;
+		[System.Serializable]
+		public sealed class NeedsSnapshot
+		{
+			public float hunger;
+			public float thirst;
+		}
+
+		/// <summary>Only the living individual's actual physiological state,
+		/// never hidden items, food sources or fabricated healing.</summary>
+		public NeedsSnapshot ExportSnapshotServer()
+		{
+			if (!Provider.isServer || vitals == null || vitals.IsDead)
+				return null;
+			return new NeedsSnapshot { hunger = hunger, thirst = thirst };
+		}
+
+		public void RestoreSnapshotServer(NeedsSnapshot snapshot)
+		{
+			if (!Provider.isServer || snapshot == null || vitals == null || vitals.IsDead
+				|| float.IsNaN(snapshot.hunger) || float.IsInfinity(snapshot.hunger)
+				|| float.IsNaN(snapshot.thirst) || float.IsInfinity(snapshot.thirst))
+				return;
+			hunger = Mathf.Clamp(snapshot.hunger, 0f, 100f);
+			thirst = Mathf.Clamp(snapshot.thirst, 0f, 100f);
+			// Let the existing SurvivalNeeds service decide whether real
+			// carried food/water can be consumed after restore. Never grant any.
+			nextThinkTime = Time.time + Random.Range(0.5f, 1.5f);
+			nextDamageTime = Time.time + Mathf.Max(1f, damageInterval);
+		}
+
 		private float hunger = 100f;
 		private float thirst = 100f;
 		private float nextThinkTime;
