@@ -210,6 +210,17 @@ namespace SDG.Unturned
                     // remains authoritative for a replacement joining survivors.
                     if (!eligibleGroup)
                         MobileNPCArchetypePolicy.ApplyToSpawnedNPCServer(instance, selectedPreset);
+                    else
+                    {
+                        // A replacement is a NEW person, given the surviving
+                        // group's broad occupation by default. Do not copy
+                        // the dead member's inventory, memory or job history.
+                        // Preserve the group's actual saved role/faction.
+                        MobileNPCOccupation occupation =
+                            instance.GetComponent<MobileNPCOccupation>();
+                        if (occupation != null)
+                            occupation.SetOccupationServer(selectedPreset);
+                    }
 
                     MobileNPCGroupMember groupMember = instance.GetComponent<MobileNPCGroupMember>();
                     if (eligibleGroup && dueReplacement != null && groupMember != null)
