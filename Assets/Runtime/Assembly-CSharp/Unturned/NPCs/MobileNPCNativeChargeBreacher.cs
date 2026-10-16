@@ -33,6 +33,7 @@ namespace SDG.Unturned
         private MobileNPCGroupMember group;
         private MobileNPCFaction faction;
         private InteractableCharge plantedCharge;
+        private Transform plantedNativeRoot;
         private Vector3 plantedPosition;
         private float plantedAt;
         private float nextEvaluateAt;
@@ -171,10 +172,14 @@ namespace SDG.Unturned
                     UnturnedLog.warn("[MobileNPCCharge] Failed to return remaining stacked charges.");
             }
             plantedCharge = placed;
+            plantedNativeRoot = nativeRoot;
             plantedPosition = position;
             plantedAt = Time.time;
             plannedWithdrawal = retreat;
-            brain.TryStartFlank(plannedWithdrawal);
+            // Hard priority: a planted charge is not a reason to stand
+            // fighting in its blast radius. Use validated vanilla tactics.
+            if (!brain.TryStartChargeWithdrawalServer(plannedWithdrawal))
+                UnturnedLog.warn("[MobileNPCCharge] Native charge planted but NPC retreat unavailable; detonation remains gated by safety.");
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             Debug.Log("[MobileNPCCharge] Native charge placed at a presently visible hostile base. Withdrawal required before detonation.", this);
 #endif
@@ -185,8 +190,8 @@ namespace SDG.Unturned
         private ItemChargeAsset FindOwnedChargeAssetForPlacedNative()
         {
             if (plantedCharge == null) return null;
-            BarricadeDrop native = BarricadeDrop.FindByTransformFastMaybeNull(
-                plantedCharge.transform);
+            BarricadeDrop native = plantedNativeRoot != null
+                ? BarricadeDrop.FindByTransformFastMaybeNull(plantedNativeRoot) : null;
             return native != null && native.asset is ItemChargeAsset charge
                 ? charge : null;
         }
@@ -226,6 +231,7 @@ namespace SDG.Unturned
             // Physically placed charges remain vanilla world objects. A new
             // survivor must not inherit the dead operator's remote detonation.
             plantedCharge = null;
+            plantedNativeRoot = null;
             nearby.Clear();
         }
     }
