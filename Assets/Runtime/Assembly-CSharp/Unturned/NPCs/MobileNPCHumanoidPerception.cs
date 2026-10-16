@@ -110,6 +110,9 @@ namespace SDG.Unturned
 				visibleNPC = npcCandidate;
 				visibleZombie = null;
 				brain.ReportVisibleTarget(npcCandidate.transform);
+				MobileNPCGroupMember groupContact = GetComponent<MobileNPCGroupMember>();
+				if (groupContact != null)
+					groupContact.BroadcastLocalThreatServer(npcCandidate.transform.position);
 			}
 			else if (zombieCandidate != null)
 			{
@@ -117,6 +120,9 @@ namespace SDG.Unturned
 				visibleNPC = null;
 				visibleZombie = zombieCandidate;
 				brain.ReportVisibleTarget(zombieCandidate.transform);
+				MobileNPCGroupMember zombieGroupContact = GetComponent<MobileNPCGroupMember>();
+				if (zombieGroupContact != null)
+					zombieGroupContact.BroadcastLocalThreatServer(zombieCandidate.transform.position);
 			}
 			else if (playerCandidate != null)
 			{
