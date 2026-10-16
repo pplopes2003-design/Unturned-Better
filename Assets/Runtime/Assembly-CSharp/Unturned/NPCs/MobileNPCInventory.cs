@@ -178,6 +178,35 @@ namespace SDG.Unturned
 			return false;
 		}
 
+		public bool HasRaidLauncherServer()
+		{
+			if (!Provider.isServer) return false;
+			for (int i = 0; i < slots.Count; ++i)
+			{
+				Item held = slots[i];
+				if (held != null && MobileNPCRaidSupplyPolicy.IsRaidLauncher(
+					Assets.find(EAssetType.ITEM, held.id) as ItemAsset))
+					return true;
+			}
+			return false;
+		}
+
+		public bool IsCompatibleRaidMagazineServer(ItemMagazineAsset magazine)
+		{
+			if (!Provider.isServer || magazine == null || magazine.calibers == null)
+				return false;
+			for (int i = 0; i < slots.Count; ++i)
+			{
+				Item held = slots[i];
+				ItemGunAsset launcher = held != null
+					? Assets.find(EAssetType.ITEM, held.id) as ItemGunAsset : null;
+				if (MobileNPCRaidSupplyPolicy.IsRaidLauncher(launcher)
+					&& magazine.CalibersContainAnyOfIds(launcher.magazineCalibers))
+					return true;
+			}
+			return false;
+		}
+
 		private float nextRaidCraftAt;
 		/// <summary>Craft ONE actual vanilla explosive throwable using a simple
 		/// authored blueprint and owned ingredients. Recipes requiring skill,
