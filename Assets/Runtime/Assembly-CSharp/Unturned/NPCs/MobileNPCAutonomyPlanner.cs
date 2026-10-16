@@ -55,6 +55,10 @@ namespace SDG.Unturned
         private readonly float[] recentScoutingSiteExpiresAt = new float[RecentScoutingSiteCapacity];
         private int nextRecentScoutingSiteSlot;
         private bool initialized;
+        // Confirmed local scans, not mere arrival at candidate waypoints.
+        private int consecutiveEmptyInspections;
+        private int confirmedInspectionScans;
+        private int confirmedWorldPickups;
 
         [System.Serializable]
         public sealed class RoutineSnapshot
@@ -68,6 +72,9 @@ namespace SDG.Unturned
             public float scavengeCooldownRemaining;
             public float recoveryCooldownRemaining;
             public int failedScavengeWaypoints;
+            public int emptyInspections;
+            public int inspectionScans;
+            public int realPickups;
             public bool hasBlockedWaypoint;
             public Vector3 blockedWaypoint;
             public float blockedWaypointRemaining;
@@ -97,6 +104,9 @@ namespace SDG.Unturned
                 scavengeCooldownRemaining = Mathf.Clamp(scavengeNotBefore - now, 0f, 120f),
                 recoveryCooldownRemaining = Mathf.Clamp(recoveryNotBefore - now, 0f, 120f),
                 failedScavengeWaypoints = Mathf.Clamp(consecutiveFailedScavengeWaypoints, 0, 2),
+                emptyInspections = Mathf.Clamp(consecutiveEmptyInspections, 0, 3),
+                inspectionScans = Mathf.Clamp(confirmedInspectionScans, 0, 1000000),
+                realPickups = Mathf.Clamp(confirmedWorldPickups, 0, 1000000),
                 hasBlockedWaypoint = hasBlockedWaypoint && now < blockedWaypointExpiresAt,
                 blockedWaypoint = lastBlockedWaypoint,
                 blockedWaypointRemaining = Mathf.Clamp(blockedWaypointExpiresAt - now, 0f, 38f),
@@ -143,6 +153,9 @@ namespace SDG.Unturned
                 ? now + Mathf.Max(2f, Remaining(snapshot.guardShiftRemaining, 160f))
                 : 0f;
             consecutiveFailedScavengeWaypoints = Mathf.Clamp(snapshot.failedScavengeWaypoints, 0, 2);
+            consecutiveEmptyInspections = Mathf.Clamp(snapshot.emptyInspections, 0, 3);
+            confirmedInspectionScans = Mathf.Clamp(snapshot.inspectionScans, 0, 1000000);
+            confirmedWorldPickups = Mathf.Clamp(snapshot.realPickups, 0, 1000000);
 
             bool validBlockedPosition = IsFinite(snapshot.blockedWaypoint.x)
                 && IsFinite(snapshot.blockedWaypoint.y)
@@ -574,6 +587,65 @@ namespace SDG.Unturned
             }
             recentScoutingSites[slot] = site;
             recentScoutingSiteExpiresAt[slot] = Time.time + cooldown;
+        }
+
+        /// <summary>
+        /// Called ONLY after MobileNPCLooting actually enumerated nearby native
+        /// world items and checked their real visibility. Finding no useful drop
+        /// is normal; after three barren inspections, try a patrol/different
+        /// district rather than repeating the same speculative loot objective.
+        /// </summary>
+        public void ReportLocalInspectionScannedServer(Vector3 inspectedPoint,
+            bool startedRealLootGoal)
+        {
+            if (!Provider.isServer || (vitals != null && vitals.IsDead)
+                || currentJob != Job.Scavenge)
+                return;
+            Vector3 difference = inspectedPoint - transform.position;
+            if (difference.sqrMagnitude > 7f * 7f)
+                return;
+
+            confirmedInspectionScans = Mathf.Min(1000000, confirmedInspectionScans + 1);
+            if (startedRealLootGoal)
+            {
+                consecutiveEmptyInspections = 0;
+            }
+            else
+            {
+                ++consecutiveEmptyInspections;
+                // No 'loot acquired' claim is made for a sighting or scan.
+                // Expiring this job temporarily lets familiar presets patrol
+                // and discover new sectors rather than repeating blind loops.
+                if (consecutiveEmptyInspections >= 3)
+                {
+                    consecutiveEmptyInspections = 0;
+                    scavengeNotBefore = Time.time + 35f;
+                    nextEvaluationTime = Time.time;
+                }
+            }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Debug.Log("[MobileNPCUrbanScavenge] scan npc=" + name
+                + " realLootGoal=" + startedRealLootGoal
+                + " inspected=" + inspectedPoint
+                + " totalScans=" + confirmedInspectionScans
+                + " realTransfers=" + confirmedWorldPickups, this);
+#endif
+        }
+
+        /// <summary>
+        /// An authoritative ItemManager inventory transfer is the only source
+        /// of a successful loot count; reaching a waypoint is never a pickup.
+        /// </summary>
+        public void ReportWorldPickupCompletedServer()
+        {
+            if (!Provider.isServer || (vitals != null && vitals.IsDead))
+                return;
+            consecutiveEmptyInspections = 0;
+            confirmedWorldPickups = Mathf.Min(1000000, confirmedWorldPickups + 1);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Debug.Log("[MobileNPCUrbanScavenge] real pickup npc=" + name
+                + " count=" + confirmedWorldPickups, this);
+#endif
         }
 
         public void ReportRoamBlockedServer(Vector3 attemptedWaypoint)
