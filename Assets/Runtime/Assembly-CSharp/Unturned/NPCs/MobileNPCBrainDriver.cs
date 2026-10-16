@@ -491,7 +491,7 @@ namespace SDG.Unturned
 				{
 					Vector3 candidate = transform.position + away.normalized * 9f;
 					if (MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, 1.2f, 1.0f,
-						RayMasks.BLOCK_COLLISION, 60f, out Vector3 safeRetreat, out _)
+						(RayMasks.BLOCK_COLLISION | RayMasks.GROUND2), 60f, out Vector3 safeRetreat, out _)
 						&& (Mathf.Abs(safeRetreat.y - transform.position.y) <= 0.55f
 							|| (GetComponent<MobileNPCHumanoidMotor>() is MobileNPCHumanoidMotor retreatMotor
 								&& retreatMotor.CanReachNearbyCoverServer(safeRetreat))))
@@ -623,7 +623,7 @@ namespace SDG.Unturned
 					// Defensive points must be local accessible FLOOR, not an
 					// upstairs room or roof acquired from a 12m vertical ray.
 					if (!MobileNPCSpawnService.TryFindSafeGroundPosition(rawCandidate,
-						1.2f, 1.0f, RayMasks.BLOCK_COLLISION, 60f,
+						1.2f, 1.0f, (RayMasks.BLOCK_COLLISION | RayMasks.GROUND2), 60f,
 						out Vector3 candidate, out _))
 						continue;
 					// A nearby elevation change can still be accessible by
