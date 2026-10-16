@@ -27,6 +27,8 @@ namespace SDG.Unturned
 		private MobileNPCBrainDriver brain;
 		private MobileNPCHumanoidMotor motor;
 		private MobileNPCHumanoidDisposition disposition;
+		private MobileNPCHumanoidRangedCombat rangedCombat;
+		private float scopedReadyAt;
 		private float nextScanTime;
 		private Player visiblePlayer;
 		private MobileNPCHumanoidDisposition visibleNPC;
@@ -45,6 +47,8 @@ namespace SDG.Unturned
 			brain = GetComponent<MobileNPCBrainDriver>();
 			motor = GetComponent<MobileNPCHumanoidMotor>();
 			disposition = GetComponent<MobileNPCHumanoidDisposition>();
+			rangedCombat = GetComponent<MobileNPCHumanoidRangedCombat>();
+			scopedReadyAt = Time.time + Random.Range(1f, 2f);
 		}
 
 		private void Update()
@@ -55,6 +59,10 @@ namespace SDG.Unturned
 			}
 
 			nextScanTime = Time.time + Mathf.Max(0.02f, scanInterval);
+			// Scope observation requires real physical steadiness.
+			if ((motor != null && motor.IsMoving) || rangedCombat == null
+				|| rangedCombat.OpticZoom < 2.5f)
+				scopedReadyAt = Time.time + 0.9f;
 			if (disposition == null)
 			{
 				visiblePlayer = null;
@@ -202,11 +210,35 @@ namespace SDG.Unturned
 				&& selectedPlayer.gameObject.activeInHierarchy;
 		}
 
+		private float GetObservationRange(float normal)
+		{
+			return rangedCombat != null && Time.time >= scopedReadyAt
+				? Mathf.Max(normal, rangedCombat.GetScopedObservationRange(normal))
+				: normal;
+		}
+
+		/// <summary>A real optic widens distance, not angle of awareness.
+		/// Remote contacts require a narrow forward optical cone and the
+		/// ordinary server LOS checks, never a free view across the map.</summary>
+		private bool IsInsideObservationCone(Vector3 direction, float distanceSquared, float normalRange)
+		{
+			float cone = fieldOfView * 0.5f;
+			if (distanceSquared > normalRange * normalRange)
+			{
+				float zoom = rangedCombat != null ? rangedCombat.OpticZoom : 1f;
+				if (zoom < 2.5f || Time.time < scopedReadyAt)
+					return false;
+				cone = Mathf.Min(cone, Mathf.Clamp(34f / Mathf.Sqrt(zoom), 9f, 18f));
+			}
+			return Vector3.Angle(transform.forward, direction) <= cone;
+		}
+
 		private MobileNPCHumanoidDisposition FindVisibleNPC()
 		{
 			MobileNPCRegistry.CopyActiveDrivers(candidateDrivers);
 			MobileNPCHumanoidDisposition best = null;
-			float bestDistanceSquared = npcSightRange * npcSightRange;
+			float bestDistanceSquared = GetObservationRange(npcSightRange);
+			bestDistanceSquared *= bestDistanceSquared;
 			Vector3 eye = transform.position + Vector3.up * eyeHeight;
 
 			for (int i = 0; i < candidateDrivers.Count; ++i)
@@ -234,7 +266,8 @@ namespace SDG.Unturned
 				}
 
 				Vector3 direction = offset.normalized;
-				if (Vector3.Angle(transform.forward, direction) > fieldOfView * 0.5f)
+				if (!IsInsideObservationCone(direction, distanceSquared,
+					npcSightRange))
 				{
 					continue;
 				}
@@ -276,7 +309,8 @@ namespace SDG.Unturned
 				return null;
 
 			Zombie best = null;
-			float bestDistanceSquared = npcSightRange * npcSightRange;
+			float bestDistanceSquared = GetObservationRange(npcSightRange);
+			bestDistanceSquared *= bestDistanceSquared;
 			Vector3 eye = transform.position + Vector3.up * eyeHeight;
 			for (int i = 0; i < zombies.Count; ++i)
 			{
@@ -294,7 +328,7 @@ namespace SDG.Unturned
 				// Close threats are allowed to trigger a defensive response from any side.
 				// This prevents a zombie reaching the NPC's back from being ignored solely
 				// because the NPC happened to be roaming in the opposite direction.
-				if (Vector3.Angle(transform.forward, direction) > fieldOfView * 0.5f
+				if (!IsInsideObservationCone(direction, distanceSquared, npcSightRange)
 					&& distanceSquared > 64f)
 					continue;
 
@@ -326,7 +360,8 @@ namespace SDG.Unturned
 		private Player FindVisiblePlayer()
 		{
 			Player best = null;
-			float bestDistanceSquared = playerSightRange * playerSightRange;
+			float bestDistanceSquared = GetObservationRange(playerSightRange);
+			bestDistanceSquared *= bestDistanceSquared;
 			Vector3 eye = transform.position + Vector3.up * eyeHeight;
 
 			// Iterate the authoritative connected-player collection instead of allocating
@@ -356,7 +391,8 @@ namespace SDG.Unturned
 				}
 
 				Vector3 direction = offset.normalized;
-				if (Vector3.Angle(transform.forward, direction) > fieldOfView * 0.5f)
+				if (!IsInsideObservationCone(direction, distanceSquared,
+					playerSightRange))
 				{
 					continue;
 				}
