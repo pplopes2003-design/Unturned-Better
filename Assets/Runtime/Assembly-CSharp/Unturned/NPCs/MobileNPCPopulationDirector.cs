@@ -140,8 +140,14 @@ namespace SDG.Unturned
             bool eligibleGroup = dueReplacement != null
                 && MobileNPCGroupMember.TryGetSurvivingGroupIdentityServer(
                     dueReplacement.FormerGroupId, out groupRole, out groupFaction);
+            // New NPCs receive a concrete occupation, rather than an abstract
+            // hostile/friendly roll. Restored group replacements inherit ONLY
+            // the still-living group's faction, not the deceased NPC's identity.
+            MobileNPCArchetypePolicy.Preset selectedPreset = eligibleGroup
+                ? MobileNPCArchetypePolicy.FromIdentity(groupFaction, groupRole)
+                : MobileNPCArchetypePolicy.SelectForNewPopulationServer();
             MobileNPCHumanoidDisposition.Role selectedRole = eligibleGroup
-                ? groupRole : MobileNPCSettings.SelectPopulationRole();
+                ? groupRole : MobileNPCArchetypePolicy.RoleOf(selectedPreset);
 
             // Try a bounded number of anchors/sectors per interval. Anchors are only regional
             // hints: every actual candidate still passes ground, slope, occupancy, bounds,
@@ -198,6 +204,12 @@ namespace SDG.Unturned
                     {
                         continue;
                     }
+
+                    // The preset fixes faction and baseline objectives before
+                    // any new group's duties are assigned. Saved group identity
+                    // remains authoritative for a replacement joining survivors.
+                    if (!eligibleGroup)
+                        MobileNPCArchetypePolicy.ApplyToSpawnedNPCServer(instance, selectedPreset);
 
                     MobileNPCGroupMember groupMember = instance.GetComponent<MobileNPCGroupMember>();
                     if (eligibleGroup && dueReplacement != null && groupMember != null)
