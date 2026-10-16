@@ -243,19 +243,19 @@ namespace SDG.Unturned
 				return;
 			}
 
-			Vector3 offset = damageParameters.closestPoint - explosionParameters.point;
-			float range = offset.magnitude;
-			if (range > explosionParameters.damageRadius)
+			// The native DamageTool.explode() already calls
+			// AlertTool.alert(parameters.point, parameters.alertRadius) ONCE
+			// per explosion, outside this per-victim damage callback.
+			// Never rebroadcast it from each affected zombie: that creates
+			// inconsistent noise radii and retargets unrelated investigations.
+			if (!damageParameters.shouldAffectZombies)
 			{
 				return;
 			}
 
-			// Hearing is independent of whether this explosion is configured to damage zombies
-			// and should not require line of sight. Keep the range gate so this per-zombie
-			// callback does not broadcast noise for every zombie in the world.
-			ZombieManager.alertZombiesToNoise(explosionParameters.point, Mathf.Clamp(explosionParameters.damageRadius * 4.0f, 48.0f, 160.0f));
-
-			if (!damageParameters.shouldAffectZombies)
+			Vector3 offset = damageParameters.closestPoint - explosionParameters.point;
+			float range = offset.magnitude;
+			if (range > explosionParameters.damageRadius)
 			{
 				return;
 			}
