@@ -1068,7 +1068,7 @@ COM-RADIO-PORTABLE-01 follow-up (`f84f390f`): rapid tune 460328 -> other channel
 - [ ] Stress: 1, 10, 20 e 40 NPCs VIVOS não devem ganhar 11 Rigidbody ou 10 juntas antes da morte. Matar alguns simultaneamente e medir custo de *montar* 11 bones no instante do óbito, Physics/CPU/GC/frames; sem deixar joints ou corpos fantasma após cleanup. Guardar vídeo, Unity console, Player.log e SHA exato para distinguir versão de código antiga de nova.
 - [ ] Falhas externas: asset `Ragdoll_Player` ausente, esqueleto modificado ou composição incompleta não podem impedir transição HP0→IsDead nem impedir loot/cleanup; devem registrar fallback honesto. Registrar animais→NPC como NÃO implementado no `Animal.cs` até houver fluxo de ataque próprio.
 
-### Seção 72 — LIFE-HITBOX-ANIM-01: 19 volumes por ossos do corpo inteiro (NÃO TESTADO)
+### Seção 72 — OBSOLETA/CANCELADA: 19 volumes (NÃO EXECUTAR; ver seção 73)
 
 **Atualização obrigatória para a seção 71:** a verificação correta de spawn NÃO é mais "6 live anatomical hitboxes". O esperado passa a ser `[MobileNPCDamageInvariant] PASS at spawn: 19 live anatomical hitboxes`; distribuição: 1 cabeça, 4 núcleo/pescoço, 4+4 braços e 3+3 pernas. `MobileNPCPopulationBootstrap` registra `Bone-attached anatomical hitboxes=19`. Testes de morte/ragdoll da seção 71 permanecem, trocando apenas a expectativa de hitboxes.
 
