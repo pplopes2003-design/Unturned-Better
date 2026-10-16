@@ -241,6 +241,8 @@ namespace SDG.Unturned
 
 			// Quiet, ambiguous sound: listen and wait for further evidence rather
 			// than always walking to a potentially false position.
+			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Regroup)
+				tactics.ClearGoal();
 			float clarity = Mathf.Clamp01(confidence);
 			nextFootstepInvestigationAt = Time.time + Mathf.Lerp(4f, 2.5f, clarity);
 			listenUntil = Time.time + Mathf.Lerp(1.4f, 0.55f, clarity);
