@@ -654,13 +654,20 @@ namespace SDG.Unturned
 						+ ", count=" + matches + ".", this);
 					return false;
 				}
-				// A modified asset must not silently remap joint anatomy.
-				if (Vector3.Distance(match.localPosition, source.localPosition) > 0.025f
-					|| Quaternion.Angle(match.localRotation, source.localRotation) > 4f)
+				// Do not compare this LIVE animated bone pose against the rest-pose
+				// Ragdoll_Player prefab: during walking, crouching and combat the
+				// limbs must differ. This false negative previously dropped dead NPCs
+				// into a rolling capsule instead of releasing their articulated rig.
+				// Validate the stable bone hierarchy and native physical anatomy,
+				// while preserving the exact pose at the moment of death.
+				if (match.parent == null || source.parent == null
+					|| match.parent.name != source.parent.name
+					|| !IsFinite(match.lossyScale.x)
+					|| !IsFinite(match.lossyScale.y)
+					|| !IsFinite(match.lossyScale.z))
 				{
-					Debug.LogError("[MobileNPCHumanoidVitals] NPC bone bind pose "
-						+ "differs from Ragdoll_Player at " + source.name
-						+ "; disabling unsafe articulated transfer.", this);
+					Debug.LogError("[MobileNPCHumanoidVitals] Invalid ragdoll "
+						+ "parent hierarchy or bone scale at " + source.name + ".", this);
 					return false;
 				}
 				sourceTransforms[i] = source;
@@ -746,8 +753,14 @@ namespace SDG.Unturned
 				joint.anchor = template.anchor;
 				joint.axis = template.axis;
 				joint.swingAxis = template.swingAxis;
-				joint.autoConfigureConnectedAnchor = template.autoConfigureConnectedAnchor;
-				joint.connectedAnchor = template.connectedAnchor;
+				// Native authored anchors are defined in the prefab REST pose.
+				// The NPC dies in an arbitrary animation frame. Configure the
+				// connected anchor from that ACTUAL world pose, otherwise the
+				// physics solver pulls the limbs toward distant rest-pose
+				// anchors and launches the corpse like a rolling ball.
+				joint.autoConfigureConnectedAnchor = false;
+				joint.connectedAnchor = createdBodies[connected].transform
+					.InverseTransformPoint(target.TransformPoint(template.anchor));
 				joint.lowTwistLimit = template.lowTwistLimit;
 				joint.highTwistLimit = template.highTwistLimit;
 				joint.swing1Limit = template.swing1Limit;
@@ -780,8 +793,9 @@ namespace SDG.Unturned
 			// the SAME skeleton of the native Ragdoll_Player asset before
 			// disabling the live pose writers. Fall back only on missing
 			// incompatible resources/physics.
+			bool articulatedAuthored = false;
 			SafeDeathStage("author ragdoll joints", () =>
-				TryAuthorNativeBoneRagdoll(visualRoot));
+				articulatedAuthored = TryAuthorNativeBoneRagdoll(visualRoot));
 			// Stop all animation writers before releasing the authored bone rigidbodies.
 			Animation[] animations = visualRoot.GetComponentsInChildren<Animation>(true);
 			for (int i = 0; i < animations.Length; ++i)
@@ -817,15 +831,19 @@ namespace SDG.Unturned
 			// has none originally; Ragdoll_Player carries exactly 11 rigid
 			// bodies, 11 colliders and 10 connected joints. A half-created
 			// ragdoll is less safe than the explicit rigid-corpse fallback.
-			if (authoredBodies.Length != 11 || authoredJoints.Length != 10
-				|| usableColliders < 11)
+			if (!articulatedAuthored || authoredBodies.Length != 11
+				|| authoredJoints.Length != 10 || usableColliders < 11)
 			{
 				Debug.LogError("[MobileNPCHumanoidVitals] Articulated skeleton "
 					+ "validation failed: bones=" + authoredBodies.Length
 					+ ", colliders=" + usableColliders + ", joints="
-					+ authoredJoints.Length + ". Rigid corpse fallback for "
+					+ authoredJoints.Length + ". Leaving corpse in its last "
+					+ "animated pose without an unstable rolling capsule: "
 					+ name + ".", this);
-				ActivateRigidCorpseFallback(visualRoot, hitImpulse, authoredBodies, colliders);
+				// Fail visibly instead of inventing a single rigid capsule that
+				// rolls away. Preserve mesh/clothing and the existing cleanup.
+				for (int i = 0; i < colliders.Length; ++i)
+					if (colliders[i] != null) colliders[i].enabled = false;
 				return;
 			}
 			int enabledColliders = 0;
@@ -869,7 +887,14 @@ namespace SDG.Unturned
 			}
 
 			if (impulseBody != null && hitImpulse.sqrMagnitude > 0.0001f)
-				impulseBody.AddForce(hitImpulse, ForceMode.Impulse);
+			{
+				// Weapon damage is not physical impulse measured in N*s.
+				// An uncapped 100-point hit applied to a light ragdoll bone
+				// can spin the entire corpse across the road.
+				Vector3 physicalImpulse = hitImpulse.normalized
+					* Mathf.Min(hitImpulse.magnitude, 6f);
+				impulseBody.AddForce(physicalImpulse, ForceMode.Impulse);
+			}
 
 			if (releasedBodies == 0 || enabledColliders == 0 || joints.Length == 0)
 			{
