@@ -56,7 +56,7 @@ namespace SDG.Unturned
 		[SerializeField, Min(1f)] private float roamingPauseMax = 6f;
 		[SerializeField, Min(1f)] private float roamingSearchHeight = 50f;
 		[SerializeField, Min(0f)] private float roamingMaximumDrop = 70f;
-		[SerializeField, Range(0f, 60f)] private float roamingMaximumSlope = 38f;
+		[SerializeField, Range(0f, 60f)] private float roamingMaximumSlope = 60f;
 		[SerializeField] private LayerMask roamingGroundMask = ~0;
 
 		[Header("Local obstacle avoidance and bounded route fallback")]
@@ -3938,9 +3938,13 @@ namespace SDG.Unturned
 							continue;
 						Vector3 edge = verticalPositions[next] - verticalPositions[current];
 						float flat = Mathf.Sqrt(edge.x * edge.x + edge.z * edge.z);
-						if (flat < 0.2f || Mathf.Abs(edge.y) > flat
-							* Mathf.Tan(Mathf.Min(characterController.slopeLimit, roamingMaximumSlope)
-							* Mathf.Deg2Rad))
+						// A curb is a discrete rise onto flat support; only larger
+						// level changes must obey the ramp/stair slope criterion.
+						float permittedSlopeRise = flat * Mathf.Tan(Mathf.Min(
+							characterController.slopeLimit, roamingMaximumSlope) * Mathf.Deg2Rad);
+						if (flat < 0.2f || (Mathf.Abs(edge.y) > permittedSlopeRise
+							&& (edge.y > characterController.stepOffset + 0.02f
+								|| edge.y < -0.55f)))
 							continue;
 						--connectorProbeBudget;
 						if (!IsActuallyWalkableStairConnection(
