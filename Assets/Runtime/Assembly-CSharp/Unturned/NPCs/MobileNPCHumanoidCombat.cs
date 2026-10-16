@@ -76,7 +76,7 @@ namespace SDG.Unturned
 				targetZombie = targetTransform.GetComponentInParent<Zombie>();
 
 			MobileNPCHumanoidVitals targetVitals = targetNPC != null ? targetNPC.GetComponent<MobileNPCHumanoidVitals>() : null;
-			float currentReach = GetMeleeReachServer();
+			float currentReach = GetMeleeReachServer(targetPlayer != null);
 			// A wounded survivor should keep retreating, not turn a retreat
 			// into a pursuit. But if a zombie has reached striking distance,
 			// allow a verified short defensive melee hit while escaping.
@@ -203,9 +203,9 @@ namespace SDG.Unturned
 		/// <summary>Attacks come from actually owned weapons or natural fists.
 		/// Never instantiate imaginary equipment. The vanilla melee range is
 		/// capped for collision safety against thin walls and doors.</summary>
-		private float GetMeleeReachServer()
+		private float GetMeleeReachServer(bool againstPlayer)
 		{
-			if (inventory != null && inventory.TryGetBestMeleeServer(out Item held,
+			if (inventory != null && inventory.TryGetBestMeleeServer(againstPlayer, out Item held,
 				out ItemMeleeAsset melee))
 				return Mathf.Clamp(melee.range, 1.2f, 3.0f);
 			return attackRange;
@@ -217,7 +217,7 @@ namespace SDG.Unturned
 			selected = null;
 			heldItem = null;
 			if (inventory == null
-				|| !inventory.TryGetBestMeleeServer(out Item item, out ItemMeleeAsset melee))
+				|| !inventory.TryGetBestMeleeServer(playerTarget, out Item item, out ItemMeleeAsset melee))
 				return attackDamage;
 			IDamageMultiplier multiplier = playerTarget
 				? (IDamageMultiplier)melee.playerDamageMultiplier
@@ -260,7 +260,7 @@ namespace SDG.Unturned
 				return false;
 			}
 
-			if ((targetNPC.transform.position - transform.position).sqrMagnitude > GetMeleeReachServer() * GetMeleeReachServer())
+			if ((targetNPC.transform.position - transform.position).sqrMagnitude > GetMeleeReachServer(false) * GetMeleeReachServer(false))
 			{
 				return false;
 			}
@@ -288,7 +288,7 @@ namespace SDG.Unturned
 		public bool TryAttack(Zombie targetZombie, Vector3 attackDirection)
 		{
 			if (!Provider.isServer || targetZombie == null || targetZombie.isDead || Time.time < nextAttackTime
-				|| (targetZombie.transform.position - transform.position).sqrMagnitude > GetMeleeReachServer() * GetMeleeReachServer())
+				|| (targetZombie.transform.position - transform.position).sqrMagnitude > GetMeleeReachServer(false) * GetMeleeReachServer(false))
 				return false;
 
 			float resolvedDamage = ResolveAttackDamageServer(false,
@@ -333,7 +333,7 @@ namespace SDG.Unturned
 			}
 
 			Vector3 offset = targetPlayer.transform.position - transform.position;
-			if (offset.sqrMagnitude > GetMeleeReachServer() * GetMeleeReachServer())
+			if (offset.sqrMagnitude > GetMeleeReachServer(true) * GetMeleeReachServer(true))
 			{
 				return false;
 			}
