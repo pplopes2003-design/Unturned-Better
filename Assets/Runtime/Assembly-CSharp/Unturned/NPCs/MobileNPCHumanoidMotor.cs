@@ -56,7 +56,7 @@ namespace SDG.Unturned
 		[SerializeField, Min(1f)] private float roamingPauseMax = 6f;
 		[SerializeField, Min(1f)] private float roamingSearchHeight = 50f;
 		[SerializeField, Min(0f)] private float roamingMaximumDrop = 70f;
-		[SerializeField, Range(0f, 60f)] private float roamingMaximumSlope = 60f;
+		[SerializeField, Range(0f, 85f)] private float roamingMaximumSlope = 75f;
 		[SerializeField] private LayerMask roamingGroundMask = ~0;
 
 		[Header("Local obstacle avoidance and bounded route fallback")]
@@ -1185,6 +1185,16 @@ namespace SDG.Unturned
 				}
 				wantedToMove = motion.sqrMagnitude > 0.0001f;
 			}
+			// The native non-pathfinding zombie uses a consistent downward
+			// velocity (Physics.gravity.y * 2) even while walking. Our older
+			// motor applied only one tiny gravity increment after resetting
+			// grounded velocity, so the controller could briefly lose curb/
+			// sidewalk floor contact and report a false navigation stall.
+			// Snap ONLY ordinary grounded locomotion; never touch swimming,
+			// airborne vault/jump arcs or deliberate ladder vertical motion.
+			if (!isUnderwater && groundedBeforeMove && !isPlannedJumping
+				&& !ladderMovingThisFrame && motion.y <= 0f)
+				motion.y = Mathf.Min(motion.y, Physics.gravity.y * 2f);
 			Vector3 positionBeforeMovement = transform.position;
 			CollisionFlags collision = characterController.Move(motion * deltaTime);
 			if (ladderMovingThisFrame)
@@ -1360,7 +1370,8 @@ namespace SDG.Unturned
 					candidate, 1.2f, 1.3f, roamingGroundMask, roamingMaximumSlope,
 					out Vector3 ground, out Collider floorCollider, out _)
 					|| IsFurnitureSurfaceCollider(floorCollider)
-					|| Mathf.Abs(ground.y - transform.position.y) > 0.23f
+					|| Mathf.Abs(ground.y - transform.position.y)
+					> characterController.stepOffset + characterController.skinWidth + 0.05f
 					|| IsRouteNodeOccupied(ground, radius)
 					|| !HasContinuousLocalFloor(transform.position, ground))
 					continue;
@@ -1993,7 +2004,8 @@ namespace SDG.Unturned
 			{
 				Collider hitCollider = hits[i].collider;
 				if (hitCollider != null && !IsOwnCollider(hitCollider)
-					&& Vector3.Angle(hits[i].normal, Vector3.up) <= 55f)
+					&& Vector3.Angle(hits[i].normal, Vector3.up)
+						<= characterController.slopeLimit)
 				{
 					return true;
 				}
@@ -2009,7 +2021,8 @@ namespace SDG.Unturned
 			{
 				Collider hitCollider = groundHits[i].collider;
 				if (hitCollider != null && !IsOwnCollider(hitCollider)
-					&& Vector3.Angle(groundHits[i].normal, Vector3.up) <= 55f)
+					&& Vector3.Angle(groundHits[i].normal, Vector3.up)
+						<= characterController.slopeLimit)
 				{
 					return true;
 				}
@@ -2673,8 +2686,18 @@ namespace SDG.Unturned
 			// Check the next actual walking stride, not a point several metres
 			// ahead: the old long probe rejected otherwise traversable curbs.
 			Vector3 candidate = transform.position + direction * Mathf.Clamp(obstacleProbeDistance * 0.65f, 0.65f, 1.25f);
-			if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, 5f, 3.5f,
-				roamingGroundMask, Mathf.Clamp(roamingMaximumSlope, 35f, 48f), out Vector3 ground, out _))
+			// Unlike long-range spawn-ground search, the walking probe must
+			// resolve the SAME street/curb surface, not a roof several metres
+			// above it. Only physics-walkable world layers count as ground.
+			if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate,
+				characterController.stepOffset + 0.35f, 1.1f,
+				(RayMasks.BLOCK_COLLISION | RayMasks.GROUND2),
+				Mathf.Min(characterController.slopeLimit, roamingMaximumSlope),
+				out Vector3 ground, out Collider support, out _)
+				|| IsFurnitureSurfaceCollider(support)
+				|| support == null || support.GetComponentInParent<Player>() != null
+				|| support.GetComponentInParent<Zombie>() != null
+				|| support.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
 				return false;
 			float rise = ground.y - transform.position.y;
 			// Ordinary CharacterController stepOffset can climb small curbs,
