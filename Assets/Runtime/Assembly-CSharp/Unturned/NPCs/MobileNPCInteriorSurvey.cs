@@ -37,6 +37,7 @@ namespace SDG.Unturned
         private MobileNPCBrainDriver brain;
         private MobileNPCHumanoidVitals vitals;
         private MobileNPCDoorNavigation doorNavigation;
+        private MobileNPCHumanoidMotor motor;
         private bool isActive;
         private bool awaitingScan;
         private Vector3 origin;
@@ -57,6 +58,7 @@ namespace SDG.Unturned
             brain = GetComponent<MobileNPCBrainDriver>();
             vitals = GetComponent<MobileNPCHumanoidVitals>();
             doorNavigation = GetComponent<MobileNPCDoorNavigation>();
+            motor = GetComponent<MobileNPCHumanoidMotor>();
         }
 
         /// <summary>
@@ -114,7 +116,8 @@ namespace SDG.Unturned
         private bool CanExploreServer()
         {
             if (!Provider.isServer || !Level.isLoaded || autonomy == null
-                || brain == null || vitals != null && vitals.IsDead)
+                || brain == null || motor == null || !motor.IsInitialized
+                || vitals != null && vitals.IsDead)
                 return false;
             return autonomy.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge;
         }
@@ -231,9 +234,7 @@ namespace SDG.Unturned
                     out Vector3 grounded, out _)
                     || Mathf.Abs(grounded.y - raw.y) > 1.3f
                     || !autonomy.IsCandidateAllowedServer(grounded)
-                    || Physics.CheckCapsule(grounded + Vector3.up * 0.35f,
-                        grounded + Vector3.up * 1.65f, 0.34f,
-                        RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore))
+                    || !motor.IsValidScoutingFootingServer(grounded))
                     continue;
 
                 // Prefer same-level connected-looking openings first; a
