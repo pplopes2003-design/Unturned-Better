@@ -4970,6 +4970,16 @@ namespace SDG.Unturned
 				// A squadmate reserved this room; do not claim progress.
 				interiorSurvey.DeferUnclaimedRoomServer();
 			}
+			if (interiorSurvey != null && interiorSurvey.IsActiveSurveyServer
+				&& autonomyPlanner != null
+				&& autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge)
+			{
+				// Do not spawn a NEW random destination while a site survey is
+				// waiting for a scan, lease retry, or short candidate cooldown.
+				// Combat and medical/radio brain goals are handled above.
+				nextRoamingDecisionTime = Time.time + 0.6f;
+				return;
+			}
 
 			// A real trading-group courier with a nearly full pack has a
 			// concrete delivery objective: reach a WALKABLE position beside the
@@ -5338,9 +5348,7 @@ namespace SDG.Unturned
 						|| PlanarDistanceSquared(grounded, transform.position) < 3.5f * 3.5f
 						|| PlanarDistanceSquared(grounded, spawnPosition)
 							> HomeTerritoryRadius * HomeTerritoryRadius
-						|| Physics.CheckCapsule(grounded + Vector3.up * 0.35f,
-							grounded + Vector3.up * 1.65f, 0.34f,
-							RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore)
+						|| !IsValidScoutingFootingServer(grounded)
 						|| autonomyPlanner != null
 							&& !autonomyPlanner.IsCandidateAllowedServer(grounded))
 						continue;
