@@ -29,22 +29,25 @@ namespace SDG.Unturned
 
 		// Different from accuracy/reaction-time difficulty: this changes goals,
 		// scarcity pressure and risk appetite, not eyesight or aimbot skill.
-		public enum GameMode { Normal = 0, Combat = 1 }
+		public enum GameMode { Normal = 0, Combat = 1, CombatOnly = 2 }
 
 		private static GameMode currentGameMode = (GameMode)Mathf.Clamp(
-			PlayerPrefs.GetInt(GameModeKey, (int)GameMode.Normal), 0, 1);
+			PlayerPrefs.GetInt(GameModeKey, (int)GameMode.Normal), 0, 2);
 
 		public static GameMode CurrentGameMode
 		{
 			get => currentGameMode;
 			set
 			{
-				currentGameMode = value == GameMode.Combat ? GameMode.Combat : GameMode.Normal;
+				currentGameMode = (GameMode)Mathf.Clamp((int)value, 0, 2);
 				PlayerPrefs.SetInt(GameModeKey, (int)currentGameMode);
 				Save();
 			}
 		}
-		public static bool CombatMode => currentGameMode == GameMode.Combat;
+		// Old Combat continues to exist unchanged. CombatOnly opts into the
+		// faster all-hostile experience; both modes suspend hunger/thirst.
+		public static bool CombatMode => currentGameMode != GameMode.Normal;
+		public static bool CombatOnly => currentGameMode == GameMode.CombatOnly;
 
 		public enum Difficulty
 		{
@@ -92,6 +95,8 @@ namespace SDG.Unturned
 		/// <summary>Weighted role selection for automatic world population, independent of the manual test-spawn role.</summary>
 		public static MobileNPCHumanoidDisposition.Role SelectPopulationRole()
 		{
+			if (CombatOnly)
+				return MobileNPCHumanoidDisposition.Role.Hostile;
 			int roll = Random.Range(0, 100);
 			// Combat focuses on a contested world, not every NPC attacking the
 			// player. Survivors still need opposing factions to defend each other.
