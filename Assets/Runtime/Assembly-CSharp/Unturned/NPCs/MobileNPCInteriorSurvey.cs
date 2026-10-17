@@ -20,11 +20,23 @@ namespace SDG.Unturned
     {
         private const int MaxInspectionsPerSite = 4;
         private const float SearchClusterRadius = 16f;
+        // Query our own region first. On dense maps the old -1,-1 loop
+        // exhausted the global limit before even visiting our current block.
+        private static readonly Vector2Int[] NearbyRegionOffsets =
+        {
+            new Vector2Int(0, 0),
+            new Vector2Int(1, 0), new Vector2Int(-1, 0),
+            new Vector2Int(0, 1), new Vector2Int(0, -1),
+            new Vector2Int(1, 1), new Vector2Int(-1, 1),
+            new Vector2Int(1, -1), new Vector2Int(-1, -1)
+        };
         private readonly Vector3[] visited = new Vector3[MaxInspectionsPerSite];
-        private readonly List<ItemSpawnpoint> candidates = new List<ItemSpawnpoint>(32);
+        private readonly List<ItemSpawnpoint> candidates = new List<ItemSpawnpoint>(96);
+        private readonly RaycastHit[] approachHits = new RaycastHit[12];
         private MobileNPCAutonomyPlanner autonomy;
         private MobileNPCBrainDriver brain;
         private MobileNPCHumanoidVitals vitals;
+        private MobileNPCDoorNavigation doorNavigation;
         private bool isActive;
         private bool awaitingScan;
         private Vector3 origin;
@@ -44,6 +56,7 @@ namespace SDG.Unturned
             autonomy = GetComponent<MobileNPCAutonomyPlanner>();
             brain = GetComponent<MobileNPCBrainDriver>();
             vitals = GetComponent<MobileNPCHumanoidVitals>();
+            doorNavigation = GetComponent<MobileNPCDoorNavigation>();
         }
 
         /// <summary>
@@ -223,8 +236,28 @@ namespace SDG.Unturned
                         RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore))
                     continue;
 
+                // Prefer same-level connected-looking openings first; a
+                // blocked ray is a routing COST, not evidence that the room
+                // is unreachable. The motor's native doors/route planner
+                // still makes the actual physical traversal decision.
+                float verticalDifference = Mathf.Abs(grounded.y - transform.position.y);
                 float score = (grounded - transform.position).sqrMagnitude
-                    * Random.Range(0.92f, 1.08f);
+                    * Random.Range(0.92f, 1.08f)
+                    + Mathf.Max(0f, verticalDifference - 0.65f) * 10f
+                    + EvaluateLocalApproachPenaltyServer(grounded);
+                // Prefer a genuinely different horizontal area or floor,
+                // rather than counting four item spots on one shelf as rooms.
+                float nearestVisited = float.PositiveInfinity;
+                for (int j = 0; j < visitedCount; ++j)
+                {
+                    float planar = new Vector2(grounded.x - visited[j].x,
+                        grounded.z - visited[j].z).magnitude;
+                    float floorDifference = Mathf.Abs(grounded.y - visited[j].y);
+                    nearestVisited = Mathf.Min(nearestVisited,
+                        planar + Mathf.Min(floorDifference, 4f));
+                }
+                if (visitedCount > 0 && nearestVisited < 7.5f)
+                    score += (7.5f - nearestVisited) * 3f;
                 if (score < best)
                 {
                     location = grounded;
@@ -235,6 +268,62 @@ namespace SDG.Unturned
                 return true;
             FinishServer("no-more-valid-authored-sites");
             return false;
+        }
+
+        /// <summary>
+        /// Short immediate passage assessment for SELECTED candidate rooms.
+        /// This is a local planning hint, not a portal link and never opens
+        /// doors. A closer solid wall remains a deterrent; no fabricated
+        /// entrance or stair is authored into the world.
+        /// </summary>
+        private float EvaluateLocalApproachPenaltyServer(Vector3 target)
+        {
+            Vector3 direction = target - transform.position;
+            direction.y = 0f;
+            float planarDistance = direction.magnitude;
+            if (planarDistance <= 0.2f)
+                return 0f;
+            // Far targets need the real long-range route solver; a 3m
+            // forward test must not be extrapolated to the whole building.
+            float rayDistance = Mathf.Min(3.1f, planarDistance);
+            Vector3 start = transform.position + Vector3.up * 1.1f;
+            int count = Physics.SphereCastNonAlloc(start, 0.14f,
+                direction / planarDistance, approachHits, rayDistance,
+                RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+            if (count >= approachHits.Length)
+                return 7f; // saturated evidence is inconclusive
+            Collider nearest = null;
+            float nearestDistance = float.PositiveInfinity;
+            for (int i = 0; i < count; ++i)
+            {
+                Collider collider = approachHits[i].collider;
+                if (collider == null
+                    || collider.transform.IsChildOf(transform)
+                    || collider.GetComponentInParent<Player>() != null
+                    || collider.GetComponentInParent<Zombie>() != null
+                    || collider.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
+                    continue;
+                if (approachHits[i].distance < nearestDistance)
+                {
+                    nearest = collider;
+                    nearestDistance = approachHits[i].distance;
+                }
+            }
+            if (nearest == null)
+                return 0f;
+            // An actual native unlocked door may be traversable after
+            // interaction; all other geometry still needs a real detour.
+            InteractableDoor door = nearest.GetComponentInParent<InteractableDoor>();
+            if (door != null && door.isActiveAndEnabled
+                && !door.IsChildOfVehicle && !door.IsLockedForMobileNPCNavigation)
+            {
+                if (doorNavigation != null
+                    && doorNavigation.IsTraversableUnlockedDoorEdgeServer(
+                        start, direction / planarDistance, 0.14f,
+                        rayDistance, RayMasks.BLOCK_COLLISION))
+                    return 1.5f;
+            }
+            return 9f;
         }
 
         /// <summary>Another squadmate owns this destination. Wait briefly
@@ -316,32 +405,42 @@ namespace SDG.Unturned
 
         private void GatherNearbyAuthoredSites(Vector3 site, float radius, int limit)
         {
+            if (LevelItems.spawns == null)
+                return;
             Vector2Int center = Regions.GetCoordinateVector2Int(site);
             int examined = 0;
-            for (int dx = -1; dx <= 1 && examined < limit; ++dx)
-                for (int dz = -1; dz <= 1 && examined < limit; ++dz)
+            // Per-region quotas distribute the budget across nearby blocks,
+            // rather than letting one very dense region monopolize all 96
+            // authored hints. Most budget belongs to the current block.
+            for (int regionIndex = 0;
+                regionIndex < NearbyRegionOffsets.Length && examined < limit;
+                ++regionIndex)
+            {
+                Vector2Int offset = NearbyRegionOffsets[regionIndex];
+                int x = center.x + offset.x, z = center.y + offset.y;
+                if (x < 0 || z < 0 || x >= Regions.WORLD_SIZE
+                    || z >= Regions.WORLD_SIZE)
+                    continue;
+                List<ItemSpawnpoint> sites = LevelItems.spawns[x, z];
+                if (sites == null || sites.Count == 0)
+                    continue;
+                int quota = Mathf.Min(limit - examined, regionIndex == 0 ? 32 : 8);
+                int stride = Mathf.Max(1, Mathf.CeilToInt(sites.Count / (float)quota));
+                int seenInRegion = 0;
+                for (int i = 0; i < sites.Count && seenInRegion < quota; i += stride)
                 {
-                    int x = center.x + dx, z = center.y + dz;
-                    if (x < 0 || z < 0 || x >= Regions.WORLD_SIZE
-                        || z >= Regions.WORLD_SIZE)
-                        continue;
-                    List<ItemSpawnpoint> sites = LevelItems.spawns[x, z];
-                    if (sites == null || sites.Count == 0)
-                        continue;
-                    int stride = Mathf.Max(1, sites.Count / 32);
-                    for (int i = 0; i < sites.Count && examined < limit; i += stride)
-                    {
-                        ++examined;
-                        ItemSpawnpoint point = sites[i];
-                        if (point == null) continue;
-                        Vector3 delta = point.point - site;
-                        // Nearby different floors remain eligible; the motor
-                        // must physically traverse a valid native stair/ladder.
-                        if (Mathf.Abs(delta.y) <= 4.5f
-                            && new Vector2(delta.x, delta.z).sqrMagnitude <= radius * radius)
-                            candidates.Add(point);
-                    }
+                    ++examined;
+                    ++seenInRegion;
+                    ItemSpawnpoint point = sites[i];
+                    if (point == null) continue;
+                    Vector3 delta = point.point - site;
+                    // The authored hint is NOT a promised item, doorway, or
+                    // passable stair. Each final route must be walked.
+                    if (Mathf.Abs(delta.y) <= 4.5f
+                        && new Vector2(delta.x, delta.z).sqrMagnitude <= radius * radius)
+                        candidates.Add(point);
                 }
+            }
         }
 
         private void FinishServer(string reason)
