@@ -62,3 +62,24 @@ This pass improves **grounded candidates and doorway evidence**. It does not gen
 10. Unity script `.meta` GUIDs for `MobileNPCInteriorSurvey`, `MobileNPCOccupation`, `MobileNPCTraderLogistics` and `MobileNPCArchetypePolicy` are now tracked in GitHub. On checkout confirm the imported scripts have stable GUIDs and no missing-script warnings.
 
 **Not proven until the user runs a Windows Unity 2022.3.62f3 Dev Build:** C# compilation, actual navigation through Washington house doors/stairs, absence of stuck loops, loot pickup, death/ragdoll/melee presentation and frame-time. These tests cannot be substituted by a text-only inspection.
+
+## Player(4).log postmortem and critical repair acceptance
+
+**Observed in Windows Test3 Washington (2026-10-16):**
+
+- Four fatal-physics setup events: `Invalid ragdoll parent hierarchy or bone scale at Skeleton`, immediately followed by `authored=False, bodies=0, colliders=0, joints=0` and **rigid capsule fallback**. The prior appearance of a physically rolling block is NOT an articulated ragdoll. Fix: compare actual skeleton anatomical descendants, but allow the legitimate different outer prefab parents of `Ragdoll_Player/Skeleton` and `NPC_Client/Root/Skeleton`.
+- `native-aspfp-backend-unavailable` and many `Pathfinding.NavmeshCut` missing-script asset messages. The public SDK has no licensed ASPFP source; the local motor must use its existing physically validated grid/route fallback, including narrow passage checks. This change does **not** add the absent proprietary runtime backend to a shipped build.
+- 207 `FALL DIAGNOSTIC` messages, many with `grounded=True` and visible terrain `BLOCK_COLLISION` contact: descent from elevated spawn was falsely logged as a fall. The motor now avoids expensive emergency ground recovery when the authoritative CharacterController is already grounded. A genuine below-ground, non-grounded fall still follows the safety check.
+- `MobileNPCInteriorSurvey` entries: 9 BEGIN, 7 NEXT, **0 ARRIVED, 0 INSPECTED** and 3 route-failure ENDs. We must distinguish a candidate assignment from physical entry/inspection. Existing native door/stair and fallback grid still need real traversal tests. The new facade contour samples only physically verified lateral standing positions after an observed local wall stall; it does **not** walk through geometry, unlock doors, or guarantee window vaults.
+- NPCs took successive genuine `Zombie` melee hits until death; these are real authoritative vitals, not invulnerability or visual-only blood. New `MobileNPCZombieRiskAssessment` records only personal recent vision and close-range awareness (six short-lived positions, 3s memory), scores local future destinations and grid nodes, and requests a physically reachable short RETREAT goal when unarmed, badly injured or outnumbered. The old perception/brain/combat continue to operate.
+
+**Mandatory next Unity Dev Build acceptance:**
+
+1. Kill an NPC on open flat ground and on uneven terrain. Require `Authored native articulated NPC ragdoll... bones=11, joints=10` followed by `Death ragdoll activated: rigidbodies=11, colliders=11, joints=10`. Check actual limp, separately moving arms, legs, torso; not a rolling rigid capsule. If hierarchy still fails, provide the new diagnostic with `sourceParent` and `targetParent`; do NOT claim success from a rigid falling body.
+2. Attempt a real unlocked native barricade door and an authored open doorway. Confirm NPC crosses the threshold, rather than just being assigned a loot waypoint. Closed locked barricades must remain closed. Windows may be used only if `MobileNPCVaultTraversal` validates the entire physical ballistic arc and a safe landing; this pass **does not promise universal window climbing**.
+3. Test an NPC spawned in a town against a group of 3+ zombies, then an isolated zombie, and test both armed and unarmed variants. Look for `[MobileNPCZombieRisk] RETREAT` when heavily disadvantaged and for alternative verified routes rather than blindly charging. Ordinary healthy armed NPCs can still choose to fight.
+4. Record `BEGIN -> NEXT -> ARRIVED -> INSPECTED` **at least once** per truly reached local survey point. Zero ARRIVED means the routing bug persists even if the job planner appears active.
+5. Profile 10, 20 and 40 NPCs. Risk assessment scans nearby live zombie positions ~0.55-0.85 seconds/NPC, optical LOS is shared-throttled, and route hazard scores use only short-lived cached observations. Ensure no main-thread spikes from new checks.
+6. Confirm missing `Pathfinding.NavmeshCut` warnings are still understood as asset/runtime dependency, not fixed by this source-only patch. Do not remove native scripts from original Unturned bundles.
+7. Inspect the new `Player.log` and Unity compilation warnings before merging or calling the ragdoll or interior traversal finished.
+
