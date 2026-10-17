@@ -23,7 +23,11 @@ namespace SDG.Unturned
 		private int reservedSlots;
 		private float nextMedicalCraftAttemptTime;
 
-		public int Capacity => Mathf.Max(1, capacity);
+		// CombatOnly grants authentic armor/clothes on top of a firearm,
+		// three spare magazines and finite medical supplies. Keep its
+		// storage model separate from the saved Normal-mode capacity.
+		public int Capacity => MobileNPCSettings.CombatOnly
+			? Mathf.Max(18, capacity) : Mathf.Max(1, capacity);
 		public int UsedSlots => slots.Count;
 		public int FreeSlots => Mathf.Max(0, Capacity - slots.Count - reservedSlots);
 		public bool HasSpace => slots.Count + reservedSlots < Capacity;
