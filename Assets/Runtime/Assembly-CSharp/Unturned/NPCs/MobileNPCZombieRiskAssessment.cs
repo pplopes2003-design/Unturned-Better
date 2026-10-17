@@ -85,7 +85,10 @@ namespace SDG.Unturned
                 // receive independent sightings, not a global zombie list.
                 // Existing perception.VisibleZombie still updates without
                 // consuming these supplementary checks.
-                if (Time.time >= nextSharedOpticalAt)
+                // An NPC surveying an empty stretch of road must NOT
+                // consume the shared raycast slot needed by another actor
+                // currently approaching a zombie group.
+                if (nearestCandidates[0] != null && Time.time >= nextSharedOpticalAt)
                 {
                     nextSharedOpticalAt = Time.time + 0.020f;
                     for (int i = 0; i < nearestCandidates.Length; ++i)
