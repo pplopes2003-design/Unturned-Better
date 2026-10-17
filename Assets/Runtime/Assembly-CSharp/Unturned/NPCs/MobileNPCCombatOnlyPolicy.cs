@@ -23,6 +23,18 @@ namespace SDG.Unturned
         private const ushort Splint = 96;
         private const ushort Medkit = 15;
 
+        // Genuine vanilla clothes with military-grade protection. Prefer
+        // Washington desert, then PEI forest if a map omits desert assets.
+        private const ushort DesertHelmet = 1010;
+        private const ushort DesertTop = 1011;
+        private const ushort DesertBottom = 1012;
+        private const ushort DesertVest = 1013;
+        private const ushort ForestHelmet = 309;
+        private const ushort ForestTop = 307;
+        private const ushort ForestBottom = 308;
+        private const ushort ForestVest = 310;
+        private const ushort Alicepack = 253;
+
         /// <summary>
         /// Called exactly once after the cloned actor is initialized, before
         /// the spawn service returns. On save restoration only configure its
@@ -158,6 +170,41 @@ namespace SDG.Unturned
             GiveIfAvailable(inventory, Bandage, npc);
             GiveIfAvailable(inventory, Splint, npc);
             GiveIfAvailable(inventory, Medkit, npc);
+
+            // Physical NPC armor, not a skin-only override: the existing
+            // MobileNPCEquipment scans these item categories from inventory,
+            // renders native HumanClothes and applies real quality-dependent
+            // head/torso/limb mitigation on the server. Five owned garments
+            // fit together with the ten weapon/medical items in 18 slots.
+            GiveClothing(inventory, EItemType.HAT, DesertHelmet, ForestHelmet, npc);
+            GiveClothing(inventory, EItemType.SHIRT, DesertTop, ForestTop, npc);
+            GiveClothing(inventory, EItemType.PANTS, DesertBottom, ForestBottom, npc);
+            GiveClothing(inventory, EItemType.VEST, DesertVest, ForestVest, npc);
+            GiveClothing(inventory, EItemType.BACKPACK, Alicepack, 0, npc);
+        }
+
+        private static void GiveClothing(MobileNPCInventory inventory,
+            EItemType category, ushort preferred, ushort alternate, GameObject npc)
+        {
+            ushort selected = 0;
+            ItemClothingAsset first = Assets.find(EAssetType.ITEM, preferred)
+                as ItemClothingAsset;
+            if (first != null && first.type == category && !first.isPro)
+                selected = preferred;
+            if (selected == 0 && alternate != 0)
+            {
+                ItemClothingAsset backup = Assets.find(EAssetType.ITEM, alternate)
+                    as ItemClothingAsset;
+                if (backup != null && backup.type == category && !backup.isPro)
+                    selected = alternate;
+            }
+            if (selected == 0)
+            {
+                Debug.LogWarning("[MobileNPCCombatOnly] Missing authentic clothing "
+                    + "category=" + category + " preferred=" + preferred, npc);
+                return;
+            }
+            GiveIfAvailable(inventory, selected, npc);
         }
 
         private static void GiveIfAvailable(MobileNPCInventory inventory,
