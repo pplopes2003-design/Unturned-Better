@@ -689,7 +689,12 @@ namespace SDG.Unturned
 			// Unturned assigns a stable server ID per selected single-player character.
 			// Include it so two different characters playing the same map never share NPC state.
 			string server = string.IsNullOrEmpty(Provider.serverID) ? "UnknownWorld" : Provider.serverID;
-			string key = server + "_" + name;
+			// Never load or overwrite the established A-Life/NORMAL NPCs
+			// when opting into the all-hostile combat sandbox. The original
+			// Normal and mixed Combat modes retain their exact historical key.
+			// The new sandbox has its own per-character, per-map JSON file.
+			string key = server + "_" + name
+				+ (MobileNPCSettings.CombatOnly ? "__CombatOnly" : "");
 			char[] invalid = Path.GetInvalidFileNameChars();
 			for (int i = 0; i < invalid.Length; ++i)
 				key = key.Replace(invalid[i], '_');
