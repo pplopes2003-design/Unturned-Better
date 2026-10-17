@@ -833,6 +833,64 @@ namespace SDG.Unturned
 		}
 
 		/// <summary>
+		/// Retreat from a FIRSTHAND nearby zombie threat, even when an NPC
+		/// currently has no group/armed target. This shares the existing
+		/// tactical retreat goal: all physical walking remains in the motor.
+		/// The caller may only pass a personally sensed short-lived position.
+		/// </summary>
+		public bool TryStartLocalZombieWithdrawalServer(Vector3 observedDanger,
+			MobileNPCZombieRiskAssessment risk)
+		{
+			if (!CanAcceptServerInput || risk == null || tactics == null
+				|| tactics.CurrentGoal == MobileNPCTactics.Goal.Retreat
+				|| tactics.CurrentGoal == MobileNPCTactics.Goal.SeekCover
+				|| !Level.checkSafeIncludingClipVolumes(observedDanger)
+				|| (observedDanger - transform.position).sqrMagnitude > 18f * 18f)
+				return false;
+
+			MobileNPCHumanoidMotor motor = GetComponent<MobileNPCHumanoidMotor>();
+			if (motor == null)
+				return false;
+			float hereRisk = risk.GetKnownRiskAtServer(transform.position);
+			Vector3 away = transform.position - observedDanger;
+			away.y = 0f;
+			if (away.sqrMagnitude < 0.01f)
+				away = -transform.forward;
+			away.Normalize();
+
+			Vector3 best = Vector3.zero;
+			float bestScore = float.PositiveInfinity;
+			// Three short escape bearings; never run through a known zombie
+			// just because the desired ground target is farther away.
+			for (int i = -2; i <= 2; ++i)
+			{
+				Vector3 direction = Quaternion.AngleAxis(i * 28f, Vector3.up) * away;
+				Vector3 estimate = transform.position + direction * 7f;
+				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(estimate,
+					1.5f, 1.5f, RayMasks.BLOCK_COLLISION | RayMasks.GROUND2,
+					55f, out Vector3 ground, out Collider support, out _)
+					|| support == null
+					|| Mathf.Abs(ground.y - transform.position.y) > 0.75f
+					|| risk.GetKnownRiskAtServer(ground) > hereRisk * 0.65f
+					|| !motor.CanReachNearbyCoverServer(ground))
+					continue;
+				float score = risk.GetKnownRiskAtServer(ground)
+					+ Vector3.Distance(ground, transform.position) * 0.015f;
+				if (score < bestScore)
+				{
+					bestScore = score;
+					best = ground;
+				}
+			}
+			if (bestScore == float.PositiveInfinity
+				|| !tactics.TryStartValidatedSquadWithdrawal(best, Time.time))
+				return false;
+			CancelAmbush();
+			PublishDecisionIfChanged();
+			return true;
+		}
+
+		/// <summary>
 		/// Bounded withdrawal when this NPC heard an ally fall AND personally
 		/// sees the same enemy it was already fighting. Does not import
 		/// anyone's target Transform, teleport, or skip motor path checks.
