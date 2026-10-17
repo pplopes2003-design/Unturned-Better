@@ -3108,6 +3108,21 @@ namespace SDG.Unturned
 			}
 			if (coarseRouteFound)
 			{
+				// A local A* "success" can mean only a reachable frontier
+				// OUTSIDE the building, not an actual path to its entrance.
+				// When that same actor previously stalled at the facade,
+				// compare a locally verified lateral opening before repeating
+				// a deceptive partial route toward the same blocked wall.
+				if (hasPartialLocalFrontier && consecutiveStuckRecoveries >= 1
+					&& autonomyPlanner != null
+					&& autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge
+					&& TryChooseVerifiedFacadeContourServer(destination))
+				{
+					routeWaypoints.Clear();
+					routeWaypointIndex = 0;
+					hasPartialLocalFrontier = false;
+					return;
+				}
 				detourGoalSnapshot = destination;
 				hasDetourWaypoint = false;
 				return;
