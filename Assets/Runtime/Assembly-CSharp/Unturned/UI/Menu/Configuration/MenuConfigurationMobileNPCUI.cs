@@ -106,7 +106,9 @@ namespace SDG.Unturned
 			difficultyButton.text = "Difficulty: " + MobileNPCSettings.CurrentDifficulty;
 			enabledButton.text = "NPC spawning/restoring: " + (MobileNPCSettings.Enabled ? "ON" : "OFF");
 			airdropButton.text = "Airdrop contest: " + (MobileNPCSettings.AirdropContestEnabled ? "ON" : "OFF");
-			roleButton.text = "Manual test-spawn role: " + MobileNPCSettings.DefaultRole;
+			roleButton.text = MobileNPCSettings.CombatOnly
+				? "Manual spawn: ALWAYS HOSTILE (Combat Only)"
+				: "Manual test-spawn role: " + MobileNPCSettings.DefaultRole;
 			mixButton.text = MobileNPCSettings.CombatOnly
 				? "Combate Total: todos hostis, kit inicial, sem necessidades"
 				: MobileNPCSettings.CombatMode
@@ -157,6 +159,8 @@ namespace SDG.Unturned
 
 		private static void onClickedRole(ISleekElement button)
 		{
+			if (MobileNPCSettings.CombatOnly)
+				return; // preserve the old Normal/Combat test-role choice
 			MobileNPCSettings.DefaultRole = (MobileNPCHumanoidDisposition.Role)(((int)MobileNPCSettings.DefaultRole + 1) % 3);
 			RefreshLabels();
 		}
