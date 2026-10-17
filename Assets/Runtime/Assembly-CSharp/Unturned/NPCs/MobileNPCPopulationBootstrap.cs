@@ -93,6 +93,8 @@ namespace SDG.Unturned
             template.AddComponent<MobileNPCHumanoidMotor>();
             template.AddComponent<MobileNPCDoorNavigation>();
             template.AddComponent<MobileNPCHumanoidPerception>();
+            // Individual local hazard awareness; no global director zombie oracle.
+            template.AddComponent<MobileNPCZombieRiskAssessment>();
             template.AddComponent<MobileNPCHumanoidDisposition>();
             template.AddComponent<MobileNPCFaction>();
             // Personal profession and diplomatic faction remain independent.
