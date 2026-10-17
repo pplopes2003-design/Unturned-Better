@@ -467,6 +467,7 @@ namespace SDG.Unturned
 
 			SafeDeathStage("stop loot", () => DisableOnDeath<MobileNPCLooting>());
 			SafeDeathStage("stop interior survey", () => DisableOnDeath<MobileNPCInteriorSurvey>());
+			SafeDeathStage("stop zombie-risk observations", () => DisableOnDeath<MobileNPCZombieRiskAssessment>());
 			SafeDeathStage("stop trader deliveries", () => DisableOnDeath<MobileNPCTraderLogistics>());
 			SafeDeathStage("release A-Life job", () => DisableOnDeath<MobileNPCAutonomyPlanner>());
 			SafeDeathStage("stop medical use", () => DisableOnDeath<MobileNPCMedicalUse>());
