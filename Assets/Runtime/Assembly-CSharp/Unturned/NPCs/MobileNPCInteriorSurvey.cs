@@ -42,6 +42,7 @@ namespace SDG.Unturned
         private MobileNPCHumanoidVitals vitals;
         private MobileNPCDoorNavigation doorNavigation;
         private MobileNPCHumanoidMotor motor;
+        private MobileNPCZombieRiskAssessment zombieRisk;
         private bool isActive;
         private bool awaitingScan;
         private Vector3 origin;
@@ -63,6 +64,7 @@ namespace SDG.Unturned
             vitals = GetComponent<MobileNPCHumanoidVitals>();
             doorNavigation = GetComponent<MobileNPCDoorNavigation>();
             motor = GetComponent<MobileNPCHumanoidMotor>();
+            zombieRisk = GetComponent<MobileNPCZombieRiskAssessment>();
         }
 
         /// <summary>
@@ -248,7 +250,8 @@ namespace SDG.Unturned
                     out Vector3 grounded, out _)
                     || Mathf.Abs(grounded.y - raw.y) > 1.3f
                     || !autonomy.IsCandidateAllowedServer(grounded)
-                    || !motor.IsValidScoutingFootingServer(grounded))
+                    || !motor.IsValidScoutingFootingServer(grounded)
+                    || zombieRisk != null && zombieRisk.GetKnownRiskAtServer(grounded) >= 0.75f)
                     continue;
 
                 // Prefer same-level connected-looking openings first; a
