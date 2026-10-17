@@ -39,6 +39,23 @@ Every **fresh** NPC generated while CombatOnly is selected:
   **95**, a Splint **96**, and a Medkit **15**. Medical behavior consumes real
   items for bleeding, fractures and missing HP, subject to its existing
   safety/tactical checks.
+- Has genuine native *owned* clothing, selected only after checking item
+  category: Desert Military Helmet **1010**, Desert Military Top **1011**,
+  Desert Military Bottom **1012**, Desert Military Vest **1013** and
+  Alicepack **253**. The military pieces fallback individually to Forest
+  Helmet **309**, Top **307**, Bottom **308** and Vest **310** if unavailable.
+  `MobileNPCEquipment` already displays these through `HumanClothes` and
+  applies their native, quality-sensitive mitigation to the appropriate body
+  parts. The backpack is equipment/appearance in the current simulated
+  inventory architecture, NOT a separate vanilla backpack grid.
+- Inventory holds **18 simulated slots in CombatOnly only** (Normal retains
+  12). A full kit uses 15 slots: rifle (1), three spare magazines (3),
+  knife (1), two dressings (2), bandage (1), splint (1), medkit (1),
+  helmet (1), shirt (1), pants (1), vest (1), backpack (1).
+  **Three empty slots remain** for reload swaps and future incidental items.
+  The fourth magazine is loaded *inside the rifle item state*, not a
+  separate inventory slot. On restore, no starter items or medical supplies
+  are duplicated.
 - Keeps injury, ranged combat, aiming, civilian-faction-independent combat
   hostility, tactical withdrawal, death/ragdoll, death loot and equipment
   persistence. Has no hunger/thirst loss, food/water gathering, structure
@@ -60,10 +77,13 @@ Every **fresh** NPC generated while CombatOnly is selected:
    against Military; hostility to players is guaranteed by the Role, not by
    treating Raider and Military as the same faction.
 3. Inspect `[MobileNPCCombatOnly] Spawn ... kit=issued-once` and actual
-   `MobileNPCInventory`. Verify a legitimate selected GunId, at least one
-   magazine loaded in native gun state, three spare magazines, bleeding
-   dressing and medkit present. Watch real bullets decrement and magazine
-   inventory transfer during reloads; ammo must not regenerate.
+   `MobileNPCInventory`. Verify exactly 15 initial slots, one loaded
+   compatible native magazine in the rifle, three spare magazines, two
+   dressings, bandage, splint and medkit, plus helmet, vest, shirt, pants and
+   backpack. `HumanClothes` must display authentic clothing, and a body hit
+   must flow through `MobileNPCEquipment.ApplyValidatedBodyArmorServer`.
+   Watch real bullets decrement and magazine inventory transfer during reloads;
+   ammo must not regenerate.
 4. Wound an NPC, stop shooting and observe medical supplies consumed after
    a safe opportunity. If it is bleeding or has a fracture, separate wound
    and splint code should handle those items before generic HP healing.
