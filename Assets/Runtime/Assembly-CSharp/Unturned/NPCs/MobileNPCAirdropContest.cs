@@ -31,7 +31,8 @@ namespace SDG.Unturned
 
 		public static void TickServer()
 		{
-			if (!Provider.isServer || !Level.isLoaded || !MobileNPCSettings.AirdropContestEnabled || Time.time < nextScanTime)
+			if (!Provider.isServer || !Level.isLoaded || MobileNPCSettings.CombatOnly
+				|| !MobileNPCSettings.AirdropContestEnabled || Time.time < nextScanTime)
 				return;
 
 			nextScanTime = Time.time + ScanInterval;
