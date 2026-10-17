@@ -4941,6 +4941,11 @@ namespace SDG.Unturned
 				&& autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge)
 				effectiveRoamingRadius = Mathf.Min(effectiveRoamingRadius, 110f);
 
+			// A full courier's REAL trade delivery outranks optional exploring.
+			// This is still collision-aware ordinary walking, not a teleport.
+			if (TryChooseTraderDeliveryApproachServer())
+				return;
+
 			// Continue an ALREADY visited urban site before randomly selecting
 			// a different building, but only if no tactical/combat goal owns
 			// movement and all proposed floor/collision checks pass.
@@ -4980,14 +4985,6 @@ namespace SDG.Unturned
 				nextRoamingDecisionTime = Time.time + 0.6f;
 				return;
 			}
-
-			// A real trading-group courier with a nearly full pack has a
-			// concrete delivery objective: reach a WALKABLE position beside the
-			// living vendor. Reusing arbitrary settlement patrol waypoints may
-			// leave the courier several metres away, never close enough for
-			// the inventory-to-inventory transaction.
-			if (TryChooseTraderDeliveryApproachServer())
-				return;
 
 			// A survivor may finish combat 80m from home and *then* be
 			// assigned guard duty. Without an explicit physical return trip,
@@ -5175,9 +5172,7 @@ namespace SDG.Unturned
 					|| Mathf.Abs(ground.y - seller.transform.position.y) > 1.25f
 					|| PlanarDistanceSquared(ground, spawnPosition)
 						> HomeTerritoryRadius * HomeTerritoryRadius
-					|| Physics.CheckCapsule(ground + Vector3.up * 0.35f,
-						ground + Vector3.up * 1.65f, 0.34f,
-						RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore))
+					|| !IsValidScoutingFootingServer(ground))
 					continue;
 				roamingDestination = ground;
 				hasRoamingDestination = true;
