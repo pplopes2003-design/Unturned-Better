@@ -116,6 +116,7 @@ namespace SDG.Unturned
 		private MobileNPCHumanoidRangedCombat rangedCombat;
 		private bool wasHoldingDeliberateFire;
 		private MobileNPCAutonomyPlanner autonomyPlanner;
+		private MobileNPCZombieRiskAssessment zombieRisk;
 		private MobileNPCAutonomyPlanner.Job previousRoutineJob;
 		private bool hasPreviousRoutineJob;
 		private MobileNPCHumanoidPerception visualPerception;
@@ -457,6 +458,7 @@ namespace SDG.Unturned
 			brainDriver = GetComponent<MobileNPCBrainDriver>();
 			rangedCombat = GetComponent<MobileNPCHumanoidRangedCombat>();
 			autonomyPlanner = GetComponent<MobileNPCAutonomyPlanner>();
+			zombieRisk = GetComponent<MobileNPCZombieRiskAssessment>();
 			injurySystem = GetComponent<MobileNPCInjurySystem>();
 			doorNavigation = GetComponent<MobileNPCDoorNavigation>();
 			ladderTraversal = GetComponent<MobileNPCLadderTraversal>();
@@ -5240,7 +5242,12 @@ namespace SDG.Unturned
 							|| !autonomyPlanner.IsCandidateAllowedServer(ground)
 							|| !IsValidScoutingFootingServer(ground))
 							continue;
-						float score = distanceSq * Random.Range(0.78f, 1.22f);
+						float knownRisk = zombieRisk != null
+							? zombieRisk.GetKnownRiskAtServer(ground) : 0f;
+						if (knownRisk >= 0.75f)
+							continue; // postpone loot until local known threat clears
+						float score = distanceSq * Random.Range(0.78f, 1.22f)
+							+ knownRisk * 70f;
 						if (score < bestScore)
 						{
 							bestScore = score;
