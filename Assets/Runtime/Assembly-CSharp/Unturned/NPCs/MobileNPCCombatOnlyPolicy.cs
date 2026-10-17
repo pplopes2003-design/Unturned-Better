@@ -49,11 +49,9 @@ namespace SDG.Unturned
             Disable<MobileNPCSettlementBuilder>(npc);
             Disable<MobileNPCTraderLogistics>(npc);
             Disable<MobileNPCBaseGeneratorOperator>(npc);
-            Disable<MobileNPCAirdropContest>(npc);
             Disable<MobileNPCAirdropRumor>(npc);
             Disable<MobileNPCUsefulLootRumor>(npc);
             Disable<MobileNPCCompanionContract>(npc);
-            Disable<MobileNPCUsefulLootVision>(npc);
             Disable<MobileNPCTerritoryRaidPlanner>(npc);
             Disable<MobileNPCUnknownBaseIntel>(npc);
 
