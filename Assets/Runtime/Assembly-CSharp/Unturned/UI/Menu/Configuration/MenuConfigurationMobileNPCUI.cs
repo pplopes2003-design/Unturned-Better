@@ -107,10 +107,13 @@ namespace SDG.Unturned
 			enabledButton.text = "NPC spawning/restoring: " + (MobileNPCSettings.Enabled ? "ON" : "OFF");
 			airdropButton.text = "Airdrop contest: " + (MobileNPCSettings.AirdropContestEnabled ? "ON" : "OFF");
 			roleButton.text = "Manual test-spawn role: " + MobileNPCSettings.DefaultRole;
-			mixButton.text = MobileNPCSettings.CombatMode
-				? "Faccoes (Combate): 66% hostis, 21% amigaveis"
-				: "World population mix: " + MixLabel(MobileNPCSettings.CurrentPopulationMix);
-			gameModeButton.text = "Agressividade: " + (MobileNPCSettings.CombatMode ? "Combate" : "Normal");
+			mixButton.text = MobileNPCSettings.CombatOnly
+				? "Combate Total: todos hostis, kit inicial, sem necessidades"
+				: MobileNPCSettings.CombatMode
+					? "Faccoes (Combate): 66% hostis, 21% amigaveis"
+					: "World population mix: " + MixLabel(MobileNPCSettings.CurrentPopulationMix);
+			gameModeButton.text = "Modo: " + (MobileNPCSettings.CombatOnly
+				? "COMBATE TOTAL" : MobileNPCSettings.CombatMode ? "Combate" : "Normal");
 			eraseHistoryButton.text = Time.realtimeSinceStartup < eraseConfirmationDeadline
 				? "CONFIRMAR: apagar NPCs, itens e memorias salvas"
 				: !string.IsNullOrEmpty(eraseStatus) ? eraseStatus
@@ -174,7 +177,9 @@ namespace SDG.Unturned
 			{
 				// Combat uses its own hostiles/friendlies mix. Keep the
 				// user's Normal mix untouched for switching back later.
-				eraseStatus = "Modo Combate define as faccoes automaticamente";
+				eraseStatus = MobileNPCSettings.CombatOnly
+					? "Combate Total: 100% hostis e combate com equipamento"
+					: "Modo Combate define as faccoes automaticamente";
 				RefreshLabels();
 				return;
 			}
@@ -184,8 +189,10 @@ namespace SDG.Unturned
 
 		private static void onClickedGameMode(ISleekElement button)
 		{
-			MobileNPCSettings.CurrentGameMode = MobileNPCSettings.CombatMode
-				? MobileNPCSettings.GameMode.Normal : MobileNPCSettings.GameMode.Combat;
+			// Cycle Normal -> Combat -> Combat Only. Selection is made in
+			// the main menu; each mode's world snapshots remain separate.
+			MobileNPCSettings.CurrentGameMode = (MobileNPCSettings.GameMode)
+				(((int)MobileNPCSettings.CurrentGameMode + 1) % 3);
 			eraseConfirmationDeadline = 0f;
 			eraseStatus = null;
 			RefreshLabels();
