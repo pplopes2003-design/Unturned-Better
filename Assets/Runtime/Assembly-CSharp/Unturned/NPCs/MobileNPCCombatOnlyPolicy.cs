@@ -116,15 +116,35 @@ namespace SDG.Unturned
                 // MobileNPCHumanoidRangedCombat on its regular refresh.
                 Item loadedGun = new Item(primary, EItemOrigin.ADMIN);
                 if (loadedGun.state == null
-                    || loadedGun.state.Length < GunStateIndices.AMMO + 1)
+                    || loadedGun.state.Length < GunStateIndices.AMMO + 1
+                    || loadedGun.state.Length < GunStateIndices.MAGAZINE_ID + 2)
                 {
                     Debug.LogWarning("[MobileNPCCombatOnly] Gun has no valid "
                         + "native loaded magazine state: " + primary, npc);
                 }
-                else if (!inventory.TryStoreTransferredItem(loadedGun))
+                else
                 {
-                    Debug.LogError("[MobileNPCCombatOnly] Could not store gun "
-                        + primary + " on fresh spawn.", npc);
+                    // Ensure the combat loadout has a real, compatible,
+                    // fully loaded magazine in the gun's native state.
+                    // Spare magazines remain separate physical inventory
+                    // items and ordinary reload/shot code consumes them.
+                    ushort installedMagazine = System.BitConverter.ToUInt16(
+                        loadedGun.state, GunStateIndices.MAGAZINE_ID);
+                    ItemMagazineAsset installed = Assets.find(EAssetType.ITEM,
+                        installedMagazine) as ItemMagazineAsset;
+                    if (installed == null
+                        || !installed.CalibersContainAnyOfIds(gunAsset.magazineCalibers)
+                        || loadedGun.state[GunStateIndices.AMMO] == 0)
+                    {
+                        byte[] idBytes = System.BitConverter.GetBytes(spareMagazine);
+                        loadedGun.state[GunStateIndices.MAGAZINE_ID] = idBytes[0];
+                        loadedGun.state[GunStateIndices.MAGAZINE_ID + 1] = idBytes[1];
+                        loadedGun.state[GunStateIndices.AMMO] =
+                            magazineAsset.MaxAmountAsByte;
+                    }
+                    if (!inventory.TryStoreTransferredItem(loadedGun))
+                        Debug.LogError("[MobileNPCCombatOnly] Could not store gun "
+                            + primary + " on fresh spawn.", npc);
                 }
                 for (int i = 0; i < 3; ++i)
                     GiveIfAvailable(inventory, spareMagazine, npc);
