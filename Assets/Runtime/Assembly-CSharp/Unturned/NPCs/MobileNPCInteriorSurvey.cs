@@ -20,6 +20,10 @@ namespace SDG.Unturned
     {
         private const int MaxInspectionsPerSite = 4;
         private const float SearchClusterRadius = 16f;
+        // A small shared admission slot prevents 40 NPCs from all issuing
+        // ten expensive interior floor/occupancy probes in the same frame.
+        // This is scheduling only, never a claim about world or faction.
+        private static float nextGlobalRoomProbeAt;
         // Query our own region first. On dense maps the old -1,-1 loop
         // exhausted the global limit before even visiting our current block.
         private static readonly Vector2Int[] NearbyRegionOffsets =
@@ -194,6 +198,12 @@ namespace SDG.Unturned
                 FinishServer("complete");
                 return false;
             }
+            if (Time.time < nextGlobalRoomProbeAt)
+            {
+                nextCandidateAttemptAt = Time.time + Random.Range(0.20f, 0.40f);
+                return false;
+            }
+            nextGlobalRoomProbeAt = Time.time + 0.075f;
 
             // Only a small local cluster is scanned, not every item spawn
             // in a city. This is triggered by optional roaming arbitration
