@@ -684,14 +684,29 @@ namespace SDG.Unturned
 				// into a rolling capsule instead of releasing their articulated rig.
 				// Validate the stable bone hierarchy and native physical anatomy,
 				// while preserving the exact pose at the moment of death.
-				if (match.parent == null || source.parent == null
-					|| match.parent.name != source.parent.name
-					|| !IsFinite(match.lossyScale.x)
-					|| !IsFinite(match.lossyScale.y)
-					|| !IsFinite(match.lossyScale.z))
+				// The native Ragdoll_Player/Skeleton is parented under
+				// Ragdoll_Player, whereas the rendered NPC_Client/Skeleton is
+				// parented under Root. Their root parents MUST differ. Compare
+				// actual descendants by their immediate anatomical parent;
+				// preserve the runtime death pose without demanding identical
+				// unrelated prefab wrappers.
+				bool isSkeletonRoot = source == sourceSkeleton
+					&& match == destinationSkeleton;
+				bool validAnatomy = isSkeletonRoot
+					|| match.parent != null && source.parent != null
+						&& match.parent.name == source.parent.name;
+				Vector3 scale = match.lossyScale;
+				if (!validAnatomy
+					|| !IsFinite(scale.x) || !IsFinite(scale.y) || !IsFinite(scale.z)
+					|| Mathf.Abs(scale.x) < 0.0001f
+					|| Mathf.Abs(scale.y) < 0.0001f
+					|| Mathf.Abs(scale.z) < 0.0001f)
 				{
-					Debug.LogError("[MobileNPCHumanoidVitals] Invalid ragdoll "
-						+ "parent hierarchy or bone scale at " + source.name + ".", this);
+					Debug.LogError("[MobileNPCHumanoidVitals] Invalid authored ragdoll "
+						+ "bone parent or scale at " + source.name
+						+ ", sourceParent=" + (source.parent != null ? source.parent.name : "<null>")
+						+ ", targetParent=" + (match.parent != null ? match.parent.name : "<null>")
+						+ ", scale=" + scale + ".", this);
 					return false;
 				}
 				sourceTransforms[i] = source;
