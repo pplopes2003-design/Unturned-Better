@@ -325,11 +325,75 @@ namespace SDG.Unturned
 			return nearest == target || target.IsChildOf(nearest) || nearest.IsChildOf(target);
 		}
 
+		/// <summary>
+		/// Small verified side-step / withdrawal for armed combatants.
+		/// Ground, real continuous route and a clear firing lane are
+		/// all required before the existing tactical brain accepts it.
+		/// Neither target location nor route knowledge is invented.
+		/// </summary>
+		private bool TryShortCombatRepositionServer(Transform target)
+		{
+			if (!Provider.isServer || motor == null || target == null)
+				return false;
+			Vector3 fromThreat = transform.position - target.position;
+			fromThreat.y = 0f;
+			if (fromThreat.sqrMagnitude < 0.04f)
+				fromThreat = -transform.forward;
+			fromThreat.Normalize();
+			Vector3 sideways = Vector3.Cross(Vector3.up, fromThreat).normalized;
+			MobileNPCZombieRiskAssessment risk =
+				GetComponent<MobileNPCZombieRiskAssessment>();
+			Vector3 best = Vector3.zero;
+			float bestScore = float.NegativeInfinity;
+			for (int i = 0; i < 4; ++i)
+			{
+				Vector3 bearing = i == 0 ? sideways
+					: i == 1 ? -sideways
+					: i == 2 ? (fromThreat + sideways).normalized
+					: (fromThreat - sideways).normalized;
+				Vector3 guess = transform.position + bearing * 4.1f;
+				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(guess,
+					1.2f, 1.5f, RayMasks.BLOCK_COLLISION | RayMasks.GROUND2,
+					50f, out Vector3 position, out Collider support, out _)
+					|| support == null
+					|| !Level.checkSafeIncludingClipVolumes(position)
+					|| !motor.CanReachNearbyCoverServer(position)
+					|| risk != null && risk.GetKnownRiskAtServer(position) >= 0.85f)
+					continue;
+				Vector3 eye = position + Vector3.up * eyeHeight;
+				if (!IsClearLineOfFire(eye, target.position
+					+ Vector3.up * targetHeight, target))
+					continue;
+				float spacing = Vector3.Distance(position, target.position);
+				if (spacing < 4.5f || spacing > preferredMaximumRange)
+					continue;
+				float score = -Mathf.Abs(spacing - Mathf.Max(8f, preferredMinimumRange))
+					+ (risk != null ? -risk.GetKnownRiskAtServer(position) * 5f : 0f)
+					+ Random.Range(0f, 0.3f);
+				if (score <= bestScore)
+					continue;
+				best = position;
+				bestScore = score;
+			}
+			return bestScore > float.NegativeInfinity && brain.TryStartFlank(best);
+		}
+
 		private void TryChooseFlank(Transform target, bool targetVisible)
 		{
 			if (brain == null || target == null || brain.CurrentGoal == MobileNPCTactics.Goal.Retreat
 				|| brain.CurrentGoal == MobileNPCTactics.Goal.SeekCover)
 				return;
+
+			// In the combat sandbox, an immediately reachable 4m lateral
+			// shift is more useful than committing to a speculative 12m
+			// flank across a building when the native ASPFP is absent.
+			if (MobileNPCSettings.CombatOnly
+				&& TryShortCombatRepositionServer(target))
+			{
+				nextFlankTime = Time.time + Mathf.Max(0.5f, flankRetryCooldown);
+				ResetOcclusion();
+				return;
+			}
 
 			Vector3 targetPosition = target.position;
 			Vector3 awayFromTarget = transform.position - targetPosition;
