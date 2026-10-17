@@ -83,3 +83,13 @@ This pass improves **grounded candidates and doorway evidence**. It does not gen
 6. Confirm missing `Pathfinding.NavmeshCut` warnings are still understood as asset/runtime dependency, not fixed by this source-only patch. Do not remove native scripts from original Unturned bundles.
 7. Inspect the new `Player.log` and Unity compilation warnings before merging or calling the ragdoll or interior traversal finished.
 
+
+### Addendum: source-verified prefab matching and defensive exploration
+
+- Verified YAML `Assets/Resources/Characters/Ragdoll_Player.prefab`: 11 rigid bodies, 11 box colliders, 10 CharacterJoint components. Matching render bones in `MobileNPC_Client.prefab`: Right_Arm, Left_Arm, Right_Foot, Right_Leg, Left_Foot, Left_Leg, Skull, Spine, Right_Hand, Left_Hand, Skeleton. **Only Skeleton has a different parent name** (`Ragdoll_Player` vs `Root`). That confirms the prior root-parent error was an incorrect validation condition, not a fundamentally different NPC bone rig.
+- Added a Unity EditMode/NUnit regression test `MobileNPCRagdollPrefabTests` (under `Assets/Editor/Assembly-CSharp-Editor/Tests`). Run it in Unity's Test Runner before a costly Dev Build. It checks all 11 mappings, the 10 native joint links, valid collider anatomy and the inert NPC visual-root Rigidbody. It is a PREFAB inspection test; it does not simulate the death ragdoll or replace the in-game physics test.
+- `MobileNPCZombieRiskAssessment` now compares the nearest three distinct nearby live zombies for each admitted local visual assessment, not just a single nearest that could be hidden behind a wall. Even close contacts must meet the obstruction test. Empty areas do not consume the global optical budget. At most eight locally observed positions remain in finite short-term memory.
+- Scavenging objectives are now postponed when the immediately predicted walking leg INCREASES danger toward personally observed zombies; postponement does not count as visiting or inspecting that room.
+- After actual stalling at a static building face, contour probing now examines several short offsets on BOTH sides. It favors a physically clear opening; more importantly, a partial A* frontier that still stops outside a wall no longer automatically suppresses this verified facade search.
+- **Remaining unresolved**: the licensed ASPFP graph dependency in `Test3`; generalized long-range entrance/room connectivity; collision-certified jumping/crouching through diverse window shapes. Do not claim these are resolved from source edits alone. No Unity runtime test was executed through the GitHub API.
+
