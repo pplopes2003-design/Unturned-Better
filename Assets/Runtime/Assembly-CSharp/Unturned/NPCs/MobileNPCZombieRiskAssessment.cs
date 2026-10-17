@@ -9,7 +9,12 @@ namespace SDG.Unturned
     [DisallowMultipleComponent]
     public sealed class MobileNPCZombieRiskAssessment : MonoBehaviour
     {
-        private const int MaximumKnown = 6;
+        private const int MaximumKnown = 8;
+        // Cache the three nearest locally present candidates before optical checks.
+        // The old single-nearest selection failed when a zombie was behind a wall
+        // while a second, visible zombie was walking straight toward the NPC.
+        private readonly Zombie[] nearestCandidates = new Zombie[3];
+        private readonly float[] nearestDistances = new float[3];
         private readonly Vector3[] observed = new Vector3[MaximumKnown];
         private readonly float[] expires = new float[MaximumKnown];
         private readonly RaycastHit[] rayHits = new RaycastHit[12];
@@ -41,13 +46,17 @@ namespace SDG.Unturned
             Zombie visible = perception.VisibleZombie;
             if (visible != null && !visible.isDead)
                 RememberObservedServer(visible.transform.position);
-            // Other nearby zombies can be heard at striking distance; farther
-            // ones require an actual unobstructed short local line of sight.
+            // Bounded personal hazard scan. Build a nearest-three shortlist
+            // without allocating or raycasting every zombie in the map.
+            // Close zombies behind a wall are NOT automatically known.
             List<Zombie> zombies = ZombieManager.AllZombies;
             if (zombies != null)
             {
-                Zombie nearest = null;
-                float nearestSqr = 15f * 15f;
+                for (int k = 0; k < nearestCandidates.Length; ++k)
+                {
+                    nearestCandidates[k] = null;
+                    nearestDistances[k] = 15f * 15f;
+                }
                 for (int i = 0; i < zombies.Count; ++i)
                 {
                     Zombie candidate = zombies[i];
@@ -55,23 +64,38 @@ namespace SDG.Unturned
                         || !candidate.gameObject.activeInHierarchy)
                         continue;
                     Vector3 delta = candidate.transform.position - transform.position;
+                    if (Mathf.Abs(delta.y) >= 3.0f)
+                        continue;
                     float sq = delta.sqrMagnitude;
-                    if (sq < nearestSqr)
+                    for (int j = 0; j < nearestCandidates.Length; ++j)
                     {
-                        nearest = candidate;
-                        nearestSqr = sq;
+                        if (sq >= nearestDistances[j])
+                            continue;
+                        for (int k = nearestCandidates.Length - 1; k > j; --k)
+                        {
+                            nearestCandidates[k] = nearestCandidates[k - 1];
+                            nearestDistances[k] = nearestDistances[k - 1];
+                        }
+                        nearestCandidates[j] = candidate;
+                        nearestDistances[j] = sq;
+                        break;
                     }
-                    // Contact-range awareness does not require scanning
-                    // through distant walls or using enemies outside hearing.
-                    if (sq <= 3.7f * 3.7f && Mathf.Abs(delta.y) < 2.5f)
-                        RememberObservedServer(candidate.transform.position);
                 }
-                if (nearest != null && nearestSqr > 3.7f * 3.7f
-                    && Time.time >= nextSharedOpticalAt)
+                // The optical budget is spread globally; actors in a crowd
+                // receive independent sightings, not a global zombie list.
+                // Existing perception.VisibleZombie still updates without
+                // consuming these supplementary checks.
+                if (Time.time >= nextSharedOpticalAt)
                 {
-                    nextSharedOpticalAt = Time.time + 0.075f;
-                    if (CanReallySeeServer(nearest))
-                        RememberObservedServer(nearest.transform.position);
+                    nextSharedOpticalAt = Time.time + 0.020f;
+                    for (int i = 0; i < nearestCandidates.Length; ++i)
+                    {
+                        Zombie candidate = nearestCandidates[i];
+                        if (candidate == null)
+                            continue;
+                        if (CanReallySeeServer(candidate))
+                            RememberObservedServer(candidate.transform.position);
+                    }
                 }
             }
 
@@ -156,7 +180,7 @@ namespace SDG.Unturned
             }
             if (slot < 0) return;
             observed[slot] = pos;
-            expires[slot] = Time.time + 3.0f;
+            expires[slot] = Time.time + 4.5f;
         }
 
         public float GetKnownRiskAtServer(Vector3 point)
