@@ -241,6 +241,22 @@ namespace SDG.Unturned
         {
             if (!Provider.isServer || !Level.isLoaded || (vitals != null && vitals.IsDead))
                 return currentJob;
+            if (MobileNPCSettings.CombatOnly)
+            {
+                // Combat-only keeps ordinary collision-aware tactical patrol,
+                // but never invents a scavenging, trading, survival or
+                // settlement obligation to override enemy pursuit or healing.
+                if (!initialized || currentJob != Job.Patrol)
+                {
+                    if (group != null)
+                        group.ReleaseGuardPostServer();
+                    ReleaseExplorationSectorServer(false, false);
+                    currentJob = Job.Patrol;
+                    initialized = true;
+                    jobCommittedUntil = Time.time + 30f;
+                }
+                return Job.Patrol;
+            }
             if (Time.time < nextEvaluationTime)
                 return currentJob;
             nextEvaluationTime = Time.time + Mathf.Max(2f, evaluationInterval)
