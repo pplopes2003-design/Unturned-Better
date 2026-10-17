@@ -195,7 +195,8 @@ namespace SDG.Unturned
 			return true;
 		}
 		public static bool TrySpawnServer(GameObject prefab, Vector3 position, Quaternion rotation,
-			MobileNPCHumanoidDisposition.Role role, out GameObject instance, out string error)
+			MobileNPCHumanoidDisposition.Role role, out GameObject instance, out string error,
+			bool giveFreshCombatKit = true)
 		{
 			instance = null;
 			error = null;
@@ -232,6 +233,12 @@ namespace SDG.Unturned
 				error = "The requested mobile NPC faction role is invalid.";
 				return false;
 			}
+
+			// Even explicit test commands requesting friendly/neutral actors
+			// create hostiles in the isolated CombatOnly sandbox. This does
+			// not mutate the caller's saved Normal-mode preference.
+			if (MobileNPCSettings.CombatOnly)
+				role = MobileNPCHumanoidDisposition.Role.Hostile;
 
 			// Unity rotations should be unit quaternions. Normalize valid caller input so
 			// small numeric drift does not leak into the spawned transform.
@@ -399,6 +406,9 @@ namespace SDG.Unturned
 				groupMember = spawned.AddComponent<MobileNPCGroupMember>();
 			}
 			groupMember.InitializeServer();
+			// Configure real combat-only brains and initial owned inventory
+			// exactly ONCE for fresh spawns. Restored actors use JSON gear.
+			MobileNPCCombatOnlyPolicy.ConfigureSpawnServer(spawned, giveFreshCombatKit);
 
 			if (!motor.IsInitialized)
 			{
