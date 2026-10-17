@@ -3082,6 +3082,17 @@ namespace SDG.Unturned
 				return;
 			}
 
+			// Fallback without the optional licensed native A* graph: when
+			// physically stalled along a HOUSE facade, the NPC can choose
+			// one VERIFIED lateral standing location toward an opening rather
+			// than oscillate in front of the same wall/closed window. It
+			// never crosses a wall, teleports, or assumes a fake portal.
+			if (autonomyPlanner != null
+				&& autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge
+				&& consecutiveStuckRecoveries >= 1
+				&& TryChooseVerifiedFacadeContourServer(destination))
+				return;
+
 			// Conservative fallback: retain the prior single-hop detour when the grid
 			// cannot find a route in the bounded search area.
 			Vector3 desired = toGoal.normalized;
@@ -3150,6 +3161,90 @@ namespace SDG.Unturned
 				detourGoalSnapshot = destination;
 				hasDetourWaypoint = true;
 			}
+		}
+
+		/// <summary>
+		/// Without the native ASPFP DLL, the small local grid may terminate
+		/// at a wall rather than at the distant entrance. Physically observe
+		/// the nearest STATIC facade, then try two short walkable sideways
+		/// positions using the motor's real capsule/continuous-floor tests.
+		/// This never authorizes walking through a door or window.
+		/// </summary>
+		private bool TryChooseVerifiedFacadeContourServer(Vector3 destination)
+		{
+			if (!Provider.isServer || characterController == null
+				|| !characterController.enabled
+				|| PlanarDistanceSquared(destination, transform.position) < 7f * 7f
+				|| Mathf.Abs(destination.y - transform.position.y) > 0.9f)
+				return false;
+			Vector3 toward = destination - transform.position;
+			toward.y = 0f;
+			float length = toward.magnitude;
+			if (length < 0.3f) return false;
+			Vector3 origin = transform.position + Vector3.up * 1.05f;
+			Vector3 forward = toward / length;
+			int count = Physics.SphereCastNonAlloc(origin, 0.2f, forward,
+				ObstacleHitBuffer, Mathf.Min(2.2f, length), obstacleMask,
+				QueryTriggerInteraction.Ignore);
+			if (count <= 0 || count >= ObstacleHitBuffer.Length)
+				return false;
+			float nearestDist = float.PositiveInfinity;
+			Vector3 wallNormal = Vector3.zero;
+			for (int i = 0; i < count; ++i)
+			{
+				Collider col = ObstacleHitBuffer[i].collider;
+				if (col == null || IsOwnCollider(col)
+					|| col.GetComponentInParent<InteractableDoor>() != null
+					|| col.GetComponentInParent<Player>() != null
+					|| col.GetComponentInParent<Zombie>() != null
+					|| col.GetComponentInParent<MobileNPCHumanoidVitals>() != null
+					|| col.attachedRigidbody != null && !col.attachedRigidbody.isKinematic
+					|| ObstacleHitBuffer[i].distance >= nearestDist)
+					continue;
+				nearestDist = ObstacleHitBuffer[i].distance;
+				wallNormal = ObstacleHitBuffer[i].normal;
+			}
+			wallNormal.y = 0f;
+			if (wallNormal.sqrMagnitude < 0.3f)
+				return false;
+			wallNormal.Normalize();
+			Vector3 tangent = Vector3.Cross(Vector3.up, wallNormal).normalized;
+			Vector3 best = Vector3.zero;
+			float bestScore = float.NegativeInfinity;
+			for (int side = -1; side <= 1; side += 2)
+			{
+				Vector3 estimate = transform.position
+					+ tangent * (side * 3.2f) + wallNormal * 0.25f;
+				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(estimate,
+					1.5f, 1.5f, roamingGroundMask, roamingMaximumSlope,
+					out Vector3 ground, out _)
+					|| !IsValidScoutingFootingServer(ground)
+					|| !CanSafelyShortcutRouteCorner(ground)
+					|| zombieRisk != null
+						&& zombieRisk.GetKnownRiskAtServer(ground) >= 0.75f
+					|| autonomyPlanner != null
+						&& !autonomyPlanner.IsCandidateAllowedServer(ground))
+					continue;
+				float score = Vector3.Distance(transform.position, destination)
+					- Vector3.Distance(ground, destination)
+					- LocalDeadEndPenalty(ground, destination);
+				if (score > bestScore)
+				{
+					bestScore = score;
+					best = ground;
+				}
+			}
+			if (bestScore == float.NegativeInfinity)
+				return false;
+			detourWaypoint = best;
+			detourGoalSnapshot = destination;
+			hasDetourWaypoint = true;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			Debug.Log("[MobileNPCFacade] verified contour npc=" + name
+				+ " next=" + best + " goal=" + destination
+				+ " (no portal assumed).", this);
+#endif
+			return true;
 		}
 
 		/// <summary>
