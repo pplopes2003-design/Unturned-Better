@@ -2159,11 +2159,21 @@ namespace SDG.Unturned
 				return;
 			}
 
+			// Walking DOWN Washington's terrain from a higher spawn is
+			// ordinary movement, not a fall-through-world incident. The old
+			// unconditional per-frame Physics.RaycastAll generated 207 false
+			// FALL DIAGNOSTIC entries in the supplied Player(4).log while the
+			// CharacterController explicitly reported isGrounded=True.
+			if (characterController.isGrounded)
+				return;
+
 			// First probe close to the NPC. This detects a short collision failure before
 			// gravity can accelerate into an unrecoverable fall. RaycastAll lets us ignore
 			// the NPC's own CharacterController and visual hierarchy explicitly.
 			float currentY = transform.position.y;
-			if (currentY < spawnPosition.y - 1.5f && Time.time >= nextFallingDiagnosticTime)
+			if (currentY < spawnPosition.y - 1.5f
+				&& !characterController.isGrounded
+				&& Time.time >= nextFallingDiagnosticTime)
 			{
 				nextFallingDiagnosticTime = Time.time + 2.0f;
 				DiagnoseFallingNPC(currentY);
@@ -4336,7 +4346,10 @@ namespace SDG.Unturned
 				? Mathf.Clamp(requestedCellSize, RouteGridCellSize * 0.5f, RouteGridCellSize)
 				: !requireExactLocalGoal
 					&& consecutiveStuckRecoveries >= 2 && goalOffset.sqrMagnitude > 36f
-						? 2.0f : RouteGridCellSize;
+						? (autonomyPlanner != null
+							&& autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge
+							&& goalOffset.sqrMagnitude > 196f ? 3.0f : 2.0f)
+						: RouteGridCellSize;
 
 			Vector3 localGoal = transform.position + Vector3.ClampMagnitude(goalOffset, RouteGridCenter * localCellSize);
 			Vector3[] positions = routeSearchPositions;
@@ -4529,7 +4542,14 @@ namespace SDG.Unturned
 						}
 						exposureCost = routeSearchExposure[next] == 2 ? 0f : 1.45f;
 					}
-					float tentative = costs[current] + edgeLength + exposureCost;
+					// The route planner must avoid a currently personally KNOWN
+					// zombie cluster, not merely avoid a dangerous destination.
+					// Short-lived firsthand risk adds a traversal cost but never
+					// grants knowledge of zombies hidden across the whole map.
+					float observedZombieExposure = zombieRisk != null
+						? zombieRisk.GetKnownRiskAtServer(positions[next]) : 0f;
+					float zombieCost = observedZombieExposure * 5.0f;
+					float tentative = costs[current] + edgeLength + exposureCost + zombieCost;
 					if (tentative < costs[next])
 					{
 						costs[next] = tentative;
