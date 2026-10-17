@@ -122,8 +122,12 @@ namespace SDG.Unturned
             return autonomy.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge;
         }
 
-        public bool IsWaitingForInspectionServer => isActive && awaitingScan
-            && Time.time < awaitingScanUntil;
+        // A routine survey is a committed short-term intention. Other
+        // tactical goals still pre-empt it; arbitrary roaming must not.
+        public bool IsActiveSurveyServer => Provider.isServer && isActive
+            && Time.time < expiresAt;
+        public bool IsWaitingForInspectionServer => IsActiveSurveyServer
+            && awaitingScan && Time.time < awaitingScanUntil;
 
         public void ReportArrivedServer(Vector3 actualDestination)
         {
