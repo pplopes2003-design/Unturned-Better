@@ -599,6 +599,37 @@ namespace SDG.Unturned
 					TryChooseRoamingDestination();
 			}
 
+			// Refuse an optional scouting assignment which would lead
+			// INTO a recently observed zombie group. A postponed site is
+			// not a visited room or permanent impassable geometry.
+			if (!hasBrainDestination && hasRoamingDestination && zombieRisk != null)
+			{
+				Vector3 towardSite = roamingDestination - transform.position;
+				towardSite.y = 0f;
+				float length = towardSite.magnitude;
+				if (length > 0.5f)
+				{
+					Vector3 imminent = transform.position
+						+ towardSite / length * Mathf.Min(5f, length);
+					float currentRisk = zombieRisk.GetKnownRiskAtServer(transform.position);
+					float approachRisk = zombieRisk.GetKnownRiskAtServer(imminent);
+					if (approachRisk >= 0.8f && approachRisk > currentRisk + 0.15f)
+					{
+						if (autonomyPlanner != null)
+							autonomyPlanner.ReleaseExplorationSectorServer(false, false);
+						hasRoamingDestination = false;
+						routeWaypoints.Clear();
+						routeWaypointIndex = 0;
+						hasDetourWaypoint = false;
+						nextRoamingDecisionTime = Time.time + Random.Range(2.0f, 3.0f);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+						Debug.Log("[MobileNPCZombieRisk] postponed unsafe scouting approach npc="
+							+ name + " risk=" + approachRisk.ToString("F2"), this);
+#endif
+					}
+				}
+			}
+
 			bool waitingForDoorToOpen = false;
 			bool waitingForLearnedAccess = false;
 			// Shared across route planning AND ground movement / jump arbitration.
@@ -3174,7 +3205,7 @@ namespace SDG.Unturned
 		{
 			if (!Provider.isServer || characterController == null
 				|| !characterController.enabled
-				|| PlanarDistanceSquared(destination, transform.position) < 7f * 7f
+				|| PlanarDistanceSquared(destination, transform.position) < 2.5f * 2.5f
 				|| Mathf.Abs(destination.y - transform.position.y) > 0.9f)
 				return false;
 			Vector3 toward = destination - transform.position;
@@ -3211,27 +3242,51 @@ namespace SDG.Unturned
 			Vector3 tangent = Vector3.Cross(Vector3.up, wallNormal).normalized;
 			Vector3 best = Vector3.zero;
 			float bestScore = float.NegativeInfinity;
+			bool bestObservedGap = false;
+			float radius = Mathf.Clamp(obstacleProbeRadius, 0.05f,
+				Mathf.Max(0.05f, characterController.radius * 0.9f));
+			// Test both sides of the actually observed facade at several
+			// short distances, including a doorway only 2-3m sideways.
+			// The previous 7m goal threshold could never activate for a
+			// small room on the opposite side of the very same wall.
 			for (int side = -1; side <= 1; side += 2)
 			{
-				Vector3 estimate = transform.position
-					+ tangent * (side * 3.2f) + wallNormal * 0.25f;
-				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(estimate,
-					1.5f, 1.5f, roamingGroundMask, roamingMaximumSlope,
-					out Vector3 ground, out _)
-					|| !IsValidScoutingFootingServer(ground)
-					|| !CanSafelyShortcutRouteCorner(ground)
-					|| zombieRisk != null
-						&& zombieRisk.GetKnownRiskAtServer(ground) >= 0.75f
-					|| autonomyPlanner != null
-						&& !autonomyPlanner.IsCandidateAllowedServer(ground))
-					continue;
-				float score = Vector3.Distance(transform.position, destination)
-					- Vector3.Distance(ground, destination)
-					- LocalDeadEndPenalty(ground, destination);
-				if (score > bestScore)
+				for (int step = 0; step < 3; ++step)
 				{
-					bestScore = score;
-					best = ground;
+					float sideways = 2.2f + step * 0.75f;
+					Vector3 estimate = transform.position
+						+ tangent * (side * sideways) + wallNormal * 0.25f;
+					if (!MobileNPCSpawnService.TryFindSafeGroundPosition(estimate,
+						1.5f, 1.5f, roamingGroundMask, roamingMaximumSlope,
+						out Vector3 ground, out _)
+						|| !IsValidScoutingFootingServer(ground)
+						|| !CanSafelyShortcutRouteCorner(ground)
+						|| zombieRisk != null
+							&& zombieRisk.GetKnownRiskAtServer(ground) >= 0.75f
+						|| autonomyPlanner != null
+							&& !autonomyPlanner.IsCandidateAllowedServer(ground))
+						continue;
+					Vector3 towardRoom = destination - ground;
+					towardRoom.y = 0f;
+					float toRoom = towardRoom.magnitude;
+					// Seeing a clear capsule-width approach toward the goal
+					// distinguishes an actual gap from another piece of wall.
+					// Final traversal still uses the normal motor collision.
+					bool observedGap = toRoom > 0.1f
+						&& !IsObstacleBlockingAlong(
+							ground + Vector3.up * 1.05f, radius,
+							towardRoom / toRoom, Mathf.Min(2.2f, toRoom));
+					float score = Vector3.Distance(transform.position, destination)
+						- Vector3.Distance(ground, destination)
+						- LocalDeadEndPenalty(ground, destination)
+						+ (observedGap ? 5.0f : 0f)
+						- (step * 0.10f);
+					if (score > bestScore)
+					{
+						bestScore = score;
+						best = ground;
+						bestObservedGap = observedGap;
+					}
 				}
 			}
 			if (bestScore == float.NegativeInfinity)
@@ -3242,6 +3297,7 @@ namespace SDG.Unturned
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
 			Debug.Log("[MobileNPCFacade] verified contour npc=" + name
 				+ " next=" + best + " goal=" + destination
+				+ " gapObserved=" + bestObservedGap
 				+ " (no portal assumed).", this);
 #endif
 			return true;
