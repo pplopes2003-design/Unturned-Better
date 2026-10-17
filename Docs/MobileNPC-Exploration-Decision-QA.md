@@ -45,3 +45,20 @@ Target branch: `feature/npc-ai-foundation`. These checks are **manual Unity Dev 
 - After a mode or occupation change, verify factions remain in control of player hostility and NPC-vs-NPC diplomacy. The combat-mode population choices apply to **fresh automatic spawns**; old saved actors keep their own faction and profession.
 
 **Static source cross-reference checks are NOT a Unity compilation or playtest.** Inspect the first new `Player.log` for compiler errors, spawned actor profession/faction audits, survey state transitions, successful ItemManager transfers and main-thread profiler cost.
+
+## Interior routing and local block QA (2026-10-16 navigation pass)
+
+This pass improves **grounded candidates and doorway evidence**. It does not generate room polygons or assume a passage exists merely because a room contains authored loot spawns.
+
+1. In a dense Washington city block, enable Normal NPC population and observe that the current `LevelItems.spawns` region is inspected **before** neighbors. Per-region candidate quotas avoid spending the bounded search budget outside the NPC's current area.
+2. Watch `[MobileNPCInteriorSurvey] BEGIN / NEXT / ARRIVED / INSPECTED / END` in `Player.log`. A successful route must end in actual destination arrival and a completed scanner callback; a `NEXT` assignment is not a successful room visit.
+3. The next inspection candidate receives a score based on nearby actual map-authored item spots, physical ground/standing space, floor difference, personal visit history, and a short physical door/wall assessment. A wall is a **penalty**, not a fictitious locked portal or an automatic no-route verdict.
+4. Test an authentic player-built **locked door** and an **unlocked registered native door**. The survey never changes door state. Only `MobileNPCDoorNavigation` may request opening an unlocked and registered door, when the motor is physically near and blocked by that door. A closed locked door may require a different physically valid route; never walk through it.
+5. Test stairs and small upper floors: a different level is allowed as a **candidate**, but the motor must establish a physically traversed stair/ladder or valid native path. No vertical teleport and no fake "entered second floor" event.
+6. Spawn inside a building with the NPC's own capsule near a candidate: `IsValidScoutingFootingServer` must ignore the NPC's own CharacterController but reject an actual occupied location. Test a floor, shelf and narrow corridor.
+7. Confirm a staged survey is **not interrupted by optional random roaming** while waiting for next-room candidate admission or teammate sector release. Enemy combat/medical/tactical goals must preempt immediately, however.
+8. When a trader with a loaded pack has a real vendor at an established nearby base, the physical **delivery route outranks optional room searches**, and the transfer still requires genuine proximity and authoritative inventory movement.
+9. Profile many NPCs (start 10, then 20, then 40) in Washington. The local multi-room pass uses at most 96 authored hints and 10 ground/occupancy probes per survey decision, with a 75ms shared admission spacing between NPCs. Monitor `Physics.Simulate`, NPC motor time, and the log for excessive `BEGIN/END` cycling.
+10. Unity script `.meta` GUIDs for `MobileNPCInteriorSurvey`, `MobileNPCOccupation`, `MobileNPCTraderLogistics` and `MobileNPCArchetypePolicy` are now tracked in GitHub. On checkout confirm the imported scripts have stable GUIDs and no missing-script warnings.
+
+**Not proven until the user runs a Windows Unity 2022.3.62f3 Dev Build:** C# compilation, actual navigation through Washington house doors/stairs, absence of stuck loops, loot pickup, death/ragdoll/melee presentation and frame-time. These tests cannot be substituted by a text-only inspection.
