@@ -320,7 +320,7 @@ namespace SDG.Unturned
 				role = MobileNPCHumanoidDisposition.Role.Hostile;
 
 			if (!MobileNPCSpawnService.TrySpawnServer(prefab, position, rotation, role,
-				out GameObject instance, out error))
+				out GameObject instance, out error, false))
 				return false;
 
 			try
