@@ -92,6 +92,17 @@ namespace SDG.Unturned
 		// Optional fine-grid inspection only for nearby, same-floor unknown
 		// passages. An independent shared slot caps the extra physics work.
 		private static float nextSharedNarrowPassageSlot;
+		// Room-scavenging hints must inspect the NPC's OWN region first.
+		// Nearby 8 regions are a fallback, not an opportunity to exhaust
+		// a capped global scan before reaching the current town block.
+		private static readonly Vector2Int[] UrbanRegionOffsets =
+		{
+			new Vector2Int(0, 0),
+			new Vector2Int(1, 0), new Vector2Int(-1, 0),
+			new Vector2Int(0, 1), new Vector2Int(0, -1),
+			new Vector2Int(1, 1), new Vector2Int(-1, 1),
+			new Vector2Int(1, -1), new Vector2Int(-1, -1)
+		};
 		private static readonly Vector2Int[] RouteGridDirections =
 		{
 			new Vector2Int(1, 0), new Vector2Int(-1, 0),
@@ -4746,6 +4757,22 @@ namespace SDG.Unturned
 				center + Vector3.up * halfSegment, radius, obstacleMask);
 		}
 
+		/// <summary>
+		/// The SAME body-sized occupancy test used by actual local A*,
+		/// unlike Physics.CheckCapsule, ignores our own CharacterController
+		/// and keeps a small floor clearance. This is just a destination
+		/// preflight: it never proves an A* route or authorizes a jump.
+		/// </summary>
+		public bool IsValidScoutingFootingServer(Vector3 grounded)
+		{
+			return Provider.isServer && hasInitialized
+				&& characterController != null && characterController.enabled
+				&& Level.checkSafeIncludingClipVolumes(grounded)
+				&& !IsRouteNodeOccupied(grounded,
+					Mathf.Clamp(obstacleProbeRadius, 0.05f,
+						characterController.radius * 0.9f));
+		}
+
 		private bool IsRouteNodeOccupied(Vector3 groundPosition, float radius)
 		{
 			float height = Mathf.Max(radius * 2f, characterController.height);
@@ -5165,21 +5192,25 @@ namespace SDG.Unturned
 			int physicalProbes = 0;
 			float bestScore = float.PositiveInfinity;
 			float range = Mathf.Min(radius, 84f);
-			for (int dx = -1; dx <= 1 && scanned < 144; ++dx)
+			for (int regionIndex = 0;
+				regionIndex < UrbanRegionOffsets.Length && scanned < 144;
+				++regionIndex)
 			{
-				for (int dz = -1; dz <= 1 && scanned < 144; ++dz)
+				Vector2Int offset = UrbanRegionOffsets[regionIndex];
+				int x = center.x + offset.x, z = center.y + offset.y;
+				if (x < 0 || z < 0 || x >= Regions.WORLD_SIZE
+					|| z >= Regions.WORLD_SIZE)
+					continue;
+				List<ItemSpawnpoint> sites = LevelItems.spawns[x, z];
+				if (sites == null || sites.Count == 0)
+					continue;
+				int quota = Mathf.Min(144 - scanned, regionIndex == 0 ? 48 : 12);
+				int stride = Mathf.Max(1, Mathf.CeilToInt(sites.Count / (float)quota));
+				int checkedInRegion = 0;
+				for (int i = 0; i < sites.Count && checkedInRegion < quota; i += stride)
 				{
-					int x = center.x + dx, z = center.y + dz;
-					if (x < 0 || z < 0 || x >= Regions.WORLD_SIZE
-						|| z >= Regions.WORLD_SIZE)
-						continue;
-					List<ItemSpawnpoint> sites = LevelItems.spawns[x, z];
-					if (sites == null || sites.Count == 0)
-						continue;
-					int stride = Mathf.Max(1, sites.Count / 24);
-					for (int i = 0; i < sites.Count && scanned < 144; i += stride)
-					{
-						++scanned;
+					++scanned;
+					++checkedInRegion;
 						ItemSpawnpoint site = sites[i];
 						if (site == null)
 							continue;
@@ -5202,9 +5233,7 @@ namespace SDG.Unturned
 							|| Mathf.Abs(ground.y - hint.y) > 1.7f
 							|| PlanarDistanceSquared(ground, transform.position) < 4f * 4f
 							|| !autonomyPlanner.IsCandidateAllowedServer(ground)
-							|| Physics.CheckCapsule(ground + Vector3.up * 0.35f,
-								ground + Vector3.up * 1.65f, 0.34f,
-								RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore))
+							|| !IsValidScoutingFootingServer(ground))
 							continue;
 						float score = distanceSq * Random.Range(0.78f, 1.22f);
 						if (score < bestScore)
@@ -5212,7 +5241,6 @@ namespace SDG.Unturned
 							bestScore = score;
 							destination = ground;
 						}
-					}
 				}
 			}
 			return bestScore < float.PositiveInfinity;
