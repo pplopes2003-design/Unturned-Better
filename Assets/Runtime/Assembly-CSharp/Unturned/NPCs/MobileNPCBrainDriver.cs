@@ -860,26 +860,32 @@ namespace SDG.Unturned
 
 			Vector3 best = Vector3.zero;
 			float bestScore = float.PositiveInfinity;
-			// Three short escape bearings; never run through a known zombie
-			// just because the desired ground target is farther away.
-			for (int i = -2; i <= 2; ++i)
+			// The physical exact-route validator only accepts targets
+			// within sqrt(42) = 6.48m. The previous 7m retreat
+			// proposal was ALWAYS rejected before a plan could start.
+			// Sample two close rings and several safe side bearings.
+			for (int ring = 0; ring < 2; ++ring)
 			{
-				Vector3 direction = Quaternion.AngleAxis(i * 28f, Vector3.up) * away;
-				Vector3 estimate = transform.position + direction * 7f;
-				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(estimate,
-					1.5f, 1.5f, RayMasks.BLOCK_COLLISION | RayMasks.GROUND2,
-					55f, out Vector3 ground, out Collider support, out _)
-					|| support == null
-					|| Mathf.Abs(ground.y - transform.position.y) > 0.75f
-					|| risk.GetKnownRiskAtServer(ground) > hereRisk * 0.65f
-					|| !motor.CanReachNearbyCoverServer(ground))
-					continue;
-				float score = risk.GetKnownRiskAtServer(ground)
-					+ Vector3.Distance(ground, transform.position) * 0.015f;
-				if (score < bestScore)
+				float distance = ring == 0 ? 4.2f : 5.6f;
+				for (int i = -2; i <= 2; ++i)
 				{
-					bestScore = score;
-					best = ground;
+					Vector3 direction = Quaternion.AngleAxis(i * 28f, Vector3.up) * away;
+					Vector3 estimate = transform.position + direction * distance;
+					if (!MobileNPCSpawnService.TryFindSafeGroundPosition(estimate,
+						1.5f, 1.5f, RayMasks.BLOCK_COLLISION | RayMasks.GROUND2,
+						55f, out Vector3 ground, out Collider support, out _)
+						|| support == null
+						|| Mathf.Abs(ground.y - transform.position.y) > 0.75f
+						|| risk.GetKnownRiskAtServer(ground) > hereRisk * 0.78f
+						|| !motor.CanReachNearbyCoverServer(ground))
+						continue;
+					float score = risk.GetKnownRiskAtServer(ground)
+						+ Vector3.Distance(ground, transform.position) * 0.015f;
+					if (score < bestScore)
+					{
+						bestScore = score;
+						best = ground;
+					}
 				}
 			}
 			if (bestScore == float.PositiveInfinity
