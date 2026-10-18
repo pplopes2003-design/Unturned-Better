@@ -114,6 +114,7 @@ namespace SDG.Unturned
 		private CharacterController characterController;
 		private MobileNPCBrainDriver brainDriver;
 		private MobileNPCHumanoidRangedCombat rangedCombat;
+		private MobileNPCHumanoidCombat meleeCombat;
 		private bool wasHoldingDeliberateFire;
 		private MobileNPCAutonomyPlanner autonomyPlanner;
 		private MobileNPCZombieRiskAssessment zombieRisk;
@@ -457,6 +458,7 @@ namespace SDG.Unturned
 			characterController = GetComponent<CharacterController>();
 			brainDriver = GetComponent<MobileNPCBrainDriver>();
 			rangedCombat = GetComponent<MobileNPCHumanoidRangedCombat>();
+			meleeCombat = GetComponent<MobileNPCHumanoidCombat>();
 			autonomyPlanner = GetComponent<MobileNPCAutonomyPlanner>();
 			zombieRisk = GetComponent<MobileNPCZombieRiskAssessment>();
 			injurySystem = GetComponent<MobileNPCInjurySystem>();
@@ -1104,7 +1106,65 @@ namespace SDG.Unturned
 				}
 			}
 
+			// Locomotion and gaze are DIFFERENT controls. Previously an NPC
+			// retreating backwards rotated its whole skeleton 180 degrees
+			// away from the visible zombie, while melee still fired a punch.
+			// Keep real CharacterController movement away from danger but
+			// continue watching the personally seen, selected attacker.
+			if (visualPerception == null)
+				visualPerception = GetComponent<MobileNPCHumanoidPerception>();
+			if (meleeCombat == null)
+				meleeCombat = GetComponent<MobileNPCHumanoidCombat>();
+			Zombie combatZombie = visualPerception != null
+				? visualPerception.VisibleZombie : null;
+			bool hasCurrentZombieSight = combatZombie != null
+				&& !combatZombie.isDead && brainDriver.Target != null
+				&& (brainDriver.Target == combatZombie.transform
+					|| brainDriver.Target.IsChildOf(combatZombie.transform));
+			Vector3 toCombatZombie = Vector3.zero;
+			float zombieDistance = float.PositiveInfinity;
+			if (hasCurrentZombieSight)
+			{
+				toCombatZombie = combatZombie.transform.position - transform.position;
+				toCombatZombie.y = 0f;
+				zombieDistance = toCombatZombie.magnitude;
+			}
+			bool gunCanDefend = rangedCombat != null
+				&& rangedCombat.SelectedGunAsset != null
+				&& rangedCombat.RoundsRemaining > 0;
+			if (hasCurrentZombieSight && !gunCanDefend
+				&& meleeCombat != null && zombieDistance > 0.1f
+				&& !isUnderwater && !isPlannedJumping && !IsTraversingLadder
+				&& brainDriver.CurrentGoal == MobileNPCTactics.Goal.None)
+			{
+				float meleeReach = meleeCombat.ZombieMeleeReachServer;
+				if (zombieDistance <= meleeReach + 0.18f)
+				{
+					// Stop advancing into the zombie during an imminent punch.
+					// When crowded between attacks, make a SHORT physical
+					// backward step while still facing it. No teleports or
+					// blind escape into a wall/another known zombie.
+					planarDirection = Vector3.zero;
+					if (zombieDistance < Mathf.Min(1.3f, meleeReach * 0.83f)
+						&& !meleeCombat.IsAttackReady)
+					{
+						Vector3 away = -toCombatZombie / zombieDistance;
+						Vector3 backstep = transform.position + away * 1.05f;
+						if (CanSafelyShortcutRouteCorner(backstep)
+							&& (zombieRisk == null
+								|| zombieRisk.GetKnownRiskAtServer(backstep)
+								<= zombieRisk.GetKnownRiskAtServer(transform.position) + 0.05f))
+							planarDirection = away;
+					}
+				}
+			}
+
 			Vector3 facingDirection = planarDirection;
+			bool faceZombieInsteadOfTravel = hasCurrentZombieSight
+				&& zombieDistance > 0.1f
+				&& zombieDistance <= (gunCanDefend ? 3.0f : 5.0f);
+			if (faceZombieInsteadOfTravel)
+				facingDirection = toCombatZombie;
 			if (holdDeliberateFire && brainDriver.Target != null)
 			{
 				// Turn only toward a presently visible, legally selected
@@ -1123,6 +1183,7 @@ namespace SDG.Unturned
 			{
 				Quaternion targetRotation = Quaternion.LookRotation(facingDirection, Vector3.up);
 				float steeringSpeed = brainDriver.IsListening ? turnSpeed * 0.35f
+					: faceZombieInsteadOfTravel ? Mathf.Max(220f, turnSpeed)
 					: holdDeliberateFire ? Mathf.Min(110f, turnSpeed * 0.4f) : turnSpeed;
 				transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, steeringSpeed * deltaTime);
 			}
