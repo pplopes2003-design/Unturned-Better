@@ -3175,8 +3175,6 @@ namespace SDG.Unturned
 				// compare a locally verified lateral opening before repeating
 				// a deceptive partial route toward the same blocked wall.
 				if (hasPartialLocalFrontier && consecutiveStuckRecoveries >= 1
-					&& autonomyPlanner != null
-					&& autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge
 					&& TryChooseVerifiedFacadeContourServer(destination))
 				{
 					routeWaypoints.Clear();
@@ -3194,9 +3192,7 @@ namespace SDG.Unturned
 			// one VERIFIED lateral standing location toward an opening rather
 			// than oscillate in front of the same wall/closed window. It
 			// never crosses a wall, teleports, or assumes a fake portal.
-			if (autonomyPlanner != null
-				&& autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge
-				&& consecutiveStuckRecoveries >= 1
+			if (consecutiveStuckRecoveries >= 1
 				&& TryChooseVerifiedFacadeContourServer(destination))
 				return;
 
@@ -3349,9 +3345,11 @@ namespace SDG.Unturned
 					// distinguishes an actual gap from another piece of wall.
 					// Final traversal still uses the normal motor collision.
 					bool observedGap = toRoom > 0.1f
-						&& !IsObstacleBlockingAlong(
-							ground + Vector3.up * 1.05f, radius,
-							towardRoom / toRoom, Mathf.Min(2.2f, toRoom));
+						&& IsStandingCapsuleCorridorClearServer(
+							ground, towardRoom / toRoom,
+							Mathf.Min(2.2f, toRoom), radius)
+						&& HasWalkableGroundAheadFromServer(ground,
+							towardRoom / toRoom, Mathf.Min(1.2f, toRoom));
 					float score = Vector3.Distance(transform.position, destination)
 						- Vector3.Distance(ground, destination)
 						- LocalDeadEndPenalty(ground, destination)
@@ -3377,6 +3375,42 @@ namespace SDG.Unturned
 				+ " (no portal assumed).", this);
 #endif
 			return true;
+		}
+
+		/// <summary>Detect a real standing-width passage in the nearby
+		/// facade; a chest-height ray alone can see through a window while
+		/// missing the solid sill that blocks the controller's legs.</summary>
+		private bool IsStandingCapsuleCorridorClearServer(Vector3 foot,
+			Vector3 direction, float distance, float radius)
+		{
+			if (characterController == null || distance <= 0.1f)
+				return false;
+			float height = Mathf.Max(characterController.height, radius * 2.1f);
+			int count = Physics.CapsuleCastNonAlloc(
+				foot + Vector3.up * radius,
+				foot + Vector3.up * (height - radius),
+				radius, direction, ObstacleHitBuffer,
+				distance, obstacleMask, QueryTriggerInteraction.Ignore);
+			if (count >= ObstacleHitBuffer.Length)
+				return false;
+			for (int i = 0; i < count; ++i)
+				if (ObstacleHitBuffer[i].collider != null
+					&& !IsOwnCollider(ObstacleHitBuffer[i].collider))
+					return false;
+			return true;
+		}
+
+		private bool HasWalkableGroundAheadFromServer(Vector3 foot,
+			Vector3 direction, float distance)
+		{
+			Vector3 predicted = foot + direction * distance;
+			return MobileNPCSpawnService.TryFindSafeGroundPosition(predicted,
+				0.65f, 0.65f, roamingGroundMask,
+				Mathf.Min(characterController.slopeLimit, roamingMaximumSlope),
+				out Vector3 actual, out Collider support, out _)
+				&& support != null && !IsFurnitureSurfaceCollider(support)
+				&& Mathf.Abs(actual.y - foot.y) <= 0.35f
+				&& Level.checkSafeIncludingClipVolumes(actual);
 		}
 
 		/// <summary>
