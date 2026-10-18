@@ -92,6 +92,11 @@ namespace SDG.Unturned
 		// Optional fine-grid inspection only for nearby, same-floor unknown
 		// passages. An independent shared slot caps the extra physics work.
 		private static float nextSharedNarrowPassageSlot;
+		// Source-less geometry openings: no prefab "Door", marker, teleport
+		// or navmesh provider is assumed to exist on vanilla building facades.
+		private static float nextSharedPhysicalThresholdSlot;
+		private float nextPhysicalThresholdScanTime;
+		private float nextPhysicalThresholdDiagnosticTime;
 		// A verified floor-level low opening can be crawled through with
 		// the SAME real CharacterController at its actual crouch height.
 		// Neither window sills nor solid walls are passable by this helper.
@@ -3164,6 +3169,15 @@ namespace SDG.Unturned
 			if (TryChooseVerifiedFurnitureGroundExit(destination))
 				return;
 
+			// Window- and doorway-sized architectural gaps are not an
+			// InteractableDoor or a LevelObject switch. After a REAL wall
+			// stall search the local facade for a physically traversable
+			// free-space opening, then commit a two-sided threshold route.
+			// Shared/per-actor caps prevent high NPC counts from spiking.
+			if (consecutiveStuckRecoveries >= 1
+				&& TryPlanObservedBuildingThresholdServer(destination))
+				return;
+
 			// First attempt the normal 81-node, same-floor local A*.
 			// A narrow real doorway can lie BETWEEN the 1.25m sample points:
 			// if the coarse route fails or stops short of a nearby exact goal,
@@ -3286,6 +3300,177 @@ namespace SDG.Unturned
 				detourGoalSnapshot = destination;
 				hasDetourWaypoint = true;
 			}
+		}
+
+		/// <summary>
+		/// Geometric THRESHOLD detection for doorless Unturned buildings.
+		/// A real facade wall is hit first; lateral sampling then searches
+		/// for a clear, grounded capsule passage FROM the present side to
+		/// the goal side. A physically reachable near-side approach and
+		/// continuous-floor cross-side leg become real route waypoints.
+		/// No asset names, visual art guesses, scene door components, or
+		/// invented window links. Raised-sill windows remain vault-only.
+		/// </summary>
+		private bool TryPlanObservedBuildingThresholdServer(Vector3 destination)
+		{
+			if (!Provider.isServer || characterController == null
+				|| !characterController.enabled || !characterController.isGrounded
+				|| Time.time < nextPhysicalThresholdScanTime
+				|| Time.time < nextSharedPhysicalThresholdSlot
+				|| Mathf.Abs(destination.y - transform.position.y) > 0.8f)
+				return false;
+			Vector3 toGoal = destination - transform.position;
+			toGoal.y = 0f;
+			if (toGoal.sqrMagnitude < 4f)
+				return false;
+			// Only attempt after existing route recovery has diagnosed a
+			// stall; do not add an architectural scan to every combat tick.
+			nextPhysicalThresholdScanTime = Time.time + 2.0f;
+			nextSharedPhysicalThresholdSlot = Time.time + 0.32f;
+			Vector3 forward = toGoal.normalized;
+			float radius = Mathf.Clamp(obstacleProbeRadius, 0.15f,
+				Mathf.Max(0.15f, characterController.radius * 0.9f));
+			Vector3 origin = transform.position + Vector3.up * 1.05f;
+			int hits = Physics.SphereCastNonAlloc(origin, radius, forward,
+				ObstacleHitBuffer, 2.0f, obstacleMask,
+				QueryTriggerInteraction.Ignore);
+			if (hits <= 0 || hits >= ObstacleHitBuffer.Length)
+				return false;
+			RaycastHit wall = default(RaycastHit);
+			float nearest = float.PositiveInfinity;
+			for (int i = 0; i < hits; ++i)
+			{
+				RaycastHit candidate = ObstacleHitBuffer[i];
+				Collider collider = candidate.collider;
+				if (collider == null || IsOwnCollider(collider)
+					|| collider.GetComponentInParent<MobileNPCHumanoidVitals>() != null
+					|| collider.GetComponentInParent<Zombie>() != null
+					|| collider.GetComponentInParent<Player>() != null
+					|| collider.GetComponentInParent<InteractableVehicle>() != null
+					|| collider.attachedRigidbody != null
+						&& !collider.attachedRigidbody.isKinematic
+					|| candidate.distance >= nearest)
+					continue;
+				wall = candidate;
+				nearest = candidate.distance;
+			}
+			if (wall.collider == null)
+				return false;
+			Vector3 outward = wall.normal;
+			outward.y = 0f;
+			if (outward.sqrMagnitude < 0.45f)
+				return false;
+			outward.Normalize();
+			// Only cross if the goal is behind this observed facade, not
+			// merely elsewhere along the current side of the building.
+			if (Vector3.Dot(destination - wall.point, outward) >= -0.35f)
+				return false;
+			Vector3 sideways = Vector3.Cross(Vector3.up, outward).normalized;
+			Vector3 wallFoot = new Vector3(wall.point.x,
+				transform.position.y, wall.point.z);
+			float bestScore = float.NegativeInfinity;
+			Vector3 bestNear = Vector3.zero, bestFar = Vector3.zero;
+			// Search at most 6m along each side; no global architecture
+			// scan. One geometrically verified candidate then gets one
+			// expensive exact local path to its near-side approach.
+			for (int side = -1; side <= 1; side += 2)
+			{
+				for (int step = 1; step <= 9; ++step)
+				{
+					float lateral = step * 0.65f;
+					Vector3 aperture = wallFoot + sideways * (side * lateral);
+					Vector3 nearEstimate = aperture + outward * 0.95f;
+					Vector3 farEstimate = aperture - outward * 1.15f;
+					if (!MobileNPCSpawnService.TryFindSafeGroundPosition(
+						nearEstimate, 0.8f, 0.9f, roamingGroundMask,
+						roamingMaximumSlope, out Vector3 near, out Collider nearFloor, out _)
+						|| !MobileNPCSpawnService.TryFindSafeGroundPosition(
+						farEstimate, 0.8f, 0.9f, roamingGroundMask,
+						roamingMaximumSlope, out Vector3 far, out Collider farFloor, out _)
+						|| nearFloor == null || farFloor == null
+						|| IsFurnitureSurfaceCollider(nearFloor)
+						|| IsFurnitureSurfaceCollider(farFloor)
+						|| Mathf.Abs(near.y - transform.position.y) > 0.50f
+						|| Mathf.Abs(near.y - far.y) > 0.36f
+						|| !Level.checkSafeIncludingClipVolumes(near)
+						|| !Level.checkSafeIncludingClipVolumes(far)
+						|| IsRouteNodeOccupied(near, radius)
+						|| IsRouteNodeOccupied(far, radius))
+						continue;
+
+					Vector3 crossing = far - near;
+					crossing.y = 0f;
+					float length = crossing.magnitude;
+					if (length < 0.4f || length > 3.0f
+						|| !IsStandingCapsuleCorridorClearServer(
+							near, crossing / length, length, radius)
+						|| !HasContinuousLocalFloor(near, far))
+						continue;
+					// Sample the middle quarters as well. The facade can
+					// have two floors with a gap even when its two sides
+					// happen to be walkable (windows, ledges, balconies).
+					bool floorConnected = true;
+					for (int sample = 1; sample <= 3; ++sample)
+					{
+						Vector3 samplePoint = Vector3.Lerp(near, far,
+							sample * 0.25f);
+						if (!MobileNPCSpawnService.TryFindSafeGroundPosition(
+							samplePoint, 0.55f, 0.65f, roamingGroundMask,
+							roamingMaximumSlope, out Vector3 floor, out Collider floorHit, out _)
+							|| floorHit == null || IsFurnitureSurfaceCollider(floorHit)
+							|| Mathf.Abs(floor.y - samplePoint.y) > 0.28f)
+						{
+							floorConnected = false;
+							break;
+						}
+					}
+					if (!floorConnected)
+						continue;
+					float score = -PlanarDistanceSquared(transform.position, near) * 0.22f
+						- PlanarDistanceSquared(far, destination) * 0.018f
+						- LocalDeadEndPenalty(near, destination);
+					if (zombieRisk != null)
+						score -= zombieRisk.GetKnownRiskAtServer(far) * 4f;
+					if (score > bestScore)
+					{
+						bestScore = score;
+						bestNear = near;
+						bestFar = far;
+					}
+				}
+			}
+			if (bestScore == float.NegativeInfinity)
+				return false;
+
+			// EXACT physical approach. The fallback's "closest reachable
+			// frontier" is not sufficient proof of reaching this entrance.
+			narrowPassageScratch.Clear();
+			if (!CanSafelyShortcutRouteCorner(bestNear)
+				&& !TryBuildLocalRoute(bestNear, narrowPassageScratch, true))
+				return false;
+			routeWaypoints.Clear();
+			if (narrowPassageScratch.Count > 0)
+				routeWaypoints.AddRange(narrowPassageScratch);
+			else
+				routeWaypoints.Add(bestNear);
+			// Commit to crossing the FULL physical wall threshold before
+			// replanning toward the original investigation/combat goal.
+			routeWaypoints.Add(bestFar);
+			routeWaypointIndex = 0;
+			hasDetourWaypoint = false;
+			hasPartialLocalFrontier = false;
+			detourGoalSnapshot = destination;
+			nextPlannedRouteValidationTime = 0f;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			if (Time.time >= nextPhysicalThresholdDiagnosticTime)
+			{
+				nextPhysicalThresholdDiagnosticTime = Time.time + 5f;
+				Debug.Log("[MobileNPCGeometryThreshold] Valid physical gap npc="
+					+ name + " approach=" + bestNear + " beyond=" + bestFar
+					+ " goal=" + destination + ".", this);
+			}
+#endif
+			return true;
 		}
 
 		/// <summary>
