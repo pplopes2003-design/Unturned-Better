@@ -117,3 +117,27 @@ This pass improves **grounded candidates and doorway evidence**. It does not gen
 7. Profile near-house scenarios with 10, 20 and 40 NPCs; local low-opening scan is globally budgeted. Record Unity warnings and whether CPU time rises due to `ObjectManager.tryGetRegion` registration, capsule checks or facade recovery.
 
 **Not validated in Unity in this source-code round.** Multi-room path finding without ASPFP, upstairs transitions and general window sill vaulting still remain open. The user's confirmed ragdoll/punch success is real playtest evidence for the old bug, not proof of these new changes.
+
+## Corrected requirement: EMPTY architectural doorway / portal, NOT an interactable door (2026-10-18)
+
+The player clarified that the "doors" they report are **doorless openings in map-built houses**; normal Unturned POIs often have a gap framed by static walls, with NO `InteractableDoor`, `InteractableObjectBinaryState`, or other entity to click. Existing built-barricade and binary-state door interaction handlers may remain for the rare relevant asset, but **they are NOT the fix for these ordinary house entrances**.
+
+### Source-level gap analysis and corrections
+
+- The native ASPFP backend can be absent in the custom SDK build. The fallback is a fixed 9×9 local grid, normally 1.25m between cells. An empty doorway narrower than its grid or located beyond its grid boundary is not consistently found. A partial path ending directly outside a wall is not evidence of entering the house.
+- New `MobileNPCHumanoidMotor.TryPlanObservedBuildingThresholdServer` is attempted **only after genuine lack-of-progress evidence** (`consecutiveStuckRecoveries`), through the existing throttled detour pipeline and a globally throttled gap scanner. It starts by **physically contacting a wall**, then searches at most 5.85m along both tangents. A candidate passage requires same-level, supported floor on BOTH sides, full-size capsule clearance through the threshold, mid-passage floor continuity, map bounds and no false furniture support. It never invents a door, changes native map object state, disables colliders or teleports.
+- The NPC commits a collision-checked **two-sided threshold route**: get to an EXACT physically accessible exterior/interior approach, then traverse the measured opening to the verified far side. It can do the reverse trip using the opposite wall normal. An approach blocked by other geometry is rejected; at most one alternative candidate is attempted per admission. Near/far threshold waypoints require within **0.4m** instead of the usual 1m, and the general corner-skip optimization cannot jump over their alignment waypoint.
+- Previously an upper-body-only blocker ray could miss a *solid window sill*, preventing the detour planner from being invoked at all. A **measured motor stall** now requests replanning even if the chest probe is clear; a second 0.42m low-height cast observes the actual sill. A raised window is NOT silently converted into a walkable door: its full-body capsule sweep must still reject it. Authentic elevated-window vaults continue as a separate unsolved feature.
+- Source marker: `[MobileNPCGeometryThreshold] Valid physical gap npc=... approach=... beyond=... goal=...` in development builds. This marker proves ONLY accepted geometric checks and a planned route, **NOT** successful physical arrival. True crossing requires visual observation / movement positions and ordinary `MobileNPCInteriorSurvey ARRIVED` and `INSPECTED` when that job is enabled.
+
+### Exact Dev Build acceptance tests
+
+1. **Empty frame outside → inside:** use a Washington house doorway without a physical door. Spawn an NPC outside and give it a real pursuit/loot goal inside. It must approach the actual empty entrance, pass between the wall colliders and physically reach the inside location. Watch gap scan logs AND position over time.
+2. **Inside → outside:** place a pursuit target outside with NPC inside the same house. It must discover the same geometry from the interior face and pass the exit without teleporting.
+3. **Aperture narrow vs 1m waypoint arrival:** pick a tight open door frame; the NPC must align at the approach to within 0.4m, not skip it because an A* cell is within 1m of the threshold.
+4. **Solid wall and raised window:** with a window opening but intact lower sill, the measured low cast may detect the obstruction; the full-height threshold classifier MUST reject passage in the standing route. Only physics-verified vault could allow that route, and it is not promised to work universally.
+5. **Distant doorway and interior furniture:** a gap >5m sideways may require multiple physically grounded contour hops. When two gaps are near, a blocked near-side approach to the first must not suppress checking one alternate gap. Furniture/rubble must not be classified as walkable doorway.
+6. **Combat:** test with a zombie target behind walls and same-room navigation. Do not permit attacking unseen opponents through solid walls; investigate sounds only within existing perception.
+7. **Performance:** test 1/10/20/40 NPCs at houses, compare CPU spikes and memory. Physical threshold scans are admitted once about every 0.32s globally and once per 2.0s per eligible NPC. No proof of 60 FPS without profiler.
+
+**Status:** source committed; the user has NOT yet tested this new geometry-threshold route in Unity. The user's existing positive ragdoll/punch playtest stands, but doorless ingress/egress, raised window vaulting and broad multi-room routing remain runtime-unverified.
