@@ -721,6 +721,7 @@ namespace SDG.Unturned
 			activeAccessFinalWaypointIndex = -1;
 				hasPendingKnownAccessPath = false;
 				hasPartialLocalFrontier = false;
+				hasPhysicalThresholdRoute = false;
 				ResetObservedEntranceSurvey();
 				// Completed/expired goals must not leave the previous route waiting to
 				// steer the next unrelated investigation or roaming destination.
@@ -740,6 +741,7 @@ namespace SDG.Unturned
 					|| Mathf.Abs(destination.y - detourGoalSnapshot.y) > 0.8f)
 				{
 					hasPartialLocalFrontier = false;
+					hasPhysicalThresholdRoute = false;
 					ResetObservedEntranceSurvey();
 					// A failed native corridor for the OLD goal must not
 					// delay an unrelated incoming combat or rescue task.
@@ -982,6 +984,7 @@ namespace SDG.Unturned
 								// Real geometry invalidated this path; a stale remembered
 								// route must lose confidence before any new planning.
 								ReportLearnedRouteInvalidatedServer();
+								hasPhysicalThresholdRoute = false;
 								routeWaypoints.Clear();
 								routeWaypointIndex = 0;
 								hasDetourWaypoint = false;
