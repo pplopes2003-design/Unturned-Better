@@ -31,6 +31,8 @@ namespace SDG.Unturned
 		private readonly RaycastHit[] lineOfSightHits = new RaycastHit[16];
 
 		public bool IsAttackReady => Provider.isServer && Time.time >= nextAttackTime;
+		public float ZombieMeleeReachServer => Provider.isServer
+			? GetMeleeReachServer(false) : attackRange;
 		public event System.Action AttackStarted;
 
 		private void Awake()
@@ -184,6 +186,21 @@ namespace SDG.Unturned
 				if (hitZombie != targetZombie) return;
 			}
 
+			// A punch has a real forward arc. Merely standing within 1-3m
+			// while running backwards cannot hit a zombie behind the NPC.
+			// The motor rotates toward a currently visible opponent
+			// independently from the direction of a tactical withdrawal.
+			if (targetZombie != null)
+			{
+				Vector3 towardZombie = targetZombie.transform.position - transform.position;
+				towardZombie.y = 0f;
+				Vector3 forward = transform.forward;
+				forward.y = 0f;
+				if (towardZombie.sqrMagnitude < 0.01f
+					|| Vector3.Dot(forward.normalized, towardZombie.normalized) < 0.72f)
+					return;
+			}
+
 			// Avoid an unrealistic simultaneous full-auto burst and heavy melee
 			// hit except when an enemy is physically crowding the NPC.
 			if (rangedCombat != null && rangedCombat.SelectedGunAsset != null
@@ -305,11 +322,37 @@ namespace SDG.Unturned
 				|| (targetZombie.transform.position - transform.position).sqrMagnitude > GetMeleeReachServer(false) * GetMeleeReachServer(false))
 				return false;
 
+			Vector3 facing = targetZombie.transform.position - transform.position;
+			facing.y = 0f;
+			if (facing.sqrMagnitude < 0.01f
+				|| Vector3.Dot(transform.forward, facing.normalized) < 0.72f)
+				return false; // also protect externally triggered melee calls
+
 			float resolvedDamage = ResolveAttackDamageServer(false,
 				out ItemMeleeAsset usedWeapon, out Item usedItem);
 			if (resolvedDamage <= 0f)
 				return false;
+
+			// Back-of-head opening is one surprise hit, not unlimited
+			// bonus damage after the zombie has turned and acquired us.
+			// Reuse the NATIVE SKULL/SPINE multiplier of the owned melee
+			// weapon. Avoid guessed multipliers or an automatic kill.
+			bool surpriseFromBehind = !targetZombie.isHunting
+				&& Vector3.Dot(targetZombie.transform.forward, facing.normalized) > 0.6f;
+			if (surpriseFromBehind && usedWeapon != null && usedItem != null)
+			{
+				float skull = usedWeapon.zombieOrPlayerDamageMultiplier.multiply(ELimb.SKULL);
+				float spine = usedWeapon.zombieOrPlayerDamageMultiplier.multiply(ELimb.SPINE);
+				if (skull > spine && spine > 0f)
+					resolvedDamage *= skull / spine;
+			}
 			CommitStrikeServer(usedWeapon, usedItem);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			if (surpriseFromBehind)
+				Debug.Log("[MobileNPCMelee] Rear zombie head-opening npc=" + name
+					+ " zombie=" + targetZombie.name + " damage="
+					+ resolvedDamage.ToString("F1") + ".", this);
+#endif
 			ushort damage = (ushort)Mathf.Clamp(Mathf.RoundToInt(resolvedDamage), 1, ushort.MaxValue);
 			targetZombie.askDamage(damage, attackDirection.sqrMagnitude > 0.0001f
 				? attackDirection.normalized * damage : transform.forward * damage,
