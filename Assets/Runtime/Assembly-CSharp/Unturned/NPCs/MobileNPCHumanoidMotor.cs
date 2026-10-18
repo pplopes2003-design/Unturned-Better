@@ -101,6 +101,7 @@ namespace SDG.Unturned
 		// tolerance could skip its approach and push into a solid jamb.
 		private bool hasPhysicalThresholdRoute;
 		private int physicalThresholdApproachWaypointIndex;
+		private Vector3 physicalThresholdBeyondWaypoint;
 		// A verified floor-level low opening can be crawled through with
 		// the SAME real CharacterController at its actual crouch height.
 		// Neither window sills nor solid walls are passable by this helper.
@@ -846,6 +847,18 @@ namespace SDG.Unturned
 							consecutiveVerticalPlanFailures = 0;
 					}
 				}
+				// A destination/route may have been replaced by an unrelated
+				// tactical system. Never apply narrow-portal tolerances to
+				// its waypoints merely because their count happens to match.
+				if (hasPhysicalThresholdRoute
+					&& (routeWaypoints.Count < 2
+						|| physicalThresholdApproachWaypointIndex
+							>= routeWaypoints.Count - 1
+						|| PlanarDistanceSquared(
+							routeWaypoints[routeWaypoints.Count - 1],
+							physicalThresholdBeyondWaypoint) > 0.09f))
+					hasPhysicalThresholdRoute = false;
+
 				// Detour-style corridor refinement: skip an unnecessary near
 				// corner only when a short, same-floor collision- and ground-
 				// checked segment to the following waypoint is traversable.
@@ -3514,6 +3527,7 @@ namespace SDG.Unturned
 			// Commit to crossing the FULL physical wall threshold before
 			// replanning toward the original investigation/combat goal.
 			routeWaypoints.Add(bestFar);
+			physicalThresholdBeyondWaypoint = bestFar;
 			hasPhysicalThresholdRoute = true;
 			routeWaypointIndex = 0;
 			hasDetourWaypoint = false;
