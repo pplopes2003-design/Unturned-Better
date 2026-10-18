@@ -92,6 +92,14 @@ namespace SDG.Unturned
 		// Optional fine-grid inspection only for nearby, same-floor unknown
 		// passages. An independent shared slot caps the extra physics work.
 		private static float nextSharedNarrowPassageSlot;
+		// A verified floor-level low opening can be crawled through with
+		// the SAME real CharacterController at its actual crouch height.
+		// Neither window sills nor solid walls are passable by this helper.
+		private static float nextSharedLowOpeningProbeAt;
+		private float nextLowOpeningProbeAt;
+		private float lowOpeningVerifiedUntil;
+		private float nextLowOpeningDiagnosticAt;
+		private Vector3 lowOpeningHeading;
 		// Room-scavenging hints must inspect the NPC's OWN region first.
 		// Nearby 8 regions are a fallback, not an opportunity to exhaust
 		// a capped global scan before reaching the current town block.
@@ -1081,10 +1089,23 @@ namespace SDG.Unturned
 				planarDirection = Vector3.zero;
 
 			bool wantedToMove = planarDirection.sqrMagnitude > 0.0001f;
+			bool verifiedLowOpening = false;
 			if (wantedToMove)
 			{
 				Vector3 requestedDirection = planarDirection;
-				if (useRecoverySteering && Time.time < recoverySteeringUntil)
+				// Only choose crouch-through when standing is obstructed
+				// AND the crouched capsule plus actual floor are clear.
+				// Do this before ordinary obstacle steering diverts the
+				// requested route away from a real low doorway.
+				verifiedLowOpening = !isUnderwater && !isPlannedJumping
+					&& !IsTraversingLadder && !brainDriver.IsListening
+					&& characterController.isGrounded
+					&& TryRecognizeLowOpeningServer(requestedDirection);
+				if (verifiedLowOpening)
+				{
+					planarDirection = requestedDirection;
+				}
+				else if (useRecoverySteering && Time.time < recoverySteeringUntil)
 				{
 					// The new contact-normal wall-follow already committed to
 					// one PHYSICAL side. Rotating the goal by a second 90 degrees
@@ -1223,10 +1244,11 @@ namespace SDG.Unturned
 			// is confirmed visible just because a prior footstep suggested
 			// listening or stalking. Cover itself remains a tactical goal.
 			UpdateCrouchStance(!isPlannedJumping && !IsTraversingLadder
-				&& !targetIsVisible && !seesNonThreateningPlayer
-				&& (gait == MobileNPCLocomotionPolicy.Gait.Sneak
-					|| brainDriver.IsListening || brainDriver.IsAmbushPreparing)
-				&& !isUnderwater);
+				&& !isUnderwater
+				&& (verifiedLowOpening
+					|| !targetIsVisible && !seesNonThreateningPlayer
+						&& (gait == MobileNPCLocomotionPolicy.Gait.Sneak
+							|| brainDriver.IsListening || brainDriver.IsAmbushPreparing)));
 			float speed = gait == MobileNPCLocomotionPolicy.Gait.Sprint && runWhenPursuing
 				? runSpeed : gait == MobileNPCLocomotionPolicy.Gait.Sneak ? sneakSpeed : walkSpeed;
 			speed *= injuryMovementMultiplier;
@@ -3373,6 +3395,67 @@ namespace SDG.Unturned
 				+ " next=" + best + " goal=" + destination
 				+ " gapObserved=" + bestObservedGap
 				+ " (no portal assumed).", this);
+#endif
+			return true;
+		}
+
+		/// <summary>
+		/// Observe one physically possible, floor-level LOW opening ahead:
+		/// standing capsule is blocked by a lintel, crouched capsule is
+		/// unobstructed and a true near-level floor exists beyond. This
+		/// is NOT a through-wall shortcut or a chest-height "window ray."
+		/// Raised windows with solid sills still need a verified vault.
+		/// </summary>
+		private bool TryRecognizeLowOpeningServer(Vector3 desired)
+		{
+			if (!Provider.isServer || characterController == null
+				|| !characterController.enabled || standingHeight < 1.1f)
+				return false;
+			desired.y = 0f;
+			if (desired.sqrMagnitude < 0.5f)
+				return false;
+			desired.Normalize();
+			if (Time.time < lowOpeningVerifiedUntil
+				&& Vector3.Dot(lowOpeningHeading, desired) > 0.95f)
+				return true; // Brief committed physical traversal.
+			if (Time.time < nextLowOpeningProbeAt
+				|| Time.time < nextSharedLowOpeningProbeAt)
+				return false;
+			nextLowOpeningProbeAt = Time.time + 0.55f;
+			nextSharedLowOpeningProbeAt = Time.time + 0.065f;
+			float radius = Mathf.Clamp(characterController.radius * 0.82f, 0.18f, 0.34f);
+			float probe = 1.05f;
+			// Do not shrink the capsule merely to fit alongside a solid
+			// wall or in an already-clear hallway.
+			if (IsStandingCapsuleCorridorClearServer(transform.position,
+				desired, probe, radius))
+				return false;
+			float crouchedHeight = Mathf.Max(characterController.radius * 2.2f,
+				standingHeight * crouchedHeightFraction);
+			int count = Physics.CapsuleCastNonAlloc(
+				transform.position + Vector3.up * radius,
+				transform.position + Vector3.up * (crouchedHeight - radius),
+				radius, desired, ObstacleHitBuffer, probe,
+				obstacleMask, QueryTriggerInteraction.Ignore);
+			if (count >= ObstacleHitBuffer.Length)
+				return false;
+			for (int i = 0; i < count; ++i)
+			{
+				Collider collider = ObstacleHitBuffer[i].collider;
+				if (collider != null && !IsOwnCollider(collider))
+					return false;
+			}
+			if (!HasWalkableGroundAheadFromServer(transform.position, desired, 0.9f))
+				return false;
+			lowOpeningHeading = desired;
+			lowOpeningVerifiedUntil = Time.time + 0.35f;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			if (Time.time >= nextLowOpeningDiagnosticAt)
+			{
+				nextLowOpeningDiagnosticAt = Time.time + 8f;
+				Debug.Log("[MobileNPCLowOpening] Physically checked crouch-through npc="
+					+ name + " at=" + transform.position + ".", this);
+			}
 #endif
 			return true;
 		}
