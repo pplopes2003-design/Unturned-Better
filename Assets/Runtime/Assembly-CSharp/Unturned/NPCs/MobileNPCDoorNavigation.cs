@@ -21,6 +21,7 @@ namespace SDG.Unturned
         private float nextActualOpenAttemptTime;
         private float waitingForDoorAnimationUntil;
         private InteractableDoor lastOpenedDoor;
+        private InteractableObjectBinaryState lastOpenedMapDoor;
         private MobileNPCHumanoidVitals vitals;
 
         private void Awake()
@@ -48,9 +49,11 @@ namespace SDG.Unturned
                 // Retain the active doorway's brief collision-animation wait
                 // between scans; returning false here could erase the planned
                 // corridor before the native hinge animation has cleared.
-                return lastOpenedDoor != null && lastOpenedDoor.isOpen
-                    && Time.time < waitingForDoorAnimationUntil
-                    && (lastOpenedDoor.transform.position - transform.position).sqrMagnitude <= 9f;
+                return Time.time < waitingForDoorAnimationUntil
+                    && (lastOpenedDoor != null && lastOpenedDoor.isOpen
+                        && (lastOpenedDoor.transform.position - transform.position).sqrMagnitude <= 9f
+                        || lastOpenedMapDoor != null && lastOpenedMapDoor.isUsed
+                        && (lastOpenedMapDoor.transform.position - transform.position).sqrMagnitude <= 9f);
             }
 
             nextProbeTime = Time.time + 0.30f;
@@ -81,7 +84,38 @@ namespace SDG.Unturned
 
             // A wall closer than the door is not a door the NPC can reach.
             InteractableDoor door = nearest.GetComponentInParent<InteractableDoor>();
-            if (door == null || !door.isActiveAndEnabled || door.IsChildOfVehicle
+            if (door == null)
+            {
+                // Vanilla map/building doors are LevelObject binary-state
+                // interactables, NOT player-built InteractableDoor barricades.
+                // Only the actual nearest blocking collider can open one.
+                InteractableObjectBinaryState mapDoor =
+                    nearest.GetComponentInParent<InteractableObjectBinaryState>();
+                if (!IsRegisteredPassiveMapDoor(mapDoor)
+                    || (mapDoor.transform.position - transform.position).sqrMagnitude > 9f)
+                    return false;
+                if (mapDoor.isUsed)
+                    return mapDoor == lastOpenedMapDoor
+                        && Time.time < waitingForDoorAnimationUntil;
+                if (!mapDoor.isUsable)
+                    return true; // Native animation/toggle cooldown.
+                if (Time.time < nextActualOpenAttemptTime)
+                    return true;
+                nextActualOpenAttemptTime = Time.time + 1.5f;
+                // Native reliable LevelObject state replication and
+                // animation. No spoofed Player and no disabled collider.
+                ObjectManager.forceObjectBinaryState(
+                    mapDoor.owningLevelObject.transform, true);
+                lastOpenedMapDoor = mapDoor;
+                lastOpenedDoor = null;
+                waitingForDoorAnimationUntil = Time.time + 1.25f;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                Debug.Log("[MobileNPCDoorNavigation] Native map door requested open npc="
+                    + name + " asset=" + mapDoor.objectAsset.name, this);
+#endif
+                return true;
+            }
+            if (!door.isActiveAndEnabled || door.IsChildOfVehicle
                 || door.IsLockedForMobileNPCNavigation
                 || (door.transform.position - transform.position).sqrMagnitude > 9f
                 || !Level.checkSafeIncludingClipVolumes(door.transform.position))
@@ -117,6 +151,7 @@ namespace SDG.Unturned
                 return false;
 
             lastOpenedDoor = door;
+            lastOpenedMapDoor = null;
             waitingForDoorAnimationUntil = Time.time + 1.25f;
             return true;
         }
@@ -144,6 +179,7 @@ namespace SDG.Unturned
                 return false;
 
             InteractableDoor onlyDoor = null;
+            InteractableObjectBinaryState onlyMapDoor = null;
             bool foundDoor = false;
             for (int i = 0; i < count; ++i)
             {
@@ -153,19 +189,29 @@ namespace SDG.Unturned
                     continue;
 
                 InteractableDoor door = hit.GetComponentInParent<InteractableDoor>();
-                if (door == null || !door.isActiveAndEnabled
-                    || door.IsChildOfVehicle
-                    || door.IsLockedForMobileNPCNavigation
-                    || !Level.checkSafeIncludingClipVolumes(door.transform.position))
-                    return false;
-
-                // Every real hit must belong to the SAME single door.
-                if (onlyDoor != null && onlyDoor != door)
-                    return false;
-                onlyDoor = door;
+                if (door != null)
+                {
+                    if (!door.isActiveAndEnabled || door.IsChildOfVehicle
+                        || door.IsLockedForMobileNPCNavigation
+                        || !Level.checkSafeIncludingClipVolumes(door.transform.position)
+                        || onlyMapDoor != null || onlyDoor != null && onlyDoor != door)
+                        return false;
+                    onlyDoor = door;
+                }
+                else
+                {
+                    InteractableObjectBinaryState mapDoor =
+                        hit.GetComponentInParent<InteractableObjectBinaryState>();
+                    if (!IsRegisteredPassiveMapDoor(mapDoor)
+                        || onlyDoor != null || onlyMapDoor != null && onlyMapDoor != mapDoor)
+                        return false;
+                    onlyMapDoor = mapDoor;
+                }
                 foundDoor = true;
             }
-            return foundDoor && IsRegisteredNativeDoor(onlyDoor);
+            return foundDoor && (onlyDoor != null
+                ? IsRegisteredNativeDoor(onlyDoor)
+                : IsRegisteredPassiveMapDoor(onlyMapDoor));
         }
 
         /// <summary>
@@ -187,6 +233,7 @@ namespace SDG.Unturned
                 return false;
 
             InteractableDoor onlyDoor = null;
+            InteractableObjectBinaryState onlyMapDoor = null;
             bool sawDoor = false;
             for (int i = 0; i < count; ++i)
             {
@@ -195,16 +242,57 @@ namespace SDG.Unturned
                     || collider.transform.IsChildOf(transform))
                     continue;
                 InteractableDoor door = collider.GetComponentInParent<InteractableDoor>();
-                if (door == null || !door.isActiveAndEnabled
-                    || door.IsChildOfVehicle || door.IsLockedForMobileNPCNavigation
-                    || !Level.checkSafeIncludingClipVolumes(door.transform.position))
-                    return false;
-                if (onlyDoor != null && onlyDoor != door)
-                    return false;
-                onlyDoor = door;
+                if (door != null)
+                {
+                    if (!door.isActiveAndEnabled || door.IsChildOfVehicle
+                        || door.IsLockedForMobileNPCNavigation
+                        || !Level.checkSafeIncludingClipVolumes(door.transform.position)
+                        || onlyMapDoor != null || onlyDoor != null && onlyDoor != door)
+                        return false;
+                    onlyDoor = door;
+                }
+                else
+                {
+                    InteractableObjectBinaryState mapDoor =
+                        collider.GetComponentInParent<InteractableObjectBinaryState>();
+                    if (!IsRegisteredPassiveMapDoor(mapDoor)
+                        || onlyDoor != null || onlyMapDoor != null && onlyMapDoor != mapDoor)
+                        return false;
+                    onlyMapDoor = mapDoor;
+                }
                 sawDoor = true;
             }
-            return sawDoor && IsRegisteredNativeDoor(onlyDoor);
+            return sawDoor && (onlyDoor != null
+                ? IsRegisteredNativeDoor(onlyDoor)
+                : IsRegisteredPassiveMapDoor(onlyMapDoor));
+        }
+
+        private static bool IsRegisteredPassiveMapDoor(
+            InteractableObjectBinaryState door)
+        {
+            // Only real door-identified map objects, not generators, switches
+            // or event triggers with arbitrary binary state. Refuse powered,
+            // remotely operated, quest-gated and unregistered level objects.
+            if (door == null || !door.isActiveAndEnabled
+                || door.objectAsset == null
+                || door.objectAsset.interactabilityHint != EObjectInteractabilityHint.DOOR
+                || door.objectAsset.interactabilityRemote
+                || door.objectAsset.interactabilityPower != EObjectInteractabilityPower.NONE
+                || door.objectAsset.interactabilityConditions != null
+                    && door.objectAsset.interactabilityConditions.Length > 0
+                || door.owningLevelObject == null
+                || door.owningLevelObject.transform == null)
+                return false;
+            Transform root = door.owningLevelObject.transform;
+            return Level.checkSafeIncludingClipVolumes(root.position)
+                && ObjectManager.tryGetRegion(root,
+                    out byte x, out byte y, out ushort index)
+                && LevelObjects.objects != null
+                && x < LevelObjects.objects.GetLength(0)
+                && y < LevelObjects.objects.GetLength(1)
+                && index < LevelObjects.objects[x, y].Count
+                && LevelObjects.objects[x, y][index] == door.owningLevelObject
+                && door.owningLevelObject.interactable == door;
         }
 
         private static bool IsRegisteredNativeDoor(InteractableDoor door)
