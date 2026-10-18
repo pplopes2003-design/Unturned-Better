@@ -3369,7 +3369,9 @@ namespace SDG.Unturned
 			Vector3 wallFoot = new Vector3(wall.point.x,
 				transform.position.y, wall.point.z);
 			float bestScore = float.NegativeInfinity;
+			float secondScore = float.NegativeInfinity;
 			Vector3 bestNear = Vector3.zero, bestFar = Vector3.zero;
+			Vector3 secondNear = Vector3.zero, secondFar = Vector3.zero;
 			// Search at most 6m along each side; no global architecture
 			// scan. One geometrically verified candidate then gets one
 			// expensive exact local path to its near-side approach.
@@ -3392,6 +3394,8 @@ namespace SDG.Unturned
 						|| IsFurnitureSurfaceCollider(farFloor)
 						|| Mathf.Abs(near.y - transform.position.y) > 0.50f
 						|| Mathf.Abs(near.y - far.y) > 0.36f
+						// A local exact route can only approach nearby openings.
+						|| PlanarDistanceSquared(transform.position, near) > 27f
 						|| !Level.checkSafeIncludingClipVolumes(near)
 						|| !Level.checkSafeIncludingClipVolumes(far)
 						|| IsRouteNodeOccupied(near, radius)
@@ -3433,9 +3437,19 @@ namespace SDG.Unturned
 						score -= zombieRisk.GetKnownRiskAtServer(far) * 4f;
 					if (score > bestScore)
 					{
+						secondScore = bestScore;
+						secondNear = bestNear;
+						secondFar = bestFar;
 						bestScore = score;
 						bestNear = near;
 						bestFar = far;
+					}
+					else if (score > secondScore
+						&& PlanarDistanceSquared(near, bestNear) > 0.64f)
+					{
+						secondScore = score;
+						secondNear = near;
+						secondFar = far;
 					}
 				}
 			}
@@ -3445,9 +3459,22 @@ namespace SDG.Unturned
 			// EXACT physical approach. The fallback's "closest reachable
 			// frontier" is not sufficient proof of reaching this entrance.
 			narrowPassageScratch.Clear();
-			if (!CanSafelyShortcutRouteCorner(bestNear)
-				&& !TryBuildLocalRoute(bestNear, narrowPassageScratch, true))
-				return false;
+			bool firstReachable = CanSafelyShortcutRouteCorner(bestNear)
+				|| TryBuildLocalRoute(bestNear, narrowPassageScratch, true);
+			if (!firstReachable)
+			{
+				// A clear opening is not a valid route if furniture
+				// or a wall blocks its near-side approach. Bounded to
+				// a single runner-up exact-path evaluation.
+				if (secondScore == float.NegativeInfinity)
+					return false;
+				narrowPassageScratch.Clear();
+				if (!CanSafelyShortcutRouteCorner(secondNear)
+					&& !TryBuildLocalRoute(secondNear, narrowPassageScratch, true))
+					return false;
+				bestNear = secondNear;
+				bestFar = secondFar;
+			}
 			routeWaypoints.Clear();
 			if (narrowPassageScratch.Count > 0)
 				routeWaypoints.AddRange(narrowPassageScratch);
