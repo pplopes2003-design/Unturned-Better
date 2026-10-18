@@ -97,6 +97,10 @@ namespace SDG.Unturned
 		private static float nextSharedPhysicalThresholdSlot;
 		private float nextPhysicalThresholdScanTime;
 		private float nextPhysicalThresholdDiagnosticTime;
+		// A physical doorway is narrow: the generic 1m waypoint-arrival
+		// tolerance could skip its approach and push into a solid jamb.
+		private bool hasPhysicalThresholdRoute;
+		private int physicalThresholdApproachWaypointIndex;
 		// A verified floor-level low opening can be crawled through with
 		// the SAME real CharacterController at its actual crouch height.
 		// Neither window sills nor solid walls are passable by this helper.
@@ -845,6 +849,7 @@ namespace SDG.Unturned
 				// checked segment to the following waypoint is traversable.
 				// This never skips the final brain goal or a door/steep stair.
 				if (!isUnderwater && routeWaypointIndex + 1 < routeWaypoints.Count
+					&& !hasPhysicalThresholdRoute
 					&& activeAccessRouteIds.Count == 0
 					&& activeRememberedRouteIndex < 0
 					&& Time.time >= nextRouteCornerShortcutTime)
@@ -857,7 +862,10 @@ namespace SDG.Unturned
 				// Waypoint arrival is planar: the physics controller handles minor
 				// elevation differences independently (stairs, curbs, uneven ground).
 				if (routeWaypointIndex < routeWaypoints.Count
-					&& PlanarDistanceSquared(transform.position, routeWaypoints[routeWaypointIndex]) <= 1.0f
+					&& PlanarDistanceSquared(transform.position, routeWaypoints[routeWaypointIndex])
+					<= (hasPhysicalThresholdRoute
+						&& routeWaypointIndex >= physicalThresholdApproachWaypointIndex
+						? 0.16f : 1.0f)
 					&& Mathf.Abs(routeWaypoints[routeWaypointIndex].y - transform.position.y)
 					<= Mathf.Max(0.45f, characterController.stepOffset + 0.2f))
 				{
@@ -901,6 +909,7 @@ namespace SDG.Unturned
 							}
 						}
 						hasPartialLocalFrontier = false;
+						hasPhysicalThresholdRoute = false;
 						routeWaypoints.Clear();
 						routeWaypointIndex = 0;
 						// Finished the cached waypoints. Final brain destination
@@ -3478,11 +3487,18 @@ namespace SDG.Unturned
 			routeWaypoints.Clear();
 			if (narrowPassageScratch.Count > 0)
 				routeWaypoints.AddRange(narrowPassageScratch);
-			else
+			// Exact-grid routes can legally finish up to 0.92m away from
+			// the requested point. That's wider than a human doorway.
+			// Add the actual tested approach with a 0.4m arrival radius.
+			if (routeWaypoints.Count == 0
+				|| PlanarDistanceSquared(routeWaypoints[routeWaypoints.Count - 1],
+					bestNear) > 0.09f)
 				routeWaypoints.Add(bestNear);
+			physicalThresholdApproachWaypointIndex = routeWaypoints.Count - 1;
 			// Commit to crossing the FULL physical wall threshold before
 			// replanning toward the original investigation/combat goal.
 			routeWaypoints.Add(bestFar);
+			hasPhysicalThresholdRoute = true;
 			routeWaypointIndex = 0;
 			hasDetourWaypoint = false;
 			hasPartialLocalFrontier = false;
