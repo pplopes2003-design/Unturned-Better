@@ -29,6 +29,10 @@ namespace SDG.Unturned
 		private float nextAttackTime;
 		private float nextCombatCheckTime;
 		private readonly RaycastHit[] lineOfSightHits = new RaycastHit[16];
+		// Exact unarmed zombie limb multipliers from PlayerEquipment:
+		// 15 base, 0.3/0.3 limbs, 0.6 spine, 1.1 skull.
+		private static readonly ZombieDamageMultiplier NativeZombieFist =
+			new ZombieDamageMultiplier(15, 0.3f, 0.3f, 0.6f, 1.1f);
 
 		public bool IsAttackReady => Provider.isServer && Time.time >= nextAttackTime;
 		public float ZombieMeleeReachServer => Provider.isServer
@@ -339,10 +343,13 @@ namespace SDG.Unturned
 			// weapon. Avoid guessed multipliers or an automatic kill.
 			bool surpriseFromBehind = !targetZombie.isHunting
 				&& Vector3.Dot(targetZombie.transform.forward, facing.normalized) > 0.6f;
-			if (surpriseFromBehind && usedWeapon != null && usedItem != null)
+			if (surpriseFromBehind)
 			{
-				float skull = usedWeapon.zombieOrPlayerDamageMultiplier.multiply(ELimb.SKULL);
-				float spine = usedWeapon.zombieOrPlayerDamageMultiplier.multiply(ELimb.SPINE);
+				IDamageMultiplier limbProfile = usedWeapon != null
+					? (IDamageMultiplier)usedWeapon.zombieOrPlayerDamageMultiplier
+					: NativeZombieFist;
+				float skull = limbProfile.multiply(ELimb.SKULL);
+				float spine = limbProfile.multiply(ELimb.SPINE);
 				if (skull > spine && spine > 0f)
 					resolvedDamage *= skull / spine;
 			}
@@ -357,6 +364,14 @@ namespace SDG.Unturned
 			targetZombie.askDamage(damage, attackDirection.sqrMagnitude > 0.0001f
 				? attackDirection.normalized * damage : transform.forward * damage,
 				out _, out _, trackKill: false, dropLoot: true);
+			// Getting hit from behind is the end of the surprise opening.
+			// The vanilla zombie alert decides whether/how to turn and hunt.
+			if (surpriseFromBehind && !targetZombie.isDead)
+			{
+				MobileNPCHumanoidVitals attacker = GetComponent<MobileNPCHumanoidVitals>();
+				if (attacker != null)
+					targetZombie.alert(attacker);
+			}
 			WearWeaponOnHitServer(usedWeapon, usedItem);
 			return true;
 		}
