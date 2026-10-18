@@ -1002,7 +1002,10 @@ namespace SDG.Unturned
 					&& routeWaypoints.Count == 0
 					&& goalOffset.sqrMagnitude > stoppingDistance * stoppingDistance
 					&& Time.time >= nextDetourAttemptTime
-					&& IsObstacleBlocking(goalOffset.normalized))
+					// Peitoril de janela: o raio do peito pode estar
+					// livre, mas o CharacterController continua bloqueado.
+					&& (IsObstacleBlocking(goalOffset.normalized)
+						|| consecutiveStuckRecoveries >= 1))
 				{
 					Vector3 doorProbeOrigin = transform.position
 						+ Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f);
@@ -3346,6 +3349,16 @@ namespace SDG.Unturned
 			int hits = Physics.SphereCastNonAlloc(origin, radius, forward,
 				ObstacleHitBuffer, 2.0f, obstacleMask,
 				QueryTriggerInteraction.Ignore);
+			if (hits == 0)
+			{
+				// A raised window can look clear at chest height even
+				// while its solid sill physically blocks the lower body.
+				// Only take this second low probe AFTER a measured stall.
+				origin = transform.position + Vector3.up * 0.42f;
+				hits = Physics.SphereCastNonAlloc(origin, radius, forward,
+					ObstacleHitBuffer, 2.0f, obstacleMask,
+					QueryTriggerInteraction.Ignore);
+			}
 			if (hits <= 0 || hits >= ObstacleHitBuffer.Length)
 				return false;
 			RaycastHit wall = default(RaycastHit);
