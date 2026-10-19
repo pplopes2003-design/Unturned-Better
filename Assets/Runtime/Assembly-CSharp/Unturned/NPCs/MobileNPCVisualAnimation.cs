@@ -35,6 +35,21 @@ namespace SDG.Unturned
         private bool jumpPresentationAttempted;
         private bool missingClimbClipLogged;
         private bool missingCombatStrikeClipLogged;
+        // Native item-specific animation overlays. Players obtain these
+        // from ItemAsset.animations through PlayerAnimator.AddEquippedItemAnimation.
+        // NPCs previously instantiated only the gun mesh, leaving arms at
+        // their unarmed locomotion/bind-pose angles.
+        private AnimationClip[] equippedItemClips;
+        private string equippedWeaponHoldClip;
+        private string currentWeaponActionClip;
+        private float weaponActionUntil;
+        private float suppressWeaponPoseUntil;
+        private bool weaponPosePlaying;
+        private ushort boundWeaponAssetID;
+        private Transform weaponLeftShoulder;
+        private Transform weaponRightShoulder;
+        private Transform weaponSpineHook;
+        private bool missingNativeWeaponAnimationLogged;
         private Transform hitReactionSpine;
         private float proceduralHitUntil;
         private float proceduralHitStartedAt;
@@ -91,6 +106,12 @@ namespace SDG.Unturned
             Transform visual = transform.Find("HumanoidVisual");
             hitReactionSpine = visual != null
                 ? visual.Find("Root/Skeleton/Spine") : null;
+            if (hitReactionSpine != null)
+            {
+                weaponLeftShoulder = hitReactionSpine.Find("Left_Shoulder");
+                weaponRightShoulder = hitReactionSpine.Find("Right_Shoulder");
+                weaponSpineHook = hitReactionSpine.Find("Spine_Hook");
+            }
         }
 
         private void Start()
@@ -110,6 +131,7 @@ namespace SDG.Unturned
             // never a slow clamber or a forced ladder animation.
             if (motor.IsClimbingLadder)
             {
+                SuspendWeaponPose();
                 nextFootstepTime = 0f;
                 // These names are present in Human/Basic/Move and Idle
                 // importers. Play only if the specific NPC_Client runtime
@@ -137,6 +159,7 @@ namespace SDG.Unturned
 
             if (motor.IsJumping)
             {
+                SuspendWeaponPose();
                 nextFootstepTime = 0f;
                 if (!jumpPresentationAttempted)
                 {
@@ -169,6 +192,7 @@ namespace SDG.Unturned
                 return;
             }
             jumpPresentationAttempted = false;
+            MaintainWeaponPose();
 
             if (legacyAnimation != null && Time.time < attackAnimationUntil)
             {
@@ -293,6 +317,11 @@ namespace SDG.Unturned
 
         private void PlayAttackAnimation()
         {
+            // Native weapon overlays use the same shoulder bones as the
+            // verified Punch_Left/Right action. Temporarily release them
+            // so unarmed/melee swings remain visible and ragdoll unaffected.
+            suppressWeaponPoseUntil = Time.time + 1.05f;
+            SuspendWeaponPose();
             PlayAuthenticMeleeAudio();
             // The actual damage is server-authoritative in MobileNPCHumanoidCombat.
             // This adapter only animates a committed swing. Weapon vs fists
@@ -436,14 +465,213 @@ namespace SDG.Unturned
 
         private void HandleShotFired()
         {
-            // Only play clips verified present on this runtime Animation rig.
-            // Shoot audio and weapon model are owned by MobileNPCRangedPresentation.
-            TryPlayActionClip("Shoot", "Fire", "Recoil");
+            // Preserve the held rifle pose when the particular weapon has
+            // no authored firing animation. Sound/model are handled by the
+            // existing presentation component, not by this visual adapter.
+            if (!TryPlayEquippedWeaponAction("Shoot", "Fire", "Recoil"))
+                TryPlayActionClip("Shoot", "Fire", "Recoil");
         }
 
         private void HandleReloadStarted()
         {
-            TryPlayActionClip("Reload");
+            if (!TryPlayEquippedWeaponAction("Reload"))
+                TryPlayActionClip("Reload");
+        }
+
+        /// <summary>
+        /// Mirrors the real third-person PlayerAnimator item setup:
+        /// native ItemAsset animation clips mixed on both shoulders and
+        /// (when applicable) the item's model/hook. No Animator Controller,
+        /// guessed animation names or player gameplay scripts are created.
+        /// Invoked only when a new actual weapon model has been attached.
+        /// </summary>
+        public void BindEquippedWeaponAnimation(ItemAsset asset, Transform itemModel)
+        {
+            ClearEquippedWeaponAnimation();
+            if (asset == null || legacyAnimation == null)
+                return;
+            AnimationClip[] nativeClips = asset.animations;
+            if (nativeClips == null || nativeClips.Length == 0
+                || weaponLeftShoulder == null || weaponRightShoulder == null)
+            {
+                if (!missingNativeWeaponAnimationLogged)
+                {
+                    missingNativeWeaponAnimationLogged = true;
+                    Debug.LogWarning("[MobileNPCWeaponPose] Native item animation or "
+                        + "humanoid shoulder bones unavailable for item " + asset.id + ".", this);
+                }
+                return;
+            }
+            equippedItemClips = nativeClips;
+            boundWeaponAssetID = asset.id;
+            for (int i = 0; i < nativeClips.Length; ++i)
+            {
+                AnimationClip clip = nativeClips[i];
+                if (clip == null || string.IsNullOrEmpty(clip.name)
+                    || !clip.legacy)
+                    continue;
+                // Avoid overwriting NPC_Client's validated locomotion or
+                // punch clips. If an asset reuses one of those names the
+                // native overlay is not safe on this independent rig.
+                if (legacyAnimation[clip.name] != null)
+                    continue;
+                legacyAnimation.AddClip(clip, clip.name);
+                AnimationState state = legacyAnimation[clip.name];
+                if (state == null)
+                    continue;
+                state.AddMixingTransform(weaponLeftShoulder, true);
+                state.AddMixingTransform(weaponRightShoulder, true);
+                if (itemModel != null && weaponSpineHook != null)
+                {
+                    state.AddMixingTransform(weaponSpineHook, true);
+                    state.AddMixingTransform(itemModel, true);
+                }
+                state.layer = 1;
+                state.blendMode = AnimationBlendMode.Blend;
+            }
+            // An authored Idle is preferred for an actual sustained stance.
+            // If absent, Equip's final native keyframe is a better weapon
+            // hold than leaving arms in a low unarmed walking pose.
+            if (IsOwnedWeaponClip("Idle"))
+                equippedWeaponHoldClip = "Idle";
+            else if (IsOwnedWeaponClip("Equip"))
+                equippedWeaponHoldClip = "Equip";
+            else
+            {
+                for (int i = 0; i < nativeClips.Length; ++i)
+                {
+                    if (nativeClips[i] != null
+                        && IsOwnedWeaponClip(nativeClips[i].name)
+                        && nativeClips[i].name.IndexOf("Aim",
+                            System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        equippedWeaponHoldClip = nativeClips[i].name;
+                        break;
+                    }
+                }
+            }
+            if (string.IsNullOrEmpty(equippedWeaponHoldClip))
+            {
+                if (!missingNativeWeaponAnimationLogged)
+                {
+                    missingNativeWeaponAnimationLogged = true;
+                    Debug.LogWarning("[MobileNPCWeaponPose] Item " + asset.id
+                        + " has no usable Idle/Equip/Aim legacy hold clip.", this);
+                }
+                return;
+            }
+            weaponPosePlaying = false;
+            weaponActionUntil = 0f;
+            MaintainWeaponPose();
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Debug.Log("[MobileNPCWeaponPose] Native equipped item " + asset.id
+                + " hold=" + equippedWeaponHoldClip
+                + " clips=" + nativeClips.Length + ".", this);
+#endif
+        }
+
+        private bool IsOwnedWeaponClip(string clipName)
+        {
+            if (equippedItemClips == null || legacyAnimation == null
+                || string.IsNullOrEmpty(clipName)
+                || legacyAnimation[clipName] == null)
+                return false;
+            for (int i = 0; i < equippedItemClips.Length; ++i)
+                if (equippedItemClips[i] != null
+                    && equippedItemClips[i].name == clipName
+                    && equippedItemClips[i].legacy)
+                    return true;
+            return false;
+        }
+
+        private void MaintainWeaponPose()
+        {
+            if (legacyAnimation == null
+                || string.IsNullOrEmpty(equippedWeaponHoldClip)
+                || !IsOwnedWeaponClip(equippedWeaponHoldClip)
+                || Time.time < suppressWeaponPoseUntil
+                || vitals != null && vitals.IsDead)
+                return;
+            if (Time.time < weaponActionUntil)
+                return;
+            if (weaponPosePlaying && legacyAnimation.IsPlaying(equippedWeaponHoldClip))
+                return;
+            currentWeaponActionClip = null;
+            AnimationState state = legacyAnimation[equippedWeaponHoldClip];
+            state.layer = 1;
+            state.wrapMode = equippedWeaponHoldClip == "Idle"
+                ? WrapMode.Loop : WrapMode.ClampForever;
+            state.enabled = true;
+            legacyAnimation.enabled = true;
+            legacyAnimation.CrossFade(equippedWeaponHoldClip, 0.12f);
+            if (!legacyAnimation.IsPlaying(equippedWeaponHoldClip))
+                legacyAnimation.Play(equippedWeaponHoldClip);
+            weaponPosePlaying = legacyAnimation.IsPlaying(equippedWeaponHoldClip);
+        }
+
+        private void SuspendWeaponPose()
+        {
+            if (legacyAnimation == null || equippedItemClips == null)
+                return;
+            for (int i = 0; i < equippedItemClips.Length; ++i)
+            {
+                AnimationClip clip = equippedItemClips[i];
+                if (clip != null && IsOwnedWeaponClip(clip.name))
+                    legacyAnimation.Stop(clip.name);
+            }
+            currentWeaponActionClip = null;
+            weaponActionUntil = 0f;
+            weaponPosePlaying = false;
+        }
+
+        private bool TryPlayEquippedWeaponAction(params string[] names)
+        {
+            if (legacyAnimation == null || equippedItemClips == null
+                || Time.time < suppressWeaponPoseUntil
+                || vitals != null && vitals.IsDead)
+                return false;
+            for (int n = 0; n < names.Length; ++n)
+            {
+                string clipName = names[n];
+                if (!IsOwnedWeaponClip(clipName))
+                    continue;
+                AnimationState state = legacyAnimation[clipName];
+                if (state == null)
+                    continue;
+                state.wrapMode = WrapMode.Once;
+                state.layer = 1;
+                legacyAnimation.enabled = true;
+                legacyAnimation.CrossFade(clipName, Mathf.Min(crossFadeDuration, 0.08f));
+                if (!legacyAnimation.IsPlaying(clipName))
+                    legacyAnimation.Play(clipName);
+                if (!legacyAnimation.IsPlaying(clipName))
+                    return false;
+                weaponPosePlaying = false;
+                currentWeaponActionClip = clipName;
+                weaponActionUntil = Time.time + Mathf.Max(0.15f, state.length);
+                return true;
+            }
+            return false;
+        }
+
+        public void ClearEquippedWeaponAnimation()
+        {
+            if (equippedItemClips != null && legacyAnimation != null)
+            {
+                SuspendWeaponPose();
+                for (int i = 0; i < equippedItemClips.Length; ++i)
+                {
+                    AnimationClip clip = equippedItemClips[i];
+                    if (clip != null && IsOwnedWeaponClip(clip.name))
+                        legacyAnimation.RemoveClip(clip.name);
+                }
+            }
+            equippedItemClips = null;
+            equippedWeaponHoldClip = null;
+            currentWeaponActionClip = null;
+            boundWeaponAssetID = 0;
+            weaponPosePlaying = false;
+            weaponActionUntil = 0f;
         }
 
         private bool TryPlayActionClip(params string[] fragments)
@@ -488,6 +716,7 @@ namespace SDG.Unturned
 
         private void HandleDied()
         {
+            ClearEquippedWeaponAnimation();
             // Death presentation releases the authored bone rigidbodies. Stop this
             // locomotion writer so it cannot cross-fade Idle_Stand over the ragdoll.
             enabled = false;
@@ -495,6 +724,7 @@ namespace SDG.Unturned
 
         private void OnDestroy()
         {
+            ClearEquippedWeaponAnimation();
             if (combat != null)
             {
                 combat.AttackStarted -= PlayAttackAnimation;
