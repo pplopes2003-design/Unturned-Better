@@ -22,6 +22,7 @@ namespace SDG.Unturned
         private MobileNPCHumanoidRangedCombat combat;
         private MobileNPCHumanoidCombat meleeCombat;
         private MobileNPCInventory inventory;
+        private MobileNPCVisualAnimation weaponAnimation;
         private float meleeVisualUntil;
         private Transform skeleton;
         private Transform equippedWeaponModel;
@@ -33,6 +34,7 @@ namespace SDG.Unturned
             combat = GetComponent<MobileNPCHumanoidRangedCombat>();
             meleeCombat = GetComponent<MobileNPCHumanoidCombat>();
             inventory = GetComponent<MobileNPCInventory>();
+            weaponAnimation = GetComponent<MobileNPCVisualAnimation>();
         }
 
         private void OnEnable()
@@ -147,10 +149,18 @@ namespace SDG.Unturned
             model.DestroyRigidbody();
             Layerer.enemy(model);
             equippedWeaponModel = model;
+            if (weaponAnimation == null)
+                weaponAnimation = GetComponent<MobileNPCVisualAnimation>();
+            // Native PlayerEquipment attaches the real ItemAsset clips
+            // on equipped weapon change. Do so on the NPC's owned rig too.
+            if (weaponAnimation != null && active is ItemGunAsset)
+                weaponAnimation.BindEquippedWeaponAnimation(active, model);
         }
 
         private void DestroyWeaponModel()
         {
+            if (weaponAnimation != null)
+                weaponAnimation.ClearEquippedWeaponAnimation();
             if (equippedWeaponModel != null)
             {
                 Destroy(equippedWeaponModel.gameObject);
@@ -164,6 +174,8 @@ namespace SDG.Unturned
             // The weapon selector and server physics own the actual hit.
             // This visual state only follows its authentic committed swing.
             meleeVisualUntil = Time.time + 1.1f;
+            if (weaponAnimation != null)
+                weaponAnimation.ClearEquippedWeaponAnimation();
             nextVisualRefreshTime = 0f;
         }
 
