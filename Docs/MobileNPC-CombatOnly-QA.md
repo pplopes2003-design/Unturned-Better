@@ -114,3 +114,66 @@ in Unity 2022.3.62f3 or tested in Washington. The missing
 `Pathfinding.NavmeshCut`/native ASPFP plugin problem is NOT solved by this
 mode. Open doors, assorted window vaults, ragdoll activation, aggressive
 spawn encounters and 60 FPS require subsequent Dev Build validation.
+
+## Firearm presentation follow-up — 19 Oct 2026
+
+Player testing: **CombatOnly bots visibly carry their real rifles at the
+side of the body without raising their arms to a firing stance**. This
+problem concerns THIRD-PERSON VISUAL POSE and should not be "solved" by
+changing ballistics, ammo or target acquisition.
+
+Source checks:
+
+- `MobileNPCRangedPresentation` attaches the actual native
+  `ItemAsset.equipablePrefab` / item to the same right/left/spine
+  hooks used by `PlayerEquipment`, with the native 90° Z item rotation.
+- `MobileNPCVisualAnimation.BindEquippedWeaponAnimation` adds item-specific
+  legacy clips (`ItemAsset.animations`, typically `Equip`) with mixing
+  on the NPC's **Left_Shoulder/Right_Shoulder**. However an AnimationState
+  returning `IsPlaying == true` is NOT evidence that the arms moved.
+- A runtime **anatomical fall-back** now checks shoulder-to-hand forward
+  extension after the authored `Equip` transition has had 0.35 s.
+  If either arm is still lowered, `LateUpdate` derives bounded rotations
+  on the actual original shoulder transforms so the equipped rifle raises
+  in front of the character. It resets to the baseline each update to
+  avoid accumulated twisting and preserves the original native animation
+  when effective. This is not two-bone IK, nor a new projectile direction.
+- When no authored Shoot/Reload clip works, the existing pose gets
+  a brief visual recoil/reload lowering; the server remains the only
+  authority for firing/reload/actual equipment.
+- The fall-back logs `[MobileNPCWeaponPose] Native rifle stance was not
+  visually effective; using verified shoulder bones as procedural fallback`
+  on a Dev Build. It never adds physics bodies or changes the ragdoll.
+
+**Dev Build tests**:
+
+1. Rifle at rest: the visible model and both hands should rise together;
+   verify the right hook follows the right arm and that neither arm
+   points vertically downward after the bound period.
+2. Walk/run/crouch with rifle, then turn toward a moving target: the
+   gun should remain held coherently instead of snapping every 0.5 sec
+   or accumulating unnatural shoulder rotations.
+3. Fire 20 rounds while moving, then reload a full magazine: verify
+   gun animation or brief fallback recoil/reload presentation; compare
+   server inventory to actual bullets. Procedural motion must never
+   fabricate ammo or impact.
+4. Switch to melee for a strike and back to gun: existing punch or
+   knife animation must not be blocked by overlay/fallback, and the
+   gun should resume its hold when it is reattached.
+5. Kill the NPC while aiming: the Death event clears clip ownership
+   and stops visual pose so the **player-confirmed native articulated
+   ragdoll** can simulate without competing bone writers.
+6. Verify first-person player gun animation is unaffected by the
+   standalone NPC visual component. Profile 10/20/40 armed NPCs.
+
+**Localhost AI proposal (NOT IMPLEMENTED)**:
+A separate local process can accept bounded high-level observations and
+return strategic orders asynchronously, but cannot query Unity Physics,
+move CharacterControllers, animate bones or perform instantaneous combat
+targeting without recreating the entire game state. Singleplayer already
+has a server-authoritative logic path via `Provider.isServer`. A localhost
+service is worth considering **only after measuring** CPU overhead in
+the existing tactical planner; on 8 GB RAM an extra process can worsen
+resource pressure. Keep the low-latency perception, physics, shot
+validation, melee and animation inside Unity; an optional service can
+suggest slow tactical goals and must fail back to the existing AI.
