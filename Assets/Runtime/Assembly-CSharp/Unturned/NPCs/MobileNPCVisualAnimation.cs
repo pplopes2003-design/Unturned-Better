@@ -50,6 +50,22 @@ namespace SDG.Unturned
         private Transform weaponRightShoulder;
         private Transform weaponSpineHook;
         private bool missingNativeWeaponAnimationLogged;
+        // Native ItemAsset.Equip can successfully Play yet leave the arms in
+        // the ordinary unarmed stance on the stripped NPC_Client visual.
+        // Prove actual shoulder-to-hand elevation in WORLD space first.
+        // If the native clip has no effective shoulder motion, provide a
+        // small bounded anatomical fallback instead of a floating gun.
+        private Transform weaponLeftHand;
+        private Transform weaponRightHand;
+        private Quaternion weaponLeftShoulderNeutral;
+        private Quaternion weaponRightShoulderNeutral;
+        private bool weaponVisualActive;
+        private float weaponBoundAt;
+        private float gunPoseFallbackBlend;
+        private float gunPoseCheckAt;
+        private float gunFallbackShotAt;
+        private float gunFallbackReloadUntil;
+        private bool weaponPoseFallbackReported;
         private Transform hitReactionSpine;
         private float proceduralHitUntil;
         private float proceduralHitStartedAt;
@@ -110,6 +126,10 @@ namespace SDG.Unturned
             {
                 weaponLeftShoulder = hitReactionSpine.Find("Left_Shoulder");
                 weaponRightShoulder = hitReactionSpine.Find("Right_Shoulder");
+                weaponLeftHand = weaponLeftShoulder != null
+                    ? weaponLeftShoulder.Find("Left_Arm/Left_Hand") : null;
+                weaponRightHand = weaponRightShoulder != null
+                    ? weaponRightShoulder.Find("Right_Arm/Right_Hand") : null;
                 weaponSpineHook = hitReactionSpine.Find("Spine_Hook");
             }
         }
@@ -447,13 +467,17 @@ namespace SDG.Unturned
 
         private void LateUpdate()
         {
+            if (vitals != null && vitals.IsDead)
+                return;
+
+            // Normal native Animation evaluation has already finished. An
+            // ineffective Equip state cannot be detected merely with IsPlaying.
+            UpdateActualGunShoulderPose();
+
             if (hitReactionSpine == null || legacyAnimation == null
-                || vitals != null && vitals.IsDead
                 || Time.time >= proceduralHitUntil)
                 return;
-            // Unity's legacy Animation evaluates the normal clip each frame
-            // before LateUpdate. Add the short flinch AFTER that evaluation,
-            // so it neither replaces walking nor permanently edits bind pose.
+            // Add the short flinch after the standard clip was evaluated.
             float duration = Mathf.Max(0.05f,
                 proceduralHitUntil - proceduralHitStartedAt);
             float phase = Mathf.Clamp01((Time.time - proceduralHitStartedAt) / duration);
@@ -463,8 +487,123 @@ namespace SDG.Unturned
                 proceduralHitMagnitude * envelope * 0.35f);
         }
 
+        /// <summary>
+        /// When the native item overlay ACTUALLY raises both hands, leave it
+        /// alone. Only an ineffective/missing overlay triggers this fallback.
+        /// The shot's authoritative direction, enemy visibility and damage
+        /// remain entirely outside this presentation-only component.
+        /// </summary>
+        private void UpdateActualGunShoulderPose()
+        {
+            if (!weaponVisualActive
+                || weaponLeftShoulder == null || weaponRightShoulder == null
+                || weaponLeftHand == null || weaponRightHand == null
+                || (motor != null && (motor.IsClimbingLadder || motor.IsJumping))
+                || Time.time < suppressWeaponPoseUntil
+                || Time.time < weaponBoundAt + 0.35f)
+            {
+                gunPoseFallbackBlend = 0f;
+                return;
+            }
+
+            // A real rifle stance projects both hands ahead of their
+            // shoulders. When the Equip/Idle animation remains in low-arm
+            // locomotion, the weapon model follows the right hand downward.
+            bool nativePoseRaised =
+                IsHandExtendedForWeapon(weaponRightShoulder, weaponRightHand)
+                && IsHandExtendedForWeapon(weaponLeftShoulder, weaponLeftHand);
+
+            // A fallback held last frame is itself forward! Do not use that
+            // procedural output as proof a native clip started working.
+            bool nativePoseAvailable = gunPoseFallbackBlend <= 0.001f
+                && nativePoseRaised && legacyAnimation != null
+                && IsOwnedWeaponClip(equippedWeaponHoldClip)
+                && weaponPosePlaying;
+
+            if (nativePoseAvailable)
+            {
+                gunPoseFallbackBlend = 0f;
+                return;
+            }
+
+            gunPoseFallbackBlend = Mathf.MoveTowards(gunPoseFallbackBlend,
+                1f, Time.deltaTime * 5f);
+            if (!weaponPoseFallbackReported
+                && Time.time >= gunPoseCheckAt)
+            {
+                gunPoseCheckAt = Time.time + 8f;
+                weaponPoseFallbackReported = true;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                Debug.LogWarning("[MobileNPCWeaponPose] Native rifle stance "
+                    + "was not visually effective; using verified shoulder "
+                    + "bones as procedural fallback npc=" + name
+                    + " item=" + boundWeaponAssetID
+                    + " nativeClip=" + (equippedWeaponHoldClip ?? "(none)")
+                    + ".", this);
+#endif
+            }
+
+            // Reset to the actual NPC_Client shoulder neutral before each
+            // procedural evaluation: otherwise repeated LateUpdate calls
+            // would cumulatively twist the arms, even without animation.
+            weaponRightShoulder.localRotation = weaponRightShoulderNeutral;
+            weaponLeftShoulder.localRotation = weaponLeftShoulderNeutral;
+
+            Vector3 bodyForward = transform.forward;
+            bodyForward.y = 0f;
+            if (bodyForward.sqrMagnitude < 0.05f)
+                bodyForward = Vector3.forward;
+            bodyForward.Normalize();
+            Vector3 right = transform.right;
+            right.y = 0f;
+            right.Normalize();
+
+            // Position the right weapon hand forward and slightly inward.
+            // The left hand supports the rifle from the other side. This
+            // is bounded upper-arm presentation, NOT collision-free IK.
+            float reloadLowering = Time.time < gunFallbackReloadUntil ? 0.38f : 0f;
+            float recoil = Mathf.Clamp01(1f - (Time.time - gunFallbackShotAt) / 0.13f);
+            Vector3 rightDirection = (bodyForward * (0.94f - reloadLowering)
+                - right * 0.12f
+                + Vector3.down * (0.10f + reloadLowering * 0.5f + recoil * 0.08f)).normalized;
+            Vector3 leftDirection = (bodyForward * (0.88f - reloadLowering)
+                + right * 0.16f
+                + Vector3.down * (0.13f + reloadLowering * 0.6f)).normalized;
+            AimShoulderToward(weaponRightShoulder, weaponRightHand,
+                rightDirection, gunPoseFallbackBlend);
+            AimShoulderToward(weaponLeftShoulder, weaponLeftHand,
+                leftDirection, gunPoseFallbackBlend);
+        }
+
+        private bool IsHandExtendedForWeapon(Transform shoulder, Transform hand)
+        {
+            Vector3 arm = hand.position - shoulder.position;
+            Vector3 forward = transform.forward;
+            forward.y = 0f;
+            if (arm.sqrMagnitude < 0.01f || forward.sqrMagnitude < 0.1f)
+                return false;
+            arm.Normalize();
+            forward.Normalize();
+            return Vector3.Dot(arm, forward) >= 0.33f
+                && Vector3.Dot(arm, Vector3.up) > -0.47f;
+        }
+
+        private static void AimShoulderToward(Transform shoulder,
+            Transform hand, Vector3 direction, float weight)
+        {
+            Vector3 currentArm = hand.position - shoulder.position;
+            if (currentArm.sqrMagnitude < 0.01f || direction.sqrMagnitude < 0.01f)
+                return;
+            Quaternion correction = Quaternion.FromToRotation(
+                currentArm.normalized, direction.normalized);
+            Quaternion desired = correction * shoulder.rotation;
+            shoulder.rotation = Quaternion.Slerp(shoulder.rotation,
+                desired, Mathf.Clamp01(weight) * 0.92f);
+        }
+
         private void HandleShotFired()
         {
+            gunFallbackShotAt = Time.time;
             // Preserve the held rifle pose when the particular weapon has
             // no authored firing animation. Sound/model are handled by the
             // existing presentation component, not by this visual adapter.
@@ -474,6 +613,7 @@ namespace SDG.Unturned
 
         private void HandleReloadStarted()
         {
+            gunFallbackReloadUntil = Time.time + 0.55f;
             if (!TryPlayEquippedWeaponAction("Reload"))
                 TryPlayActionClip("Reload");
         }
@@ -488,7 +628,22 @@ namespace SDG.Unturned
         public void BindEquippedWeaponAnimation(ItemAsset asset, Transform itemModel)
         {
             ClearEquippedWeaponAnimation();
-            if (asset == null || legacyAnimation == null)
+            if (asset == null)
+                return;
+
+            // Called only after the real rifle model has been bound to the
+            // hand hook. If the native item has no playable legacy clips,
+            // its appearance still needs to raise the arms.
+            weaponVisualActive = asset is ItemGunAsset;
+            weaponBoundAt = Time.time;
+            boundWeaponAssetID = asset.id;
+            weaponPoseFallbackReported = false;
+            gunPoseFallbackBlend = 0f;
+            if (weaponLeftShoulder != null)
+                weaponLeftShoulderNeutral = weaponLeftShoulder.localRotation;
+            if (weaponRightShoulder != null)
+                weaponRightShoulderNeutral = weaponRightShoulder.localRotation;
+            if (legacyAnimation == null)
                 return;
             AnimationClip[] nativeClips = asset.animations;
             if (nativeClips == null || nativeClips.Length == 0
@@ -667,6 +822,8 @@ namespace SDG.Unturned
                 }
             }
             equippedItemClips = null;
+            weaponVisualActive = false;
+            gunPoseFallbackBlend = 0f;
             equippedWeaponHoldClip = null;
             currentWeaponActionClip = null;
             boundWeaponAssetID = 0;
