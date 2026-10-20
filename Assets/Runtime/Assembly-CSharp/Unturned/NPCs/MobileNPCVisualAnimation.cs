@@ -639,6 +639,12 @@ namespace SDG.Unturned
             boundWeaponAssetID = asset.id;
             weaponPoseFallbackReported = false;
             gunPoseFallbackBlend = 0f;
+            if (weaponVisualActive && (weaponLeftShoulder == null
+                || weaponRightShoulder == null || weaponLeftHand == null
+                || weaponRightHand == null))
+                Debug.LogError("[MobileNPCWeaponPose] Rifle visual exists but NPC_Client "
+                    + "shoulder/hand rig is missing; cannot animate held weapon item="
+                    + asset.id + " npc=" + name + ".", this);
             if (weaponLeftShoulder != null)
                 weaponLeftShoulderNeutral = weaponLeftShoulder.localRotation;
             if (weaponRightShoulder != null)
