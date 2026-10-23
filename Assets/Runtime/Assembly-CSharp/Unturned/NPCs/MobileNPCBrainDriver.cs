@@ -156,8 +156,14 @@ namespace SDG.Unturned
 					MobileNPCHumanoidRangedCombat ranged = GetComponent<MobileNPCHumanoidRangedCombat>();
 					bool gunUsable = ranged != null && ranged.SelectedGunAsset != null
 						&& ranged.RoundsRemaining > 0;
+					// A six-metre "close assault" used to suppress a perfectly
+					// usable rifle for several seconds while the NPC could not
+					// actually reach its victim with a punch. Prefer the real gun
+					// whenever it has ammunition; only unarmed combatants
+					// prepare a close assault. The melee executor still verifies
+					// actual reach and forward arc for every strike.
 					bool closeEnough = delta.sqrMagnitude <= 6f * 6f;
-					if (gunUsable && !closeEnough)
+					if (gunUsable)
 						ambushMethod = AmbushMethod.Ranged;
 					else if (closeEnough)
 						ambushMethod = AmbushMethod.CloseAssault;
