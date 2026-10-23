@@ -56,6 +56,9 @@ namespace SDG.Unturned
 		private bool reloadPending;
 		private int shotsRemainingInBurst;
 		private bool waitingForBurstPause;
+		// A pressured engagement may sustain several native-cadence shots;
+		// short bursts are not a mandatory pause after every few bullets.
+		private bool sustainedEngagement;
 		// Reused hit buffer avoids allocating and sorting a new RaycastAll array for every shot.
 		private readonly RaycastHit[] shotHits = new RaycastHit[64];
 		private const float NativeBallisticDelta = 0.02f; // UseableGun.BALLISTICS_DELTA_TIME
@@ -314,6 +317,22 @@ namespace SDG.Unturned
 			if (toTarget.sqrMagnitude > weaponRange * weaponRange || toTarget.sqrMagnitude < 0.01f)
 				return;
 
+			// Deliberate, context-dependent cadence. An exposed nearby threat
+			// with a validated sight picture may justify sustained fire rather
+			// than a fixed 2-5 round burst. All shots still pass the regular
+			// aim, friend-lane, ammo and projectile checks, one shot at a time.
+			// A different target requires ordinary brain/perception selection.
+			bool sustainNow = toTarget.sqrMagnitude <= 18f * 18f
+				&& roundsRemaining >= Mathf.Max(8, selectedGunAsset.ammoPerShot * 8)
+				&& !brain.HoldRangedFireForCloseAssault
+				&& brain.CurrentGoal != MobileNPCTactics.Goal.SeekCover;
+			if (sustainNow != sustainedEngagement)
+			{
+				sustainedEngagement = sustainNow;
+				// Reconsider cadence without altering the physical gun rate.
+				shotsRemainingInBurst = sustainNow ? Random.Range(8, 15) : RollBurstSize();
+			}
+
 			// A human does not empty a magazine at an implausible long-range
 			// target after personally observing repeated misses. Consider the
 			// sampled outcomes only (no perfect impact oracle, no unseen target).
@@ -419,9 +438,14 @@ namespace SDG.Unturned
 			if (shotsRemainingInBurst == 0)
 			{
 				waitingForBurstPause = true;
-				nextShotTime = Time.time + Random.Range(
-					Mathf.Min(minimumBurstPause, maximumBurstPause),
-					Mathf.Max(minimumBurstPause, maximumBurstPause)) * learnedCadence;
+				// Maintain a shorter observation gap when a live, close and
+				// visible opponent offers a sustained firing opportunity.
+				// Do not fire faster than the gun's native cyclic cadence.
+				float pause = sustainedEngagement
+					? Random.Range(0.12f, 0.32f)
+					: Random.Range(Mathf.Min(minimumBurstPause, maximumBurstPause),
+						Mathf.Max(minimumBurstPause, maximumBurstPause));
+				nextShotTime = Time.time + Mathf.Max(GetSecondsPerShot(), pause * learnedCadence);
 			}
 			else
 			{
