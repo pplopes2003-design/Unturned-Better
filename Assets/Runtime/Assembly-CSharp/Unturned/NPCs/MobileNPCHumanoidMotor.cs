@@ -880,7 +880,9 @@ namespace SDG.Unturned
 					&& PlanarDistanceSquared(transform.position, routeWaypoints[routeWaypointIndex])
 					<= (hasPhysicalThresholdRoute
 						&& routeWaypointIndex >= physicalThresholdApproachWaypointIndex
-						? 0.16f : 1.0f)
+						? 0.16f
+						: routeWaypointIndex < routeWaypoints.Count - 1
+							? 0.49f : 1.0f)
 					&& Mathf.Abs(routeWaypoints[routeWaypointIndex].y - transform.position.y)
 					<= Mathf.Max(0.45f, characterController.stepOffset + 0.2f))
 				{
