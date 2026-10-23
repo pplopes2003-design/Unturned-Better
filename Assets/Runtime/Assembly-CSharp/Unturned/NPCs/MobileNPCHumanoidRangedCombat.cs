@@ -237,11 +237,7 @@ namespace SDG.Unturned
 			if (motor != null && (motor.IsClimbingLadder || motor.IsVaultTraversing))
 				return; // hands occupied by ladder or parapet; no shooting mid-action
 
-			if (brain.CurrentState != MobileNPCBrain.State.Pursuing
-				|| brain.IsAmbushPreparing
-				|| brain.HoldRangedFireForCloseAssault
-				|| brain.CurrentGoal == MobileNPCTactics.Goal.Retreat
-				|| Time.time < nextShotTime)
+			if (!brain.CanExecuteRangedAttackServer || Time.time < nextShotTime)
 			{
 				return;
 			}
