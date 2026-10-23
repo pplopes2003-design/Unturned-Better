@@ -1263,6 +1263,7 @@ namespace SDG.Unturned
 				Investigating = brainDriver.CurrentState == MobileNPCBrain.State.Investigating,
 				Stalking = brainDriver.CurrentGoal == MobileNPCTactics.Goal.Stalk,
 				Pursuing = brainDriver.CurrentState == MobileNPCBrain.State.Pursuing,
+				Flanking = brainDriver.CurrentGoal == MobileNPCTactics.Goal.Flank,
 				NearTarget = brainDriver.Target != null
 					&& (brainDriver.Target.position - transform.position).sqrMagnitude < 100f,
 				DestinationDistance = hasDestination ? Vector3.Distance(destination, transform.position) : 0f
