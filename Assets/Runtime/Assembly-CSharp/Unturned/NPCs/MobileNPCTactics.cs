@@ -105,12 +105,12 @@ namespace SDG.Unturned
 				return true;
 			}
 
-			// Incoming shots can arrive every frame or every weapon tick.
-			// Keep the already verified cover destination until arrival,
-			// route failure or expiry, instead of oscillating between nearby
-			// candidates. Critical injury above still overrides this plan.
-			if (currentGoal == Goal.SeekCover && hasTacticalDestination
-				&& now < goalDeadline)
+			// A physically validated defensive destination is a COMMITMENT.
+			// Reacquiring the target or hearing another shot must not change
+			// a retreat into a charge, or swap cover on every decision tick.
+			// An urgent critical injury above is the sole preemption here.
+			if ((currentGoal == Goal.SeekCover || currentGoal == Goal.Retreat)
+				&& hasTacticalDestination && now < goalDeadline)
 				return true;
 
 			if (validatedCoverPoint.HasValue)
@@ -128,8 +128,11 @@ namespace SDG.Unturned
 			// No-target, unarmed, or seriously wounded survivors still withdraw.
 			if (canReturnFire && healthFraction > (MobileNPCSettings.CombatMode ? 0.38f : 0.55f))
 			{
-				if (currentGoal == Goal.SeekCover || currentGoal == Goal.Retreat)
-					ClearGoal();
+				// Armed return fire is preferable to inventing an unsafe
+				// retreat, but it cannot cancel a still-valid defense plan.
+				if ((currentGoal == Goal.SeekCover || currentGoal == Goal.Retreat)
+					&& now < goalDeadline)
+					return true;
 				return false;
 			}
 			// If the NPC cannot safely retaliate and no cover was found,
