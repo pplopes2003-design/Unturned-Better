@@ -114,7 +114,12 @@ namespace SDG.Unturned
 				? Mathf.Min(115f, Mathf.Min(selectedGunAsset.range,
 					effectiveRange * Mathf.Min(2.55f, selectedOpticZoom * 0.65f)))
 				: Mathf.Min(effectiveRange, selectedGunAsset.range);
-			return distance >= (selectedOpticZoom >= 2.5f ? 19f : 11f)
+			// A rifleman must not charge a clearly visible opponent all the
+			// way down to eleven metres before firing. Remain at a useful
+			// ordinary engagement distance whenever the selected weapon is
+			// loaded and the motor has current, verified visual contact.
+			// The upper bound still leaves room to close toward distant foes.
+			return distance >= (selectedOpticZoom >= 2.5f ? 9f : 3.5f)
 				&& distance <= range * 0.86f;
 		}
 		/// <summary>Only an actually mounted sight is an optical advantage.</summary>
