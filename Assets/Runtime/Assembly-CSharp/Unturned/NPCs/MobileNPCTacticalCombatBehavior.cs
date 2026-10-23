@@ -527,8 +527,14 @@ namespace SDG.Unturned
 			bool confirmed = player != null && perception.VisiblePlayer == player
 				|| npc != null && perception.VisibleNPC == npc
 				|| zombie != null && perception.VisibleZombie == zombie;
+			// Reloading is NOT evidence of incoming hostile fire. Calling
+			// ReportIncomingFire here fabricated a suppression stimulus and
+			// could repeatedly replace a valid attack with SeekCover/Retreat.
+			// Real damage and audible hostile gunfire reach that routine through
+			// their own server-side observation paths. Keep the current target
+			// and any already-active tactical goal while the native reload runs.
 			if (confirmed)
-				brain.ReportIncomingFire(target.position, target);
+				nextFlankTime = Mathf.Max(nextFlankTime, Time.time + 0.75f);
 		}
 
 		private void HandleReloadFinished()
