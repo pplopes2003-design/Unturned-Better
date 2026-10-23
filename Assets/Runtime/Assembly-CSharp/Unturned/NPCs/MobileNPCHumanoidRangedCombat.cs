@@ -59,6 +59,7 @@ namespace SDG.Unturned
 		// A pressured engagement may sustain several native-cadence shots;
 		// short bursts are not a mandatory pause after every few bullets.
 		private bool sustainedEngagement;
+		private Transform cadenceTarget;
 		// Reused hit buffer avoids allocating and sorting a new RaycastAll array for every shot.
 		private readonly RaycastHit[] shotHits = new RaycastHit[64];
 		private const float NativeBallisticDelta = 0.02f; // UseableGun.BALLISTICS_DELTA_TIME
@@ -247,12 +248,6 @@ namespace SDG.Unturned
 				return;
 			}
 
-			if (waitingForBurstPause)
-			{
-				waitingForBurstPause = false;
-				shotsRemainingInBurst = RollBurstSize();
-			}
-
 			Transform targetTransform = brain.Target;
 			if (targetTransform == null)
 			{
@@ -327,10 +322,15 @@ namespace SDG.Unturned
 				&& roundsRemaining >= Mathf.Max(8, selectedGunAsset.ammoPerShot * 8)
 				&& !brain.HoldRangedFireForCloseAssault
 				&& brain.CurrentGoal != MobileNPCTactics.Goal.SeekCover;
-			if (sustainNow != sustainedEngagement)
+			// Keep one firing plan attached to the selected opponent. A new
+			// target starts a new cadence; an ordinary burst pause must not
+			// silently reset a sustained engagement to the short-burst mode.
+			if (targetTransform != cadenceTarget || sustainNow != sustainedEngagement
+				|| waitingForBurstPause)
 			{
+				cadenceTarget = targetTransform;
 				sustainedEngagement = sustainNow;
-				// Reconsider cadence without altering the physical gun rate.
+				waitingForBurstPause = false;
 				shotsRemainingInBurst = sustainNow ? Random.Range(8, 15) : RollBurstSize();
 			}
 
