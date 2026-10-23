@@ -70,7 +70,7 @@ namespace SDG.Unturned
 
 		public static Difficulty CurrentDifficulty
 		{
-			get => (Difficulty)Mathf.Clamp(PlayerPrefs.GetInt(DifficultyKey, (int)Difficulty.Normal), 0, 2);
+			get => Difficulty.Hard;
 			set { PlayerPrefs.SetInt(DifficultyKey, Mathf.Clamp((int)value, 0, 2)); Save(); }
 		}
 
