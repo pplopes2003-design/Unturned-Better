@@ -202,7 +202,16 @@ namespace SDG.Unturned
 		/// <summary>Starts a time-bounded flank to a host-validated alternate firing position.</summary>
 		public bool TryStartFlank(Vector3 validatedPosition, float now)
 		{
-			if (currentGoal == Goal.Retreat || currentGoal == Goal.SeekCover || currentGoal == Goal.Stalk)
+			if (!IsFinite(validatedPosition)
+				|| currentGoal == Goal.Retreat || currentGoal == Goal.SeekCover
+				|| currentGoal == Goal.Stalk)
+				return false;
+
+			// A movement plan must have time to execute. Do not replace an
+			// active flank destination whenever another controller proposes a
+			// different angle on its next tick. Arrival, a confirmed route
+			// failure, expiration, or urgent defense can still end the goal.
+			if (currentGoal == Goal.Flank && hasTacticalDestination && now < goalDeadline)
 				return false;
 
 			currentGoal = Goal.Flank;
