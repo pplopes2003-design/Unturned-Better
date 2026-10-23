@@ -71,9 +71,10 @@ namespace SDG.Unturned
 
 			if (routeReady)
 			{
+				// Reject stale routes computed from a distant starting pose.
 				if (MatchesRequestedGoal(goal) && completedRoute.Count >= 2
-					&& Vector3.Distance(start, completedRoute[0]) <= 4f
-					&& Mathf.Abs(start.y - completedRoute[0].y) <= 0.85f)
+					&& Vector3.Distance(start, completedRoute[0]) <= 1.5f
+					&& Mathf.Abs(start.y - completedRoute[0].y) <= 0.55f)
 				{
 					output.Clear();
 					output.AddRange(completedRoute);
@@ -163,8 +164,9 @@ namespace SDG.Unturned
 			// Two nearby room entrances can be on opposite sides of a wall,
 			// and stacked floors may share the same X/Z coordinates. A loose
 			// 3m radius would consume the wrong asynchronous path.
-			return (goal - requestedGoal).sqrMagnitude <= 2.25f
-				&& Mathf.Abs(goal.y - requestedGoal.y) <= 0.65f;
+			// Avoid recycling an asynchronous path for a different doorway.
+			return (goal - requestedGoal).sqrMagnitude <= 0.25f
+				&& Mathf.Abs(goal.y - requestedGoal.y) <= 0.45f;
 		}
 
 		private void EnsureInitialized()
