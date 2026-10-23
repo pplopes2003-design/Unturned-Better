@@ -102,6 +102,14 @@ namespace SDG.Unturned
 				return true;
 			}
 
+			// Incoming shots can arrive every frame or every weapon tick.
+			// Keep the already verified cover destination until arrival,
+			// route failure or expiry, instead of oscillating between nearby
+			// candidates. Critical injury above still overrides this plan.
+			if (currentGoal == Goal.SeekCover && hasTacticalDestination
+				&& now < goalDeadline)
+				return true;
+
 			if (validatedCoverPoint.HasValue)
 			{
 				currentGoal = Goal.SeekCover;
