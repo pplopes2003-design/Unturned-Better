@@ -203,14 +203,21 @@ namespace SDG.Unturned
 			if (visibleNow)
 			{
 				blockedSince = -1f;
+				// An unobstructed shot against our committed target is an
+				// opportunity, even at point-blank distance. Do not launch an
+				// optional flank merely because the enemy moved closer; the
+				// native gun and melee executors determine the actual attack.
+				// Urgent cover, retreat and physical collision recovery remain
+				// independent of this optional firing-position planner.
+				return;
+			}
 
-				// A valid clear firing lane is an offensive opportunity, not a
-				// reason to abandon the shot for a cosmetic sideways move. Only
-				// reposition for actual physical crowding; normal weapon cadence,
-				// ammunition and melee fallback still govern close combat.
-				if (distance < Mathf.Min(1.8f, preferredMinimumRange)
-					&& Time.time >= nextFlankTime)
-					TryChooseFlank(target, true);
+			// An empty or unusable gun cannot benefit from a firing-angle
+			// flank. Preserve the target for pursuit, melee or real reload.
+			if (rangedCombat.SelectedGunAsset == null
+				|| rangedCombat.RoundsRemaining <= 0)
+			{
+				blockedSince = -1f;
 				return;
 			}
 
