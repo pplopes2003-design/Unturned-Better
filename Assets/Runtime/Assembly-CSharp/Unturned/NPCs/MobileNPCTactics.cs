@@ -32,8 +32,8 @@ namespace SDG.Unturned
 
 		private const float LowHealthThreshold = 0.30f;
 		private const float CriticalHealthThreshold = 0.15f;
-		private const float CoverDuration = 4.0f;
-		private const float RetreatDuration = 6.0f;
+		private const float CoverDuration = 12.0f;
+		private const float RetreatDuration = 14.0f;
 		private const float LootDuration = 12.0f;
 
 		private Goal currentGoal;
@@ -85,10 +85,13 @@ namespace SDG.Unturned
 
 			if (!underRecentFire && !recentlyDamaged && !badlyWounded)
 			{
+				// Suppression ends faster than a purposeful withdrawal.
+				// Do not abandon a reachable shelter as soon as shooting stops.
+				if ((currentGoal == Goal.SeekCover || currentGoal == Goal.Retreat)
+					&& now < goalDeadline)
+					return true;
 				if (currentGoal == Goal.SeekCover || currentGoal == Goal.Retreat)
-				{
 					ClearGoal();
-				}
 				return false;
 			}
 
