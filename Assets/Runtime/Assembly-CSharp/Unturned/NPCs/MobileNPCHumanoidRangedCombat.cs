@@ -60,6 +60,30 @@ namespace SDG.Unturned
 		// short bursts are not a mandatory pause after every few bullets.
 		private bool sustainedEngagement;
 		private Transform cadenceTarget;
+		// Native Fire Mode flags are asset-defined. Reflect their names once per
+		// selected weapon rather than assuming every rifle permits full auto.
+		// Unknown flags deliberately fall back to one trigger pull per shot.
+		private bool nativeAutomaticAllowed;
+		private int nativeBurstCount;
+		private static bool ReadGunFlag(ItemGunAsset gun, string member)
+		{
+			System.Type type = gun.GetType();
+			var property = type.GetProperty(member);
+			if (property != null && property.PropertyType == typeof(bool))
+				return (bool)property.GetValue(gun, null);
+			var field = type.GetField(member);
+			return field != null && field.FieldType == typeof(bool) && (bool)field.GetValue(gun);
+		}
+		private static int ReadGunBurstCount(ItemGunAsset gun)
+		{
+			System.Type type = gun.GetType();
+			var property = type.GetProperty("bursts");
+			if (property != null)
+				return System.Convert.ToInt32(property.GetValue(gun, null));
+			var field = type.GetField("bursts");
+			return field != null ? System.Convert.ToInt32(field.GetValue(gun)) : 0;
+		}
+
 		// Reused hit buffer avoids allocating and sorting a new RaycastAll array for every shot.
 		private readonly RaycastHit[] shotHits = new RaycastHit[64];
 		private const float NativeBallisticDelta = 0.02f; // UseableGun.BALLISTICS_DELTA_TIME
@@ -325,7 +349,8 @@ namespace SDG.Unturned
 			// than a fixed 2-5 round burst. All shots still pass the regular
 			// aim, friend-lane, ammo and projectile checks, one shot at a time.
 			// A different target requires ordinary brain/perception selection.
-			bool sustainNow = toTarget.sqrMagnitude <= 18f * 18f
+			bool sustainNow = nativeAutomaticAllowed
+				&& toTarget.sqrMagnitude <= 18f * 18f
 				&& roundsRemaining >= Mathf.Max(8, selectedGunAsset.ammoPerShot * 8)
 				&& !brain.HoldRangedFireForCloseAssault
 				&& brain.CurrentGoal != MobileNPCTactics.Goal.SeekCover;
@@ -338,7 +363,9 @@ namespace SDG.Unturned
 				cadenceTarget = targetTransform;
 				sustainedEngagement = sustainNow;
 				waitingForBurstPause = false;
-				shotsRemainingInBurst = sustainNow ? Random.Range(8, 15) : RollBurstSize();
+				shotsRemainingInBurst = sustainNow ? Random.Range(8, 15)
+					: nativeBurstCount > 0 ? nativeBurstCount
+					: nativeAutomaticAllowed ? RollBurstSize() : 1;
 			}
 
 			// A human does not empty a magazine at an implausible long-range
@@ -711,6 +738,11 @@ namespace SDG.Unturned
 			selectedGunInstanceID = gunInstanceID;
 			selectedGunID = gun.id;
 			selectedGunAsset = gunAsset;
+			// Respect actual weapon fire modes. A pistol without Auto cannot
+			// enter our sustained trigger-hold behavior.
+			nativeAutomaticAllowed = ReadGunFlag(gunAsset, "isAuto");
+			nativeBurstCount = Mathf.Max(0, ReadGunBurstCount(gunAsset));
+			cadenceTarget = null;
 			selectedGunHasCompatibleMagazine = false;
 			selectedOpticZoom = 1f;
 			selectedBulletGravityMultiplier = gunAsset.bulletGravityMultiplier;
