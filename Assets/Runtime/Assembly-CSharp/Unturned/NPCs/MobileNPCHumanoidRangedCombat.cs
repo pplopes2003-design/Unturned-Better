@@ -368,11 +368,14 @@ namespace SDG.Unturned
 			// than a fixed 2-5 round burst. All shots still pass the regular
 			// aim, friend-lane, ammo and projectile checks, one shot at a time.
 			// A different target requires ordinary brain/perception selection.
+			// Full-auto is useful beyond point-blank range if a selected
+			// enemy is actually visible. Cover is a destination, not a ban
+			// on firing from a clear lane. Every shot still rechecks LOS,
+			// friendly-fire, recoil, the native cyclic rate and ammunition.
 			bool sustainNow = nativeAutomaticAllowed
-				&& toTarget.sqrMagnitude <= 18f * 18f
-				&& roundsRemaining >= Mathf.Max(8, selectedGunAsset.ammoPerShot * 8)
-				&& !brain.HoldRangedFireForCloseAssault
-				&& brain.CurrentGoal != MobileNPCTactics.Goal.SeekCover;
+				&& toTarget.sqrMagnitude <= 35f * 35f
+				&& roundsRemaining >= Mathf.Max(3, selectedGunAsset.ammoPerShot * 3)
+				&& !brain.HoldRangedFireForCloseAssault;
 			// Keep one firing plan attached to the selected opponent. A new
 			// target starts a new cadence; an ordinary burst pause must not
 			// silently reset a sustained engagement to the short-burst mode.
@@ -382,7 +385,11 @@ namespace SDG.Unturned
 				cadenceTarget = targetTransform;
 				sustainedEngagement = sustainNow;
 				waitingForBurstPause = false;
-				shotsRemainingInBurst = sustainNow ? Random.Range(8, 15)
+				// In sustained automatic mode keep the trigger held until the
+				// magazine is empty or visibility/target changes. Do not
+				// simulate automatic fire by repeated semi-auto bursts.
+				shotsRemainingInBurst = sustainNow
+					? Mathf.Max(1, roundsRemaining / Mathf.Max(1, selectedGunAsset.ammoPerShot))
 					: nativeBurstCount > 0 ? nativeBurstCount
 					: nativeAutomaticAllowed ? RollBurstSize() : 1;
 			}
