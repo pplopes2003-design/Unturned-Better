@@ -204,10 +204,12 @@ namespace SDG.Unturned
 			{
 				blockedSince = -1f;
 
-				// If too close, move laterally to a firing position instead of pursuing
-				// directly into the player's collision capsule. Do not approach if already
-				// inside effective range; the ranged weapon can fire from this position.
-				if (distance < preferredMinimumRange && Time.time >= nextFlankTime)
+				// A valid clear firing lane is an offensive opportunity, not a
+				// reason to abandon the shot for a cosmetic sideways move. Only
+				// reposition for actual physical crowding; normal weapon cadence,
+				// ammunition and melee fallback still govern close combat.
+				if (distance < Mathf.Min(1.8f, preferredMinimumRange)
+					&& Time.time >= nextFlankTime)
 					TryChooseFlank(target, true);
 				return;
 			}
