@@ -21,6 +21,7 @@ namespace SDG.Unturned
 
         private MobileNPCHumanoidMotor motor;
         private MobileNPCBrainDriver brain;
+        private MobileNPCHumanoidAim humanoidAim;
         private MobileNPCHumanoidCombat combat;
         private MobileNPCHumanoidRangedCombat rangedCombat;
         private MobileNPCHumanoidVitals vitals;
@@ -77,6 +78,7 @@ namespace SDG.Unturned
         {
             motor = GetComponent<MobileNPCHumanoidMotor>();
             brain = GetComponent<MobileNPCBrainDriver>();
+            humanoidAim = GetComponent<MobileNPCHumanoidAim>();
             combat = GetComponent<MobileNPCHumanoidCombat>();
             rangedCombat = GetComponent<MobileNPCHumanoidRangedCombat>();
             if (rangedCombat != null)
@@ -558,15 +560,36 @@ namespace SDG.Unturned
             right.y = 0f;
             right.Normalize();
 
+            // Use the existing server-observed virtual crosshair for VERTICAL
+            // presentation only. Never rotate arms toward an unseen enemy
+            // or override a native weapon animation that already works.
+            // Clamp elevation so the stripped NPC_Client rig cannot twist
+            // shoulder bones toward unreachable world-space directions.
+            Vector3 aimForward = bodyForward;
+            if (brain != null && humanoidAim != null && brain.Target != null
+                && humanoidAim.TryGetCurrentAimPointServer(brain.Target, out Vector3 observedPoint))
+            {
+                Vector3 fromShoulders = observedPoint - (weaponRightShoulder.position
+                    + weaponLeftShoulder.position) * 0.5f;
+                float horizontal = new Vector2(fromShoulders.x, fromShoulders.z).magnitude;
+                if (horizontal > 0.15f)
+                {
+                    float verticalSlope = Mathf.Tan(Mathf.Clamp(
+                        Mathf.Atan2(fromShoulders.y, horizontal) * Mathf.Rad2Deg,
+                        -35f, 35f) * Mathf.Deg2Rad);
+                    aimForward = (bodyForward + Vector3.up * verticalSlope).normalized;
+                }
+            }
+
             // Position the right weapon hand forward and slightly inward.
             // The left hand supports the rifle from the other side. This
             // is bounded upper-arm presentation, NOT collision-free IK.
             float reloadLowering = Time.time < gunFallbackReloadUntil ? 0.38f : 0f;
             float recoil = Mathf.Clamp01(1f - (Time.time - gunFallbackShotAt) / 0.13f);
-            Vector3 rightDirection = (bodyForward * (0.94f - reloadLowering)
+            Vector3 rightDirection = (aimForward * (0.94f - reloadLowering)
                 - right * 0.12f
                 + Vector3.down * (0.10f + reloadLowering * 0.5f + recoil * 0.08f)).normalized;
-            Vector3 leftDirection = (bodyForward * (0.88f - reloadLowering)
+            Vector3 leftDirection = (aimForward * (0.88f - reloadLowering)
                 + right * 0.16f
                 + Vector3.down * (0.13f + reloadLowering * 0.6f)).normalized;
             AimShoulderToward(weaponRightShoulder, weaponRightHand,
