@@ -239,6 +239,7 @@ namespace SDG.Unturned
 			MobileNPCHumanoidDisposition best = null;
 			float bestDistanceSquared = GetObservationRange(npcSightRange);
 			bestDistanceSquared *= bestDistanceSquared;
+			float maximumSightDistanceSquared = bestDistanceSquared;
 			int distantOpticalChecks = 0;
 			Vector3 eye = transform.position + Vector3.up * eyeHeight;
 
@@ -261,7 +262,8 @@ namespace SDG.Unturned
 				Vector3 target = candidate.transform.position + Vector3.up * targetHeight;
 				Vector3 offset = target - eye;
 				float distanceSquared = offset.sqrMagnitude;
-				if (distanceSquared < 0.01f || distanceSquared > bestDistanceSquared)
+				if (distanceSquared < 0.01f || distanceSquared > maximumSightDistanceSquared
+					|| (distanceSquared > bestDistanceSquared && candidate.transform != brain.Target))
 				{
 					continue;
 				}
@@ -299,6 +301,9 @@ namespace SDG.Unturned
 					}
 				}
 
+				// Prefer an already-selected, still-visible enemy over a nearer newcomer.
+				if (candidate.transform == brain.Target)
+					return candidate;
 				best = candidate;
 				bestDistanceSquared = distanceSquared;
 			}
@@ -315,6 +320,7 @@ namespace SDG.Unturned
 			Zombie best = null;
 			float bestDistanceSquared = GetObservationRange(npcSightRange);
 			bestDistanceSquared *= bestDistanceSquared;
+			float maximumSightDistanceSquared = bestDistanceSquared;
 			int distantOpticalChecks = 0;
 			Vector3 eye = transform.position + Vector3.up * eyeHeight;
 			for (int i = 0; i < zombies.Count; ++i)
@@ -326,7 +332,8 @@ namespace SDG.Unturned
 				Vector3 target = candidate.transform.position + Vector3.up * targetHeight;
 				Vector3 offset = target - eye;
 				float distanceSquared = offset.sqrMagnitude;
-				if (distanceSquared < 0.01f || distanceSquared > bestDistanceSquared)
+				if (distanceSquared < 0.01f || distanceSquared > maximumSightDistanceSquared
+					|| (distanceSquared > bestDistanceSquared && candidate.transform != brain.Target))
 					continue;
 
 				Vector3 direction = offset.normalized;
@@ -359,6 +366,9 @@ namespace SDG.Unturned
 						continue;
 				}
 
+				// Prefer an already-selected, still-visible enemy over a nearer newcomer.
+				if (candidate.transform == brain.Target)
+					return candidate;
 				best = candidate;
 				bestDistanceSquared = distanceSquared;
 			}
@@ -370,6 +380,7 @@ namespace SDG.Unturned
 			Player best = null;
 			float bestDistanceSquared = GetObservationRange(playerSightRange);
 			bestDistanceSquared *= bestDistanceSquared;
+			float maximumSightDistanceSquared = bestDistanceSquared;
 			Vector3 eye = transform.position + Vector3.up * eyeHeight;
 
 			// Iterate the authoritative connected-player collection instead of allocating
@@ -393,7 +404,8 @@ namespace SDG.Unturned
 				Vector3 target = candidate.transform.position + Vector3.up * targetHeight;
 				Vector3 offset = target - eye;
 				float distanceSquared = offset.sqrMagnitude;
-				if (distanceSquared < 0.01f || distanceSquared > bestDistanceSquared)
+				if (distanceSquared < 0.01f || distanceSquared > maximumSightDistanceSquared
+					|| (distanceSquared > bestDistanceSquared && candidate.transform != brain.Target))
 				{
 					continue;
 				}
@@ -428,6 +440,9 @@ namespace SDG.Unturned
 					}
 				}
 
+				// Prefer an already-selected, still-visible enemy over a nearer newcomer.
+				if (candidate.transform == brain.Target)
+					return candidate;
 				best = candidate;
 				bestDistanceSquared = distanceSquared;
 			}
