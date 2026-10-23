@@ -289,7 +289,12 @@ namespace SDG.Unturned
 			float learnedCadence = adaptiveMemory != null
 				? adaptiveMemory.GetShotCadenceMultiplier(shotContext, transform.position) : 1f;
 			Vector3 muzzle = transform.position + Vector3.up * muzzleHeight;
-			Vector3 targetPoint = targetTransform.position + Vector3.up * targetHeight;
+			// The aim component owns the intended world-space crosshair.
+			// Do not use an independent height offset here: that would allow
+			// range/visibility decisions to disagree with the weapon's actual
+			// aim calculation. The aim solver still handles human error.
+			if (!aim.TryGetCurrentAimPointServer(targetTransform, out Vector3 targetPoint))
+				return;
 			Vector3 toTarget = targetPoint - muzzle;
 			// Scoped distance is bounded by the real weapon and a hard cap,
 			// never the map size. With no scope retain ordinary short/medium range.
