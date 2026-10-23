@@ -10,14 +10,14 @@ namespace SDG.Unturned
 	public sealed class MenuConfigurationMobileNPCUI
 	{
 		private static SleekFullscreenBox container;
-		private static SleekButtonIcon populationLabel;
-		private static SleekButtonIcon difficultyButton;
-		private static SleekButtonIcon enabledButton;
-		private static SleekButtonIcon airdropButton;
-		private static SleekButtonIcon roleButton;
-		private static SleekButtonIcon mixButton;
-		private static SleekButtonIcon gameModeButton;
-		private static SleekButtonIcon eraseHistoryButton;
+		private static ISleekButton populationLabel;
+		private static ISleekButton difficultyButton;
+		private static ISleekButton enabledButton;
+		private static ISleekButton airdropButton;
+		private static ISleekButton roleButton;
+		private static ISleekButton mixButton;
+		private static ISleekButton gameModeButton;
+		private static ISleekButton eraseHistoryButton;
 		private static float eraseConfirmationDeadline;
 		private static string eraseStatus;
 		private static bool constructed;
@@ -54,40 +54,40 @@ namespace SDG.Unturned
 			MenuUI.container.AddChild(container);
 
 			populationLabel = CreateButton(-130, -195, 260, 40);
-			populationLabel.onClickedButton += onClickedPopulationLabel;
-			SleekButtonIcon populationDown = CreateButton(-230, -195, 80, 40);
-			populationDown.text = "-";
-			populationDown.onClickedButton += onClickedPopulationDown;
-			SleekButtonIcon populationUp = CreateButton(150, -195, 80, 40);
-			populationUp.text = "+";
-			populationUp.onClickedButton += onClickedPopulationUp;
+			populationLabel.OnClicked += onClickedPopulationLabel;
+			ISleekButton populationDown = CreateButton(-230, -195, 80, 40);
+			populationDown.Text = "-";
+			populationDown.OnClicked += onClickedPopulationDown;
+			ISleekButton populationUp = CreateButton(150, -195, 80, 40);
+			populationUp.Text = "+";
+			populationUp.OnClicked += onClickedPopulationUp;
 
 			difficultyButton = CreateButton(-150, -140, 300, 40);
-			difficultyButton.onClickedButton += onClickedDifficulty;
+			difficultyButton.OnClicked += onClickedDifficulty;
 			enabledButton = CreateButton(-150, -85, 300, 40);
-			enabledButton.onClickedButton += onClickedEnabled;
+			enabledButton.OnClicked += onClickedEnabled;
 			airdropButton = CreateButton(-150, -30, 300, 40);
-			airdropButton.onClickedButton += onClickedAirdrop;
+			airdropButton.OnClicked += onClickedAirdrop;
 			roleButton = CreateButton(-150, 25, 300, 40);
-			roleButton.onClickedButton += onClickedRole;
+			roleButton.OnClicked += onClickedRole;
 			mixButton = CreateButton(-170, 80, 340, 40);
-			mixButton.onClickedButton += onClickedMix;
+			mixButton.OnClicked += onClickedMix;
 			gameModeButton = CreateButton(-170, 135, 340, 40);
-			gameModeButton.onClickedButton += onClickedGameMode;
+			gameModeButton.OnClicked += onClickedGameMode;
 			eraseHistoryButton = CreateButton(-215, 190, 430, 40);
-			eraseHistoryButton.onClickedButton += onClickedEraseHistory;
+			eraseHistoryButton.OnClicked += onClickedEraseHistory;
 
-			SleekButtonIcon back = CreateButton(-100, 245, 200, 40);
-			back.text = "Back";
-			back.onClickedButton += onClickedBack;
+			ISleekButton back = CreateButton(-100, 245, 200, 40);
+			back.Text = "Back";
+			back.OnClicked += onClickedBack;
 			RefreshLabels();
 		}
 
-		private static SleekButtonIcon CreateButton(int x, int y, int width, int height)
+		private static ISleekButton CreateButton(int x, int y, int width, int height)
 		{
 			// This page is part of the legacy Sleek menu hierarchy. Using a Glazier
 			// button here can produce a button whose uGUI text component is absent.
-			SleekButtonIcon button = new SleekButtonIcon(null);
+			ISleekButton button = Glazier.Get().CreateButton();
 			button.PositionOffset_X = x;
 			button.PositionOffset_Y = y;
 			button.PositionScale_X = 0.5f;
@@ -102,21 +102,21 @@ namespace SDG.Unturned
 		{
 			if (populationLabel == null)
 				return;
-			populationLabel.text = "Maximum living NPCs: " + MobileNPCSettings.MaximumAlive;
-			difficultyButton.text = "Difficulty: " + MobileNPCSettings.CurrentDifficulty;
-			enabledButton.text = "NPC spawning/restoring: " + (MobileNPCSettings.Enabled ? "ON" : "OFF");
-			airdropButton.text = "Airdrop contest: " + (MobileNPCSettings.AirdropContestEnabled ? "ON" : "OFF");
-			roleButton.text = MobileNPCSettings.CombatOnly
+			populationLabel.Text = "Maximum living NPCs: " + MobileNPCSettings.MaximumAlive;
+			difficultyButton.Text = "Difficulty: " + MobileNPCSettings.CurrentDifficulty;
+			enabledButton.Text = "NPC spawning/restoring: " + (MobileNPCSettings.Enabled ? "ON" : "OFF");
+			airdropButton.Text = "Airdrop contest: " + (MobileNPCSettings.AirdropContestEnabled ? "ON" : "OFF");
+			roleButton.Text = MobileNPCSettings.CombatOnly
 				? "Manual spawn: ALWAYS HOSTILE (Combat Only)"
 				: "Manual test-spawn role: " + MobileNPCSettings.DefaultRole;
-			mixButton.text = MobileNPCSettings.CombatOnly
+			mixButton.Text = MobileNPCSettings.CombatOnly
 				? "Combate Total: todos hostis, kit inicial, sem necessidades"
 				: MobileNPCSettings.CombatMode
 					? "Faccoes (Combate): 66% hostis, 21% amigaveis"
 					: "World population mix: " + MixLabel(MobileNPCSettings.CurrentPopulationMix);
-			gameModeButton.text = "Modo: " + (MobileNPCSettings.CombatOnly
+			gameModeButton.Text = "Modo: " + (MobileNPCSettings.CombatOnly
 				? "COMBATE TOTAL" : MobileNPCSettings.CombatMode ? "Combate" : "Normal");
-			eraseHistoryButton.text = Time.realtimeSinceStartup < eraseConfirmationDeadline
+			eraseHistoryButton.Text = Time.realtimeSinceStartup < eraseConfirmationDeadline
 				? "CONFIRMAR: apagar NPCs, itens e memorias salvas"
 				: !string.IsNullOrEmpty(eraseStatus) ? eraseStatus
 				: "Apagar historico de NPCs (todos os mapas)";
