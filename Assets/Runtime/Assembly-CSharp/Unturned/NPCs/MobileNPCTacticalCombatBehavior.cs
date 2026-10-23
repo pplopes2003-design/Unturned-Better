@@ -382,8 +382,13 @@ namespace SDG.Unturned
 
 		private void TryChooseFlank(Transform target, bool targetVisible)
 		{
-			if (brain == null || target == null || brain.CurrentGoal == MobileNPCTactics.Goal.Retreat
-				|| brain.CurrentGoal == MobileNPCTactics.Goal.SeekCover)
+			// Halo-style engage behavior: a flank is a supporting movement plan,
+			// not a replacement for an already committed tactical objective.
+			// Never start competing candidate searches while cover, retreat,
+			// a prior flank or any other explicit tactical order is active.
+			// Arrival / genuine route failure / expiration releases that goal.
+			if (brain == null || target == null
+				|| brain.CurrentGoal != MobileNPCTactics.Goal.None)
 				return;
 
 			// In the combat sandbox, an immediately reachable 4m lateral
