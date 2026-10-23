@@ -469,7 +469,22 @@ namespace SDG.Unturned
 
 					if (hitPlayer != candidate)
 					{
-						continue;
+						// A doorway edge or a low sill may occlude the
+						// torso while the player's upper body is exposed.
+						// Require a second independent, unobstructed head
+						// ray; never treat an opaque wall as transparent.
+						Vector3 headPoint = candidate.transform.position + Vector3.up * 1.65f;
+						Vector3 headOffset = headPoint - eye;
+						if (headOffset.sqrMagnitude <= 0.01f)
+							continue;
+						Transform headHit = FindNearestSightTransform(eye,
+							headOffset.normalized, headOffset.magnitude);
+						Player headPlayer = headHit != null
+							? headHit.GetComponentInParent<Player>() : null;
+						if (headPlayer != candidate
+							&& (headHit != null || Physics.Linecast(eye,
+								headPoint, obstructionMask, QueryTriggerInteraction.Ignore)))
+							continue;
 					}
 				}
 
