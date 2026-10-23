@@ -186,18 +186,10 @@ namespace SDG.Unturned
 			investigatingPlayerClue = false;
 			listenUntil = 0f;
 			brain.ReportVisibleTarget(target, Time.time);
-			// A healthy armed survivor who has now CONFIRMED the target may
-			// end an earlier fallback retreat caused by hearing an unseen shot.
-			// Do not cancel cover, low-health escape, or an unrelated objective.
-			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Retreat)
-			{
-				MobileNPCHumanoidVitals ownVitals = GetComponent<MobileNPCHumanoidVitals>();
-				MobileNPCHumanoidRangedCombat weapon = GetComponent<MobileNPCHumanoidRangedCombat>();
-				if (ownVitals != null && ownVitals.HealthFraction > 0.55f
-					&& weapon != null && weapon.SelectedGunAsset != null
-					&& weapon.RoundsRemaining > 0)
-					tactics.ClearGoal();
-			}
+			// Seeing an attacker again does not magically make a
+			// previously chosen escape route unnecessary. Keep the
+			// time-bounded retreat/cover commitment; re-evaluate once
+			// safety is reached or the tactical goal actually expires.
 			// A real current visual target plus a genuine recent wound can
 			// justify a HELP request. A past unseen attacker, mere sound clue,
 			// or group-wide knowledge never creates this radio message.
