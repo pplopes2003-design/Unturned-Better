@@ -100,6 +100,8 @@ namespace SDG.Unturned
 		/// <summary>Raised on the server when the reload finishes.</summary>
 		public event System.Action ReloadFinished;
 
+		/// <summary>Authoritative current ballistic origin; not necessarily the model's barrel tip.</summary>
+		public Vector3 ShotOriginServer => transform.position + Vector3.up * muzzleHeight;
 		public int RoundsRemaining => roundsRemaining;
 		public ItemGunAsset SelectedGunAsset => selectedGunAsset;
 		public bool IsReloading => Provider.isServer && reloadPending;
