@@ -22,7 +22,10 @@ namespace SDG.Unturned
 		[SerializeField, Min(0.02f)] private float scanInterval = 0.2f;
 		[SerializeField, Min(0.1f)] private float eyeHeight = 1.55f;
 		[SerializeField, Min(0.1f)] private float targetHeight = 1.0f;
-		[SerializeField] private LayerMask obstructionMask = ~0;
+		// Layer 22 holds Unturned's navigation geometry. It is not a
+		// physical opaque facade and must not act as an eyesight wall.
+		// Keep actual level/building/player colliders in the LOS mask.
+		[SerializeField] private LayerMask obstructionMask = ~(1 << 22);
 
 		private MobileNPCBrainDriver brain;
 		private MobileNPCHumanoidMotor motor;
@@ -303,6 +306,18 @@ namespace SDG.Unturned
 				// when the prefab's obstruction mask is misconfigured.
 				if (nearestTransform == null)
 				{
+					// Player capsules are not guaranteed to be on the
+					// raycastable mask in every SDK/gameplay configuration.
+					// As with zombie sight, a completely clear ray gives
+					// positive optical evidence without revealing a player
+					// behind ANY real solid wall or closed door.
+					if (Physics.Linecast(eye, target, obstructionMask,
+						QueryTriggerInteraction.Ignore))
+						continue;
+					if (candidate.transform == brain.Target)
+						return candidate;
+					best = candidate;
+					bestDistanceSquared = distanceSquared;
 					continue;
 				}
 
