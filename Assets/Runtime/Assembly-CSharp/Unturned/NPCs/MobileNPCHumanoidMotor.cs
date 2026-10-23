@@ -1219,14 +1219,19 @@ namespace SDG.Unturned
 				&& zombieDistance <= (gunCanDefend ? 3.0f : 5.0f);
 			if (faceZombieInsteadOfTravel)
 				facingDirection = toCombatZombie;
-			if (holdDeliberateFire && brainDriver.Target != null)
+			// Face a directly visible, selected hostile even between gun bursts
+			// and during melee cooldown. Previously this only applied while
+			// holdDeliberateFire, allowing path steering or a sound clue to
+			// turn the whole body away from an actively engaged player.
+			bool faceVisibleSelectedHostile = targetIsVisible
+				&& brainDriver.Target != null
+				&& brainDriver.CurrentState == MobileNPCBrain.State.Pursuing;
+			if (faceVisibleSelectedHostile)
 			{
-				// Turn only toward a presently visible, legally selected
-				// combatant. A lost/occluded target stops this optical tracking.
 				facingDirection = brainDriver.Target.position - transform.position;
 				facingDirection.y = 0f;
 			}
-			if (brainDriver.IsListening)
+			if (!faceVisibleSelectedHostile && brainDriver.IsListening)
 			{
 				// Face the uncertain sound bearing, not the player's hidden live
 				// position. Rotation is deliberately slower than combat aiming.
@@ -1237,7 +1242,7 @@ namespace SDG.Unturned
 			{
 				Quaternion targetRotation = Quaternion.LookRotation(facingDirection, Vector3.up);
 				float steeringSpeed = brainDriver.IsListening ? turnSpeed * 0.35f
-					: faceZombieInsteadOfTravel ? Mathf.Max(220f, turnSpeed)
+					: faceZombieInsteadOfTravel || faceVisibleSelectedHostile ? Mathf.Max(220f, turnSpeed)
 					: holdDeliberateFire ? Mathf.Min(110f, turnSpeed * 0.4f) : turnSpeed;
 				transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, steeringSpeed * deltaTime);
 			}
