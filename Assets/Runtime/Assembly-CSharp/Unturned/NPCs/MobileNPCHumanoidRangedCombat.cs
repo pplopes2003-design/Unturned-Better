@@ -67,31 +67,40 @@ namespace SDG.Unturned
 		private int nativeBurstCount;
 		private bool nativeManualAction;
 		private float nativeRechamberDelay;
+		// Use the public native asset API when present, but tolerate
+		// SDK revisions with differently cased members. Never throw while
+		// equipping an item: unknown metadata falls back to semi-auto.
 		private static object ReadGunMember(ItemGunAsset gun, string member)
 		{
-			System.Type type = gun.GetType();
-			var property = type.GetProperty(member);
-			if (property != null) return property.GetValue(gun, null);
-			var field = type.GetField(member);
-			return field != null ? field.GetValue(gun) : null;
+			if (gun == null || string.IsNullOrEmpty(member)) return null;
+			try
+			{
+				const System.Reflection.BindingFlags flags =
+					System.Reflection.BindingFlags.Instance |
+					System.Reflection.BindingFlags.Public |
+					System.Reflection.BindingFlags.IgnoreCase;
+				System.Type type = gun.GetType();
+				var property = type.GetProperty(member, flags);
+				if (property != null && property.GetIndexParameters().Length == 0)
+					return property.GetValue(gun, null);
+				var field = type.GetField(member, flags);
+				return field != null ? field.GetValue(gun) : null;
+			}
+			catch (System.Exception)
+			{
+				return null;
+			}
 		}
 		private static bool ReadGunFlag(ItemGunAsset gun, string member)
 		{
-			System.Type type = gun.GetType();
-			var property = type.GetProperty(member);
-			if (property != null && property.PropertyType == typeof(bool))
-				return (bool)property.GetValue(gun, null);
-			var field = type.GetField(member);
-			return field != null && field.FieldType == typeof(bool) && (bool)field.GetValue(gun);
+			return ReadGunMember(gun, member) is bool enabled && enabled;
 		}
 		private static int ReadGunBurstCount(ItemGunAsset gun)
 		{
-			System.Type type = gun.GetType();
-			var property = type.GetProperty("bursts");
-			if (property != null)
-				return System.Convert.ToInt32(property.GetValue(gun, null));
-			var field = type.GetField("bursts");
-			return field != null ? System.Convert.ToInt32(field.GetValue(gun)) : 0;
+			object value = ReadGunMember(gun, "bursts");
+			if (value == null) return 0;
+			try { return Mathf.Clamp(System.Convert.ToInt32(value), 0, 30); }
+			catch (System.Exception) { return 0; }
 		}
 
 		// Reused hit buffer avoids allocating and sorting a new RaycastAll array for every shot.
