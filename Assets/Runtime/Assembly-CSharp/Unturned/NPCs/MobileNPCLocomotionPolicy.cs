@@ -28,6 +28,7 @@ namespace SDG.Unturned
             public bool Stalking;
             public bool Retreating;
             public bool Pursuing;
+            public bool Flanking;
             public float DestinationDistance;
         }
 
@@ -43,6 +44,8 @@ namespace SDG.Unturned
             else if (situation.Swimming || situation.Injured)
                 desired = Gait.Walk;
             else if (situation.Retreating || (situation.UnderFire && !situation.InCover))
+                desired = Gait.Sprint;
+            else if (situation.Flanking && situation.DestinationDistance > 4f)
                 desired = Gait.Sprint;
             else if (situation.Pursuing && !situation.NearTarget)
                 // A confirmed combat pursuit must close distance even when the
