@@ -65,6 +65,16 @@ namespace SDG.Unturned
 		// Unknown flags deliberately fall back to one trigger pull per shot.
 		private bool nativeAutomaticAllowed;
 		private int nativeBurstCount;
+		private bool nativeManualAction;
+		private float nativeRechamberDelay;
+		private static object ReadGunMember(ItemGunAsset gun, string member)
+		{
+			System.Type type = gun.GetType();
+			var property = type.GetProperty(member);
+			if (property != null) return property.GetValue(gun, null);
+			var field = type.GetField(member);
+			return field != null ? field.GetValue(gun) : null;
+		}
 		private static bool ReadGunFlag(ItemGunAsset gun, string member)
 		{
 			System.Type type = gun.GetType();
@@ -485,7 +495,8 @@ namespace SDG.Unturned
 						? Random.Range(0.18f, 0.38f)
 						: Random.Range(Mathf.Min(minimumBurstPause, maximumBurstPause),
 							Mathf.Max(minimumBurstPause, maximumBurstPause));
-				nextShotTime = Time.time + Mathf.Max(GetSecondsPerShot(), pause * learnedCadence);
+				nextShotTime = Time.time + Mathf.Max(GetSecondsPerShot(),
+					nativeManualAction ? Mathf.Max(nativeRechamberDelay, pause) : pause * learnedCadence);
 			}
 			else
 			{
@@ -732,6 +743,8 @@ namespace SDG.Unturned
 				selectedGunAsset = null;
 				nativeAutomaticAllowed = false;
 				nativeBurstCount = 0;
+				nativeManualAction = false;
+				nativeRechamberDelay = 0f;
 				cadenceTarget = null;
 				selectedGunHasCompatibleMagazine = false;
 				selectedOpticZoom = 1f;
@@ -750,6 +763,20 @@ namespace SDG.Unturned
 			// enter our sustained trigger-hold behavior.
 			nativeAutomaticAllowed = ReadGunFlag(gunAsset, "isAuto");
 			nativeBurstCount = Mathf.Max(0, ReadGunBurstCount(gunAsset));
+			// Bolt and Pump require cycling between shots even when the
+			// magazine still contains ammunition. Never sustain automatic
+			// fire with a manually operated action.
+			object action = ReadGunMember(gunAsset, "action");
+			string actionName = action != null ? action.ToString() : string.Empty;
+			nativeManualAction = actionName == "Bolt" || actionName == "Pump";
+			if (nativeManualAction)
+			{
+				nativeAutomaticAllowed = false;
+				nativeBurstCount = 0;
+			}
+			object rechamberDelay = ReadGunMember(gunAsset, "rechamberAfterShotDelay");
+			nativeRechamberDelay = rechamberDelay is float delay
+				? Mathf.Max(0.25f, delay) : 0.25f;
 			cadenceTarget = null;
 			selectedGunHasCompatibleMagazine = false;
 			selectedOpticZoom = 1f;
