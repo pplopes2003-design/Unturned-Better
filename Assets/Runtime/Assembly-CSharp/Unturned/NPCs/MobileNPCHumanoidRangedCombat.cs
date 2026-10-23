@@ -503,6 +503,12 @@ namespace SDG.Unturned
 				float intervalScale = Random.Range(1f - shotIntervalJitter, 1f + shotIntervalJitter);
 				nextShotTime = Time.time + Mathf.Max(0.05f, GetSecondsPerShot() * intervalScale * learnedCadence);
 			}
+			// A manually cycled weapon must rechamber after EVERY committed
+			// round. Never allow a remaining burst count or tactical cadence
+			// to bypass the actual bolt/pump mechanism.
+			if (nativeManualAction)
+				nextShotTime = Mathf.Max(nextShotTime,
+					Time.time + Mathf.Max(GetSecondsPerShot(), nativeRechamberDelay));
 
 			PendingBullet committed = new PendingBullet
 			{
@@ -768,7 +774,8 @@ namespace SDG.Unturned
 			// fire with a manually operated action.
 			object action = ReadGunMember(gunAsset, "action");
 			string actionName = action != null ? action.ToString() : string.Empty;
-			nativeManualAction = actionName == "Bolt" || actionName == "Pump";
+			nativeManualAction = string.Equals(actionName, "Bolt", System.StringComparison.OrdinalIgnoreCase)
+				|| string.Equals(actionName, "Pump", System.StringComparison.OrdinalIgnoreCase);
 			if (nativeManualAction)
 			{
 				nativeAutomaticAllowed = false;
