@@ -192,13 +192,29 @@ namespace SDG.Unturned
 			// Only a hostile role or the NPC's own recent verified attacker
 			// can become an aim target, and the combat driver still confirms
 			// the target before a shot.
-			Player seenPlayer = perception != null ? perception.VisiblePlayer : null;
-			Transform currentTarget = perception != null
-				? (seenPlayer != null && disposition != null
-					&& disposition.CanEngagePlayer(seenPlayer) ? seenPlayer.transform
-					: perception.VisibleNPC != null ? perception.VisibleNPC.transform
-					: perception.VisibleZombie != null ? perception.VisibleZombie.transform : null)
-				: brainDriver.Target;
+			// The brain owns target commitment. Perception confirms that the
+			// SAME opponent is currently seen and still legally engageable.
+			// Otherwise aim would lock onto a different nearby opponent,
+			// repeatedly resetting reaction time while the weapon executor
+			// correctly tried to fire at the committed victim.
+			Transform selectedTarget = brainDriver.Target;
+			Transform currentTarget = null;
+			if (selectedTarget != null)
+			{
+				Player selectedPlayer = selectedTarget.GetComponentInParent<Player>();
+				MobileNPCHumanoidDisposition selectedNPC =
+					selectedTarget.GetComponentInParent<MobileNPCHumanoidDisposition>();
+				Zombie selectedZombie = selectedTarget.GetComponentInParent<Zombie>();
+				if (perception == null)
+					currentTarget = selectedTarget;
+				else if (selectedPlayer != null && perception.VisiblePlayer == selectedPlayer
+					&& disposition != null && disposition.CanEngagePlayer(selectedPlayer))
+					currentTarget = selectedPlayer.transform;
+				else if (selectedNPC != null && perception.VisibleNPC == selectedNPC)
+					currentTarget = selectedNPC.transform;
+				else if (selectedZombie != null && perception.VisibleZombie == selectedZombie)
+					currentTarget = selectedZombie.transform;
+			}
 			if (currentTarget == null)
 			{
 				ClearTarget();
