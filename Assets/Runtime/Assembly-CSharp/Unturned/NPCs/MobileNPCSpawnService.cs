@@ -81,7 +81,19 @@ namespace SDG.Unturned
 				return false;
 			}
 
-			float allowedSlope = Mathf.Clamp(maximumSlopeAngle, 0f, 89f);
+			// A bed, cupboard or other placed interactable is not navigable
+		// architectural floor. Reject it at spawn rather than creating an
+		// NPC trapped on furniture with no safe descent.
+		Interactable surface = hit.collider != null
+			? hit.collider.GetComponentInParent<Interactable>() : null;
+		if (surface is InteractableBed || surface is InteractableStorage
+			|| surface is InteractableMannequin || surface is InteractableSentry)
+		{
+			error = "Spawn candidate is on furniture, not traversable ground.";
+			return false;
+		}
+
+		float allowedSlope = Mathf.Clamp(maximumSlopeAngle, 0f, 89f);
 			if (Vector3.Angle(hit.normal, Vector3.up) > allowedSlope)
 			{
 				error = "The candidate ground is too steep for a humanoid NPC.";
