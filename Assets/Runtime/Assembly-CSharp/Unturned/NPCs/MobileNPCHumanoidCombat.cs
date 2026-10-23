@@ -190,20 +190,17 @@ namespace SDG.Unturned
 				if (hitZombie != targetZombie) return;
 			}
 
-			// A punch has a real forward arc. Merely standing within 1-3m
-			// while running backwards cannot hit a zombie behind the NPC.
-			// The motor rotates toward a currently visible opponent
-			// independently from the direction of a tactical withdrawal.
-			if (targetZombie != null)
-			{
-				Vector3 towardZombie = targetZombie.transform.position - transform.position;
-				towardZombie.y = 0f;
-				Vector3 forward = transform.forward;
-				forward.y = 0f;
-				if (towardZombie.sqrMagnitude < 0.01f
-					|| Vector3.Dot(forward.normalized, towardZombie.normalized) < 0.72f)
-					return;
-			}
+			// All melee targets must be in front of the actor, not only zombies.
+			// Moving backwards, sideways, or exiting a crouch must never grant
+			// a behind-the-back hit against a player or another NPC.
+			// Motor steering turns toward the presently visible selected enemy.
+			Vector3 towardVictim = targetTransform.position - transform.position;
+			towardVictim.y = 0f;
+			Vector3 forward = transform.forward;
+			forward.y = 0f;
+			if (towardVictim.sqrMagnitude < 0.01f || forward.sqrMagnitude < 0.01f
+				|| Vector3.Dot(forward.normalized, towardVictim.normalized) < 0.72f)
+				return;
 
 			// Avoid an unrealistic simultaneous full-auto burst and heavy melee
 			// hit except when an enemy is physically crowding the NPC.
