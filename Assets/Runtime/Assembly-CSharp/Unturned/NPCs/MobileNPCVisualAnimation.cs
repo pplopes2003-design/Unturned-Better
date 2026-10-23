@@ -574,13 +574,22 @@ namespace SDG.Unturned
             {
                 Vector3 fromShoulders = observedPoint - (weaponRightShoulder.position
                     + weaponLeftShoulder.position) * 0.5f;
-                float horizontal = new Vector2(fromShoulders.x, fromShoulders.z).magnitude;
+                Vector3 planarAim = new Vector3(fromShoulders.x, 0f, fromShoulders.z);
+                float horizontal = planarAim.magnitude;
                 if (horizontal > 0.15f)
                 {
+                    // Aim the upper body toward the SAME observed point as the
+                    // server's virtual crosshair, including horizontal bearing.
+                    // Do not change the actual server shot origin or ballistics.
+                    // Limit shoulder twist while the motor turns the hips.
+                    planarAim /= horizontal;
+                    float signedYaw = Vector3.SignedAngle(bodyForward, planarAim, Vector3.up);
+                    Vector3 shoulderForward = Quaternion.AngleAxis(
+                        Mathf.Clamp(signedYaw, -50f, 50f), Vector3.up) * bodyForward;
                     float verticalSlope = Mathf.Tan(Mathf.Clamp(
                         Mathf.Atan2(fromShoulders.y, horizontal) * Mathf.Rad2Deg,
                         -35f, 35f) * Mathf.Deg2Rad);
-                    aimForward = (bodyForward + Vector3.up * verticalSlope).normalized;
+                    aimForward = (shoulderForward + Vector3.up * verticalSlope).normalized;
                 }
             }
 
