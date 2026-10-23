@@ -52,6 +52,24 @@ namespace SDG.Unturned
 		public MobileNPCBrain.State CurrentState => brain != null ? brain.CurrentState : MobileNPCBrain.State.Idle;
 		public MobileNPCTactics.Goal CurrentGoal => tactics != null ? tactics.CurrentGoal : MobileNPCTactics.Goal.None;
 		public Transform Target => brain != null ? brain.Target : null;
+
+		/// <summary>
+		/// Single authority for offensive action eligibility. Tactical movement,
+		/// weapon execution and body pose may change independently, but none may
+		/// cancel the selected victim simply to start a new attack animation.
+		/// The executors still enforce their own range, sight, fire mode, ammo,
+		/// friendly-fire and collision checks.
+		/// </summary>
+		public bool CanExecuteRangedAttackServer => Provider.isServer && hasInitialized
+			&& brain != null && brain.CurrentState == MobileNPCBrain.State.Pursuing
+			&& brain.Target != null && !IsAmbushPreparing
+			&& !HoldRangedFireForCloseAssault
+			&& CurrentGoal != MobileNPCTactics.Goal.Retreat;
+
+		public bool CanExecuteMeleeAttackServer => Provider.isServer && hasInitialized
+			&& brain != null && brain.CurrentState == MobileNPCBrain.State.Pursuing
+			&& brain.Target != null && !IsAmbushPreparing;
+
 		public bool HasDestination => tactics != null && tactics.HasTacticalDestination || brain != null && brain.HasDestination;
 		public Vector3 Destination => tactics != null && tactics.HasTacticalDestination
 			? tactics.TacticalDestination
