@@ -48,6 +48,7 @@ namespace SDG.Unturned
         private bool weaponPosePlaying;
         private ushort boundWeaponAssetID;
         private Transform boundWeaponModel;
+        private Transform boundWeaponBarrel;
         private float nextMuzzleDiagnosticAt;
         private Transform weaponLeftShoulder;
         private Transform weaponRightShoulder;
@@ -642,8 +643,13 @@ namespace SDG.Unturned
                     + " ballisticOrigin=" + shotOrigin
                     + " modelPivot=" + boundWeaponModel.position
                     + " rightHand=" + weaponRightHand.position
+                    + " nativeBarrel=" + (boundWeaponBarrel != null
+                        ? boundWeaponBarrel.position.ToString() : "(missing)")
+                    + " offsetToBarrel=" + (boundWeaponBarrel != null
+                        ? Vector3.Distance(shotOrigin, boundWeaponBarrel.position).ToString("F2") + "m"
+                        : "(unavailable)")
                     + " offsetToModel=" + Vector3.Distance(shotOrigin, boundWeaponModel.position).ToString("F2")
-                    + "m. Model pivot is not proven muzzle.", this);
+                    + "m. Barrel marks muzzle effects, not automatic permission to relocate ballistic origin.", this);
             }
 #endif
             gunFallbackShotAt = Time.time;
@@ -681,6 +687,21 @@ namespace SDG.Unturned
             weaponBoundAt = Time.time;
             boundWeaponAssetID = asset.id;
             boundWeaponModel = itemModel;
+            boundWeaponBarrel = null;
+            // Unturned's native gun prefab convention names the muzzle effect
+            // attachment "Barrel". Do not mistake the model pivot for it.
+            if (itemModel != null)
+            {
+                Transform[] children = itemModel.GetComponentsInChildren<Transform>(true);
+                for (int i = 0; i < children.Length; ++i)
+                {
+                    if (children[i] != null && children[i].name == "Barrel")
+                    {
+                        boundWeaponBarrel = children[i];
+                        break;
+                    }
+                }
+            }
             weaponPoseFallbackReported = false;
             gunPoseFallbackBlend = 0f;
             if (weaponVisualActive && (weaponLeftShoulder == null
@@ -874,6 +895,7 @@ namespace SDG.Unturned
             equippedItemClips = null;
             weaponVisualActive = false;
             boundWeaponModel = null;
+            boundWeaponBarrel = null;
             gunPoseFallbackBlend = 0f;
             equippedWeaponHoldClip = null;
             currentWeaponActionClip = null;
