@@ -44,14 +44,17 @@ namespace SDG.Unturned
                 desired = Gait.Walk;
             else if (situation.Retreating || (situation.UnderFire && !situation.InCover))
                 desired = Gait.Sprint;
-            else if (situation.Pursuing && situation.TargetVisible && !situation.NearTarget)
+            else if (situation.Pursuing && !situation.NearTarget)
+                // A confirmed combat pursuit must close distance even when the
+                // enemy has just rounded a corner. Visibility determines aim,
+                // not whether the survivor is allowed to run along a valid route.
                 desired = Gait.Sprint;
             else if (situation.Stalking)
                 desired = Gait.Sneak;
             else if (situation.Investigating && !situation.TargetVisible)
                 desired = Gait.Sneak;
             else if (situation.Pursuing && !situation.TargetVisible && situation.NearTarget)
-                desired = Gait.Sneak;
+                desired = Gait.Walk;
             else if (situation.InCover && !situation.TargetVisible)
                 desired = Gait.Sneak;
             else
