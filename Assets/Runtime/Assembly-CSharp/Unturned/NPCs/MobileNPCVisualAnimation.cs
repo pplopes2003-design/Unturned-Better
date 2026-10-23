@@ -47,6 +47,8 @@ namespace SDG.Unturned
         private float suppressWeaponPoseUntil;
         private bool weaponPosePlaying;
         private ushort boundWeaponAssetID;
+        private Transform boundWeaponModel;
+        private float nextMuzzleDiagnosticAt;
         private Transform weaponLeftShoulder;
         private Transform weaponRightShoulder;
         private Transform weaponSpineHook;
@@ -626,6 +628,24 @@ namespace SDG.Unturned
 
         private void HandleShotFired()
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            // Evidence only: a held model pivot or wrist is NOT a verified barrel tip.
+            // Compare actual simulated shot origin with visual anchors at a bounded rate.
+            // Never silently move ballistic rays onto arbitrary item pivots.
+            if (Time.time >= nextMuzzleDiagnosticAt && rangedCombat != null
+                && boundWeaponModel != null && weaponRightHand != null)
+            {
+                nextMuzzleDiagnosticAt = Time.time + 10f;
+                Vector3 shotOrigin = rangedCombat.ShotOriginServer;
+                Debug.Log("[MobileNPCMuzzleAudit] npc=" + name
+                    + " gun=" + boundWeaponAssetID
+                    + " ballisticOrigin=" + shotOrigin
+                    + " modelPivot=" + boundWeaponModel.position
+                    + " rightHand=" + weaponRightHand.position
+                    + " offsetToModel=" + Vector3.Distance(shotOrigin, boundWeaponModel.position).ToString("F2")
+                    + "m. Model pivot is not proven muzzle.", this);
+            }
+#endif
             gunFallbackShotAt = Time.time;
             // Preserve the held rifle pose when the particular weapon has
             // no authored firing animation. Sound/model are handled by the
@@ -660,6 +680,7 @@ namespace SDG.Unturned
             weaponVisualActive = asset is ItemGunAsset;
             weaponBoundAt = Time.time;
             boundWeaponAssetID = asset.id;
+            boundWeaponModel = itemModel;
             weaponPoseFallbackReported = false;
             gunPoseFallbackBlend = 0f;
             if (weaponVisualActive && (weaponLeftShoulder == null
@@ -852,6 +873,7 @@ namespace SDG.Unturned
             }
             equippedItemClips = null;
             weaponVisualActive = false;
+            boundWeaponModel = null;
             gunPoseFallbackBlend = 0f;
             equippedWeaponHoldClip = null;
             currentWeaponActionClip = null;
