@@ -253,7 +253,11 @@ namespace SDG.Unturned
 
 		private void CommitStrikeServer(ItemMeleeAsset weapon, Item heldItem)
 		{
-			nextAttackTime = Time.time + Mathf.Max(0.35f, attackCooldown);
+			// Vary recovery slightly between committed hits instead of a
+			// metronomic loop, while retaining the authored animation-safe
+			// minimum cadence. This changes timing only, not damage or reach.
+			float recoveryVariation = Random.Range(0.94f, 1.12f);
+			nextAttackTime = Time.time + Mathf.Max(0.35f, attackCooldown * recoveryVariation);
 			LastAttackUsedMeleeWeapon = weapon != null;
 			LastAttackWeaponID = heldItem != null ? heldItem.id : (ushort)0;
 			// Visual/audio subscribers are optional. One broken animation must
