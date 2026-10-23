@@ -3211,7 +3211,15 @@ namespace SDG.Unturned
 			// stall search the local facade for a physically traversable
 			// free-space opening, then commit a two-sided threshold route.
 			// Shared/per-actor caps prevent high NPC counts from spiking.
-			if (consecutiveStuckRecoveries >= 1
+			// A blocked line toward a nearby indoor destination is already
+			// physical evidence of a facade. Do not demand an actual collision
+			// stall before even looking for an accessible doorway: that forces
+			// the survivor to walk into the wall first. The threshold probe
+			// itself is server-only and throttled per NPC and across the crowd.
+			bool nearbyBlockedFacade = toGoal.sqrMagnitude <= 400f
+				&& Mathf.Abs(destination.y - transform.position.y) <= 0.8f
+				&& IsObstacleBlocking(toGoal.normalized);
+			if ((consecutiveStuckRecoveries >= 1 || nearbyBlockedFacade)
 				&& TryPlanObservedBuildingThresholdServer(destination))
 				return;
 
