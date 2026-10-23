@@ -295,10 +295,13 @@ namespace SDG.Unturned
 				return false;
 			}
 
-			if ((targetNPC.transform.position - transform.position).sqrMagnitude > GetMeleeReachServer(false) * GetMeleeReachServer(false))
-			{
+			Vector3 npcOffset = targetNPC.transform.position - transform.position;
+			if (npcOffset.sqrMagnitude > GetMeleeReachServer(false) * GetMeleeReachServer(false))
 				return false;
-			}
+			Vector3 planarNpcOffset = new Vector3(npcOffset.x, 0f, npcOffset.z);
+			if (planarNpcOffset.sqrMagnitude < 0.01f
+				|| Vector3.Dot(transform.forward, planarNpcOffset.normalized) < 0.72f)
+				return false; // Revalidate physical facing for external/animation-event callers.
 
 			float resolvedDamage = ResolveAttackDamageServer(false,
 				out ItemMeleeAsset usedWeapon, out Item usedItem);
@@ -406,9 +409,11 @@ namespace SDG.Unturned
 
 			Vector3 offset = targetPlayer.transform.position - transform.position;
 			if (offset.sqrMagnitude > GetMeleeReachServer(true) * GetMeleeReachServer(true))
-			{
 				return false;
-			}
+			Vector3 planarPlayerOffset = new Vector3(offset.x, 0f, offset.z);
+			if (planarPlayerOffset.sqrMagnitude < 0.01f
+				|| Vector3.Dot(transform.forward, planarPlayerOffset.normalized) < 0.72f)
+				return false; // No behind-the-back damage via direct event invocation.
 
 			float resolvedDamage = ResolveAttackDamageServer(true,
 				out ItemMeleeAsset usedWeapon, out Item usedItem);
