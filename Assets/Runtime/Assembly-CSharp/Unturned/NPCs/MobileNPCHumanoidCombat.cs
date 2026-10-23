@@ -51,8 +51,7 @@ namespace SDG.Unturned
 			MobileNPCHumanoidMotor motor = GetComponent<MobileNPCHumanoidMotor>();
 			if (motor != null && (motor.IsClimbingLadder || motor.IsVaultTraversing))
 				return; // both hands occupied by physical climb or parapet clamber
-			if (!Provider.isServer || brainDriver == null || brainDriver.CurrentState != MobileNPCBrain.State.Pursuing
-				|| brainDriver.IsAmbushPreparing)
+			if (brainDriver == null || !brainDriver.CanExecuteMeleeAttackServer)
 			{
 				return;
 			}
