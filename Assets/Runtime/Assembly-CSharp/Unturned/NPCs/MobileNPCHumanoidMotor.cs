@@ -1291,7 +1291,12 @@ namespace SDG.Unturned
 			// Keep the real crouched capsule only for a validated low opening.
 			UpdateCrouchStance(!isPlannedJumping && !IsTraversingLadder
 				&& !isUnderwater && verifiedLowOpening);
-			float speed = gait == MobileNPCLocomotionPolicy.Gait.Sprint && runWhenPursuing
+			// Retreat and cover dashes are survival actions: never reduce
+			// them to walking because the optional pursuit-running toggle is off.
+			bool urgentDefensiveSprint = brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat
+				|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.SeekCover;
+			float speed = gait == MobileNPCLocomotionPolicy.Gait.Sprint
+				&& (runWhenPursuing || urgentDefensiveSprint)
 				? runSpeed : gait == MobileNPCLocomotionPolicy.Gait.Sneak ? sneakSpeed : walkSpeed;
 			speed *= injuryMovementMultiplier;
 			Vector3 motion = planarDirection * speed;
