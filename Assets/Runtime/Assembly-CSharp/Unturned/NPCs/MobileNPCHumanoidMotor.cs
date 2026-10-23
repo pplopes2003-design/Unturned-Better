@@ -1281,12 +1281,13 @@ namespace SDG.Unturned
 			// Do not remain physically crouched while an active combat target
 			// is confirmed visible just because a prior footstep suggested
 			// listening or stalking. Cover itself remains a tactical goal.
+			// Gunfire sounds, listening and a Sneak gait are information or
+			// movement decisions, NOT permission to crouch. Crouching without
+			// geometrical necessity exposes the NPC in an incoherent stationary
+			// pose, especially when shots are merely passing nearby.
+			// Keep the real crouched capsule only for a validated low opening.
 			UpdateCrouchStance(!isPlannedJumping && !IsTraversingLadder
-				&& !isUnderwater
-				&& (verifiedLowOpening
-					|| !targetIsVisible && !seesNonThreateningPlayer
-						&& (gait == MobileNPCLocomotionPolicy.Gait.Sneak
-							|| brainDriver.IsListening || brainDriver.IsAmbushPreparing)));
+				&& !isUnderwater && verifiedLowOpening);
 			float speed = gait == MobileNPCLocomotionPolicy.Gait.Sprint && runWhenPursuing
 				? runSpeed : gait == MobileNPCLocomotionPolicy.Gait.Sneak ? sneakSpeed : walkSpeed;
 			speed *= injuryMovementMultiplier;
