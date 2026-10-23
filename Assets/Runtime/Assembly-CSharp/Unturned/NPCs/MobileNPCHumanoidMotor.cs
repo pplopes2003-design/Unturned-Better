@@ -5066,10 +5066,11 @@ namespace SDG.Unturned
 			int exposureProbeBudget = 24;
 			// Shared search admission and a local fixed budget prevent a crowd
 			// from doing unbounded ground checks in a single planning pass.
-			// Each accepted edge now samples several floor points. Reduce the
-			// per-search edge budget to prevent large NPC crowds from
-			// multiplying physics queries after the stricter validation.
-			int continuousFloorProbeBudget = 100;
+			// Exact approach routes (doorways, cover, ladder access) must not
+			// fail prematurely because broad roaming used their edge budget.
+			// Keep both searches bounded; exact paths receive a modest extra
+			// allowance while the shared roaming admission still throttles crowds.
+			int continuousFloorProbeBudget = requireExactLocalGoal ? 160 : 100;
 
 			costs[start] = 0f;
 			for (int iteration = 0; iteration < RouteGridNodeLimit; ++iteration)
