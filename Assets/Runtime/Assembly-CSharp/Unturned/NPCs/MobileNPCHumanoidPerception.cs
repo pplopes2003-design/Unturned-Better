@@ -99,7 +99,25 @@ namespace SDG.Unturned
 			// memory; do not replace that target with a nearer NPC while the player is
 			// behind cover. Visibility remains false during occlusion, so aiming/fire
 			// integrations must still require fresh line-of-sight evidence.
-			if (playerCandidate != null && disposition.CanEngagePlayer(playerCandidate))
+			// A visible selected enemy is the current objective, regardless of
+			// another candidate's category or proximity. Finish this engagement
+			// unless visibility is lost, the enemy dies, or a separate explicit
+			// defensive override changes the brain's selected target.
+			if (npcCandidate != null && npcCandidate.transform == brain.Target)
+			{
+				visiblePlayer = null;
+				visibleNPC = npcCandidate;
+				visibleZombie = null;
+				brain.ReportVisibleTarget(npcCandidate.transform);
+			}
+			else if (zombieCandidate != null && zombieCandidate.transform == brain.Target)
+			{
+				visiblePlayer = null;
+				visibleNPC = null;
+				visibleZombie = zombieCandidate;
+				brain.ReportVisibleTarget(zombieCandidate.transform);
+			}
+			else if (playerCandidate != null && disposition.CanEngagePlayer(playerCandidate))
 			{
 				visiblePlayer = playerCandidate;
 				visibleNPC = null;
