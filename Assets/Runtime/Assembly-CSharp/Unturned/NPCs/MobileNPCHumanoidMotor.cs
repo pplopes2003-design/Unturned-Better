@@ -4898,23 +4898,33 @@ namespace SDG.Unturned
 
 		private bool HasContinuousLocalFloor(Vector3 from, Vector3 to)
 		{
-			Vector3 midpoint = (from + to) * 0.5f;
-			if (!MobileNPCSpawnService.TryFindSafeGroundPosition(midpoint,
-				0.7f, 0.85f, roamingGroundMask,
-				Mathf.Min(characterController.slopeLimit, roamingMaximumSlope),
-				out Vector3 floor, out Collider floorCollider, out _)
-				|| (IsFurnitureSurfaceCollider(floorCollider)
-					&& !CanUsePhysicallyReachedFurnitureFloor(floorCollider, floor))
-				|| Mathf.Abs(floor.y - midpoint.y) > 0.35f)
-				return false;
-			// Route evidence must be at most the true native walking step;
-			// skin width is a collision tolerance, NOT another 10cm ledge.
+			// A midpoint alone can miss a gap beside a doorway jamb or at
+			// either end of a diagonal. Sample the entire edge at <=0.45m
+			// intervals; every adjacent pair must be traversable by the
+			// actual CharacterController's configured step height.
+			Vector3 planar = to - from;
+			planar.y = 0f;
+			int segments = Mathf.Max(2, Mathf.CeilToInt(planar.magnitude / 0.45f));
+			float previousY = from.y;
 			float riseLimit = characterController.stepOffset + 0.05f;
-			return floor.y - from.y <= riseLimit
-				&& to.y - floor.y <= riseLimit
-				&& from.y - floor.y <= 0.55f
-				&& floor.y - to.y <= 0.55f
-				&& Level.checkSafeIncludingClipVolumes(floor);
+			for (int i = 1; i < segments; ++i)
+			{
+				Vector3 sample = Vector3.Lerp(from, to, (float)i / segments);
+				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(sample,
+					0.55f, 0.65f, roamingGroundMask,
+					Mathf.Min(characterController.slopeLimit, roamingMaximumSlope),
+					out Vector3 floor, out Collider floorCollider, out _)
+					|| (IsFurnitureSurfaceCollider(floorCollider)
+						&& !CanUsePhysicallyReachedFurnitureFloor(floorCollider, floor))
+					|| Mathf.Abs(floor.y - sample.y) > 0.35f
+					|| floor.y - previousY > riseLimit
+					|| previousY - floor.y > 0.55f
+					|| !Level.checkSafeIncludingClipVolumes(floor))
+					return false;
+				previousY = floor.y;
+			}
+			return to.y - previousY <= riseLimit
+				&& previousY - to.y <= 0.55f;
 		}
 
 		private bool TryBuildLocalRoute(Vector3 destination,
