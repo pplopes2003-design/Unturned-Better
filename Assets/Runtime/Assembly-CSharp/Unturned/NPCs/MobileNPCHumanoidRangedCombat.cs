@@ -476,10 +476,15 @@ namespace SDG.Unturned
 				// Maintain a shorter observation gap when a live, close and
 				// visible opponent offers a sustained firing opportunity.
 				// Do not fire faster than the gun's native cyclic cadence.
+				// Each semi-auto trigger pull is independent. Do not impose the
+				// multi-shot burst recovery interval on a semi-only weapon.
+				// The weapon's real cyclic rate remains a hard lower bound.
 				float pause = sustainedEngagement
 					? Random.Range(0.12f, 0.32f)
-					: Random.Range(Mathf.Min(minimumBurstPause, maximumBurstPause),
-						Mathf.Max(minimumBurstPause, maximumBurstPause));
+					: !nativeAutomaticAllowed && nativeBurstCount <= 0
+						? Random.Range(0.18f, 0.38f)
+						: Random.Range(Mathf.Min(minimumBurstPause, maximumBurstPause),
+							Mathf.Max(minimumBurstPause, maximumBurstPause));
 				nextShotTime = Time.time + Mathf.Max(GetSecondsPerShot(), pause * learnedCadence);
 			}
 			else
@@ -725,6 +730,9 @@ namespace SDG.Unturned
 				selectedGunID = 0;
 				selectedGunInstanceID = 0;
 				selectedGunAsset = null;
+				nativeAutomaticAllowed = false;
+				nativeBurstCount = 0;
+				cadenceTarget = null;
 				selectedGunHasCompatibleMagazine = false;
 				selectedOpticZoom = 1f;
 				selectedBulletGravityMultiplier = 1f;
