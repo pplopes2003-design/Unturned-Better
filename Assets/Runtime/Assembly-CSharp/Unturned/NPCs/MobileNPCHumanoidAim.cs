@@ -243,6 +243,22 @@ namespace SDG.Unturned
 		}
 
 		/// <summary>
+		/// World-space equivalent of a crosshair: a point on the currently
+		/// observed, committed opponent, not a second independent target.
+		/// This is an intention point only; callers still validate visibility,
+		/// muzzle clearance, weapon reach, ammunition and shot dispersion.
+		/// </summary>
+		public bool TryGetCurrentAimPointServer(Transform selectedTarget, out Vector3 aimPoint)
+		{
+			aimPoint = Vector3.zero;
+			if (!Provider.isServer || !hasTarget || trackedTarget == null
+				|| selectedTarget == null || trackedTarget != selectedTarget)
+				return false;
+			aimPoint = trackedTarget.position + Vector3.up * Mathf.Max(0f, targetAimHeight);
+			return true;
+		}
+
+		/// <summary>
 		/// Returns false until reaction time has elapsed. The caller supplies the weapon
 		/// muzzle and remains responsible for ammo, fire rate, line of sight and damage.
 		/// Skill ranges from 0 (inaccurate) to 1 (accurate).
