@@ -4920,7 +4920,10 @@ namespace SDG.Unturned
 			planar.y = 0f;
 			int segments = Mathf.Max(2, Mathf.CeilToInt(planar.magnitude / 0.45f));
 			float previousY = from.y;
-			float riseLimit = characterController.stepOffset + 0.05f;
+			float segmentLength = planar.magnitude / segments;
+			float riseLimit = Mathf.Max(characterController.stepOffset + 0.05f,
+				segmentLength * Mathf.Tan(Mathf.Min(characterController.slopeLimit,
+					roamingMaximumSlope) * Mathf.Deg2Rad) + 0.03f);
 			for (int i = 1; i < segments; ++i)
 			{
 				Vector3 sample = Vector3.Lerp(from, to, (float)i / segments);
@@ -5146,12 +5149,18 @@ namespace SDG.Unturned
 					// Neighbouring cells may be on different floors even when each
 					// individual ground probe is valid. Don't connect levels the
 					// CharacterController cannot actually step between.
-					if (verticalChange > characterController.stepOffset + 0.05f
-						|| verticalChange < -1.1f)
-						continue;
+					// A continuous ramp can rise farther than stepOffset
+					// across one grid cell. Restrict by the actual controller
+					// slope limit instead; the sampled continuous-floor probe
+					// below still rejects walls, ledges and disconnected floors.
 					edge.y = 0f;
 					float edgeLength = edge.magnitude;
 					if (edgeLength < 0.1f)
+						continue;
+					float riseLimit = edgeLength * Mathf.Tan(Mathf.Min(
+						characterController.slopeLimit, roamingMaximumSlope) * Mathf.Deg2Rad)
+						+ characterController.stepOffset;
+					if (Mathf.Abs(verticalChange) > riseLimit)
 						continue;
 					Vector3 edgeProbeStart = positions[current] + Vector3.up
 						* Mathf.Max(0.45f, characterController.height * 0.55f);
