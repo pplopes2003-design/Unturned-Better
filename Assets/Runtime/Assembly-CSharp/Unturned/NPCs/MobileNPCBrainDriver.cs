@@ -532,11 +532,15 @@ namespace SDG.Unturned
 				if (away.sqrMagnitude > 0.01f)
 				{
 					Vector3 candidate = transform.position + away.normalized * 9f;
-					if (MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, 1.2f, 1.0f,
-						(RayMasks.BLOCK_COLLISION | RayMasks.GROUND2), 60f, out Vector3 safeRetreat, out _)
-						&& (Mathf.Abs(safeRetreat.y - transform.position.y) <= 0.55f
-							|| (GetComponent<MobileNPCHumanoidMotor>() is MobileNPCHumanoidMotor retreatMotor
-								&& retreatMotor.CanReachNearbyCoverServer(safeRetreat))))
+					// Matching floor height is not proof of a traversable route:
+					// a wall can separate two equally high positions. Require
+					// the existing motor's physical reachability verification for
+					// every retreat destination, not only elevated ones.
+					MobileNPCHumanoidMotor retreatMotor = GetComponent<MobileNPCHumanoidMotor>();
+					if (retreatMotor != null
+						&& MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, 1.2f, 1.0f,
+							(RayMasks.BLOCK_COLLISION | RayMasks.GROUND2), 60f, out Vector3 safeRetreat, out _)
+						&& retreatMotor.CanReachNearbyCoverServer(safeRetreat))
 					{
 						tactics.ReportValidatedRetreatPoint(safeRetreat, Time.time);
 					}
