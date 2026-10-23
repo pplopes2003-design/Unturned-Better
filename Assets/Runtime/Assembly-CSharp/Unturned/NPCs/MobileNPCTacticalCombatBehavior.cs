@@ -444,6 +444,13 @@ namespace SDG.Unturned
 				if ((candidate - transform.position).sqrMagnitude < 9f)
 					continue;
 
+				// Clear firing lanes are not enough: a point across a house wall
+				// is useless without a physically traversable route. Reject it
+				// before committing the flank so the NPC does not circle buildings
+				// toward unreachable tactical destinations.
+				if (motor == null || !motor.CanReachNearbyCoverServer(candidate))
+					continue;
+
 				Vector3 candidateOrigin = candidate + Vector3.up * eyeHeight;
 				Vector3 candidateTarget = targetPosition + Vector3.up * targetHeight;
 				if (!IsClearLineOfFire(candidateOrigin, candidateTarget, target))
