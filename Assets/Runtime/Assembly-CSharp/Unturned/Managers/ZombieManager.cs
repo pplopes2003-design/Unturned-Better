@@ -1644,6 +1644,10 @@ namespace SDG.Unturned
 				AllZombies = new List<Zombie>();
 
 				respawnZombiesBound = 0;
+				nextHordeRespawnEventAt = Time.time + HORDE_RESPAWN_EVENT_INTERVAL;
+				pendingHordeRespawns = 0;
+				pendingHordeBound = -1;
+				hordeUsedSpawnpoints.Clear();
 
 				_waveReady = false;
 				_waveIndex = 0;
@@ -1819,6 +1823,16 @@ namespace SDG.Unturned
 
 		// Ambient migration and horde formation are server-authoritative. They reuse the
 		// existing zombie pathfinder and never move a zombie by teleporting it.
+		// A horde event revives only dead, preallocated native zombie slots.
+		// No extra scene objects, region IDs or network representations.
+		private static float nextHordeRespawnEventAt;
+		private const float HORDE_RESPAWN_EVENT_INTERVAL = 180f;
+		private const int HORDE_RESPAWN_MAX_PER_TICK = 2;
+		private static int pendingHordeRespawns;
+		private static int pendingHordeBound = -1;
+		private static int pendingHordeSpawnCursor;
+		private static int pendingHordeZombieCursor;
+		private static readonly HashSet<int> hordeUsedSpawnpoints = new HashSet<int>();
 		private static float nextAmbientHordeUpdate;
 		private const float AMBIENT_HORDE_UPDATE_INTERVAL = 8.0f;
 		private const float AMBIENT_HORDE_SEARCH_RADIUS = 32.0f;
@@ -1924,6 +1938,104 @@ namespace SDG.Unturned
 				member.alert(destination, false);
 				++alerted;
 			}
+		}
+
+		/// <summary>
+		/// Conservative event spawning: only dedicated survival servers, and only
+		/// through preallocated dead zombie slots with authored spawnpoints.
+		/// Never bypass beacon, boss, safezone, regional or network registration.
+		/// </summary>
+		private static void UpdateHordeRespawnEventServer()
+		{
+			if (!Provider.isServer || !Dedicator.IsDedicatedServer
+				|| Level.info.type != ELevelType.SURVIVAL || regions == null
+				|| LevelZombies.zombies == null)
+				return;
+			if (pendingHordeRespawns <= 0)
+			{
+				if (Time.time < nextHordeRespawnEventAt)
+					return;
+				nextHordeRespawnEventAt = Time.time + HORDE_RESPAWN_EVENT_INTERVAL;
+				pendingHordeBound = -1;
+				int required = LightingManager.isFullMoon ? 20 : 10;
+				for (int i = 0; i < regions.Length; ++i)
+				{
+					ZombieRegion region = regions[i];
+					if (region == null || region.PlayerCountInRegion <= 0
+						|| region.hasBeacon || !LevelNavigation.flagData[i].spawnZombies
+						|| i >= LevelZombies.zombies.Length
+						|| LevelZombies.zombies[i] == null)
+						continue;
+					int dead = 0;
+					foreach (Zombie zombie in region.zombies)
+						if (zombie != null && zombie.isDead) ++dead;
+					if (dead >= required && LevelZombies.zombies[i].Count >= required)
+					{
+						pendingHordeBound = i;
+						pendingHordeRespawns = Mathf.Min(
+							Random.Range(required, (LightingManager.isFullMoon ? 30 : 20) + 1),
+							Mathf.Min(dead, LevelZombies.zombies[i].Count));
+						pendingHordeSpawnCursor = Random.Range(0, LevelZombies.zombies[i].Count);
+						pendingHordeZombieCursor = 0;
+						hordeUsedSpawnpoints.Clear();
+						break;
+					}
+				}
+				if (pendingHordeBound < 0)
+					return;
+			}
+			if (pendingHordeBound < 0 || pendingHordeBound >= regions.Length)
+			{
+				pendingHordeRespawns = 0;
+				return;
+			}
+			ZombieRegion activeRegion = regions[pendingHordeBound];
+			List<ZombieSpawnpoint> points = LevelZombies.zombies[pendingHordeBound];
+			if (activeRegion == null || activeRegion.PlayerCountInRegion == 0
+				|| activeRegion.hasBeacon || points == null)
+			{
+				pendingHordeRespawns = 0;
+				return;
+			}
+			int spawned = 0;
+			while (pendingHordeRespawns > 0 && spawned < HORDE_RESPAWN_MAX_PER_TICK
+				&& pendingHordeZombieCursor < activeRegion.zombies.Count)
+			{
+				Zombie zombie = activeRegion.zombies[pendingHordeZombieCursor++];
+				if (zombie == null || !zombie.isDead) continue;
+				bool valid = false;
+				for (int check = 0; check < points.Count; ++check)
+				{
+					int index = (pendingHordeSpawnCursor + check) % points.Count;
+					if (hordeUsedSpawnpoints.Contains(index)) continue;
+					ZombieSpawnpoint spawn = points[index];
+					if (!SafezoneManager.checkPointValid(spawn.point)
+						|| !LevelNavigation.checkNavigation(spawn.point)) continue;
+					bool occupied = false;
+					foreach (Zombie other in activeRegion.zombies)
+						if (other != null && !other.isDead
+							&& (other.transform.position - spawn.point).sqrMagnitude < 9f)
+						{ occupied = true; break; }
+					if (occupied) continue;
+					ZombieTable table = LevelZombies.tables[spawn.type];
+					if (table == null || table.isMega) continue;
+					byte shirt, pants, hat, gear;
+					table.GetSpawnClothingParameters(out shirt, out pants, out hat, out gear);
+					EZombieSpeciality kind = generateZombieSpeciality((byte)pendingHordeBound, table);
+					if (kind.IsBoss()) kind = EZombieSpeciality.NORMAL;
+					zombie.sendRevive(spawn.type, (byte)kind, shirt, pants, hat, gear,
+						spawn.point + Vector3.up * 0.5f, Random.Range(0f, 360f));
+					hordeUsedSpawnpoints.Add(index);
+					pendingHordeSpawnCursor = (index + 1) % points.Count;
+					pendingHordeRespawns--;
+					spawned++;
+					valid = true;
+					break;
+				}
+				if (!valid) { pendingHordeRespawns = 0; break; }
+			}
+			if (pendingHordeZombieCursor >= activeRegion.zombies.Count)
+				pendingHordeRespawns = 0;
 		}
 
 		private void Update()
@@ -2108,6 +2220,8 @@ namespace SDG.Unturned
 			UnityEngine.Profiling.Profiler.BeginSample("ZombieManager.respawnZombies()");
 			respawnZombies();
 			UnityEngine.Profiling.Profiler.EndSample();
+
+			UpdateHordeRespawnEventServer();
 
 			respawnZombiesBound++;
 
