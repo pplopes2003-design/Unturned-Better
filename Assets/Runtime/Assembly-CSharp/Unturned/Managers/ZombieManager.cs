@@ -1949,7 +1949,7 @@ namespace SDG.Unturned
 		/// </summary>
 		// Validate that a local authored cluster can actually sustain the
 		// requested event size before scheduling any native respawns.
-		private static int CountHordeClusterCapacity(int bound, int anchorIndex, int requested)
+		private static int CountHordeClusterCapacity(int bound, int anchorIndex, int maximum)
 		{
 			List<ZombieSpawnpoint> points = LevelZombies.zombies[bound];
 			ZombieRegion region = regions[bound];
@@ -1986,7 +1986,7 @@ namespace SDG.Unturned
 						&& (other.transform.position - spawn.point).sqrMagnitude < 9f)
 						{ blocked = true; break; }
 				if (blocked) continue;
-				if (++valid >= requested) return valid;
+				if (++valid >= maximum) return valid;
 			}
 			return valid;
 		}
@@ -2004,6 +2004,7 @@ namespace SDG.Unturned
 				nextHordeRespawnEventAt = Time.time + HORDE_RESPAWN_EVENT_INTERVAL;
 				pendingHordeBound = -1;
 				int required = LightingManager.isFullMoon ? 20 : 10;
+				int maximum = LightingManager.isFullMoon ? 30 : 20;
 				for (int i = 0; i < regions.Length; ++i)
 				{
 					ZombieRegion region = regions[i];
@@ -2021,10 +2022,14 @@ namespace SDG.Unturned
 						int capacity = 0;
 						int pointCount = LevelZombies.zombies[i].Count;
 						int startAt = Random.Range(0, pointCount);
-						for (int candidate = 0; candidate < pointCount; ++candidate)
+						// Limit expensive authored-point scans per event to avoid
+						// a hitch when a town contains hundreds of spawnpoints.
+						int anchorAttempts = Mathf.Min(pointCount, 12);
+						int anchorStride = Mathf.Max(1, pointCount / anchorAttempts);
+						for (int candidate = 0; candidate < anchorAttempts; ++candidate)
 						{
-							int anchorIndex = (startAt + candidate) % pointCount;
-							int count = CountHordeClusterCapacity(i, anchorIndex, required);
+							int anchorIndex = (startAt + candidate * anchorStride) % pointCount;
+							int count = CountHordeClusterCapacity(i, anchorIndex, maximum);
 							if (count < required) continue;
 							chosenAnchor = anchorIndex;
 							capacity = count;
@@ -2032,13 +2037,21 @@ namespace SDG.Unturned
 						}
 						if (chosenAnchor < 0) continue;
 						pendingHordeBound = i;
-						pendingHordeRespawns = Mathf.Min(
-							Random.Range(required, (LightingManager.isFullMoon ? 30 : 20) + 1),
-							Mathf.Min(dead, capacity));
+						// Preflight the FULL cap, not just the minimum. Otherwise
+						// capacity is always 10/20 and the intended variable
+						// horde size silently collapses to its minimum.
+						pendingHordeRespawns = Random.Range(required,
+							Mathf.Min(maximum, Mathf.Min(dead, capacity)) + 1);
 						pendingHordeSpawnCursor = chosenAnchor;
 						pendingHordeAnchor = LevelZombies.zombies[i][chosenAnchor].point;
 						pendingHordeZombieCursor = 0;
 						hordeUsedSpawnpoints.Clear();
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+						Debug.Log("[ZombieHordeSpawn] Planned size="
+							+ pendingHordeRespawns + " region=" + i
+							+ " validClusterCapacity=" + capacity
+							+ " moon=" + LightingManager.isFullMoon);
+#endif
 						break;
 					}
 				}
