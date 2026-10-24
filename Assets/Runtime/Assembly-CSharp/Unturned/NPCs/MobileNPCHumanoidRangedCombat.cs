@@ -783,7 +783,8 @@ namespace SDG.Unturned
 			selectedGunAsset = gunAsset;
 			// Respect actual weapon fire modes. A pistol without Auto cannot
 			// enter our sustained trigger-hold behavior.
-			nativeAutomaticAllowed = ReadGunFlag(gunAsset, "isAuto");
+			nativeAutomaticAllowed = ReadGunFlag(gunAsset, "isAuto")
+				|| ReadGunFlag(gunAsset, "hasAuto");
 			nativeBurstCount = Mathf.Max(0, ReadGunBurstCount(gunAsset));
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
 			Debug.Log("[MobileNPCFireMode] npc=" + name + " gun=" + gunAsset.id
