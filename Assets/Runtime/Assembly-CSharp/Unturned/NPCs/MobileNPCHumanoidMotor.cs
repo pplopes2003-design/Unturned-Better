@@ -3291,8 +3291,12 @@ namespace SDG.Unturned
 		private bool TryResolveGlobalFootingServer(Vector3 estimate, out Vector3 foot)
 		{
 			foot = Vector3.zero;
-			if (!MobileNPCSpawnService.TryFindSafeGroundPosition(estimate,
-				1.9f, 7.5f, roamingGroundMask,
+			// Match the native PlayerMovement.checkGround layer set. Avoid
+			// treating a Nav-only helper mesh or decoration as actual support.
+			int physicalGroundMask = ((int)roamingGroundMask) & RayMasks.BLOCK_COLLISION;
+			if (physicalGroundMask == 0
+				|| !MobileNPCSpawnService.TryFindSafeGroundPosition(estimate,
+				1.9f, 7.5f, physicalGroundMask,
 				Mathf.Min(characterController.slopeLimit, roamingMaximumSlope),
 				out Vector3 grounded, out Collider floor, out _)
 				|| floor == null || IsFurnitureSurfaceCollider(floor)
@@ -3325,7 +3329,36 @@ namespace SDG.Unturned
 				Mathf.Max(0.12f, characterController.radius * 0.9f));
 			return IsStandingCapsuleCorridorClearServer(from,
 				movement / distance, distance, radius)
-				&& HasContinuousLocalFloor(from, to);
+				&& HasContinuousPlayerCollisionFloorServer(from, to);
+		}
+
+		private bool HasContinuousPlayerCollisionFloorServer(Vector3 from, Vector3 to)
+		{
+			// Long-horizon routes may cross auxiliary Nav colliders that
+			// existing local discovery tolerates. Global edges must be built
+			// only on the layers that support the real player's controller.
+			int physicalGroundMask = ((int)roamingGroundMask) & RayMasks.BLOCK_COLLISION;
+			if (physicalGroundMask == 0) return false;
+			Vector3 flat = to - from;
+			flat.y = 0f;
+			int segments = Mathf.Max(2, Mathf.CeilToInt(flat.magnitude / 0.5f));
+			float previousY = from.y;
+			for (int i = 1; i <= segments; ++i)
+			{
+				Vector3 sample = Vector3.Lerp(from, to, (float)i / segments);
+				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(sample,
+					0.7f, 0.8f, physicalGroundMask,
+					Mathf.Min(characterController.slopeLimit, roamingMaximumSlope),
+					out Vector3 floor, out Collider support, out _)
+					|| support == null || IsFurnitureSurfaceCollider(support)
+					|| !Level.checkSafeIncludingClipVolumes(floor)
+					|| Mathf.Abs(floor.y - sample.y) > 0.35f
+					|| floor.y - previousY > Mathf.Max(0.4f, characterController.stepOffset + 0.1f)
+					|| previousY - floor.y > 0.55f)
+					return false;
+				previousY = floor.y;
+			}
+			return true;
 		}
 
 		/// <summary>
