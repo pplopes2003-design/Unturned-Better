@@ -382,6 +382,13 @@ namespace SDG.Unturned
 			if (targetTransform != cadenceTarget || sustainNow != sustainedEngagement
 				|| waitingForBurstPause)
 			{
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+				if (nativeAutomaticAllowed && sustainNow != sustainedEngagement)
+					Debug.Log("[MobileNPCBurst] npc=" + name + " gun=" + selectedGunID
+						+ " automaticEngagement=" + sustainNow
+						+ " range=" + toTarget.magnitude.ToString("F1")
+						+ " rounds=" + roundsRemaining, this);
+#endif
 				cadenceTarget = targetTransform;
 				sustainedEngagement = sustainNow;
 				waitingForBurstPause = false;
@@ -784,7 +791,8 @@ namespace SDG.Unturned
 			// Respect actual weapon fire modes. A pistol without Auto cannot
 			// enter our sustained trigger-hold behavior.
 			nativeAutomaticAllowed = ReadGunFlag(gunAsset, "isAuto")
-				|| ReadGunFlag(gunAsset, "hasAuto");
+				|| ReadGunFlag(gunAsset, "hasAuto")
+				|| ReadGunFlag(gunAsset, "auto");
 			nativeBurstCount = Mathf.Max(0, ReadGunBurstCount(gunAsset));
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
 			Debug.Log("[MobileNPCFireMode] npc=" + name + " gun=" + gunAsset.id
