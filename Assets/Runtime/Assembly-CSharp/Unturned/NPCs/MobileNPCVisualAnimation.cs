@@ -713,6 +713,15 @@ namespace SDG.Unturned
                 itemModel.localPosition = Vector3.zero;
                 itemModel.localRotation = Quaternion.Euler(0f, 0f, 90f);
             }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (itemModel != null && weaponVisualActive)
+                Debug.Log("[MobileNPCWeaponMount] npc=" + name
+                    + " item=" + asset.id
+                    + " parent=" + (itemModel.parent != null ? itemModel.parent.name : "(none)")
+                    + " localEuler=" + itemModel.localEulerAngles
+                    + " matchesPlayerRightHook="
+                    + (itemModel.parent != null && itemModel.parent.name == "Right_Hook"), this);
+#endif
             boundWeaponBarrel = null;
             // Unturned's native gun prefab convention names the muzzle effect
             // attachment "Barrel". Do not mistake the model pivot for it.
