@@ -149,7 +149,11 @@ namespace SDG.Unturned
                         return true;
                     }
                 }
-                if (cost[current] >= 6f && startRemaining - remaining >= 3f)
+                // Never accept a frontier that produces a tiny looping hop
+                // back into the same blocked facade. Require meaningful
+                // progress toward the actual brain destination before
+                // committing an incomplete coarse route.
+                if (cost[current] >= 9f && startRemaining - remaining >= 6f)
                 {
                     float score = remaining + cost[current] * 0.09f;
                     if (score < bestFrontierScore)
@@ -219,7 +223,10 @@ namespace SDG.Unturned
 
         private bool FinishBestFrontier(float now, List<Vector3> output)
         {
-            bool result = bestFrontier >= 0 && BuildPath(bestFrontier, output);
+            bool result = bestFrontier >= 0
+                && FlatDistance(origin, world[bestFrontier]) >= 4.5f
+                && FlatDistance(origin, goal) - FlatDistance(world[bestFrontier], goal) >= 6f
+                && BuildPath(bestFrontier, output);
             LastExpanded = expanded;
             LastOutcome = result ? "verified-frontier" : "no-connected-route";
             Reset();
