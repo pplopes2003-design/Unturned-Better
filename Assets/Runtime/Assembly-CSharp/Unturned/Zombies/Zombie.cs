@@ -2107,7 +2107,10 @@ namespace SDG.Unturned
 			}
 			else if (speciality == EZombieSpeciality.SPRINTER)
 			{
-				health = (ushort) (health * 0.5f);
+				// Sprinters are now elite threats rather than fragile runners.
+				// Clamp to the native ushort health range and keep map-specific
+				// difficulty overrides downstream authoritative.
+				health = MathfEx.RoundAndClampToUShort(health * 1.5f);
 			}
 			else if (speciality == EZombieSpeciality.BOSS_ALL || speciality == EZombieSpeciality.BOSS_MAGMA)
 			{
@@ -3371,7 +3374,7 @@ namespace SDG.Unturned
 			}
 
 			float seconds = Mathf.Clamp(delta, 0f, 0.1f);
-			float speed = speciality == EZombieSpeciality.SPRINTER ? 5.2f
+			float speed = speciality == EZombieSpeciality.SPRINTER ? 6.5f
 				: isMega ? 4.6f : speciality == EZombieSpeciality.CRAWLER ? 2.0f : 2.7f;
 			float step = Mathf.Min(Mathf.Max(0f, range - 1.9f), seconds * speed);
 			if (step <= 0f || !CanStepOnOffNavGround(heading, step))
