@@ -693,6 +693,7 @@ namespace SDG.Unturned
 			}
 			wasHoldingDeliberateFire = holdDeliberateFire;
 			bool hasDestination = (hasBrainDestination && !holdDeliberateFire) || hasRoamingDestination;
+			bool waitingForGlobalPlan = false;
 			Vector3 destination = hasBrainDestination ? brainDriver.Destination : roamingDestination;
 			if (hasDestination && !isUnderwater && !isPlannedJumping
 				&& !physicallyCrouched
@@ -1138,7 +1139,7 @@ namespace SDG.Unturned
 				// the macro planner spend at most five seconds discovering a
 				// connected corner route. Do not keep pushing the capsule against
 				// the very same wall while its sampled origin is being planned.
-				bool waitingForGlobalPlan = routeWaypoints.Count == 0 && !hasDetourWaypoint
+				waitingForGlobalPlan = routeWaypoints.Count == 0 && !hasDetourWaypoint
 					&& !waitingForLearnedAccess && !waitingForLadderApproach
 					&& consecutiveStuckRecoveries >= 2
 					&& goalOffset.sqrMagnitude > 196f
