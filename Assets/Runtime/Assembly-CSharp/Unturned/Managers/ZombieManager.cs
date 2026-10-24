@@ -2011,6 +2011,21 @@ namespace SDG.Unturned
 					ZombieSpawnpoint spawn = points[index];
 					if (!SafezoneManager.checkPointValid(spawn.point)
 						|| !LevelNavigation.checkNavigation(spawn.point)) continue;
+					// Do not materialize a fresh horde immediately beside a
+					// connected player; native visibility, collision and spawning
+					// should have time to resolve naturally.
+					bool nearPlayer = false;
+					if (Provider.clients != null)
+					{
+						foreach (SteamPlayer client in Provider.clients)
+						{
+							Player player = client != null ? client.player : null;
+							if (player != null && player.life != null && !player.life.isDead
+								&& (player.transform.position - spawn.point).sqrMagnitude < 18f * 18f)
+							{ nearPlayer = true; break; }
+						}
+					}
+					if (nearPlayer) continue;
 					bool occupied = false;
 					foreach (Zombie other in activeRegion.zombies)
 						if (other != null && !other.isDead
