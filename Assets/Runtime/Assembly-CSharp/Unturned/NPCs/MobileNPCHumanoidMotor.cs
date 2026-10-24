@@ -755,7 +755,10 @@ namespace SDG.Unturned
 				{
 					hasPartialLocalFrontier = false;
 					hasPhysicalThresholdRoute = false;
-					globalRoutePlanner.Reset();
+					// The fallback planner compares its own actual goal and origin;
+					// resetting it here would happen every frame while no
+					// route exists because detourGoalSnapshot only tracks
+					// committed paths, starving the incremental search.
 					ResetObservedEntranceSurvey();
 					// A failed native corridor for the OLD goal must not
 					// delay an unrelated incoming combat or rescue task.
