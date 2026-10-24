@@ -381,8 +381,8 @@ namespace SDG.Unturned
 		private int investigationWandersRemaining;
 		private bool isInvestigationWanderTarget;
 		private int stuckPointRecoveryAttempts;
-		private const float INVESTIGATION_WANDER_RADIUS = 18.0f;
-		private const int INVESTIGATION_MAX_WANDERS = 3;
+		private const float INVESTIGATION_WANDER_RADIUS = 15.0f;
+		private const int INVESTIGATION_MAX_WANDERS = 12;
 		private bool isStunned;
 		private bool isStuck;
 		private Vector3 leaveTo;
@@ -1373,7 +1373,7 @@ namespace SDG.Unturned
 			{
 				stuckPointRecoveryAttempts = 0;
 				investigationCenter = newPosition;
-				investigationUntil = Time.time + 18f;
+				investigationUntil = Time.time + Random.Range(30f, 45f);
 				investigationWandersRemaining = INVESTIGATION_MAX_WANDERS;
 			}
 
@@ -2393,11 +2393,11 @@ namespace SDG.Unturned
 					for (int attempt = 0; attempt < 24; ++attempt)
 					{
 						float angle = Random.value * Mathf.PI * 2.0f;
-						float distance = Random.Range(2.5f, 5.0f);
+						float distance = Random.Range(2.5f, INVESTIGATION_WANDER_RADIUS);
 						Vector3 searchPoint = investigationCenter + new Vector3(Mathf.Cos(angle) * distance, 0.0f, Mathf.Sin(angle) * distance);
 						// The sweep is LOCAL to the sound, never a long walk
 						// from a stuck point to a guessed area across the POI.
-						if ((investigationCenter - transform.position).sqrMagnitude > 11f * 11f
+						if ((investigationCenter - transform.position).sqrMagnitude > INVESTIGATION_WANDER_RADIUS * INVESTIGATION_WANDER_RADIUS
 							|| (searchPoint - transform.position).sqrMagnitude < 9.0f
 							|| !LevelNavigation.checkNavigation(searchPoint))
 						{
@@ -2475,7 +2475,7 @@ namespace SDG.Unturned
 					else if (Time.time < investigationUntil
 						&& investigationWandersRemaining > 0
 						&& (investigationCenter - transform.position).sqrMagnitude
-							<= 11f * 11f)
+							<= INVESTIGATION_WANDER_RADIUS * INVESTIGATION_WANDER_RADIUS)
 					{
 						// Only sweep the place we actually reached. A failed
 						// long-range route resumes vanilla idle instead of
