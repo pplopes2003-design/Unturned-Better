@@ -701,6 +701,18 @@ namespace SDG.Unturned
             weaponBoundAt = Time.time;
             boundWeaponAssetID = asset.id;
             boundWeaponModel = itemModel;
+            // PlayerEquipment's THIRD-PERSON equipment path positions the
+            // instantiated native model at its hook origin with a +90 degree
+            // local Z rotation. The NPC uses the same native hand hook and
+            // item prefabs, so do not leave the model with a prefab-local
+            // rotation that turns the muzzle sideways or backwards.
+            // Only touch actual hand-hook attachments, never spine gear.
+            if (itemModel != null && itemModel.parent != null
+                && itemModel.parent.name == "Right_Hook")
+            {
+                itemModel.localPosition = Vector3.zero;
+                itemModel.localRotation = Quaternion.Euler(0f, 0f, 90f);
+            }
             boundWeaponBarrel = null;
             // Unturned's native gun prefab convention names the muzzle effect
             // attachment "Barrel". Do not mistake the model pivot for it.
@@ -769,10 +781,15 @@ namespace SDG.Unturned
                 state.layer = 1;
                 state.blendMode = AnimationBlendMode.Blend;
             }
-            // An authored Idle is preferred for an actual sustained stance.
-            // If absent, Equip's final native keyframe is a better weapon
-            // hold than leaving arms in a low unarmed walking pose.
-            if (IsOwnedWeaponClip("Idle"))
+            // The player's firearm has a forward aiming state separate
+            // from Equip: holding its Equip final frame can leave the
+            // character's arms down despite a loaded rifle. Prefer a real
+            // authored Aim pose (if present), then Idle, then Equip.
+            if (weaponVisualActive && IsOwnedWeaponClip("Aim"))
+                equippedWeaponHoldClip = "Aim";
+            else if (weaponVisualActive && IsOwnedWeaponClip("Aim_Idle"))
+                equippedWeaponHoldClip = "Aim_Idle";
+            else if (IsOwnedWeaponClip("Idle"))
                 equippedWeaponHoldClip = "Idle";
             else if (IsOwnedWeaponClip("Equip"))
                 equippedWeaponHoldClip = "Equip";
@@ -840,6 +857,8 @@ namespace SDG.Unturned
             AnimationState state = legacyAnimation[equippedWeaponHoldClip];
             state.layer = 1;
             state.wrapMode = equippedWeaponHoldClip == "Idle"
+                || equippedWeaponHoldClip == "Aim"
+                || equippedWeaponHoldClip == "Aim_Idle"
                 ? WrapMode.Loop : WrapMode.ClampForever;
             state.enabled = true;
             legacyAnimation.enabled = true;
