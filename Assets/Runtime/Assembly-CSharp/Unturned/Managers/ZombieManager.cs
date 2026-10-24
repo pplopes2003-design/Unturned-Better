@@ -2078,7 +2078,8 @@ namespace SDG.Unturned
 			ZombieRegion activeRegion = regions[pendingHordeBound];
 			List<ZombieSpawnpoint> points = LevelZombies.zombies[pendingHordeBound];
 			if (activeRegion == null || activeRegion.PlayerCountInRegion == 0
-				|| activeRegion.hasBeacon || points == null)
+				|| activeRegion.hasBeacon || points == null || points.Count == 0
+				|| !LevelNavigation.flagData[pendingHordeBound].spawnZombies)
 			{
 				pendingHordeRespawns = 0;
 				return;
@@ -2126,6 +2127,9 @@ namespace SDG.Unturned
 							&& (other.transform.position - spawn.point).sqrMagnitude < 9f)
 						{ occupied = true; break; }
 					if (occupied) continue;
+					// Map assets/authoring can differ after the cluster
+					// preflight. Never index an invalid table during a batch.
+					if (spawn.type >= LevelZombies.tables.Count) continue;
 					ZombieTable table = LevelZombies.tables[spawn.type];
 					if (table == null || table.isMega) continue;
 					byte shirt, pants, hat, gear;
