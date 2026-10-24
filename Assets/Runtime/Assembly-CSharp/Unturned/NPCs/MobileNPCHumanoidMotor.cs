@@ -866,6 +866,18 @@ namespace SDG.Unturned
 					}
 #endif
 				}
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+				else if (!globalRoutePlanner.IsSearching
+					&& globalRoutePlanner.LastOutcome == "no-connected-route"
+					&& Time.time >= nextGlobalRouteDiagnosticAt)
+				{
+					nextGlobalRouteDiagnosticAt = Time.time + 15f;
+					Debug.LogWarning("[MobileNPCGlobalRoute] No connected corridor npc=" + name
+						+ " from=" + transform.position + " finalGoal=" + destination
+						+ " expanded=" + globalRoutePlanner.LastExpanded
+						+ "; retaining local doorway and obstacle fallbacks.", this);
+				}
+#endif
 			}
 			// A separate, bounded two-surface-per-cell local search can
 				// discover REAL stairs between nearby floors. Never infer a
