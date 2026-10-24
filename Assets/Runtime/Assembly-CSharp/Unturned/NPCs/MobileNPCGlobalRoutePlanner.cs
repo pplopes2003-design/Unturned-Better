@@ -95,7 +95,11 @@ namespace SDG.Unturned
             // inherit paths sampled for a different place.
             if (searching && ((position - origin).sqrMagnitude > 9f
                 || (destination - goal).sqrMagnitude > 4f
-                || now - startedAt > 18f))
+                // At 30fps with 16 frame-cohorts the 18s timeout permits
+                // only ~68 expansions per survivor, much less than the
+                // 340-node search limit. Preserve progress across slower
+                // machines while retaining an absolute time budget.
+                || now - startedAt > 75f))
             {
                 Reset();
                 nextAttempt = now + 0.6f;
