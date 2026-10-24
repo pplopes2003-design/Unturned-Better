@@ -1183,6 +1183,18 @@ namespace SDG.Unturned
 					int serverMaxZombies = Mathf.CeilToInt(levelSpawnpoints.Count * Provider.modeConfigData.Zombies.Spawn_Chance);
 					int flagMaxZombies = LevelNavigation.flagData[bound].maxZombies;
 					regionMaxZombies = Mathf.Min(flagMaxZombies, serverMaxZombies);
+					// Larger ambient hordes need a viable regional population.
+					// Raise the initial survival population only where the map
+					// already authors enough valid spawnpoints. Never duplicate a
+					// spawnpoint or override a disabled zombie-spawn region.
+					if (Level.info.type == ELevelType.SURVIVAL
+						&& LevelNavigation.flagData[bound].spawnZombies
+						&& regionMaxZombies > 0)
+					{
+						int hordeCapacity = Mathf.Min(eligibleSpawnpoints.Count,
+							LightingManager.isFullMoon ? 40 : 30);
+						regionMaxZombies = Mathf.Max(regionMaxZombies, hordeCapacity);
+					}
 					regionMaxBossZombies = LevelNavigation.flagData[bound].maxBossZombies;
 				}
 
