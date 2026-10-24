@@ -657,6 +657,11 @@ namespace SDG.Unturned
                     + " offsetToBarrel=" + (boundWeaponBarrel != null
                         ? Vector3.Distance(shotOrigin, boundWeaponBarrel.position).ToString("F2") + "m"
                         : "(unavailable)")
+                    + " barrelForwardDotBody=" + (boundWeaponBarrel != null
+                        ? Vector3.Dot(boundWeaponBarrel.forward, transform.forward).ToString("F2")
+                        : "(unavailable)")
+                    + " modelForwardDotBody=" + Vector3.Dot(boundWeaponModel.forward,
+                        transform.forward).ToString("F2")
                     + " offsetToModel=" + Vector3.Distance(shotOrigin, boundWeaponModel.position).ToString("F2")
                     + "m. Barrel marks muzzle effects, not automatic permission to relocate ballistic origin.", this);
             }
