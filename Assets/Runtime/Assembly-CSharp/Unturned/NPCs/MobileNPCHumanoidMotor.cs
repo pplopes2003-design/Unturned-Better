@@ -1044,7 +1044,16 @@ namespace SDG.Unturned
 				}
 				Vector3 offset = movementDestination - transform.position;
 				offset.y = 0.0f;
-				if (offset.sqrMagnitude > stoppingDistance * stoppingDistance)
+				// Waypoint arrival for a verified building opening is only
+				// 0.4m, not the ordinary ~1m brain-goal stopping distance.
+				// Otherwise the agent stops 0.5-1m before the threshold,
+				// never increments the route index, and later marks the
+				// geometrically valid entrance as a failed path.
+				float movementStop = hasPhysicalThresholdRoute
+					&& routeWaypointIndex >= physicalThresholdApproachWaypointIndex
+					&& routeWaypointIndex < routeWaypoints.Count
+					? Mathf.Min(stoppingDistance, 0.20f) : stoppingDistance;
+				if (offset.sqrMagnitude > movementStop * movementStop)
 				{
 					planarDirection = offset.normalized;
 				}
@@ -1095,6 +1104,10 @@ namespace SDG.Unturned
 
 			if (hasDestination && hasRoamingDestination && !hasBrainDestination
 				&& planarDirection.sqrMagnitude <= 0.0001f
+				// A verified doorway waypoint or a physical detour is still
+				// active route work. Do not discard roaming when close to
+				// an intermediate waypoint rather than the final destination.
+				&& routeWaypointIndex >= routeWaypoints.Count && !hasDetourWaypoint
 				&& !waitingForDoorToOpen && !waitingForLearnedAccess
 				&& !waitingForLadderApproach)
 			{
