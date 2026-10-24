@@ -3432,12 +3432,12 @@ namespace SDG.Unturned
 			float secondScore = float.NegativeInfinity;
 			Vector3 bestNear = Vector3.zero, bestFar = Vector3.zero;
 			Vector3 secondNear = Vector3.zero, secondFar = Vector3.zero;
-			// Search at most 6m along each side; no global architecture
+			// Search at most 11.7m along each side; no global architecture
 			// scan. One geometrically verified candidate then gets one
 			// expensive exact local path to its near-side approach.
 			for (int side = -1; side <= 1; side += 2)
 			{
-				for (int step = 1; step <= 9; ++step)
+				for (int step = 1; step <= 18; ++step)
 				{
 					float lateral = step * 0.65f;
 					Vector3 aperture = wallFoot + sideways * (side * lateral);
@@ -3455,7 +3455,7 @@ namespace SDG.Unturned
 						|| Mathf.Abs(near.y - transform.position.y) > 0.50f
 						|| Mathf.Abs(near.y - far.y) > 0.36f
 						// A local exact route can only approach nearby openings.
-						|| PlanarDistanceSquared(transform.position, near) > 27f
+						|| PlanarDistanceSquared(transform.position, near) > 144f
 						|| !Level.checkSafeIncludingClipVolumes(near)
 						|| !Level.checkSafeIncludingClipVolumes(far)
 						|| IsRouteNodeOccupied(near, radius)
