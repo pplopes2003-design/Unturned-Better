@@ -1941,13 +1941,13 @@ namespace SDG.Unturned
 		}
 
 		/// <summary>
-		/// Conservative event spawning: only dedicated survival servers, and only
+		/// Conservative survival spawning (singleplayer or server), and only
 		/// through preallocated dead zombie slots with authored spawnpoints.
 		/// Never bypass beacon, boss, safezone, regional or network registration.
 		/// </summary>
 		private static void UpdateHordeRespawnEventServer()
 		{
-			if (!Provider.isServer || !Dedicator.IsDedicatedServer
+			if (!Provider.isServer
 				|| Level.info.type != ELevelType.SURVIVAL || regions == null
 				|| LevelZombies.zombies == null)
 				return;
@@ -2025,6 +2025,10 @@ namespace SDG.Unturned
 							{ nearPlayer = true; break; }
 						}
 					}
+					if (!Dedicator.IsDedicatedServer && Player.LocalPlayer != null
+						&& Player.LocalPlayer.life != null && !Player.LocalPlayer.life.isDead
+						&& (Player.LocalPlayer.transform.position - spawn.point).sqrMagnitude < 18f * 18f)
+						nearPlayer = true;
 					if (nearPlayer) continue;
 					bool occupied = false;
 					foreach (Zombie other in activeRegion.zombies)
