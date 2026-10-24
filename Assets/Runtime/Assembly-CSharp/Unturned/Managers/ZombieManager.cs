@@ -1832,6 +1832,8 @@ namespace SDG.Unturned
 		private static int pendingHordeBound = -1;
 		private static int pendingHordeSpawnCursor;
 		private static int pendingHordeZombieCursor;
+		private static Vector3 pendingHordeAnchor;
+		private const float HORDE_SPAWN_CLUSTER_RADIUS_SQR = 40f * 40f;
 		private static readonly HashSet<int> hordeUsedSpawnpoints = new HashSet<int>();
 		private static float nextAmbientHordeUpdate;
 		private const float AMBIENT_HORDE_UPDATE_INTERVAL = 8.0f;
@@ -1976,6 +1978,7 @@ namespace SDG.Unturned
 							Random.Range(required, (LightingManager.isFullMoon ? 30 : 20) + 1),
 							Mathf.Min(dead, LevelZombies.zombies[i].Count));
 						pendingHordeSpawnCursor = Random.Range(0, LevelZombies.zombies[i].Count);
+					pendingHordeAnchor = LevelZombies.zombies[i][pendingHordeSpawnCursor].point;
 						pendingHordeZombieCursor = 0;
 						hordeUsedSpawnpoints.Clear();
 						break;
@@ -2009,6 +2012,10 @@ namespace SDG.Unturned
 					int index = (pendingHordeSpawnCursor + check) % points.Count;
 					if (hordeUsedSpawnpoints.Contains(index)) continue;
 					ZombieSpawnpoint spawn = points[index];
+					// Keep all revived members in one actual local group, not
+					// scattered over the entire navigation region.
+					if ((spawn.point - pendingHordeAnchor).sqrMagnitude > HORDE_SPAWN_CLUSTER_RADIUS_SQR)
+						continue;
 					if (!SafezoneManager.checkPointValid(spawn.point)
 						|| !LevelNavigation.checkNavigation(spawn.point)) continue;
 					// Do not materialize a fresh horde immediately beside a
