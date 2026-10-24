@@ -1934,16 +1934,18 @@ namespace SDG.Unturned
 							seeker.Speed = 3.0f;// 2.75f;
 						}
 					}
-					else if (speciality == EZombieSpeciality.SPRINTER || speciality.IsDLVolatile())
+					else if (speciality == EZombieSpeciality.SPRINTER)
 					{
-						if (Provider.modeConfigData.Zombies.Slow_Movement)
-						{
-							seeker.Speed = 6.0f;// 6.25f;
-						}
-						else
-						{
-							seeker.Speed = 6.5f;// 6.25f;
-						}
+						// Primary native seeker movement, not only the off-nav
+						// collision detour. Keep Slow_Movement meaningful while
+						// making the sprinter dangerous in regular pursuit.
+						seeker.Speed = Provider.modeConfigData.Zombies.Slow_Movement
+							? 6.6f : 7.4f;
+					}
+					else if (speciality.IsDLVolatile())
+					{
+						seeker.Speed = Provider.modeConfigData.Zombies.Slow_Movement
+							? 6.0f : 6.5f;
 					}
 					else if (speciality == EZombieSpeciality.FLANKER_FRIENDLY || speciality == EZombieSpeciality.FLANKER_STALK)
 					{
@@ -3374,7 +3376,8 @@ namespace SDG.Unturned
 			}
 
 			float seconds = Mathf.Clamp(delta, 0f, 0.1f);
-			float speed = speciality == EZombieSpeciality.SPRINTER ? 6.5f
+			float speed = speciality == EZombieSpeciality.SPRINTER
+                ? (Provider.modeConfigData.Zombies.Slow_Movement ? 6.6f : 7.4f)
 				: isMega ? 4.6f : speciality == EZombieSpeciality.CRAWLER ? 2.0f : 2.7f;
 			float step = Mathf.Min(Mathf.Max(0f, range - 1.9f), seconds * speed);
 			if (step <= 0f || !CanStepOnOffNavGround(heading, step))
