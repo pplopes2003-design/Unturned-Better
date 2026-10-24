@@ -1887,6 +1887,8 @@ namespace SDG.Unturned
 				return;
 			}
 
+			int minimumHordeSize = LightingManager.isFullMoon ? 20 : AMBIENT_HORDE_MIN_SIZE;
+			int maximumHordeSize = LightingManager.isFullMoon ? 30 : AMBIENT_HORDE_MAX_SIZE;
 			// Use real idle regional population, never synthetic extra spawns.
 			int availableMembers = 0;
 			float memberRadiusSquared = AMBIENT_HORDE_SEARCH_RADIUS * AMBIENT_HORDE_SEARCH_RADIUS;
@@ -1902,8 +1904,6 @@ namespace SDG.Unturned
 				return;
 
 			int alerted = 0;
-			int minimumHordeSize = LightingManager.isFullMoon ? 20 : AMBIENT_HORDE_MIN_SIZE;
-			int maximumHordeSize = LightingManager.isFullMoon ? 30 : AMBIENT_HORDE_MAX_SIZE;
 			int maxHordeSize = Random.Range(minimumHordeSize, maximumHordeSize + 1);
 			float groupRadiusSquared = AMBIENT_HORDE_SEARCH_RADIUS * AMBIENT_HORDE_SEARCH_RADIUS;
 			// The same destination makes the group converge naturally; pathfinding remains
@@ -1980,8 +1980,9 @@ namespace SDG.Unturned
 				}
 			}
 
-			// Do not autonomously redirect idle zombies to random destinations. Horde
-			// movement should be driven by actual player/noise stimuli, not invisible cues.
+			// Ambient horde formation is explicitly triggered below by a
+			// conservative, population-limited region event rather than each
+			// zombie independently receiving imaginary noise.
 
 			int start;
 			int end;
