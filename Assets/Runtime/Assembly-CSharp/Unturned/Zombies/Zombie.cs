@@ -373,6 +373,8 @@ namespace SDG.Unturned
 
 		private bool isLeaving;
 		private bool isInvestigationIdle;
+		private bool isInvestigationFinalAlert;
+		private Vector3 investigationHome;
 		public bool isIdleAfterInvestigation => isInvestigationIdle;
 		private bool isReturningToSpawn;
 		private float investigationIdleUntil;
@@ -464,6 +466,8 @@ namespace SDG.Unturned
 			SetCountedAsAliveBossInZombieRegion(isBoss);
 
 			transform.position = newPosition;
+			investigationHome = newPosition;
+			isInvestigationFinalAlert = false;
 			transform.rotation = Quaternion.Euler(0, newAngle * 2, 0);
 
 			updateDifficulty();
@@ -1104,6 +1108,7 @@ namespace SDG.Unturned
 		public void alert(Player newPlayer)
 		{
 			isInvestigationIdle = false;
+			isInvestigationFinalAlert = false;
 			isReturningToSpawn = false;
 			investigationWandersRemaining = 0;
 
@@ -2388,6 +2393,22 @@ namespace SDG.Unturned
 				}
 
 				isInvestigationIdle = false;
+				if (isInvestigationFinalAlert)
+				{
+					isInvestigationFinalAlert = false;
+					investigationWandersRemaining = 0;
+					// A path must exist in the original native navigation before
+					// returning. Never teleport across regions or floors.
+					if (LevelNavigation.checkNavigation(investigationHome)
+						&& (investigationHome - transform.position).sqrMagnitude > 2.25f)
+					{
+						alert(investigationHome, false);
+						isReturningToSpawn = isHunting && huntType == EHuntType.POINT;
+					}
+					else
+						setTicking(false);
+					return;
+				}
 				if (Time.time < investigationUntil && investigationWandersRemaining > 0)
 				{
 					for (int attempt = 0; attempt < 24; ++attempt)
@@ -2416,7 +2437,10 @@ namespace SDG.Unturned
 				// somewhere else in its POI. End the bounded local sweep at
 				// the sound site and resume vanilla idle/normal acquisition.
 				investigationWandersRemaining = 0;
-				setTicking(false);
+				isInvestigationFinalAlert = true;
+				isInvestigationIdle = true;
+				investigationIdleUntil = Time.time + 30f;
+				setTicking(true);
 				return;
 			}
 
