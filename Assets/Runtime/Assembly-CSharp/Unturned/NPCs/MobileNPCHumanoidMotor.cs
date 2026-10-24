@@ -342,6 +342,13 @@ namespace SDG.Unturned
 		private readonly float[] recentNavDeadEndExpiry = new float[MaxRecentNavDeadEnds];
 		private int nextNavDeadEndSlot;
 		private static float nextSharedUnknownRouteSlot;
+		// Coarse, same-surface long-horizon navigation only when native ASPFP
+		// is absent. Physics is shared/budgeted in the planner; local exact
+		// doorways, stairs and combat movement still use existing systems.
+		private readonly MobileNPCGlobalRoutePlanner globalRoutePlanner
+			= new MobileNPCGlobalRoutePlanner();
+		private readonly List<Vector3> globalRouteScratch = new List<Vector3>(160);
+		private float nextGlobalRouteDiagnosticAt;
 
 		/// <summary>Limited, per-individual beginning-of-life guidance is
 		/// progress, not a rechargeable resource after save/reload.</summary>
@@ -410,6 +417,9 @@ namespace SDG.Unturned
 			standingCenter = characterController.center;
 			physicallyCrouched = false;
 			locomotionPolicy.Reset();
+			globalRoutePlanner.Reset();
+			globalRouteScratch.Clear();
+			nextGlobalRouteDiagnosticAt = 0f;
 			nextJumpTime = 0f;
 			isPlannedJumping = false;
 			if (ladderTraversal != null)
@@ -724,6 +734,7 @@ namespace SDG.Unturned
 				hasPendingKnownAccessPath = false;
 				hasPartialLocalFrontier = false;
 				hasPhysicalThresholdRoute = false;
+				globalRoutePlanner.Reset();
 				ResetObservedEntranceSurvey();
 				// Completed/expired goals must not leave the previous route waiting to
 				// steer the next unrelated investigation or roaming destination.
@@ -744,6 +755,7 @@ namespace SDG.Unturned
 				{
 					hasPartialLocalFrontier = false;
 					hasPhysicalThresholdRoute = false;
+					globalRoutePlanner.Reset();
 					ResetObservedEntranceSurvey();
 					// A failed native corridor for the OLD goal must not
 					// delay an unrelated incoming combat or rescue task.
@@ -812,7 +824,47 @@ namespace SDG.Unturned
 						hasDetourWaypoint = false;
 					}
 				}
-				// A separate, bounded two-surface-per-cell local search can
+				// If the optional ASPFP library was not shipped with this SDK,
+			// progressively sample a 61m-wide physical grid. Unlike a naive
+			// steering detour, every global edge has both standing-capsule and
+			// continuous-ground proof. The world goal remains authoritative,
+			// and the regular local/doorway planner handles the final approach.
+			if (!isUnderwater && !isPlannedJumping
+				&& !waitingForLearnedAccess && !waitingForLadderApproach
+				&& routeWaypoints.Count == 0 && !hasDetourWaypoint
+				&& (nativeAStarRouteProvider == null
+					|| !nativeAStarRouteProvider.IsAvailable)
+				&& globalGoalOffset.sqrMagnitude > 100f
+				&& Mathf.Abs(destination.y - transform.position.y) <= 6f)
+			{
+				globalRouteScratch.Clear();
+				if (globalRoutePlanner.Step(transform.position, destination,
+					Time.time, Time.frameCount, GetInstanceID(),
+					TryResolveGlobalFootingServer,
+					IsGlobalEdgePhysicallyTraversableServer,
+					globalRouteScratch) && globalRouteScratch.Count > 0
+					&& IsGlobalEdgePhysicallyTraversableServer(
+						transform.position, globalRouteScratch[0]))
+				{
+					routeWaypoints.AddRange(globalRouteScratch);
+					routeWaypointIndex = 0;
+					hasPartialLocalFrontier = false;
+					hasPhysicalThresholdRoute = false;
+					detourGoalSnapshot = destination;
+					nextPlannedRouteValidationTime = 0f;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+					if (Time.time >= nextGlobalRouteDiagnosticAt)
+					{
+						nextGlobalRouteDiagnosticAt = Time.time + 5f;
+						Debug.Log("[MobileNPCGlobalRoute] npc=" + name
+							+ " nodes=" + routeWaypoints.Count
+							+ " stagedEnd=" + routeWaypoints[routeWaypoints.Count - 1]
+							+ " finalGoal=" + destination, this);
+					}
+#endif
+				}
+			}
+			// A separate, bounded two-surface-per-cell local search can
 				// discover REAL stairs between nearby floors. Never infer a
 				// vertical shortcut merely from identical X/Z coordinates.
 				if (!isUnderwater && !waitingForLearnedAccess
@@ -3231,6 +3283,46 @@ namespace SDG.Unturned
 				return true;
 			}
 			return false;
+		}
+
+		private bool TryResolveGlobalFootingServer(Vector3 estimate, out Vector3 foot)
+		{
+			foot = Vector3.zero;
+			if (!MobileNPCSpawnService.TryFindSafeGroundPosition(estimate,
+				1.9f, 7.5f, roamingGroundMask,
+				Mathf.Min(characterController.slopeLimit, roamingMaximumSlope),
+				out Vector3 grounded, out Collider floor, out _)
+				|| floor == null || IsFurnitureSurfaceCollider(floor)
+				|| Mathf.Abs(grounded.y - transform.position.y) > 6f
+				|| !Level.checkSafeIncludingClipVolumes(grounded))
+				return false;
+			float radius = Mathf.Clamp(obstacleProbeRadius, 0.12f,
+				Mathf.Max(0.12f, characterController.radius * 0.9f));
+			if (IsRouteNodeOccupied(grounded, radius)
+				&& !IsOnlyTemporaryActorOccupyingRouteNode(grounded, radius))
+				return false;
+			foot = grounded;
+			return true;
+		}
+
+		private bool IsGlobalEdgePhysicallyTraversableServer(Vector3 from, Vector3 to)
+		{
+			Vector3 movement = to - from;
+			float rise = Mathf.Abs(movement.y);
+			movement.y = 0f;
+			float distance = movement.magnitude;
+			if (distance < 0.12f || distance > 4.4f)
+				return false;
+			float slopeLimit = Mathf.Min(characterController.slopeLimit,
+				roamingMaximumSlope);
+			float permittedRise = distance * Mathf.Tan(slopeLimit * Mathf.Deg2Rad)
+				+ characterController.stepOffset;
+			if (rise > permittedRise) return false;
+			float radius = Mathf.Clamp(obstacleProbeRadius, 0.12f,
+				Mathf.Max(0.12f, characterController.radius * 0.9f));
+			return IsStandingCapsuleCorridorClearServer(from,
+				movement / distance, distance, radius)
+				&& HasContinuousLocalFloor(from, to);
 		}
 
 		/// <summary>
