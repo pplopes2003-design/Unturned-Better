@@ -26,7 +26,7 @@ namespace SDG.Unturned
         private const int MaxExpanded = 340;
         private const int MaxWaypoints = 160;
         // Limits expensive physics across all NPCs rather than per survivor.
-        private const int SharedExpansionsPerFrame = 8;
+        private const int SharedExpansionsPerFrame = 6;
         private static int sharedBudgetFrame = -1;
         private static int sharedExpansionsRemaining;
 
@@ -46,6 +46,8 @@ namespace SDG.Unturned
         private bool searching;
 
         internal bool IsSearching => searching;
+        internal string LastOutcome { get; private set; } = "idle";
+        internal int LastExpanded { get; private set; }
 
         internal void Reset()
         {
@@ -60,6 +62,7 @@ namespace SDG.Unturned
             origin = start;
             goal = destination;
             startedAt = now;
+            LastOutcome = "searching";
             expanded = 0;
             bestFrontier = -1;
             bestFrontierScore = float.PositiveInfinity;
@@ -88,7 +91,7 @@ namespace SDG.Unturned
             // inherit paths sampled for a different place.
             if (searching && ((position - origin).sqrMagnitude > 9f
                 || (destination - goal).sqrMagnitude > 4f
-                || now - startedAt > 30f))
+                || now - startedAt > 75f))
             {
                 Reset();
                 nextAttempt = now + 0.6f;
@@ -108,7 +111,7 @@ namespace SDG.Unturned
                 sharedBudgetFrame = frame;
                 sharedExpansionsRemaining = SharedExpansionsPerFrame;
             }
-            int localBudget = Mathf.Min(4, sharedExpansionsRemaining);
+            int localBudget = Mathf.Min(2, sharedExpansionsRemaining);
             for (int iteration = 0; iteration < localBudget; ++iteration)
             {
                 if (sharedExpansionsRemaining <= 0) break;
@@ -132,6 +135,8 @@ namespace SDG.Unturned
                 {
                     if (BuildPath(current, output))
                     {
+                        LastExpanded = expanded;
+                        LastOutcome = nearGoal ? "goal-horizon" : "outer-horizon";
                         Reset();
                         return true;
                     }
@@ -207,6 +212,8 @@ namespace SDG.Unturned
         private bool FinishBestFrontier(float now, List<Vector3> output)
         {
             bool result = bestFrontier >= 0 && BuildPath(bestFrontier, output);
+            LastExpanded = expanded;
+            LastOutcome = result ? "verified-frontier" : "no-connected-route";
             Reset();
             if (!result) nextAttempt = now + 4f;
             return result;
