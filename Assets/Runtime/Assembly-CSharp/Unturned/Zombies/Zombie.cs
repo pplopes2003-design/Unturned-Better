@@ -2112,7 +2112,7 @@ namespace SDG.Unturned
 				// Sprinters are now elite threats rather than fragile runners.
 				// Clamp to the native ushort health range and keep map-specific
 				// difficulty overrides downstream authoritative.
-				health = MathfEx.RoundAndClampToUShort(health * 1.5f);
+				health = (ushort)Mathf.Clamp(Mathf.RoundToInt(health * 1.5f), 1, ushort.MaxValue);
 			}
 			else if (speciality == EZombieSpeciality.BOSS_ALL || speciality == EZombieSpeciality.BOSS_MAGMA)
 			{
