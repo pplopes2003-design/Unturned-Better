@@ -97,6 +97,7 @@ namespace SDG.Unturned
 		private static float nextSharedPhysicalThresholdSlot;
 		private float nextPhysicalThresholdScanTime;
 		private float nextPhysicalThresholdDiagnosticTime;
+		private float nextThresholdRouteStateLog;
 		// A physical doorway is narrow: the generic 1m waypoint-arrival
 		// tolerance could skip its approach and push into a solid jamb.
 		private bool hasPhysicalThresholdRoute;
@@ -886,6 +887,19 @@ namespace SDG.Unturned
 					&& Mathf.Abs(routeWaypoints[routeWaypointIndex].y - transform.position.y)
 					<= Mathf.Max(0.45f, characterController.stepOffset + 0.2f))
 				{
+					// This is the only valid proof of progressing through the
+					// verified opening; route discovery alone is not success.
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+					if (hasPhysicalThresholdRoute && Time.time >= nextThresholdRouteStateLog)
+					{
+						nextThresholdRouteStateLog = Time.time + 1f;
+						Debug.Log("[MobileNPCThresholdTraverse] npc=" + name
+							+ " reachedIndex=" + routeWaypointIndex
+							+ " approachIndex=" + physicalThresholdApproachWaypointIndex
+							+ " actor=" + transform.position
+							+ " beyond=" + physicalThresholdBeyondWaypoint, this);
+					}
+#endif
 					++routeWaypointIndex;
 					if (routeWaypointIndex >= routeWaypoints.Count)
 					{
@@ -999,6 +1013,17 @@ namespace SDG.Unturned
 								// Real geometry invalidated this path; a stale remembered
 								// route must lose confidence before any new planning.
 								ReportLearnedRouteInvalidatedServer();
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+								if (hasPhysicalThresholdRoute && Time.time >= nextThresholdRouteStateLog)
+								{
+									nextThresholdRouteStateLog = Time.time + 1f;
+									Debug.LogWarning("[MobileNPCThresholdTraverse] Abandoning "
+										+ "verified aperture route after a NEW collider blocked "
+										+ "the next segment npc=" + name
+										+ " position=" + transform.position
+										+ " waypoint=" + movementDestination, this);
+								}
+#endif
 								hasPhysicalThresholdRoute = false;
 								routeWaypoints.Clear();
 								routeWaypointIndex = 0;
