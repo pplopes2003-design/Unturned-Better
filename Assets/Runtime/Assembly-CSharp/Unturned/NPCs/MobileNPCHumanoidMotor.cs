@@ -348,6 +348,8 @@ namespace SDG.Unturned
 		private readonly MobileNPCGlobalRoutePlanner globalRoutePlanner
 			= new MobileNPCGlobalRoutePlanner();
 		private readonly List<Vector3> globalRouteScratch = new List<Vector3>(160);
+		private MobileNPCGlobalRoutePlanner.ResolveFooting globalFootingResolver;
+		private MobileNPCGlobalRoutePlanner.ValidateEdge globalEdgeValidator;
 		private float nextGlobalRouteDiagnosticAt;
 
 		/// <summary>Limited, per-individual beginning-of-life guidance is
@@ -499,6 +501,10 @@ namespace SDG.Unturned
 			if (vaultTraversal == null)
 				vaultTraversal = gameObject.AddComponent<MobileNPCVaultTraversal>();
 			travelMemory = GetComponent<MobileNPCTravelMemory>();
+			// Cache the two delegates once. Creating method-group delegates
+			// each Update on 20-40 NPCs would cause needless GC spikes.
+			globalFootingResolver = TryResolveGlobalFootingServer;
+			globalEdgeValidator = IsGlobalEdgePhysicallyTraversableServer;
 			nativeAStarRouteProvider = GetComponent<MobileNPCNativeAStarRouteProvider>();
 			if (nativeAStarRouteProvider == null)
 				nativeAStarRouteProvider = gameObject.AddComponent<MobileNPCNativeAStarRouteProvider>();
@@ -844,8 +850,7 @@ namespace SDG.Unturned
 				globalRouteScratch.Clear();
 				if (globalRoutePlanner.Step(transform.position, destination,
 					Time.time, Time.frameCount, GetInstanceID(),
-					TryResolveGlobalFootingServer,
-					IsGlobalEdgePhysicallyTraversableServer,
+					globalFootingResolver, globalEdgeValidator,
 					globalRouteScratch) && globalRouteScratch.Count > 0
 					&& IsGlobalEdgePhysicallyTraversableServer(
 						transform.position, globalRouteScratch[0]))
