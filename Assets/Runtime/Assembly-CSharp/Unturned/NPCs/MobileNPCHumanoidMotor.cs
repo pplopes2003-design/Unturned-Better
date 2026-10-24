@@ -3556,8 +3556,14 @@ namespace SDG.Unturned
 
 			// EXACT physical approach. The fallback's "closest reachable
 			// frontier" is not sufficient proof of reaching this entrance.
+			// The 9x9 local grid reaches only about five metres; a doorway
+			// geometrically observed farther along a facade must not be
+			// rejected when the ENTIRE route to its near-side threshold is
+			// actually walkable and capsule-clear. This is a verified straight
+			// corridor, NOT an assumed portal or through-wall shortcut.
 			narrowPassageScratch.Clear();
-			bool firstReachable = CanSafelyShortcutRouteCorner(bestNear)
+			bool firstReachable = CanReachThresholdApproachDirectlyServer(bestNear, radius)
+				|| CanSafelyShortcutRouteCorner(bestNear)
 				|| TryBuildLocalRoute(bestNear, narrowPassageScratch, true);
 			if (!firstReachable)
 			{
@@ -3567,7 +3573,8 @@ namespace SDG.Unturned
 				if (secondScore == float.NegativeInfinity)
 					return false;
 				narrowPassageScratch.Clear();
-				if (!CanSafelyShortcutRouteCorner(secondNear)
+				if (!CanReachThresholdApproachDirectlyServer(secondNear, radius)
+					&& !CanSafelyShortcutRouteCorner(secondNear)
 					&& !TryBuildLocalRoute(secondNear, narrowPassageScratch, true))
 					return false;
 				bestNear = secondNear;
@@ -3604,6 +3611,24 @@ namespace SDG.Unturned
 			}
 #endif
 			return true;
+		}
+
+		/// <summary>
+		/// Extend an observed doorway approach beyond the tiny local A* grid
+		/// only along a physically unobstructed, continuously supported route.
+		/// No distance-only decision can manufacture a crossing through a wall.
+		/// </summary>
+		private bool CanReachThresholdApproachDirectlyServer(Vector3 near, float radius)
+		{
+			Vector3 delta = near - transform.position;
+			if (Mathf.Abs(delta.y) > 0.5f || !Level.checkSafeIncludingClipVolumes(near))
+				return false;
+			delta.y = 0f;
+			float distance = delta.magnitude;
+			return distance >= 0.2f && distance <= 12f
+				&& IsStandingCapsuleCorridorClearServer(transform.position,
+					delta / distance, distance, radius)
+				&& HasContinuousLocalFloor(transform.position, near);
 		}
 
 		/// <summary>
