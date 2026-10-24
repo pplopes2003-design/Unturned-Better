@@ -1812,8 +1812,8 @@ namespace SDG.Unturned
 		private const float AMBIENT_HORDE_SEARCH_RADIUS = 32.0f;
 		private const float AMBIENT_HORDE_MIN_TRAVEL_DISTANCE = 38.0f;
 		private const float AMBIENT_HORDE_MAX_TRAVEL_DISTANCE = 78.0f;
-		private const int AMBIENT_HORDE_MIN_SIZE = 3;
-		private const int AMBIENT_HORDE_MAX_SIZE = 8;
+		private const int AMBIENT_HORDE_MIN_SIZE = 10;
+		private const int AMBIENT_HORDE_MAX_SIZE = 20;
 
 		private static void UpdateAmbientHordes()
 		{
@@ -1875,8 +1875,24 @@ namespace SDG.Unturned
 				return;
 			}
 
+			// Use real idle regional population, never synthetic extra spawns.
+			int availableMembers = 0;
+			float memberRadiusSquared = AMBIENT_HORDE_SEARCH_RADIUS * AMBIENT_HORDE_SEARCH_RADIUS;
+			for (int offset = 0; offset < AllZombies.Count; ++offset)
+			{
+				Zombie candidate = AllZombies[(startIndex + offset) % AllZombies.Count];
+				if (candidate != null && !candidate.isDead && !candidate.isHunting
+					&& !candidate.isIdleAfterInvestigation && candidate.bound == leader.bound
+					&& (candidate.transform.position - leader.transform.position).sqrMagnitude <= memberRadiusSquared)
+					++availableMembers;
+			}
+			if (availableMembers < minimumHordeSize)
+				return;
+
 			int alerted = 0;
-			int maxHordeSize = LightingManager.isFullMoon ? 16 : AMBIENT_HORDE_MAX_SIZE;
+			int minimumHordeSize = LightingManager.isFullMoon ? 20 : AMBIENT_HORDE_MIN_SIZE;
+			int maximumHordeSize = LightingManager.isFullMoon ? 30 : AMBIENT_HORDE_MAX_SIZE;
+			int maxHordeSize = Random.Range(minimumHordeSize, maximumHordeSize + 1);
 			float groupRadiusSquared = AMBIENT_HORDE_SEARCH_RADIUS * AMBIENT_HORDE_SEARCH_RADIUS;
 			// The same destination makes the group converge naturally; pathfinding remains
 			// responsible for routing around buildings and terrain.
