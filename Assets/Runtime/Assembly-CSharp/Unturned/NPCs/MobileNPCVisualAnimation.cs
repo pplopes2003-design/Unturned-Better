@@ -903,10 +903,11 @@ namespace SDG.Unturned
                 return;
             for (int i = 0; i < equippedItemClips.Length; ++i)
             {
-                AnimationClip clip = equippedItemClips[i];
-                if (clip == null) continue;
-                string stateName = GetOwnedWeaponStateName(clip.name);
-                if (stateName != null)
+                string stateName = equippedItemStateNames != null
+                    && i < equippedItemStateNames.Length
+                    ? equippedItemStateNames[i] : null;
+                if (!string.IsNullOrEmpty(stateName)
+                    && legacyAnimation[stateName] != null)
                     legacyAnimation.Stop(stateName);
             }
             currentWeaponActionClip = null;
@@ -953,10 +954,11 @@ namespace SDG.Unturned
                 SuspendWeaponPose();
                 for (int i = 0; i < equippedItemClips.Length; ++i)
                 {
-                    AnimationClip clip = equippedItemClips[i];
-                    if (clip == null) continue;
-                    string stateName = GetOwnedWeaponStateName(clip.name);
-                    if (stateName != null)
+                    string stateName = equippedItemStateNames != null
+                        && i < equippedItemStateNames.Length
+                        ? equippedItemStateNames[i] : null;
+                    if (!string.IsNullOrEmpty(stateName)
+                        && legacyAnimation[stateName] != null)
                         legacyAnimation.RemoveClip(stateName);
                 }
             }
