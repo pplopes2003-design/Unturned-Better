@@ -46,6 +46,10 @@ namespace SDG.Unturned
         private bool searching;
 
         internal bool IsSearching => searching;
+        internal bool IsWithinBriefWaitWindow(float now)
+        {
+            return searching && now - startedAt <= 5f;
+        }
         internal string LastOutcome { get; private set; } = "idle";
         internal int LastExpanded { get; private set; }
 
@@ -91,7 +95,7 @@ namespace SDG.Unturned
             // inherit paths sampled for a different place.
             if (searching && ((position - origin).sqrMagnitude > 9f
                 || (destination - goal).sqrMagnitude > 4f
-                || now - startedAt > 75f))
+                || now - startedAt > 18f))
             {
                 Reset();
                 nextAttempt = now + 0.6f;
