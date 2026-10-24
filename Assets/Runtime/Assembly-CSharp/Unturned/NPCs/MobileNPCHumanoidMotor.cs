@@ -1134,6 +1134,19 @@ namespace SDG.Unturned
 							movementDestination = detourWaypoint;
 					}
 				}
+				// When an NPC has physically stalled at a long facade, let
+				// the macro planner spend at most five seconds discovering a
+				// connected corner route. Do not keep pushing the capsule against
+				// the very same wall while its sampled origin is being planned.
+				bool waitingForGlobalPlan = routeWaypoints.Count == 0 && !hasDetourWaypoint
+					&& !waitingForLearnedAccess && !waitingForLadderApproach
+					&& consecutiveStuckRecoveries >= 2
+					&& goalOffset.sqrMagnitude > 196f
+					&& (nativeAStarRouteProvider == null
+						|| !nativeAStarRouteProvider.IsAvailable)
+					&& globalRoutePlanner.IsWithinBriefWaitWindow(Time.time);
+				if (waitingForGlobalPlan)
+					movementDestination = transform.position;
 				Vector3 offset = movementDestination - transform.position;
 				offset.y = 0.0f;
 				// Waypoint arrival for a verified building opening is only
@@ -1200,6 +1213,7 @@ namespace SDG.Unturned
 				// active route work. Do not discard roaming when close to
 				// an intermediate waypoint rather than the final destination.
 				&& routeWaypointIndex >= routeWaypoints.Count && !hasDetourWaypoint
+				&& !waitingForGlobalPlan
 				&& !waitingForDoorToOpen && !waitingForLearnedAccess
 				&& !waitingForLadderApproach)
 			{
@@ -3437,6 +3451,17 @@ namespace SDG.Unturned
 				&& IsObstacleBlocking(toGoal.normalized);
 			if ((consecutiveStuckRecoveries >= 1 || nearbyBlockedFacade)
 				&& TryPlanObservedBuildingThresholdServer(destination))
+				return;
+
+			// After repeated REAL movement stalls on a long-distance task,
+			// let the already-running global horizon search finish its short
+			// CPU-budgeted window. Otherwise every local 81-node frontier
+			// steals the route slot before the incremental search can return.
+			// Nearby doorway goals and immediate physical access retain priority.
+			if (consecutiveStuckRecoveries >= 2 && toGoal.sqrMagnitude > 196f
+				&& (nativeAStarRouteProvider == null
+					|| !nativeAStarRouteProvider.IsAvailable)
+				&& globalRoutePlanner.IsWithinBriefWaitWindow(Time.time))
 				return;
 
 			// First attempt the normal 81-node, same-floor local A*.
