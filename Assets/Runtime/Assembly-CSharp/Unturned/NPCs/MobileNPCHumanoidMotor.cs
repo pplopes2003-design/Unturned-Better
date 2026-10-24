@@ -1174,7 +1174,30 @@ namespace SDG.Unturned
 					&& !IsTraversingLadder && !brainDriver.IsListening
 					&& characterController.isGrounded
 					&& TryRecognizeLowOpeningServer(requestedDirection);
-				if (verifiedLowOpening)
+				// A physically verified narrow facade opening has a centered,
+				// two-sided crossing segment. Generic wall contour / recovery
+				// steering must not turn away from it AFTER the approach was
+				// reached. Only preserve the heading when the immediate capsule
+				// sweep and floor continuity still pass; a newly closed or
+				// obstructed entrance remains governed by ordinary avoidance.
+				bool verifiedThresholdCrossing = false;
+				if (!verifiedLowOpening && !isUnderwater && hasPhysicalThresholdRoute
+					&& routeWaypointIndex >= physicalThresholdApproachWaypointIndex
+					&& routeWaypointIndex < routeWaypoints.Count)
+				{
+					Vector3 crossingWaypoint = routeWaypoints[routeWaypointIndex];
+					Vector3 crossingDelta = crossingWaypoint - transform.position;
+					crossingDelta.y = 0f;
+					float crossingDistance = crossingDelta.magnitude;
+					float crossingRadius = Mathf.Clamp(obstacleProbeRadius, 0.15f,
+						Mathf.Max(0.15f, characterController.radius * 0.9f));
+					verifiedThresholdCrossing = crossingDistance > 0.2f
+						&& crossingDistance <= 2.5f
+						&& IsStandingCapsuleCorridorClearServer(transform.position,
+							crossingDelta / crossingDistance, crossingDistance, crossingRadius)
+						&& HasContinuousLocalFloor(transform.position, crossingWaypoint);
+				}
+				if (verifiedLowOpening || verifiedThresholdCrossing)
 				{
 					planarDirection = requestedDirection;
 				}
