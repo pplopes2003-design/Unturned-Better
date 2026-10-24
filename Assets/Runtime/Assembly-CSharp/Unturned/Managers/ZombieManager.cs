@@ -1947,6 +1947,50 @@ namespace SDG.Unturned
 		/// through preallocated dead zombie slots with authored spawnpoints.
 		/// Never bypass beacon, boss, safezone, regional or network registration.
 		/// </summary>
+		// Validate that a local authored cluster can actually sustain the
+		// requested event size before scheduling any native respawns.
+		private static int CountHordeClusterCapacity(int bound, int anchorIndex, int requested)
+		{
+			List<ZombieSpawnpoint> points = LevelZombies.zombies[bound];
+			ZombieRegion region = regions[bound];
+			if (points == null || anchorIndex < 0 || anchorIndex >= points.Count)
+				return 0;
+			Vector3 center = points[anchorIndex].point;
+			int valid = 0;
+			for (int index = 0; index < points.Count; ++index)
+			{
+				ZombieSpawnpoint spawn = points[index];
+				if ((spawn.point - center).sqrMagnitude > HORDE_SPAWN_CLUSTER_RADIUS_SQR
+					|| !SafezoneManager.checkPointValid(spawn.point)
+					|| !LevelNavigation.checkNavigation(spawn.point)
+					|| spawn.type >= LevelZombies.tables.Count
+					|| LevelZombies.tables[spawn.type] == null
+					|| LevelZombies.tables[spawn.type].isMega)
+					continue;
+				bool blocked = false;
+				if (Provider.clients != null)
+					foreach (SteamPlayer client in Provider.clients)
+					{
+						Player player = client != null ? client.player : null;
+						if (player != null && player.life != null && !player.life.isDead
+							&& (player.transform.position - spawn.point).sqrMagnitude < 18f * 18f)
+						{ blocked = true; break; }
+					}
+				if (!Dedicator.IsDedicatedServer && Player.LocalPlayer != null
+					&& Player.LocalPlayer.life != null && !Player.LocalPlayer.life.isDead
+					&& (Player.LocalPlayer.transform.position - spawn.point).sqrMagnitude < 18f * 18f)
+					blocked = true;
+				if (blocked) continue;
+				foreach (Zombie other in region.zombies)
+					if (other != null && !other.isDead
+						&& (other.transform.position - spawn.point).sqrMagnitude < 9f)
+						{ blocked = true; break; }
+				if (blocked) continue;
+				if (++valid >= requested) return valid;
+			}
+			return valid;
+		}
+
 		private static void UpdateHordeRespawnEventServer()
 		{
 			if (!Provider.isServer
@@ -1973,12 +2017,26 @@ namespace SDG.Unturned
 						if (zombie != null && zombie.isDead) ++dead;
 					if (dead >= required && LevelZombies.zombies[i].Count >= required)
 					{
+						int chosenAnchor = -1;
+						int capacity = 0;
+						int pointCount = LevelZombies.zombies[i].Count;
+						int startAt = Random.Range(0, pointCount);
+						for (int candidate = 0; candidate < pointCount; ++candidate)
+						{
+							int anchorIndex = (startAt + candidate) % pointCount;
+							int count = CountHordeClusterCapacity(i, anchorIndex, required);
+							if (count < required) continue;
+							chosenAnchor = anchorIndex;
+							capacity = count;
+							break;
+						}
+						if (chosenAnchor < 0) continue;
 						pendingHordeBound = i;
 						pendingHordeRespawns = Mathf.Min(
 							Random.Range(required, (LightingManager.isFullMoon ? 30 : 20) + 1),
-							Mathf.Min(dead, LevelZombies.zombies[i].Count));
-						pendingHordeSpawnCursor = Random.Range(0, LevelZombies.zombies[i].Count);
-					pendingHordeAnchor = LevelZombies.zombies[i][pendingHordeSpawnCursor].point;
+							Mathf.Min(dead, capacity));
+						pendingHordeSpawnCursor = chosenAnchor;
+						pendingHordeAnchor = LevelZombies.zombies[i][chosenAnchor].point;
 						pendingHordeZombieCursor = 0;
 						hordeUsedSpawnpoints.Clear();
 						break;
