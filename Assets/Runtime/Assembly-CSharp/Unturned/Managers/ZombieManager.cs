@@ -1835,6 +1835,9 @@ namespace SDG.Unturned
 		private static Vector3 pendingHordeAnchor;
 		private const float HORDE_SPAWN_CLUSTER_RADIUS_SQR = 40f * 40f;
 		private static readonly HashSet<int> hordeUsedSpawnpoints = new HashSet<int>();
+		// Reused preflight workspace. A cluster of individually valid points
+		// is not a 20-zombie horde if those points overlap by <3m.
+		private static readonly List<Vector3> hordePreflightPositions = new List<Vector3>(30);
 		private static float nextAmbientHordeUpdate;
 		private const float AMBIENT_HORDE_UPDATE_INTERVAL = 8.0f;
 		private const float AMBIENT_HORDE_SEARCH_RADIUS = 32.0f;
@@ -1956,6 +1959,7 @@ namespace SDG.Unturned
 			if (points == null || anchorIndex < 0 || anchorIndex >= points.Count)
 				return 0;
 			Vector3 center = points[anchorIndex].point;
+			hordePreflightPositions.Clear();
 			int valid = 0;
 			for (int index = 0; index < points.Count; ++index)
 			{
@@ -1986,6 +1990,14 @@ namespace SDG.Unturned
 						&& (other.transform.position - spawn.point).sqrMagnitude < 9f)
 						{ blocked = true; break; }
 				if (blocked) continue;
+				// Runtime spawn also rejects positions closer than 3 metres
+				// to a living zombie. Count the same separation now so the
+				// preflight does not promise 30 slots in overlapping points.
+				foreach (Vector3 earlier in hordePreflightPositions)
+					if ((earlier - spawn.point).sqrMagnitude < 9f)
+						{ blocked = true; break; }
+				if (blocked) continue;
+				hordePreflightPositions.Add(spawn.point);
 				if (++valid >= maximum) return valid;
 			}
 			return valid;
