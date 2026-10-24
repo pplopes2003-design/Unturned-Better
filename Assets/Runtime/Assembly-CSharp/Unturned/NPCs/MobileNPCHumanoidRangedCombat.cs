@@ -392,13 +392,16 @@ namespace SDG.Unturned
 				cadenceTarget = targetTransform;
 				sustainedEngagement = sustainNow;
 				waitingForBurstPause = false;
-				// In sustained automatic mode keep the trigger held until the
-				// magazine is empty or visibility/target changes. Do not
-				// simulate automatic fire by repeated semi-auto bursts.
+				// Auto-capable guns use a deliberate, short trigger hold at
+				// their REAL cyclic rate, followed by a human observation pause.
+				// This gives audible/visible automatic bursts without dumping
+				// the entire magazine at every nearby zombie.
+				int affordableShots = Mathf.Max(1,
+					roundsRemaining / Mathf.Max(1, selectedGunAsset.ammoPerShot));
 				shotsRemainingInBurst = sustainNow
-					? Mathf.Max(1, roundsRemaining / Mathf.Max(1, selectedGunAsset.ammoPerShot))
-					: nativeBurstCount > 0 ? nativeBurstCount
-					: nativeAutomaticAllowed ? RollBurstSize() : 1;
+					? Mathf.Min(affordableShots, Random.Range(4, 8))
+					: nativeBurstCount > 0 ? Mathf.Min(affordableShots, nativeBurstCount)
+					: nativeAutomaticAllowed ? Mathf.Min(affordableShots, RollBurstSize()) : 1;
 			}
 
 			// A human does not empty a magazine at an implausible long-range
@@ -513,7 +516,7 @@ namespace SDG.Unturned
 				// multi-shot burst recovery interval on a semi-only weapon.
 				// The weapon's real cyclic rate remains a hard lower bound.
 				float pause = sustainedEngagement
-					? Random.Range(0.12f, 0.32f)
+					? Random.Range(0.30f, 0.65f)
 					: !nativeAutomaticAllowed && nativeBurstCount <= 0
 						? Random.Range(0.18f, 0.38f)
 						: Random.Range(Mathf.Min(minimumBurstPause, maximumBurstPause),
