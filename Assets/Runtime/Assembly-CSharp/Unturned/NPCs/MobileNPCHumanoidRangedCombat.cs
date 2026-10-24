@@ -797,13 +797,6 @@ namespace SDG.Unturned
 				|| ReadGunFlag(gunAsset, "hasAuto")
 				|| ReadGunFlag(gunAsset, "auto");
 			nativeBurstCount = Mathf.Max(0, ReadGunBurstCount(gunAsset));
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-			Debug.Log("[MobileNPCFireMode] npc=" + name + " gun=" + gunAsset.id
-				+ " nativeAuto=" + nativeAutomaticAllowed
-				+ " burstCount=" + nativeBurstCount
-				+ " fireModeValue=" + (ReadGunMember(gunAsset, "firemode") ?? "(unavailable)")
-				+ " isAutoMember=" + (ReadGunMember(gunAsset, "isAuto") ?? "(unavailable)"), this);
-#endif
 			// Bolt and Pump require cycling between shots even when the
 			// magazine still contains ammunition. Never sustain automatic
 			// fire with a manually operated action.
@@ -816,6 +809,17 @@ namespace SDG.Unturned
 				nativeAutomaticAllowed = false;
 				nativeBurstCount = 0;
 			}
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			// Report the effective fire mode AFTER Bolt/Pump rules; logging
+			// before this point incorrectly advertised manual guns as Auto.
+			Debug.Log("[MobileNPCFireMode] npc=" + name + " gun=" + gunAsset.id
+				+ " effectiveAuto=" + nativeAutomaticAllowed
+				+ " nativeBurstCount=" + nativeBurstCount
+				+ " manualAction=" + nativeManualAction
+				+ " action=" + actionName
+				+ " autoFlag=" + (ReadGunMember(gunAsset, "isAuto") ?? "(unavailable)")
+				+ " hasAutoFlag=" + (ReadGunMember(gunAsset, "hasAuto") ?? "(unavailable)"), this);
+#endif
 			object rechamberDelay = ReadGunMember(gunAsset, "rechamberAfterShotDelay");
 			nativeRechamberDelay = rechamberDelay is float delay
 				? Mathf.Max(0.25f, delay) : 0.25f;
