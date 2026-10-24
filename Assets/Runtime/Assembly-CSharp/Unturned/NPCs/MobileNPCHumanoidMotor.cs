@@ -2573,14 +2573,24 @@ namespace SDG.Unturned
 		private bool TryFindRecoveryGround(Vector3 origin, float distance, float preferredY, out RaycastHit selectedHit)
 		{
 			selectedHit = default(RaycastHit);
-			RaycastHit[] hits = Physics.RaycastAll(origin, Vector3.down, distance, ~0, QueryTriggerInteraction.Ignore);
+			// Emergency recovery must use the SAME collidable world layers
+			// as PlayerMovement.checkGround. Nav-only helper colliders in
+			// Player.log cannot become a fake surface to teleport onto.
+			int supportMask = ((int)roamingGroundMask) & RayMasks.BLOCK_COLLISION;
+			if (supportMask == 0) return false;
+			RaycastHit[] hits = Physics.RaycastAll(origin, Vector3.down, distance,
+				supportMask, QueryTriggerInteraction.Ignore);
 			float bestVerticalDifference = float.PositiveInfinity;
 			bool found = false;
 			for (int i = 0; i < hits.Length; ++i)
 			{
 				RaycastHit candidate = hits[i];
 				if (candidate.collider == null || IsOwnCollider(candidate.collider)
-					|| Vector3.Angle(candidate.normal, Vector3.up) > 55f)
+					|| IsFurnitureSurfaceCollider(candidate.collider)
+					|| candidate.collider.GetComponentInParent<InteractableVehicle>() != null
+					|| Vector3.Angle(candidate.normal, Vector3.up) >
+						Mathf.Min(55f, characterController.slopeLimit)
+					|| !Level.checkSafeIncludingClipVolumes(candidate.point))
 				{
 					continue;
 				}
