@@ -41,6 +41,10 @@ namespace SDG.Unturned
         // NPCs previously instantiated only the gun mesh, leaving arms at
         // their unarmed locomotion/bind-pose angles.
         private AnimationClip[] equippedItemClips;
+        // ItemAsset often names its hold clip "Idle", which is also the
+        // NPC_Client locomotion clip. Never borrow/play the locomotion state
+        // as an equipped-item pose. Register each item state under an alias.
+        private string[] equippedItemStateNames;
         private string equippedWeaponHoldClip;
         private string currentWeaponActionClip;
         private float weaponActionUntil;
@@ -764,6 +768,7 @@ namespace SDG.Unturned
                 return;
             }
             equippedItemClips = nativeClips;
+            equippedItemStateNames = new string[nativeClips.Length];
             boundWeaponAssetID = asset.id;
             for (int i = 0; i < nativeClips.Length; ++i)
             {
@@ -771,13 +776,16 @@ namespace SDG.Unturned
                 if (clip == null || string.IsNullOrEmpty(clip.name)
                     || !clip.legacy)
                     continue;
-                // Avoid overwriting NPC_Client's validated locomotion or
-                // punch clips. If an asset reuses one of those names the
-                // native overlay is not safe on this independent rig.
-                if (legacyAnimation[clip.name] != null)
-                    continue;
-                legacyAnimation.AddClip(clip, clip.name);
-                AnimationState state = legacyAnimation[clip.name];
+                string itemStateName = "MobileNPC_Item_" + asset.id + "_"
+                    + i + "_" + clip.name;
+                // Register the original clip under a unique local state
+                // name. NPC walk/idle/punch clips remain untouched even
+                // when an item also calls its animation Idle or Equip.
+                if (legacyAnimation[itemStateName] != null)
+                    legacyAnimation.RemoveClip(itemStateName);
+                legacyAnimation.AddClip(clip, itemStateName);
+                equippedItemStateNames[i] = itemStateName;
+                AnimationState state = legacyAnimation[itemStateName];
                 if (state == null)
                     continue;
                 state.AddMixingTransform(weaponLeftShoulder, true);
@@ -836,18 +844,27 @@ namespace SDG.Unturned
 #endif
         }
 
+        private string GetOwnedWeaponStateName(string originalClipName)
+        {
+            if (equippedItemClips == null || equippedItemStateNames == null
+                || legacyAnimation == null || string.IsNullOrEmpty(originalClipName))
+                return null;
+            for (int i = 0; i < equippedItemClips.Length; ++i)
+            {
+                AnimationClip clip = equippedItemClips[i];
+                string stateName = equippedItemStateNames[i];
+                if (clip != null && clip.legacy
+                    && clip.name == originalClipName
+                    && !string.IsNullOrEmpty(stateName)
+                    && legacyAnimation[stateName] != null)
+                    return stateName;
+            }
+            return null;
+        }
+
         private bool IsOwnedWeaponClip(string clipName)
         {
-            if (equippedItemClips == null || legacyAnimation == null
-                || string.IsNullOrEmpty(clipName)
-                || legacyAnimation[clipName] == null)
-                return false;
-            for (int i = 0; i < equippedItemClips.Length; ++i)
-                if (equippedItemClips[i] != null
-                    && equippedItemClips[i].name == clipName
-                    && equippedItemClips[i].legacy)
-                    return true;
-            return false;
+            return GetOwnedWeaponStateName(clipName) != null;
         }
 
         private void MaintainWeaponPose()
@@ -860,10 +877,13 @@ namespace SDG.Unturned
                 return;
             if (Time.time < weaponActionUntil)
                 return;
-            if (weaponPosePlaying && legacyAnimation.IsPlaying(equippedWeaponHoldClip))
+            string holdStateName = GetOwnedWeaponStateName(equippedWeaponHoldClip);
+            if (string.IsNullOrEmpty(holdStateName))
+                return;
+            if (weaponPosePlaying && legacyAnimation.IsPlaying(holdStateName))
                 return;
             currentWeaponActionClip = null;
-            AnimationState state = legacyAnimation[equippedWeaponHoldClip];
+            AnimationState state = legacyAnimation[holdStateName];
             state.layer = 1;
             state.wrapMode = equippedWeaponHoldClip == "Idle"
                 || equippedWeaponHoldClip == "Aim"
@@ -871,10 +891,10 @@ namespace SDG.Unturned
                 ? WrapMode.Loop : WrapMode.ClampForever;
             state.enabled = true;
             legacyAnimation.enabled = true;
-            legacyAnimation.CrossFade(equippedWeaponHoldClip, 0.12f);
-            if (!legacyAnimation.IsPlaying(equippedWeaponHoldClip))
-                legacyAnimation.Play(equippedWeaponHoldClip);
-            weaponPosePlaying = legacyAnimation.IsPlaying(equippedWeaponHoldClip);
+            legacyAnimation.CrossFade(holdStateName, 0.12f);
+            if (!legacyAnimation.IsPlaying(holdStateName))
+                legacyAnimation.Play(holdStateName);
+            weaponPosePlaying = legacyAnimation.IsPlaying(holdStateName);
         }
 
         private void SuspendWeaponPose()
@@ -884,8 +904,10 @@ namespace SDG.Unturned
             for (int i = 0; i < equippedItemClips.Length; ++i)
             {
                 AnimationClip clip = equippedItemClips[i];
-                if (clip != null && IsOwnedWeaponClip(clip.name))
-                    legacyAnimation.Stop(clip.name);
+                if (clip == null) continue;
+                string stateName = GetOwnedWeaponStateName(clip.name);
+                if (stateName != null)
+                    legacyAnimation.Stop(stateName);
             }
             currentWeaponActionClip = null;
             weaponActionUntil = 0f;
@@ -903,16 +925,18 @@ namespace SDG.Unturned
                 string clipName = names[n];
                 if (!IsOwnedWeaponClip(clipName))
                     continue;
-                AnimationState state = legacyAnimation[clipName];
+                string actionStateName = GetOwnedWeaponStateName(clipName);
+                AnimationState state = actionStateName != null
+                    ? legacyAnimation[actionStateName] : null;
                 if (state == null)
                     continue;
                 state.wrapMode = WrapMode.Once;
                 state.layer = 1;
                 legacyAnimation.enabled = true;
-                legacyAnimation.CrossFade(clipName, Mathf.Min(crossFadeDuration, 0.08f));
-                if (!legacyAnimation.IsPlaying(clipName))
-                    legacyAnimation.Play(clipName);
-                if (!legacyAnimation.IsPlaying(clipName))
+                legacyAnimation.CrossFade(actionStateName, Mathf.Min(crossFadeDuration, 0.08f));
+                if (!legacyAnimation.IsPlaying(actionStateName))
+                    legacyAnimation.Play(actionStateName);
+                if (!legacyAnimation.IsPlaying(actionStateName))
                     return false;
                 weaponPosePlaying = false;
                 currentWeaponActionClip = clipName;
@@ -930,11 +954,14 @@ namespace SDG.Unturned
                 for (int i = 0; i < equippedItemClips.Length; ++i)
                 {
                     AnimationClip clip = equippedItemClips[i];
-                    if (clip != null && IsOwnedWeaponClip(clip.name))
-                        legacyAnimation.RemoveClip(clip.name);
+                    if (clip == null) continue;
+                    string stateName = GetOwnedWeaponStateName(clip.name);
+                    if (stateName != null)
+                        legacyAnimation.RemoveClip(stateName);
                 }
             }
             equippedItemClips = null;
+            equippedItemStateNames = null;
             weaponVisualActive = false;
             boundWeaponModel = null;
             boundWeaponBarrel = null;
