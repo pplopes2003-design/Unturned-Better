@@ -612,6 +612,33 @@ namespace SDG.Unturned
                 rightDirection, gunPoseFallbackBlend);
             AimShoulderToward(weaponLeftShoulder, weaponLeftHand,
                 leftDirection, gunPoseFallbackBlend);
+
+            // The vanilla hand-hook rotation alone does not prove that an NPC
+            // rig's weapon barrel faces its observed aim direction. The Test4
+            // log recorded barrelForwardDotBody around -0.10 with a live gun.
+            // Correct only the VISUAL model after the procedural arm pose;
+            // leave the authoritative ballistic origin and hit validation intact.
+            if (boundWeaponModel != null && boundWeaponBarrel != null
+                && gunPoseFallbackBlend > 0.01f)
+            {
+                // Start from the same native third-person attachment every
+                // frame; never compound yesterday's procedural correction.
+                if (boundWeaponModel.parent != null
+                    && boundWeaponModel.parent.name == "Right_Hook")
+                {
+                    boundWeaponModel.localRotation = Quaternion.Euler(0f, 0f, 90f);
+                    Vector3 barrelForward = boundWeaponBarrel.forward;
+                    if (barrelForward.sqrMagnitude > 0.5f)
+                    {
+                        Quaternion alignment = Quaternion.FromToRotation(
+                            barrelForward.normalized, aimForward);
+                        boundWeaponModel.rotation = Quaternion.Slerp(
+                            boundWeaponModel.rotation,
+                            alignment * boundWeaponModel.rotation,
+                            gunPoseFallbackBlend);
+                    }
+                }
+            }
         }
 
         private bool IsHandExtendedForWeapon(Transform shoulder, Transform hand)
