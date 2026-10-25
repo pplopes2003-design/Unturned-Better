@@ -91,6 +91,17 @@ namespace SDG.Unturned
 			bool committed = (currentGoal == Goal.Retreat || currentGoal == Goal.SeekCover)
 				&& hasTacticalDestination && now < goalDeadline;
 
+			// Critical injury outranks an ordinary cover move. A verified
+			// RETREAT remains committed, but an ordinary SeekCover point is
+			// not automatically a safe escape from an overwhelming threat.
+			if (needsEscape && currentGoal == Goal.SeekCover)
+			{
+				currentGoal = Goal.Retreat;
+				hasTacticalDestination = false;
+				goalDeadline = now + RetreatDuration;
+				return true;
+			}
+
 			// Selector child 1 (running): an existing validated journey owns
 			// movement until arrival, expiry or explicit route failure.
 			if (committed)
