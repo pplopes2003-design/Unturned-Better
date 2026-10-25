@@ -51,6 +51,9 @@ namespace SDG.Unturned
 			motor = GetComponent<MobileNPCHumanoidMotor>();
 			disposition = GetComponent<MobileNPCHumanoidDisposition>();
 			rangedCombat = GetComponent<MobileNPCHumanoidRangedCombat>();
+			// Existing Unity prefabs may still serialize the previous 20m
+			// default, overriding the field initializer in this component.
+			playerSightRange = Mathf.Max(40f, playerSightRange);
 			scopedReadyAt = Time.time + Random.Range(1f, 2f);
 		}
 
