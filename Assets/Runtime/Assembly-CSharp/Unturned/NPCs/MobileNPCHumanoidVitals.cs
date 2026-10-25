@@ -154,8 +154,9 @@ namespace SDG.Unturned
 				lastImpactVehicleId = vehicle.GetInstanceID();
 				lastVehicleImpactAt = Time.time;
 				float damage = Mathf.Clamp(speed * 10f, 12f, 220f);
-				ApplyDamage(damage, velocity.normalized * Mathf.Min(speed * 7f, 100f),
-					vehicle.transform);
+				if (ApplyDamage(damage, velocity.normalized * Mathf.Min(speed * 7f, 100f),
+					vehicle.transform))
+					SpawnBloodImpactServer(center, velocity.normalized);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
 				Debug.Log("[MobileNPCRoadkill] npc=" + name + " vehicle="
 					+ vehicle.name + " speed=" + speed.ToString("F1")
