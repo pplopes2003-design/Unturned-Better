@@ -815,6 +815,26 @@ namespace SDG.Unturned
 				if (!isUnderwater && !waitingForLearnedAccess
 					&& routeWaypoints.Count == 0 && !hasDetourWaypoint)
 					TryBuildPhysicalLadderApproach(destination, out waitingForLadderApproach);
+				// Zombie's native seeker keeps its path destination active through a
+				// building opening. Our waypoint motor previously discovered physical
+				// thresholds chiefly during stuck recovery, after local/global routes
+				// had already steered it into the facade. Give a NEARBY, actually
+				// obstructed doorway a bounded chance before coarse path planning.
+				// This still requires the same capsule, floor and wall-side proofs.
+				Vector3 doorwayGoal = destination - transform.position;
+				doorwayGoal.y = 0f;
+				if (!isUnderwater && !isPlannedJumping && characterController.isGrounded
+					&& !waitingForLearnedAccess && !waitingForLadderApproach
+					&& routeWaypoints.Count == 0 && !hasDetourWaypoint
+					&& doorwayGoal.sqrMagnitude >= 4f
+					&& doorwayGoal.sqrMagnitude <= 144f
+					&& Mathf.Abs(destination.y - transform.position.y) <= 0.8f
+					&& Time.time >= nextPhysicalThresholdScanTime
+					&& Time.time >= nextSharedPhysicalThresholdSlot
+					&& IsObstacleBlocking(doorwayGoal.normalized))
+				{
+					TryPlanObservedBuildingThresholdServer(destination);
+				}
 				// Ask for a map-wide path before the NPC gets close enough to collide with
 				// something. This is essential for open-world goals separated by buildings,
 				// fences or terrain; local obstacle probing alone cannot discover such routes.
