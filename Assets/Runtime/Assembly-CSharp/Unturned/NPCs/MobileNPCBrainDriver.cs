@@ -1055,6 +1055,14 @@ namespace SDG.Unturned
 					memory.RecordOwnOutcomeServer(MobileNPCAdaptiveMemory.ExperienceKind.CoverAccess,
 						tactics.TacticalDestination, true);
 			}
+			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Retreat
+				&& tactics.HasTacticalDestination)
+			{
+				// A reached escape point is a temporary safe position, not a
+				// signal to instantly abandon defense and charge back at the attacker.
+				// Let the existing goal deadline release the commitment.
+				return;
+			}
 			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Flank)
 			{
 				// Keep the NPC at its alternate firing position for the bounded flank
