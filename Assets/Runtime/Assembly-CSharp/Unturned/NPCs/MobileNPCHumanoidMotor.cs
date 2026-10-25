@@ -1124,8 +1124,19 @@ namespace SDG.Unturned
 							&& routeWaypointIndex <= physicalThresholdApproachWaypointIndex)
 							segmentDistance = Mathf.Min(segmentDistance,
 								Mathf.Max(0.05f, routeOffset.magnitude - 0.15f));
-						if (IsObstacleBlockingAlong(routeOrigin, routeRadius, routeOffset.normalized,
-							segmentDistance)
+						// A spherecast at chest height is NOT the same proof as
+						// the character's standing capsule through a narrow opening.
+						// Do not discard a threshold route because its broad probe
+						// brushes a facade while the real-size corridor remains clear.
+						bool validThresholdSegment = hasPhysicalThresholdRoute
+							&& routeWaypointIndex >= physicalThresholdApproachWaypointIndex
+							&& IsStandingCapsuleCorridorClearServer(transform.position,
+								routeOffset.normalized, segmentDistance,
+								Mathf.Max(0.05f, characterController.radius * 0.90f))
+							&& HasContinuousLocalFloor(transform.position, movementDestination);
+						if (!validThresholdSegment
+							&& IsObstacleBlockingAlong(routeOrigin, routeRadius, routeOffset.normalized,
+								segmentDistance)
 							&& !IsOnlyTemporaryActorBlockingAlong(routeOrigin, routeRadius,
 								routeOffset.normalized, segmentDistance))
 						{
