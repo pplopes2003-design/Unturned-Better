@@ -3,6 +3,7 @@
 // Please refer to the included LICENSE.txt for copyright notice and license details. //
 ////////////////////////////////////////////////////////////////////////////////////////
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace SDG.Unturned
@@ -34,6 +35,14 @@ namespace SDG.Unturned
 		// Reserve lethal transition before publishing callbacks, which might themselves
 		// attempt healing or damage. Only the original lethal hit can finalize death.
 		private bool lethalTransitionReserved;
+		// Player/zombie roadkill hooks do not target this custom humanoid class.
+		// Query native registered vehicles on the SERVER, using a bounded shared
+		// list and a per-victim cooldown to avoid per-frame overlap damage.
+		private readonly List<InteractableVehicle> nearbyImpactVehicles = new List<InteractableVehicle>(12);
+		private float nextVehicleImpactScanAt;
+		private float lastVehicleImpactAt = -100f;
+		private int lastImpactVehicleId;
+
 
 		public event System.Action<float, float> HealthChanged;
 		/// <summary>Raised after validated server damage; attacker may be null for environmental damage.</summary>
@@ -66,6 +75,75 @@ namespace SDG.Unturned
 			if (Provider.isServer && !initialized)
 			{
 				InitializeServer();
+			}
+		}
+
+
+		private void Update()
+		{
+			if (!Provider.isServer || !initialized || isDead || lethalTransitionReserved
+				|| characterController == null || !characterController.enabled
+				|| Time.time < nextVehicleImpactScanAt)
+				return;
+			nextVehicleImpactScanAt = Time.time + 0.06f;
+			nearbyImpactVehicles.Clear();
+			// VehicleManager expects squared radius (the native API, not metres).
+			VehicleManager.getVehiclesInRadius(transform.position, 36f, nearbyImpactVehicles);
+			Vector3 center = characterController.bounds.center;
+			for (int i = 0; i < nearbyImpactVehicles.Count; ++i)
+			{
+				InteractableVehicle vehicle = nearbyImpactVehicles[i];
+				if (vehicle == null || vehicle.isDead)
+					continue;
+				Rigidbody body = vehicle.GetComponent<Rigidbody>();
+				if (body == null)
+					body = vehicle.GetComponentInChildren<Rigidbody>();
+				if (body == null)
+					continue;
+				Vector3 velocity = body.velocity;
+				velocity.y = 0f;
+				float speed = velocity.magnitude;
+				// Native vehicle assets normally require several m/s before
+				// their bumper deals damage. Parking contact is not roadkill.
+				if (speed < 3f || (vehicle.GetInstanceID() == lastImpactVehicleId
+					&& Time.time - lastVehicleImpactAt < 0.9f))
+					continue;
+				bool contacting = false;
+				Collider[] vehicleColliders = vehicle.GetComponentsInChildren<Collider>();
+				for (int c = 0; c < vehicleColliders.Length; ++c)
+				{
+					Collider collider = vehicleColliders[c];
+					if (collider == null || !collider.enabled || collider.isTrigger)
+						continue;
+					Vector3 closest = collider.ClosestPoint(center);
+					Vector3 separation = closest - center;
+					// Require actual bumper/body proximity in 3D. A vehicle on
+					// another floor must not inflict damage through the ceiling.
+					if (Mathf.Abs(separation.y) <= 1.25f
+						&& new Vector2(separation.x, separation.z).sqrMagnitude <= 1.1f)
+					{
+						contacting = true;
+						break;
+					}
+				}
+				if (!contacting)
+					continue;
+				Vector3 towardVictim = center - body.worldCenterOfMass;
+				towardVictim.y = 0f;
+				if (towardVictim.sqrMagnitude > 0.2f
+					&& Vector3.Dot(velocity.normalized, towardVictim.normalized) < 0.05f)
+					continue;
+				lastImpactVehicleId = vehicle.GetInstanceID();
+				lastVehicleImpactAt = Time.time;
+				float damage = Mathf.Clamp(speed * 10f, 12f, 220f);
+				ApplyDamage(damage, velocity.normalized * Mathf.Min(speed * 7f, 100f),
+					vehicle.transform);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+				Debug.Log("[MobileNPCRoadkill] npc=" + name + " vehicle="
+					+ vehicle.name + " speed=" + speed.ToString("F1")
+					+ " damage=" + damage.ToString("F1"), this);
+#endif
+				break; // One physical impact per scan, never multi-collider damage.
 			}
 		}
 
