@@ -97,8 +97,11 @@ namespace SDG.Unturned
 
 			if (criticallyWounded || (badlyWounded && recentlyDamaged))
 			{
-				// Retreat destination should be selected by the host as a safe point
-				// away from the threat; this class never invents a path or teleports.
+				// Keep a previously verified escape destination despite repeated hits.
+				// Replacing it each decision tick causes abort/re-advance oscillation.
+				if (currentGoal == Goal.Retreat && hasTacticalDestination
+					&& now < goalDeadline)
+					return true;
 				currentGoal = Goal.Retreat;
 				goalDeadline = now + RetreatDuration;
 				hasTacticalDestination = false;
