@@ -254,7 +254,21 @@ namespace SDG.Unturned
 					return false;
 				cone = Mathf.Min(cone, Mathf.Clamp(34f / Mathf.Sqrt(zoom), 9f, 18f));
 			}
-			return Vector3.Angle(transform.forward, direction) <= cone;
+			// The body faces horizontally while the eyes can look up/down.
+			// A single 3D cone wrongly rejects rooftop targets at steep
+			// elevation despite a clear view. Keep horizontal and vertical
+			// limits independent; existing LOS rays still block solid walls.
+			Vector3 flatForward = transform.forward;
+			flatForward.y = 0f;
+			Vector3 flatDirection = direction;
+			flatDirection.y = 0f;
+			if (flatForward.sqrMagnitude > 0.0001f
+				&& flatDirection.sqrMagnitude > 0.0001f
+				&& Vector3.Angle(flatForward, flatDirection) > cone)
+				return false;
+			float horizontalDistance = Mathf.Sqrt(flatDirection.sqrMagnitude);
+			float elevation = Mathf.Atan2(direction.y, horizontalDistance) * Mathf.Rad2Deg;
+			return elevation <= 75f && elevation >= -65f;
 		}
 
 		private MobileNPCHumanoidDisposition FindVisibleNPC()
