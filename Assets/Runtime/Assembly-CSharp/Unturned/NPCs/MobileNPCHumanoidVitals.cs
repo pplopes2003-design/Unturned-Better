@@ -35,6 +35,24 @@ namespace SDG.Unturned
 		// Reserve lethal transition before publishing callbacks, which might themselves
 		// attempt healing or damage. Only the original lethal hit can finalize death.
 		private bool lethalTransitionReserved;
+		private float nextBloodImpactEffectAt;
+		private void SpawnBloodImpactServer(Vector3 impactPoint, Vector3 hitDirection)
+		{
+			if (!Provider.isServer || Time.time < nextBloodImpactEffectAt)
+				return;
+			EffectAsset blood = DamageTool.FleshDynamicRef.Find();
+			if (blood == null)
+				return;
+			nextBloodImpactEffectAt = Time.time + 0.075f;
+			TriggerEffectParameters effect = new TriggerEffectParameters(blood);
+			effect.relevantDistance = EffectManager.SMALL;
+			effect.position = impactPoint;
+			effect.reliable = true;
+			if (hitDirection.sqrMagnitude > 0.001f)
+				effect.SetDirection(-hitDirection.normalized);
+			EffectManager.triggerEffect(effect);
+		}
+
 		// Player/zombie roadkill hooks do not target this custom humanoid class.
 		// Query native registered vehicles on the SERVER, using a bounded shared
 		// list and a per-victim cooldown to avoid per-frame overlap damage.
@@ -326,6 +344,8 @@ namespace SDG.Unturned
 				: MobileNPCInjurySystem.BleedingSeverity.Light;
 			bool accepted = ApplyDamageToPart(damage, part, bleed, fracture, severity,
 				hitDirection * Mathf.Min(damage, 100f), attacker);
+			if (accepted)
+				SpawnBloodImpactServer(impactPoint, hitDirection);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
 			if (!accepted)
 				Debug.LogError("[MobileNPCDamageInvariant] A server-validated "
@@ -379,6 +399,10 @@ namespace SDG.Unturned
 			LastAttacker = attacker;
 			LastDamageTime = Time.time;
 			CurrentHealth = Mathf.Max(0.0f, CurrentHealth - damage);
+			// Generic environment/melee damage uses the torso center; precise
+			// weapon hits additionally provide their verified world-space point.
+			// Intentionally skip here: the weapon caller triggers its own effect.
+
 			// Reserve a lethal transition *before* DamageReceived/HealthChanged handlers
 			// run. Without this, a listener could reenter ApplyDamage/Heal or change
 			// the zero-health state before DieServer executes, causing duplicated or
