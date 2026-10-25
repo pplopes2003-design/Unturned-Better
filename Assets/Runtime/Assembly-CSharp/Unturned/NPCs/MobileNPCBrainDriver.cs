@@ -22,6 +22,9 @@ namespace SDG.Unturned
 		// crouch/stealth command after actual visual recognition.
 		private bool investigatingFootstepOnly;
 		private float nextDefensiveReplanAt;
+		private float retreatTrackingStartedAt = -1f;
+		private float retreatLastProgressAt;
+		private float retreatBestDistance = float.PositiveInfinity;
 		private Vector3 lastDefensiveThreatPosition;
 		private float nextStalkPlanAt;
 		private float ambushArmedUntil;
@@ -1174,6 +1177,36 @@ namespace SDG.Unturned
 			}
 			else if (brain.CurrentState != MobileNPCBrain.State.Investigating)
 				investigatingPlayerClue = false;
+
+			// A retreat is a movement commitment, not a fixed timer that
+			// makes the actor rush back toward the enemy mid-escape. Extend
+			// only if its actual remaining distance decreases measurably;
+			// blocked routes still time out for the planner to reconsider.
+			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Retreat
+				&& tactics.HasTacticalDestination)
+			{
+				float remaining = Vector3.Distance(transform.position,
+					tactics.TacticalDestination);
+				if (retreatTrackingStartedAt < 0f)
+				{
+					retreatTrackingStartedAt = Time.time;
+					retreatLastProgressAt = Time.time;
+					retreatBestDistance = remaining;
+				}
+				else if (remaining < retreatBestDistance - 0.35f)
+				{
+					retreatBestDistance = remaining;
+					retreatLastProgressAt = Time.time;
+				}
+				if (remaining > 1.5f && Time.time - retreatLastProgressAt < 4.5f
+					&& Time.time - retreatTrackingStartedAt < 42f)
+					tactics.ExtendActiveRetreat(Time.time);
+			}
+			else
+			{
+				retreatTrackingStartedAt = -1f;
+				retreatBestDistance = float.PositiveInfinity;
+			}
 
 			if (tactics.IsGoalExpired(Time.time))
 			{
