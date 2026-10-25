@@ -36,6 +36,32 @@ namespace SDG.Unturned
 			"Oliveira", "Pereira", "Ramos", "Rocha", "Santos", "Silva", "Souza", "Teixeira"
 		};
 
+
+		/// <summary>Server chat message for a fatal mobile-NPC attack.
+		/// Native death attribution accepts SteamID rather than an NPC entity.</summary>
+		public void NotifyFatalPlayerAttackServer(Player victim, EDeathCause cause)
+		{
+			if (!Provider.isServer || victim == null || victim.life == null
+				|| !victim.life.isDead || victim.channel == null
+				|| victim.channel.owner == null)
+				return;
+			string reason;
+			switch (cause)
+			{
+				case EDeathCause.GUN: reason = "tiro"; break;
+				case EDeathCause.MELEE: reason = "arma corpo a corpo"; break;
+				case EDeathCause.PUNCH: reason = "soco"; break;
+				default: return;
+			}
+			ChatManager.say(victim.channel.owner.playerID.steamID,
+				"Voce foi morto por " + DisplayName + " (" + reason + ").",
+				Color.red);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			Debug.Log("[MobileNPCKillFeed] killer=" + DisplayName + " victim="
+				+ victim.name + " cause=" + cause, this);
+#endif
+		}
+
 		public Role CurrentRole => role;
 		public string DisplayName => string.IsNullOrWhiteSpace(displayName) ? "Sobrevivente" : displayName;
 
