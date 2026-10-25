@@ -1279,7 +1279,14 @@ namespace SDG.Unturned
 
 			// A suspicious footstep can suspend walking briefly while the survivor
 			// listens. A confirmed threat or retreat pre-empts this immediately.
-			if (brainDriver.IsListening || brainDriver.IsAmbushPreparing
+			// Listening to a noise must not immobilize a survivor with a
+			// confirmed hostile or an active retreat/cover destination.
+			bool urgentTacticalTravel = brainDriver.CurrentGoal == MobileNPCTactics.Goal.Retreat
+				|| brainDriver.CurrentGoal == MobileNPCTactics.Goal.SeekCover;
+			bool activeHostile = brainDriver.Target != null
+				&& brainDriver.CurrentState == MobileNPCBrain.State.Pursuing;
+			if (((brainDriver.IsListening || brainDriver.IsAmbushPreparing)
+					&& !urgentTacticalTravel && !activeHostile)
 				|| waitingForDoorToOpen || waitingForLearnedAccess
 				|| waitingForLadderApproach)
 				planarDirection = Vector3.zero;
