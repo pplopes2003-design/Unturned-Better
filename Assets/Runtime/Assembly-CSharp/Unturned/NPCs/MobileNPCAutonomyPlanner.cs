@@ -418,6 +418,34 @@ namespace SDG.Unturned
                     break;
             }
 
+            // Strict Normal-mode profession selector. These are minimum
+            // priorities, not random hints: ordinary survivors must inspect
+            // authored loot sites rather than endlessly winning Patrol rolls.
+            // Urgent bleeding, dehydration, critical health and actual
+            // guard duties still participate in the utility arbitration.
+            if (!combatMode && hasSpace && Time.time >= scavengeNotBefore)
+            {
+                switch (preset)
+                {
+                    case MobileNPCArchetypePolicy.Preset.Survivor:
+                        scavenge = Mathf.Max(scavenge, patrol + 28f);
+                        break;
+                    case MobileNPCArchetypePolicy.Preset.Trader:
+                        if (!hasSettlement || group == null || !group.CanPlanSettlement)
+                            scavenge = Mathf.Max(scavenge, patrol + 26f);
+                        break;
+                    case MobileNPCArchetypePolicy.Preset.Raider:
+                        scavenge = Mathf.Max(scavenge, patrol + 8f);
+                        break;
+                    case MobileNPCArchetypePolicy.Preset.Military:
+                        // Armed military patrols keep a real security purpose;
+                        // an unarmed patrol must provision itself first.
+                        if (!hasGun)
+                            scavenge = Mathf.Max(scavenge, patrol + 22f);
+                        break;
+                }
+            }
+
             Job best = Job.Patrol;
             float bestScore = patrol;
             if (scavenge > bestScore) { best = Job.Scavenge; bestScore = scavenge; }
