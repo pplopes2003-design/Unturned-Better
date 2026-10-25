@@ -108,7 +108,13 @@ namespace SDG.Unturned
             float localRisk = GetKnownRiskAtServer(transform.position);
             bool hasEffectiveGun = ranged != null
                 && ranged.SelectedGunAsset != null && ranged.RoundsRemaining > 0;
-            bool overwhelmed = localRisk >= (hasEffectiveGun ? 1.85f : 0.85f)
+            // Combat Only means dangerous survivors, not suicidal knife rushes.
+            // Treat a personally confirmed cluster as a reason to make space,
+            // including when the rifle is loaded; keep all route tests native.
+            float crowdThreshold = MobileNPCSettings.CombatOnly
+                ? (hasEffectiveGun ? 1.15f : 0.55f)
+                : (hasEffectiveGun ? 1.85f : 0.85f);
+            bool overwhelmed = localRisk >= crowdThreshold
                 || localRisk >= 0.7f && vitals.HealthFraction < 0.45f;
             if (!overwhelmed || brain == null || Time.time < nextRetreatAt
                 || brain.CurrentGoal == MobileNPCTactics.Goal.Retreat
