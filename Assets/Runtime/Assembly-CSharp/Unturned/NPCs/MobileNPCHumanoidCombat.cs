@@ -203,6 +203,13 @@ namespace SDG.Unturned
 
 			// Avoid an unrealistic simultaneous full-auto burst and heavy melee
 			// hit except when an enemy is physically crowding the NPC.
+			// Combat Only: a carried, usable rifle wins over pulling out
+			// a knife, even if a zombie has moved inside melee reach.
+			// Permit emergency melee when the gun is empty or reloading.
+			if (MobileNPCSettings.CombatOnly && rangedCombat != null
+				&& rangedCombat.SelectedGunAsset != null
+				&& rangedCombat.RoundsRemaining > 0 && !rangedCombat.IsReloading)
+				return;
 			if (rangedCombat != null && rangedCombat.SelectedGunAsset != null
 				&& rangedCombat.RoundsRemaining > 0 && !rangedCombat.IsReloading
 				&& offset.sqrMagnitude > 1.15f * 1.15f
