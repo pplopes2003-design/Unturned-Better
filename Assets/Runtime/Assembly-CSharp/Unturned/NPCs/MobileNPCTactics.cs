@@ -33,7 +33,7 @@ namespace SDG.Unturned
 		private const float LowHealthThreshold = 0.30f;
 		private const float CriticalHealthThreshold = 0.15f;
 		private const float CoverDuration = 12.0f;
-		private const float RetreatDuration = 14.0f;
+		private const float RetreatDuration = 28.0f;
 		private const float LootDuration = 12.0f;
 
 		private Goal currentGoal;
@@ -307,6 +307,17 @@ namespace SDG.Unturned
 			tacticalDestination = safePoint;
 			hasTacticalDestination = true;
 			goalDeadline = now + 48f;
+			return true;
+		}
+
+		/// <summary>Renew a retreat only while the motor is making measurable
+		/// progress toward its already verified destination. Never change the
+		/// location or resurrect a stale/failed path.</summary>
+		public bool ExtendActiveRetreat(float now)
+		{
+			if (currentGoal != Goal.Retreat || !hasTacticalDestination)
+				return false;
+			goalDeadline = Mathf.Max(goalDeadline, now + 6f);
 			return true;
 		}
 
