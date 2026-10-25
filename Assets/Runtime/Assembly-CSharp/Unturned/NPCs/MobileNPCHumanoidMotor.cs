@@ -6003,7 +6003,12 @@ namespace SDG.Unturned
 			// pull him out of town before he has checked the local structures.
 			// Prefer actual map structures, but keep searching over open terrain when a
 			// beach, field or remote island has no nearby large objects.
-			if (Random.value < structurePreference
+			// Scavenging is a committed search job, not a random roll. Always
+			// inspect an observed structure before falling back to open terrain.
+			// Other presets retain their patrol/guard structure preference.
+			if ((autonomyPlanner != null
+				&& autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge
+				|| Random.value < structurePreference)
 				&& TryChooseStructureExplorationPoint(effectiveRoamingRadius, out Vector3 structurePoint)
 				&& PlanarDistanceSquared(structurePoint, spawnPosition)
 					<= HomeTerritoryRadius * HomeTerritoryRadius
