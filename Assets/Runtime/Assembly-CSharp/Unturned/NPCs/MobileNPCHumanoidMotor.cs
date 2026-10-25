@@ -830,8 +830,7 @@ namespace SDG.Unturned
 					&& doorwayGoal.sqrMagnitude <= 144f
 					&& Mathf.Abs(destination.y - transform.position.y) <= 0.8f
 					&& Time.time >= nextPhysicalThresholdScanTime
-					&& Time.time >= nextSharedPhysicalThresholdSlot
-					&& IsObstacleBlocking(doorwayGoal.normalized))
+					&& Time.time >= nextSharedPhysicalThresholdSlot)
 				{
 					TryPlanObservedBuildingThresholdServer(destination);
 				}
