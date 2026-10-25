@@ -208,7 +208,10 @@ namespace SDG.Unturned
 			// Permit emergency melee when the gun is empty or reloading.
 			if (MobileNPCSettings.CombatOnly && rangedCombat != null
 				&& rangedCombat.SelectedGunAsset != null
-				&& rangedCombat.RoundsRemaining > 0 && !rangedCombat.IsReloading)
+				&& rangedCombat.SelectedGunAsset.projectile == null
+				&& rangedCombat.RoundsRemaining >= Mathf.Max(1,
+					rangedCombat.SelectedGunAsset.ammoPerShot)
+				&& !rangedCombat.IsReloading)
 				return;
 			if (rangedCombat != null && rangedCombat.SelectedGunAsset != null
 				&& rangedCombat.RoundsRemaining > 0 && !rangedCombat.IsReloading
