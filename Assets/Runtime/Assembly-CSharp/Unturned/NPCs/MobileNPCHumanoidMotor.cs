@@ -1083,8 +1083,16 @@ namespace SDG.Unturned
 							+ Vector3.up * Mathf.Max(0.45f, characterController.height * 0.55f);
 						float routeRadius = Mathf.Clamp(obstacleProbeRadius, 0.05f,
 							Mathf.Max(0.05f, characterController.radius * 0.9f));
+						// During a verified doorway approach, another nearby wall
+						// must not invalidate the route merely because the generic
+						// look-ahead sphere reaches beyond the CURRENT near-side
+						// waypoint. Test only the segment the controller will walk.
 						float segmentDistance = Mathf.Min(routeOffset.magnitude,
 							Mathf.Max(0.5f, obstacleProbeDistance));
+						if (hasPhysicalThresholdRoute
+							&& routeWaypointIndex <= physicalThresholdApproachWaypointIndex)
+							segmentDistance = Mathf.Min(segmentDistance,
+								Mathf.Max(0.05f, routeOffset.magnitude - 0.15f));
 						if (IsObstacleBlockingAlong(routeOrigin, routeRadius, routeOffset.normalized,
 							segmentDistance)
 							&& !IsOnlyTemporaryActorBlockingAlong(routeOrigin, routeRadius,
