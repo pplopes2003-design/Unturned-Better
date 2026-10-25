@@ -41,10 +41,14 @@ namespace SDG.Unturned
             Gait desired;
             if (!situation.HasDestination)
                 desired = Gait.Hold;
-            else if (situation.Swimming || situation.Injured)
+            else if (situation.Swimming)
                 desired = Gait.Walk;
             else if (situation.Retreating || (situation.UnderFire && !situation.InCover))
+                // The injury system already scales physical speed. Do not
+                // additionally downgrade the gait to walking while fleeing.
                 desired = Gait.Sprint;
+            else if (situation.Injured)
+                desired = Gait.Walk;
             else if (situation.Flanking && situation.DestinationDistance > 4f)
                 desired = Gait.Sprint;
             else if (situation.Pursuing && !situation.NearTarget)
