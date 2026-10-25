@@ -952,6 +952,25 @@ namespace SDG.Unturned
 							consecutiveVerticalPlanFailures = 0;
 					}
 				}
+				// A partial A* frontier or one-hop wall detour can remain active
+				// indefinitely, suppressing the doorway detector that only ran
+				// when routeWaypoints was empty. After a REAL physical stall,
+				// allow the independent facade detector to replace that bad
+				// route with a verified two-sided passage. Its ground and capsule
+				// checks remain mandatory; never overwrite an active threshold.
+				if (!hasPhysicalThresholdRoute && consecutiveStuckRecoveries >= 1
+					&& !isUnderwater && !IsTraversingLadder
+					&& characterController.isGrounded
+					&& Mathf.Abs(destination.y - transform.position.y) <= 0.8f
+					&& PlanarDistanceSquared(transform.position, destination) <= 400f
+					&& TryPlanObservedBuildingThresholdServer(destination))
+				{
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+					Debug.Log("[MobileNPCThresholdTraverse] recovered stalled partial route via real opening npc="
+						+ name, this);
+#endif
+				}
+
 				// A destination/route may have been replaced by an unrelated
 				// tactical system. Never apply narrow-portal tolerances to
 				// its waypoints merely because their count happens to match.
