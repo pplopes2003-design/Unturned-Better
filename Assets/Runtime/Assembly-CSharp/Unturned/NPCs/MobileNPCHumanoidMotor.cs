@@ -757,8 +757,20 @@ namespace SDG.Unturned
 				// Keep a planned route while its goal remains stable. The previous condition
 				// cleared routeWaypoints whenever hasDetourWaypoint was false, which is also
 				// the normal state for a multi-corner native A* route.
-				if (PlanarDistanceSquared(destination, detourGoalSnapshot) > 2.25f
-					|| Mathf.Abs(destination.y - detourGoalSnapshot.y) > 0.8f)
+				// Pursuit targets move while we approach an observed opening.
+				// Preserve a PHYSICALLY verified threshold crossing against
+				// small target motion on the far side; otherwise the goal
+				// snapshot invalidates the passage every time prey walks 1.5m.
+				// Large movements or a different floor still invalidate it.
+				bool changedDestination = PlanarDistanceSquared(destination,
+					detourGoalSnapshot) > 2.25f
+					|| Mathf.Abs(destination.y - detourGoalSnapshot.y) > 0.8f;
+				bool preserveObservedThreshold = hasPhysicalThresholdRoute
+					&& routeWaypointIndex < routeWaypoints.Count
+					&& routeWaypointIndex <= physicalThresholdApproachWaypointIndex + 2
+					&& Mathf.Abs(destination.y - detourGoalSnapshot.y) <= 0.8f
+					&& PlanarDistanceSquared(destination, detourGoalSnapshot) <= 36f;
+				if (changedDestination && !preserveObservedThreshold)
 				{
 					hasPartialLocalFrontier = false;
 					hasPhysicalThresholdRoute = false;
