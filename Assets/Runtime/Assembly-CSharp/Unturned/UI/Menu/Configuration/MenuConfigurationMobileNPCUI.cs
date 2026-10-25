@@ -22,6 +22,24 @@ namespace SDG.Unturned
 		private static string eraseStatus;
 		private static bool constructed;
 
+		/// <summary>MenuUI constructs a new visual tree after returning from gameplay.
+		/// Discard references to Glazier controls belonging to the destroyed tree.</summary>
+		public static void ResetForMenuReload()
+		{
+			constructed = false;
+			container = null;
+			populationLabel = null;
+			difficultyButton = null;
+			enabledButton = null;
+			airdropButton = null;
+			roleButton = null;
+			mixButton = null;
+			gameModeButton = null;
+			eraseHistoryButton = null;
+			eraseConfirmationDeadline = 0f;
+			eraseStatus = null;
+		}
+
 		public static void open()
 		{
 			EnsureConstructed();
