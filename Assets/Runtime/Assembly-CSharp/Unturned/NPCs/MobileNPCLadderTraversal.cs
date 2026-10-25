@@ -330,7 +330,12 @@ namespace SDG.Unturned
                 return Vector3.zero;
             if (ladder == null || !ladder.enabled
                 || !ladder.gameObject.activeInHierarchy || !ladder.CompareTag("Ladder")
-                || !controller.enabled || (goal - requestedGoal).sqrMagnitude > 4f
+                || !controller.enabled
+                // Once the body is actually on a verified ladder, finish the
+                // physical climb/exit before reconsidering a moving enemy.
+                // A two-metre target shift must not drop the NPC mid-rung.
+                || (phase == Phase.Approach
+                    && (goal - requestedGoal).sqrMagnitude > 4f)
                 || Time.time - started > 9f)
             {
                 AbortServer();
