@@ -524,8 +524,18 @@ namespace SDG.Unturned
 
             // A fallback held last frame is itself forward! Do not use that
             // procedural output as proof a native clip started working.
+            // An extended arm does not mean the actual gun is pointing where
+            // the survivor faces. The rig may raise both hands yet leave the
+            // native Barrel sideways. Compare the *weapon* as well as the hands.
+            Vector3 intendedForward = transform.forward;
+            intendedForward.y = 0f;
+            if (intendedForward.sqrMagnitude < 0.01f)
+                intendedForward = Vector3.forward;
+            intendedForward.Normalize();
+            bool nativeBarrelAligned = boundWeaponBarrel != null
+                && Vector3.Dot(boundWeaponBarrel.forward, intendedForward) > 0.70f;
             bool nativePoseAvailable = gunPoseFallbackBlend <= 0.001f
-                && nativePoseRaised && legacyAnimation != null
+                && nativePoseRaised && nativeBarrelAligned && legacyAnimation != null
                 && IsOwnedWeaponClip(equippedWeaponHoldClip)
                 && weaponPosePlaying;
 
