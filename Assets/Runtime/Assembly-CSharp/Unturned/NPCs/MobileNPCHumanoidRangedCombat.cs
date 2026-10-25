@@ -707,7 +707,14 @@ namespace SDG.Unturned
 				parameters.damage = bullet.ActualDamage;
 				parameters.respectArmor = true;
 				EPlayerKill kill;
-				DamageTool.damagePlayer(parameters, out kill);
+				bool victimWasAlive = !hitPlayer.life.isDead;
+			DamageTool.damagePlayer(parameters, out kill);
+			if (victimWasAlive && hitPlayer.life.isDead)
+			{
+				MobileNPCHumanoidDisposition identity = GetComponent<MobileNPCHumanoidDisposition>();
+				if (identity != null)
+					identity.NotifyFatalPlayerAttackServer(hitPlayer, EDeathCause.GUN);
+			}
 				return true;
 			}
 			if (bullet.TargetNPC != null)
