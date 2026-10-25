@@ -532,8 +532,9 @@ namespace SDG.Unturned
             if (intendedForward.sqrMagnitude < 0.01f)
                 intendedForward = Vector3.forward;
             intendedForward.Normalize();
-            bool nativeBarrelAligned = boundWeaponBarrel != null
-                && Vector3.Dot(boundWeaponBarrel.forward, intendedForward) > 0.70f;
+            Vector3 nativeGunForward = GetHeldWeaponForwardWorld();
+            bool nativeBarrelAligned = nativeGunForward.sqrMagnitude > 0.5f
+                && Vector3.Dot(nativeGunForward, intendedForward) > 0.70f;
             bool nativePoseAvailable = gunPoseFallbackBlend <= 0.001f
                 && nativePoseRaised && nativeBarrelAligned && legacyAnimation != null
                 && IsOwnedWeaponClip(equippedWeaponHoldClip)
@@ -637,11 +638,11 @@ namespace SDG.Unturned
                     && boundWeaponModel.parent.name == "Right_Hook")
                 {
                     boundWeaponModel.localRotation = Quaternion.Euler(0f, 0f, 90f);
-                    Vector3 barrelForward = boundWeaponBarrel.forward;
+                    Vector3 barrelForward = GetHeldWeaponForwardWorld();
                     if (barrelForward.sqrMagnitude > 0.5f)
                     {
                         Quaternion alignment = Quaternion.FromToRotation(
-                            barrelForward.normalized, aimForward);
+                            barrelForward, aimForward);
                         boundWeaponModel.rotation = Quaternion.Slerp(
                             boundWeaponModel.rotation,
                             alignment * boundWeaponModel.rotation,
@@ -649,6 +650,22 @@ namespace SDG.Unturned
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// The Barrel transform is a muzzle/effect anchor, not a contract that
+        /// its local +Z axis runs along every item prefab's bore. Measure the
+        /// actual mounted model-to-muzzle direction first, using the native
+        /// hand-hook rotation. Fallback only for unusually short/offset models.
+        /// </summary>
+        private Vector3 GetHeldWeaponForwardWorld()
+        {
+            if (boundWeaponModel == null || boundWeaponBarrel == null)
+                return Vector3.zero;
+            Vector3 bore = boundWeaponBarrel.position - boundWeaponModel.position;
+            if (bore.sqrMagnitude >= 0.04f)
+                return bore.normalized;
+            return boundWeaponBarrel.forward;
         }
 
         private bool IsHandExtendedForWeapon(Transform shoulder, Transform hand)
