@@ -16,7 +16,7 @@ namespace SDG.Unturned
 	[RequireComponent(typeof(MobileNPCBrainDriver))]
 	public sealed class MobileNPCHumanoidPerception : MonoBehaviour
 	{
-		[SerializeField, Min(1f)] private float playerSightRange = 20f;
+		[SerializeField, Min(1f)] private float playerSightRange = 40f;
 		[SerializeField, Min(1f)] private float npcSightRange = 32f;
 		[SerializeField, Range(1f, 360f)] private float fieldOfView = 120f;
 		[SerializeField, Min(0.02f)] private float scanInterval = 0.2f;
