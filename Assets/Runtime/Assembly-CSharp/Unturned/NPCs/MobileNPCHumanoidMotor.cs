@@ -1384,9 +1384,13 @@ namespace SDG.Unturned
 					// When crowded between attacks, make a SHORT physical
 					// backward step while still facing it. No teleports or
 					// blind escape into a wall/another known zombie.
-					planarDirection = Vector3.zero;
+					// Do not freeze in a zombie crowd just to swing a knife.
+					// In Combat Only, continue the verified escape/steering
+					// direction; a melee hit is merely an emergency action.
+					if (!MobileNPCSettings.CombatOnly)
+						planarDirection = Vector3.zero;
 					if (zombieDistance < Mathf.Min(1.3f, meleeReach * 0.83f)
-						&& !meleeCombat.IsAttackReady)
+						&& (MobileNPCSettings.CombatOnly || !meleeCombat.IsAttackReady))
 					{
 						Vector3 away = -toCombatZombie / zombieDistance;
 						Vector3 backstep = transform.position + away * 1.05f;
