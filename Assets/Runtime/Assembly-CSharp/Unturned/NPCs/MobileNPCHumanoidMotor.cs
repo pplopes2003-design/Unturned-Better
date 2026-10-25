@@ -4104,11 +4104,20 @@ namespace SDG.Unturned
 		{
 			if (characterController == null || distance <= 0.1f)
 				return false;
-			float height = Mathf.Max(characterController.height, radius * 2.1f);
+			// Match the actual CharacterController, not a smaller probe
+			// cylinder beginning at the presumed foot origin. In particular
+			// NPC prefabs may have a non-default center or capsule radius:
+			// validating a narrower/offset path creates false doorways which
+			// CharacterController.Move then physically cannot traverse.
+			float castRadius = Mathf.Max(radius, characterController.radius
+				- Mathf.Min(0.015f, characterController.skinWidth * 0.25f));
+			float halfHeight = Mathf.Max(characterController.height * 0.5f,
+				castRadius + 0.01f);
+			Vector3 center = foot + characterController.center;
+			Vector3 bottom = center + Vector3.up * (-halfHeight + castRadius);
+			Vector3 top = center + Vector3.up * (halfHeight - castRadius);
 			int count = Physics.CapsuleCastNonAlloc(
-				foot + Vector3.up * radius,
-				foot + Vector3.up * (height - radius),
-				radius, direction, ObstacleHitBuffer,
+				bottom, top, castRadius, direction, ObstacleHitBuffer,
 				distance, obstacleMask, QueryTriggerInteraction.Ignore);
 			if (count >= ObstacleHitBuffer.Length)
 				return false;
