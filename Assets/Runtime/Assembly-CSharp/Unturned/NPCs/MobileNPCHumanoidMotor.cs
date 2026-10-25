@@ -1187,10 +1187,19 @@ namespace SDG.Unturned
 				// Otherwise the agent stops 0.5-1m before the threshold,
 				// never increments the route index, and later marks the
 				// geometrically valid entrance as a failed path.
-				float movementStop = hasPhysicalThresholdRoute
-					&& routeWaypointIndex >= physicalThresholdApproachWaypointIndex
-					&& routeWaypointIndex < routeWaypoints.Count
-					? Mathf.Min(stoppingDistance, 0.20f) : stoppingDistance;
+				// Intermediate navigation waypoints need their own arrival
+				// tolerance. Using the BRAIN'S destination stop radius here
+				// could halt the controller 1-3m before a narrow entrance,
+				// even though the route index has not advanced yet.
+				float movementStop = stoppingDistance;
+				if (routeWaypointIndex < routeWaypoints.Count)
+				{
+					movementStop = hasPhysicalThresholdRoute
+						&& routeWaypointIndex >= physicalThresholdApproachWaypointIndex
+						? 0.20f
+						: routeWaypointIndex < routeWaypoints.Count - 1
+							? 0.45f : 0.65f;
+				}
 				if (offset.sqrMagnitude > movementStop * movementStop)
 				{
 					planarDirection = offset.normalized;
