@@ -63,8 +63,10 @@ namespace SDG.Unturned
 		public bool CanExecuteRangedAttackServer => Provider.isServer && hasInitialized
 			&& brain != null && brain.CurrentState == MobileNPCBrain.State.Pursuing
 			&& brain.Target != null && !IsAmbushPreparing
-			&& !HoldRangedFireForCloseAssault
-			&& CurrentGoal != MobileNPCTactics.Goal.Retreat;
+			&& !HoldRangedFireForCloseAssault;
+		// Retreat does not disable defensive gunfire. The ranged executor
+		// still verifies firsthand visibility, ammo, range, safe muzzle
+		// trajectory and target eligibility before any actual shot.
 
 		public bool CanExecuteMeleeAttackServer => Provider.isServer && hasInitialized
 			&& brain != null && brain.CurrentState == MobileNPCBrain.State.Pursuing
