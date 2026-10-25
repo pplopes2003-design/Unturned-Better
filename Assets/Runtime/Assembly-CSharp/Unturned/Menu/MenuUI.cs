@@ -891,6 +891,10 @@ namespace SDG.Unturned
 
 				window = new SleekWindow();
 
+				// The custom NPC settings page uses static Glazier controls. Returning
+				// from gameplay recreates this menu tree, so invalidate the old controls
+				// before the next settings-page open.
+				MenuConfigurationMobileNPCUI.ResetForMenuReload();
 				container = new SleekFullscreenBox();
 				container.SizeScale_X = 1;
 				container.SizeScale_Y = 1;
