@@ -428,13 +428,18 @@ namespace SDG.Unturned
                 switch (preset)
                 {
                     case MobileNPCArchetypePolicy.Preset.Survivor:
-                        scavenge = Mathf.Max(scavenge, patrol + 28f);
+                        // A survivor without an assigned command duty explores
+                        // even when a vacant settlement guard post exists.
+                        scavenge = Mathf.Max(scavenge,
+                            Mathf.Max(patrol, guard) + 28f);
                         break;
                     case MobileNPCArchetypePolicy.Preset.Trader:
                         if (!hasSettlement || group == null || !group.CanPlanSettlement)
                             scavenge = Mathf.Max(scavenge, patrol + 26f);
                         break;
                     case MobileNPCArchetypePolicy.Preset.Raider:
+                        // Raids require actual discovered targets; until then
+                        // inspect physical sites instead of idle random turns.
                         scavenge = Mathf.Max(scavenge, patrol + 8f);
                         break;
                     case MobileNPCArchetypePolicy.Preset.Military:
