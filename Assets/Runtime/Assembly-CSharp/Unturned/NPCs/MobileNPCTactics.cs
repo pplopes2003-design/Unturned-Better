@@ -74,49 +74,61 @@ namespace SDG.Unturned
 		/// server-side navigation and line-of-sight checks. Returns false if no tactical
 		/// response is currently required.
 		/// </summary>
+		/// <summary>
+		/// Priority selector: retain a committed defensive movement first;
+		/// then survive critical wounds, compare verified cover against
+		/// suppressive return fire, and finally request a validated withdrawal.
+		/// This is intentionally a small behavior-tree selector rather than a
+		/// competing controller. Host movement and cover validation remain intact.
+		/// </summary>
 		public bool TryChooseDefensiveGoal(Vector3 currentPosition, Vector3? validatedCoverPoint, Vector3 threatPosition, float now, bool canReturnFire = false)
 		{
-			bool underRecentFire = now - lastShotAt <= 2.5f;
-			bool recentlyDamaged = now - lastDamageAt <= 3.0f;
-			// Combat mode increases courage, never eliminates mortal risk.
-			// Even the most aggressive fighter still withdraws near death.
-			bool criticallyWounded = healthFraction <= (MobileNPCSettings.CombatMode ? 0.09f : CriticalHealthThreshold);
-			bool badlyWounded = healthFraction <= (MobileNPCSettings.CombatMode ? 0.19f : LowHealthThreshold);
+			bool underFire = now - lastShotAt <= 2.5f;
+			bool damaged = now - lastDamageAt <= 3f;
+			float critical = MobileNPCSettings.CombatMode ? 0.09f : CriticalHealthThreshold;
+			float low = MobileNPCSettings.CombatMode ? 0.19f : LowHealthThreshold;
+			bool needsEscape = healthFraction <= critical || (healthFraction <= low && damaged);
+			bool committed = (currentGoal == Goal.Retreat || currentGoal == Goal.SeekCover)
+				&& hasTacticalDestination && now < goalDeadline;
 
-			if (!underRecentFire && !recentlyDamaged && !badlyWounded)
+			// Selector child 1 (running): an existing validated journey owns
+			// movement until arrival, expiry or explicit route failure.
+			if (committed)
+				return true;
+
+			// Selector child 2: critically injured combatants should withdraw,
+			// but cannot invent a safe position. Caller must verify the route.
+			if (needsEscape)
 			{
-				// Suppression ends faster than a purposeful withdrawal.
-				// Do not abandon a reachable shelter as soon as shooting stops.
-				if ((currentGoal == Goal.SeekCover || currentGoal == Goal.Retreat)
-					&& now < goalDeadline)
-					return true;
-				if (currentGoal == Goal.SeekCover || currentGoal == Goal.Retreat)
+				if (currentGoal != Goal.Retreat || now >= goalDeadline)
+				{
+					currentGoal = Goal.Retreat;
+					hasTacticalDestination = false;
+					goalDeadline = now + RetreatDuration;
+				}
+				return true;
+			}
+
+			if (!underFire && !damaged)
+			{
+				if (currentGoal == Goal.Retreat || currentGoal == Goal.SeekCover)
 					ClearGoal();
 				return false;
 			}
 
-			if (criticallyWounded || (badlyWounded && recentlyDamaged))
-			{
-				// Keep a previously verified escape destination despite repeated hits.
-				// Replacing it each decision tick causes abort/re-advance oscillation.
-				if (currentGoal == Goal.Retreat && hasTacticalDestination
-					&& now < goalDeadline)
-					return true;
-				currentGoal = Goal.Retreat;
-				goalDeadline = now + RetreatDuration;
-				hasTacticalDestination = false;
-				return true;
-			}
+			// Selector child 3: utility comparison with verified destinations.
+			// Never score unverified cover as usable; health and confirmed
+			// ability to shoot are inputs, not magical awareness of an enemy.
+			float coverUtility = validatedCoverPoint.HasValue
+				? 0.60f + (1f - healthFraction) * 0.28f
+					+ (damaged ? 0.12f : 0f)
+				: -1f;
+			float returnFireUtility = canReturnFire
+				? 0.48f + healthFraction * 0.30f
+					- (damaged ? 0.12f : 0f)
+				: -1f;
 
-			// A physically validated defensive destination is a COMMITMENT.
-			// Reacquiring the target or hearing another shot must not change
-			// a retreat into a charge, or swap cover on every decision tick.
-			// An urgent critical injury above is the sole preemption here.
-			if ((currentGoal == Goal.SeekCover || currentGoal == Goal.Retreat)
-				&& hasTacticalDestination && now < goalDeadline)
-				return true;
-
-			if (validatedCoverPoint.HasValue)
+			if (coverUtility >= returnFireUtility && validatedCoverPoint.HasValue)
 			{
 				currentGoal = Goal.SeekCover;
 				tacticalDestination = validatedCoverPoint.Value;
@@ -124,25 +136,17 @@ namespace SDG.Unturned
 				goalDeadline = now + CoverDuration;
 				return true;
 			}
-
-			// F.E.A.R.-style defensive selection must not turn EVERY shot into
-			// a blind flight: a healthy, armed survivor with a truly confirmed
-			// target can stand and return fire when no reachable cover exists.
-			// No-target, unarmed, or seriously wounded survivors still withdraw.
-			if (canReturnFire && healthFraction > (MobileNPCSettings.CombatMode ? 0.38f : 0.55f))
-			{
-				// Armed return fire is preferable to inventing an unsafe
-				// retreat, but it cannot cancel a still-valid defense plan.
-				if ((currentGoal == Goal.SeekCover || currentGoal == Goal.Retreat)
-					&& now < goalDeadline)
-					return true;
+			if (returnFireUtility >= 0f && healthFraction > 0.38f)
 				return false;
+
+			// Selector child 4: no safe cover or viable shot; request retreat.
+			// A second stimulus must not restart an unfinished decision.
+			if (currentGoal != Goal.Retreat || now >= goalDeadline)
+			{
+				currentGoal = Goal.Retreat;
+				hasTacticalDestination = false;
+				goalDeadline = now + RetreatDuration;
 			}
-			// If the NPC cannot safely retaliate and no cover was found,
-			// validate a retreat position rather than standing exposed.
-			currentGoal = Goal.Retreat;
-			hasTacticalDestination = false;
-			goalDeadline = now + RetreatDuration;
 			return true;
 		}
 
