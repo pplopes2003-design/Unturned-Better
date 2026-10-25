@@ -39,6 +39,7 @@ namespace SDG.Unturned
 		private float nextFlankTime;
 		private float nextCasualtyWithdrawalAt;
 		private float nextShotQualityRepositionAt;
+		private float visibleEngagementSince = -1f;
 		private Transform subscribedTarget;
 		private readonly Vector3[] candidateOffsets = new Vector3[8];
 
@@ -119,6 +120,7 @@ namespace SDG.Unturned
 				|| observedZombie != null && perception.VisibleZombie == observedZombie;
 			if (!perceptionConfirmed)
 			{
+				visibleEngagementSince = -1f;
 				ResetOcclusion();
 				return;
 			}
@@ -203,6 +205,31 @@ namespace SDG.Unturned
 			if (visibleNow)
 			{
 				blockedSince = -1f;
+				if (visibleEngagementSince < 0f)
+					visibleEngagementSince = Time.time;
+				// Holding line of sight indefinitely is not automatically tactically useful.
+				// After sustained exposure, cautiously seek a nearby VERIFIED firing
+				// position, without overriding cover, retreat, squad holds or reload.
+				if (Time.time - visibleEngagementSince >= 5f
+					&& Time.time >= nextShotQualityRepositionAt
+					&& brain.CurrentGoal == MobileNPCTactics.Goal.None
+					&& order != MobileNPCGroupMember.SquadDirective.Hold
+					&& rangedCombat.SelectedGunAsset != null
+					&& rangedCombat.RoundsRemaining > 0
+					&& distance >= preferredMinimumRange
+					&& distance <= preferredMaximumRange)
+				{
+					nextShotQualityRepositionAt = Time.time + 9f;
+					if (TryShortCombatRepositionServer(target))
+					{
+						visibleEngagementSince = Time.time;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+						Debug.Log("[MobileNPCTacticalCombatBehavior] Verified firing-lane reposition after sustained visible engagement npc=" + name, this);
+#endif
+						return;
+					}
+				}
+
 				// An unobstructed shot against our committed target is an
 				// opportunity, even at point-blank distance. Do not launch an
 				// optional flank merely because the enemy moved closer; the
@@ -212,6 +239,7 @@ namespace SDG.Unturned
 				return;
 			}
 
+			visibleEngagementSince = -1f;
 			// An empty or unusable gun cannot benefit from a firing-angle
 			// flank. Preserve the target for pursuit, melee or real reload.
 			if (rangedCombat.SelectedGunAsset == null
