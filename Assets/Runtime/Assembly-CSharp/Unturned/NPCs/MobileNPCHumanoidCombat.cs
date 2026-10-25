@@ -428,7 +428,14 @@ namespace SDG.Unturned
 			parameters.damage = resolvedDamage;
 			parameters.respectArmor = true;
 			EPlayerKill kill;
+			bool victimWasAlive = !targetPlayer.life.isDead;
 			DamageTool.damagePlayer(parameters, out kill);
+			if (victimWasAlive && targetPlayer.life.isDead)
+			{
+				MobileNPCHumanoidDisposition identity = GetComponent<MobileNPCHumanoidDisposition>();
+				if (identity != null)
+					identity.NotifyFatalPlayerAttackServer(targetPlayer, parameters.cause);
+			}
 			WearWeaponOnHitServer(usedWeapon, usedItem);
 			return true;
 		}
