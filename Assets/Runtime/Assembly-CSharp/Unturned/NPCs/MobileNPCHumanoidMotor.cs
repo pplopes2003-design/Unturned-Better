@@ -698,7 +698,11 @@ namespace SDG.Unturned
 				hasDetourWaypoint = false;
 			}
 			wasHoldingDeliberateFire = holdDeliberateFire;
-			bool hasDestination = (hasBrainDestination && !holdDeliberateFire) || hasRoamingDestination;
+			// Tactical combat owns locomotion even while holding a firing
+			// position. A suspended scavenging waypoint must not wake up and
+			// pull the actor sideways while its gun is trained on a threat.
+			bool hasDestination = hasBrainDestination
+				? !holdDeliberateFire : hasRoamingDestination;
 			bool waitingForGlobalPlan = false;
 			Vector3 destination = hasBrainDestination ? brainDriver.Destination : roamingDestination;
 			if (hasDestination && !isUnderwater && !isPlannedJumping
