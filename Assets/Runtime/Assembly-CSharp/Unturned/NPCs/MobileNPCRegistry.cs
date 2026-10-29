@@ -147,7 +147,8 @@ namespace SDG.Unturned
 				float errorRadius = Mathf.Lerp(4.5f, 0.6f, clarity);
 				Vector2 offset2D = Random.insideUnitCircle * errorRadius;
 				Vector3 clue = footstepPosition + new Vector3(offset2D.x, 0f, offset2D.y);
-				driver.ReportPlayerFootstepClue(clue, clarity);
+				driver.ReportClassifiedNoiseServer(clue,
+					MobileNPCBrainDriver.InnateSoundClass.Footsteps, clarity, 10f);
 			}
 		}
 
