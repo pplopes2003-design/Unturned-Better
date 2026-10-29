@@ -231,6 +231,20 @@ namespace SDG.Unturned
 				&& !float.IsInfinity(point.x) && !float.IsInfinity(point.y) && !float.IsInfinity(point.z);
 		}
 
+		/// <summary>Optional reload reposition to a genuinely verified cover point.
+		/// Reloading alone is NOT an incoming-fire event and must never force
+		/// an unverified retreat or interrupt urgent defense.</summary>
+		public bool TryStartReloadCover(Vector3 validatedPosition, float now)
+		{
+			if (!IsFinite(validatedPosition) || currentGoal != Goal.None)
+				return false;
+			currentGoal = Goal.SeekCover;
+			tacticalDestination = validatedPosition;
+			hasTacticalDestination = true;
+			goalDeadline = now + CoverDuration;
+			return true;
+		}
+
 		/// <summary>Starts a time-bounded flank to a host-validated alternate firing position.</summary>
 		public bool TryStartFlank(Vector3 validatedPosition, float now)
 		{
