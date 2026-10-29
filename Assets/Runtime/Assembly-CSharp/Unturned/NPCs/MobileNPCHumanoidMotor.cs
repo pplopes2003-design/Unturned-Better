@@ -560,10 +560,11 @@ namespace SDG.Unturned
 			Vector3 planarDirection = Vector3.zero;
 			bool hasBrainDestination = brainDriver.HasDestination;
 			bool defensiveDecisionPending = brainDriver.IsDefensiveMovementPending;
+			bool routineOwnsMovement = brainDriver.RoutineMayControlMovement;
 			// A retreat awaiting a valid escape route owns the locomotion slot.
 			// Never start or resume a patrol, loot search or return-home path
 			// while its tactical arbiter is deciding where to withdraw.
-			if (defensiveDecisionPending)
+			if (!routineOwnsMovement && !hasBrainDestination)
 			{
 				if (hasRoamingDestination && autonomyPlanner != null)
 					autonomyPlanner.ReleaseExplorationSectorServer(false, false);
@@ -576,7 +577,7 @@ namespace SDG.Unturned
 			// A routine switch may invalidate only a low-priority wander,
 			// never a combat/loot/reinforcement path. This is the online
 			// handoff between strategic job arbitration and physical motor.
-			if (!hasBrainDestination && !defensiveDecisionPending && autonomyPlanner != null)
+			if (routineOwnsMovement && !hasBrainDestination && autonomyPlanner != null)
 			{
 				MobileNPCAutonomyPlanner.Job routine = autonomyPlanner.EvaluateRoutineServer();
 				if (hasPreviousRoutineJob && routine != previousRoutineJob)
@@ -619,9 +620,10 @@ namespace SDG.Unturned
 				// Combat, investigation and tactical goals always take precedence over roaming or returning home.
 				hasRoamingDestination = false;
 			}
-			else if (defensiveDecisionPending)
+			else if (!routineOwnsMovement)
 			{
-				// Keep aiming/returning fire; movement awaits validated defense.
+				// Active investigation, combat aim, reload or defensive
+				// planning owns this frame even without a movement endpoint.
 			}
 			else if (!IsWithinHomeTerritory)
 			{
@@ -719,7 +721,7 @@ namespace SDG.Unturned
 			// position. A suspended scavenging waypoint must not wake up and
 			// pull the actor sideways while its gun is trained on a threat.
 			bool hasDestination = hasBrainDestination
-				? !holdDeliberateFire : hasRoamingDestination;
+				? !holdDeliberateFire : routineOwnsMovement && hasRoamingDestination;
 			bool waitingForGlobalPlan = false;
 			Vector3 destination = hasBrainDestination ? brainDriver.Destination : roamingDestination;
 			if (hasDestination && !isUnderwater && !isPlannedJumping
