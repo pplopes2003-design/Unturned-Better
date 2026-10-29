@@ -198,10 +198,11 @@ namespace SDG.Unturned
 		/// </summary>
 		public bool TryStartLoot(Vector3 itemPosition, float now)
 		{
-			if (currentGoal == Goal.Retreat || currentGoal == Goal.SeekCover || currentGoal == Goal.Stalk)
-			{
+			// Loot is the lowest-priority tactical request. Never let a
+			// new pickup replace an active flank, investigation, reinforcement
+			// or any other committed journey, even when it is not defensive.
+			if (currentGoal != Goal.None || !IsFinite(itemPosition))
 				return false;
-			}
 
 			currentGoal = Goal.Loot;
 			tacticalDestination = itemPosition;
@@ -248,9 +249,10 @@ namespace SDG.Unturned
 		/// <summary>Starts a time-bounded flank to a host-validated alternate firing position.</summary>
 		public bool TryStartFlank(Vector3 validatedPosition, float now)
 		{
-			if (!IsFinite(validatedPosition)
-				|| currentGoal == Goal.Retreat || currentGoal == Goal.SeekCover
-				|| currentGoal == Goal.Stalk)
+			// Only the central combat arbiter may start an optional flank;
+			// never override another assigned tactical task. Emergency cover
+			// and retreat still preempt a flank through their own selectors.
+			if (!IsFinite(validatedPosition) || currentGoal != Goal.None)
 				return false;
 
 			// A movement plan must have time to execute. Do not replace an
