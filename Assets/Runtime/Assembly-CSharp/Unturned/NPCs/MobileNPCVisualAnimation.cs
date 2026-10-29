@@ -637,17 +637,14 @@ namespace SDG.Unturned
                 if (boundWeaponModel.parent != null
                     && boundWeaponModel.parent.name == "Right_Hook")
                 {
+                    // Match PlayerEquipment's third-person attachment:
+                    // the gun stays rigidly parented to Right_Hook with its
+                    // native +90 Z rotation. Turning the entire model in
+                    // WORLD space here made it point away from the grip as
+                    // the hands and shoulders moved, unlike the player rig.
+                    // Only the procedural shoulders aim; the gun follows
+                    // the right hand through the hook transform.
                     boundWeaponModel.localRotation = Quaternion.Euler(0f, 0f, 90f);
-                    Vector3 barrelForward = GetHeldWeaponForwardWorld();
-                    if (barrelForward.sqrMagnitude > 0.5f)
-                    {
-                        Quaternion alignment = Quaternion.FromToRotation(
-                            barrelForward, aimForward);
-                        boundWeaponModel.rotation = Quaternion.Slerp(
-                            boundWeaponModel.rotation,
-                            alignment * boundWeaponModel.rotation,
-                            gunPoseFallbackBlend);
-                    }
                 }
             }
         }
