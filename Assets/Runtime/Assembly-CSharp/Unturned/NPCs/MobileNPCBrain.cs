@@ -32,6 +32,7 @@ namespace SDG.Unturned
 		private Vector3 investigationCenter;
 		private int investigationSearchCount;
 		private float targetMemoryDeadline;
+		private float nextVisibleDestinationRefreshAt;
 		private float investigationDeadline;
 		private bool hasSpawnPosition;
 		private bool hasDestination;
@@ -58,6 +59,7 @@ namespace SDG.Unturned
 			target = visibleTarget;
 			targetMemoryDeadline = now + TargetMemoryDuration;
 			destination = visibleTarget.position;
+			nextVisibleDestinationRefreshAt = now + 0.45f;
 			investigationCenter = destination;
 			investigationSearchCount = 0;
 			hasDestination = true;
@@ -106,7 +108,16 @@ namespace SDG.Unturned
 					if (targetIsVisible)
 					{
 						targetMemoryDeadline = now + TargetMemoryDuration;
-						destination = target.position;
+						// Do not invalidate a physically verified doorway route
+						// for every tiny target movement or rendered frame.
+						// Keep last firsthand observation when visibility is lost.
+						Vector3 observedPosition = target.position;
+						if (now >= nextVisibleDestinationRefreshAt
+							&& (observedPosition - destination).sqrMagnitude >= 0.75f * 0.75f)
+						{
+							destination = observedPosition;
+							nextVisibleDestinationRefreshAt = now + 0.45f;
+						}
 					}
 
 					// While the target is occluded, retain its last observed position instead
