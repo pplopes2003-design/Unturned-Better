@@ -24,7 +24,8 @@ namespace SDG.Unturned
             FireAtPlayer = 1,
             FireAtZombie = 2,
             FireAtHostileNPC = 3,
-            CoverAccess = 4
+            CoverAccess = 4,
+            FlankAccess = 5
         }
 
         [Serializable]
@@ -149,6 +150,17 @@ namespace SDG.Unturned
             if (record == null)
                 return 0f;
             return Mathf.Clamp((record.positiveEvidence - record.negativeEvidence) * 5f, -24f, 8f);
+        }
+
+        /// <summary>Only completed or physically failed flank routes count.
+        /// Heard squad lessons have reduced evidence weight. This influences
+        /// already verified candidates; it never creates a magic route.</summary>
+        public float GetFlankAccessAdjustment(Vector3 place)
+        {
+            ExperienceRecord record = FindRecord(ExperienceKind.FlankAccess, place);
+            if (record == null)
+                return 0f;
+            return Mathf.Clamp((record.positiveEvidence - record.negativeEvidence) * 1.5f, -5f, 2.5f);
         }
 
         /// <summary>
@@ -295,7 +307,7 @@ namespace SDG.Unturned
         private static bool ValidRecord(ExperienceRecord r)
         {
             return r.kind >= (int)ExperienceKind.LootAccess
-                && r.kind <= (int)ExperienceKind.CoverAccess
+                && r.kind <= (int)ExperienceKind.FlankAccess
                 && r.sectorX > -50000 && r.sectorX < 50000
                 && r.sectorZ > -50000 && r.sectorZ < 50000
                 && !float.IsNaN(r.positiveEvidence) && !float.IsInfinity(r.positiveEvidence)
@@ -307,7 +319,7 @@ namespace SDG.Unturned
 
         private static bool ValidKind(ExperienceKind kind)
         {
-            return kind >= ExperienceKind.LootAccess && kind <= ExperienceKind.CoverAccess;
+            return kind >= ExperienceKind.LootAccess && kind <= ExperienceKind.FlankAccess;
         }
 
         private static bool ValidPosition(Vector3 place)
