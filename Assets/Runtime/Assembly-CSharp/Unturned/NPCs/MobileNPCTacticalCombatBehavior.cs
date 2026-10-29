@@ -39,6 +39,7 @@ namespace SDG.Unturned
 		private float nextFlankTime;
 		private float nextCasualtyWithdrawalAt;
 		private float nextShotQualityRepositionAt;
+		private float nextReloadCoverAttemptAt;
 		private float visibleEngagementSince = -1f;
 		private Transform subscribedTarget;
 		private readonly Vector3[] candidateOffsets = new Vector3[8];
@@ -187,7 +188,20 @@ namespace SDG.Unturned
 			// Reloading takes priority over flank and spacing. ReportIncomingFire uses the
 			// existing server-side cover validation and does not apply any extra damage.
 			if (rangedCombat.IsReloading)
+			{
+				// An exposed survivor may seek nearby REAL shielding while
+				// changing magazines, but must not invent incoming fire or
+				// become helpless in the open when no accessible cover exists.
+				if (brain.CurrentGoal == MobileNPCTactics.Goal.None
+					&& Time.time >= nextReloadCoverAttemptAt
+					&& (target.position - transform.position).sqrMagnitude > 49f)
+				{
+					nextReloadCoverAttemptAt = Time.time + 4.5f;
+					if (Random.value < 0.72f)
+						brain.TrySeekReloadCoverServer(target.position);
+				}
 				return;
+			}
 
 			Vector3 targetPoint = target.position + Vector3.up * targetHeight;
 			Vector3 origin = transform.position + Vector3.up * eyeHeight;
@@ -406,6 +420,7 @@ namespace SDG.Unturned
 					continue;
 				float score = -Mathf.Abs(spacing - Mathf.Max(8f, preferredMinimumRange))
 					+ (risk != null ? -risk.GetKnownRiskAtServer(position) * 5f : 0f)
+					+ NearbySolidCoverPreference(position, target.position)
 					+ Random.Range(0f, 0.3f);
 				if (score <= bestScore)
 					continue;
@@ -494,7 +509,8 @@ namespace SDG.Unturned
 				candidateRadial.y = 0f;
 				candidateRadial.Normalize();
 				float angularChange = 1f - Mathf.Clamp(Vector3.Dot(awayFromTarget, candidateRadial), -1f, 1f);
-				float score = angularChange * 5f - Mathf.Abs(candidateDistance - 14f) * 0.15f;
+				float score = angularChange * 5f - Mathf.Abs(candidateDistance - 14f) * 0.15f
+					+ NearbySolidCoverPreference(candidate, targetPosition);
 				if (score > bestScore)
 				{
 					bestScore = score;
@@ -538,6 +554,45 @@ namespace SDG.Unturned
 				// preserve ordinary target memory and path recovery.
 				blockedSince = Time.time;
 			}
+		}
+
+		/// <summary>Soft preference for a firing lane with nearby solid
+		/// shielding to fall behind during a later reload. Shooting remains
+		/// possible from the open: this never filters candidate positions.
+		/// At most three short, nonallocating static-geometry ray tests.</summary>
+		private float NearbySolidCoverPreference(Vector3 firingPosition, Vector3 enemyPosition)
+		{
+			Vector3 away = firingPosition - enemyPosition;
+			away.y = 0f;
+			if (away.sqrMagnitude < 1f)
+				return 0f;
+			away.Normalize();
+			Vector3 side = Vector3.Cross(Vector3.up, away);
+			Vector3 enemyEye = enemyPosition + Vector3.up * targetHeight;
+			for (int i = 0; i < 3; ++i)
+			{
+				Vector3 pocket = firingPosition + (i == 0 ? side * 1.6f
+					: i == 1 ? -side * 1.6f : away * 1.8f);
+				Vector3 delta = pocket + Vector3.up * 1.05f - enemyEye;
+				float distance = delta.magnitude;
+				if (distance < 0.5f)
+					continue;
+				RaycastHit hit;
+				if (!Physics.Raycast(enemyEye, delta / distance, out hit,
+					distance - 0.35f, RayMasks.BLOCK_COLLISION,
+					QueryTriggerInteraction.Ignore))
+					continue;
+				Collider blocker = hit.collider;
+				if (blocker == null || blocker.transform.IsChildOf(transform)
+					|| blocker.attachedRigidbody != null
+						&& !blocker.attachedRigidbody.isKinematic
+					|| blocker.GetComponentInParent<Player>() != null
+					|| blocker.GetComponentInParent<Zombie>() != null
+					|| blocker.GetComponentInParent<MobileNPCHumanoidVitals>() != null)
+					continue;
+				return 2.2f;
+			}
+			return 0f;
 		}
 
 		private void HandleReloadStarted()
