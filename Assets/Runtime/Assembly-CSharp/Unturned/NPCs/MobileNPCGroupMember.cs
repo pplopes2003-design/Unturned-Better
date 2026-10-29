@@ -229,7 +229,14 @@ namespace SDG.Unturned
 				desired = heardContact ? SquadDirective.Hold : SquadDirective.Regroup;
 			else if (wounded >= 2 || wounded >= 1 && armed == 0)
 				desired = SquadDirective.Withdraw;
-			else if (armed >= 2 && wounded == 0)
+			else if (armed >= 2 && wounded == 0 && ownWeapon != null
+				&& ownWeapon.SelectedGunAsset != null
+				&& ownWeapon.RoundsRemaining > 2 && !ownWeapon.IsReloading
+				&& vitals != null && vitals.HealthFraction >= 0.55f
+				&& HasPhysicalLineToObservedThreatServer(target.position))
+				// At least one KNOWN supporting shooter (the leader) must
+				// be able to cover a probe. Two guns somewhere in the squad
+				// do not imply a clear or safe supporting firing lane.
 				desired = SquadDirective.Probe;
 			else
 				desired = SquadDirective.Hold;
