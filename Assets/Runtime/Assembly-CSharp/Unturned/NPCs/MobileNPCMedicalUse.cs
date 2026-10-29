@@ -21,6 +21,10 @@ namespace SDG.Unturned
 		// cannot restore generic HP; wound-care owns bleeding/fractures.
 		[SerializeField, Min(1f)] private float retryInterval = 3f;
 		[SerializeField, Min(1f)] private float successfulUseCooldown = 12f;
+		[SerializeField, Min(0.5f)] private float treatmentDuration = 2.0f;
+		private Item pendingItem;
+		private float pendingHeal;
+		private float treatmentFinishesAt;
 
 		private MobileNPCHumanoidVitals vitals;
 		private MobileNPCInventory inventory;
@@ -35,14 +39,60 @@ namespace SDG.Unturned
 			driver = GetComponent<MobileNPCBrainDriver>();
 		}
 
+		private void OnDisable()
+		{
+			CancelPendingTreatment();
+		}
+
+		private void CancelPendingTreatment()
+		{
+			if (pendingItem == null)
+				return;
+			if (Provider.isServer && inventory != null
+				&& !inventory.TryStoreTransferredItem(pendingItem))
+				Debug.LogError("[MobileNPCMedicalUse] Could not restore reserved item after interrupted treatment.", this);
+			pendingItem = null;
+			pendingHeal = 0f;
+		}
+
 		private void Update()
 		{
-			if (!Provider.isServer || !Level.isLoaded || vitals == null || inventory == null || driver == null
-				|| vitals.IsDead || vitals.HealthFraction <= 0f || vitals.HealthFraction >= healThreshold
-				|| Time.time < nextAttemptTime || Time.time < nextAllowedUseTime)
+			if (!Provider.isServer || !Level.isLoaded || vitals == null || inventory == null || driver == null)
+				return;
+
+			if (pendingItem != null)
 			{
+				// Vanilla UseableConsumeable grants the effect only after the
+				// Use animation. Likewise, do not heal on the first treatment frame.
+				// An interrupted treatment returns the reserved owned item.
+				if (vitals.IsDead || driver.CurrentGoal == MobileNPCTactics.Goal.Flank
+					|| driver.CurrentGoal == MobileNPCTactics.Goal.Stalk
+					|| driver.CurrentGoal == MobileNPCTactics.Goal.Loot)
+				{
+					CancelPendingTreatment();
+					return;
+				}
+				if (Time.time < treatmentFinishesAt)
+					return;
+				Item used = pendingItem;
+				float healing = pendingHeal;
+				pendingItem = null;
+				pendingHeal = 0f;
+				if (vitals.Heal(healing))
+				{
+					nextAllowedUseTime = Time.time + successfulUseCooldown;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+					Debug.Log("[MobileNPCMedicalUse] Completed timed care: item=" + used.id
+						+ " hp=" + vitals.CurrentHealth.ToString("F1"), this);
+#endif
+				}
+				else if (!inventory.TryStoreTransferredItem(used))
+					Debug.LogError("[MobileNPCMedicalUse] Could not restore rejected treatment item.", this);
 				return;
 			}
+			if (vitals.IsDead || vitals.HealthFraction <= 0f || vitals.HealthFraction >= healThreshold
+				|| Time.time < nextAttemptTime || Time.time < nextAllowedUseTime)
+				return;
 
 			// The dedicated wound-care component owns bleeding AND fractures.
 			// The generic HP healer must not consume a real splint, rag or
@@ -86,20 +136,14 @@ namespace SDG.Unturned
 			if (chosen == 0 || !inventory.TryConsumeOneItemByIdServer(chosen,
 				out Item consumed))
 				return;
-			if (vitals.Heal(healAmount))
-			{
-				nextAllowedUseTime = Time.time + successfulUseCooldown;
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-				Debug.Log("[MobileNPCMedicalUse] " + name + " used item "
-					+ chosen + " for " + healAmount.ToString("F0")
-					+ " nominal HP; remaining=" + vitals.CurrentHealth.ToString("F1"), this);
-#endif
-				return;
-			}
-			// Invalid health transition: restore the item rather than lose it.
-			if (!inventory.TryStoreTransferredItem(consumed))
-				Debug.LogError("[MobileNPCMedicalUse] Failed to return unspent healing item "
-					+ chosen + " after rejected healing.", this);
+			pendingItem = consumed;
+			pendingHeal = healAmount;
+			treatmentFinishesAt = Time.time + Mathf.Max(0.5f, treatmentDuration);
+			// Presentation may play a real native Use clip when available;
+			// treatment and HP remain authoritative on the server.
+			MobileNPCVisualAnimation visuals = GetComponent<MobileNPCVisualAnimation>();
+			if (visuals != null)
+				visuals.PlayMedicalUseAnimation();
 		}
 	}
 }
