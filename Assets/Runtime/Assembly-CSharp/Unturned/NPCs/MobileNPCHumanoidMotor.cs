@@ -5159,7 +5159,15 @@ namespace SDG.Unturned
 			// A chest-level clear ray is not permission to step across a stair
 			// well. Sample the actual floor every <=0.35m, ensuring each
 			// consecutive rise/drop can be handled by the CharacterController.
-			int samples = Mathf.CeilToInt(planarLength / 0.35f);
+			int samples = Mathf.Max(1, Mathf.CeilToInt(planarLength / 0.35f));
+			// A ramp is not a succession of vertical steps: permit the
+			// physically climbable rise along each short inclined segment.
+			// The ground ray already confirms that every sample has a
+			// surface below the controller's own slope limit.
+			float segmentLength = planarLength / samples;
+			float maximumRise = Mathf.Max(characterController.stepOffset + 0.05f,
+				segmentLength * Mathf.Tan(Mathf.Min(characterController.slopeLimit,
+					roamingMaximumSlope) * Mathf.Deg2Rad) + 0.03f);
 			float lastY = from.y;
 			for (int i = 1; i <= samples; ++i)
 			{
@@ -5171,8 +5179,8 @@ namespace SDG.Unturned
 					out Vector3 actualFloor, out Collider floorCollider, out _)
 					|| IsFurnitureSurfaceCollider(floorCollider)
 					|| Mathf.Abs(actualFloor.y - desired.y) > 0.30f
-					|| actualFloor.y - lastY > characterController.stepOffset + 0.05f
-					|| lastY - actualFloor.y > 0.52f)
+					|| actualFloor.y - lastY > maximumRise
+					|| lastY - actualFloor.y > Mathf.Max(0.52f, maximumRise))
 					return false;
 				// The floor may be physically connected yet a low ceiling or
 				// railing could intersect the full NPC capsule between grid
