@@ -1684,9 +1684,11 @@ namespace SDG.Unturned
 				return;
 			}
 
-			bool tacticalDestination = tactics.HasTacticalDestination;
-			bool hasDestination = tacticalDestination || brain.HasDestination;
-			Vector3 destination = tacticalDestination ? tactics.TacticalDestination : brain.Destination;
+			// Publish precisely the movement command the motor will execute.
+			// During a defensive decision without verified ground, neither
+			// consumers nor listeners may resurrect the previous attack path.
+			bool hasDestination = HasDestination;
+			Vector3 destination = Destination;
 			MobileNPCBrain.State state = brain.CurrentState;
 			MobileNPCTactics.Goal goal = tactics.CurrentGoal;
 
