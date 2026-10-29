@@ -56,12 +56,18 @@ namespace SDG.Unturned
 				return;
 			}
 
+			bool newContact = target != visibleTarget || state != State.Pursuing;
 			target = visibleTarget;
 			targetMemoryDeadline = now + TargetMemoryDuration;
-			destination = visibleTarget.position;
-			nextVisibleDestinationRefreshAt = now + 0.45f;
+			if (newContact || now >= nextVisibleDestinationRefreshAt
+				&& (visibleTarget.position - destination).sqrMagnitude >= 0.75f * 0.75f)
+			{
+				destination = visibleTarget.position;
+				nextVisibleDestinationRefreshAt = now + 0.45f;
+			}
 			investigationCenter = destination;
-			investigationSearchCount = 0;
+			if (newContact)
+				investigationSearchCount = 0;
 			hasDestination = true;
 			state = State.Pursuing;
 		}
