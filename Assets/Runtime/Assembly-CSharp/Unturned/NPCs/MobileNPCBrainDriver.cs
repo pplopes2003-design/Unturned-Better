@@ -25,6 +25,7 @@ namespace SDG.Unturned
 		private float retreatTrackingStartedAt = -1f;
 		private float retreatLastProgressAt;
 		private float retreatBestDistance = float.PositiveInfinity;
+		private Vector3 trackedRetreatDestination;
 		private float flankTrackingStartedAt = -1f;
 		private float flankLastProgressAt;
 		private float flankBestDistance = float.PositiveInfinity;
@@ -1275,10 +1276,12 @@ namespace SDG.Unturned
 			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Retreat
 				&& tactics.HasTacticalDestination)
 			{
-				float remaining = Vector3.Distance(transform.position,
-					tactics.TacticalDestination);
-				if (retreatTrackingStartedAt < 0f)
+				Vector3 retreatGoal = tactics.TacticalDestination;
+				float remaining = Vector3.Distance(transform.position, retreatGoal);
+				if (retreatTrackingStartedAt < 0f
+					|| (retreatGoal - trackedRetreatDestination).sqrMagnitude > 0.25f)
 				{
+					trackedRetreatDestination = retreatGoal;
 					retreatTrackingStartedAt = Time.time;
 					retreatLastProgressAt = Time.time;
 					retreatBestDistance = remaining;
