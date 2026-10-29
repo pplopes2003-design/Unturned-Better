@@ -892,6 +892,10 @@ namespace SDG.Unturned
 			}
 
 			lastStartle = Time.time;
+			// Startle plays a native zombie vocalization. Notify only on the
+			// authoritative server: audio alone does not expose the zombie type.
+			if (Provider.isServer)
+				MobileNPCRegistry.NotifyZombieGrowl(transform.position);
 			specialStartleDelay = Random.Range(1.0f, 2.0f);
 			isPlayingStartle = true;
 
