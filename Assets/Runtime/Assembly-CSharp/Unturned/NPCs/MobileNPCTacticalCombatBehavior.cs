@@ -396,6 +396,7 @@ namespace SDG.Unturned
 				GetComponent<MobileNPCZombieRiskAssessment>();
 			Vector3 best = Vector3.zero;
 			float bestScore = float.NegativeInfinity;
+			MobileNPCAdaptiveMemory experience = GetComponent<MobileNPCAdaptiveMemory>();
 			for (int i = 0; i < 4; ++i)
 			{
 				Vector3 bearing = i == 0 ? sideways
@@ -421,6 +422,7 @@ namespace SDG.Unturned
 				float score = -Mathf.Abs(spacing - Mathf.Max(8f, preferredMinimumRange))
 					+ (risk != null ? -risk.GetKnownRiskAtServer(position) * 5f : 0f)
 					+ NearbySolidCoverPreference(position, target.position)
+					+ (experience != null ? experience.GetFlankAccessAdjustment(position) : 0f)
 					+ Random.Range(0f, 0.3f);
 				if (score <= bestScore)
 					continue;
@@ -471,6 +473,7 @@ namespace SDG.Unturned
 			};
 
 			float bestScore = float.NegativeInfinity;
+			MobileNPCAdaptiveMemory experience = GetComponent<MobileNPCAdaptiveMemory>();
 			Vector3 bestPosition = Vector3.zero;
 			bool found = false;
 			for (int i = 0; i < directions.Length; ++i)
@@ -510,7 +513,8 @@ namespace SDG.Unturned
 				candidateRadial.Normalize();
 				float angularChange = 1f - Mathf.Clamp(Vector3.Dot(awayFromTarget, candidateRadial), -1f, 1f);
 				float score = angularChange * 5f - Mathf.Abs(candidateDistance - 14f) * 0.15f
-					+ NearbySolidCoverPreference(candidate, targetPosition);
+					+ NearbySolidCoverPreference(candidate, targetPosition)
+					+ (experience != null ? experience.GetFlankAccessAdjustment(candidate) : 0f);
 				if (score > bestScore)
 				{
 					bestScore = score;
