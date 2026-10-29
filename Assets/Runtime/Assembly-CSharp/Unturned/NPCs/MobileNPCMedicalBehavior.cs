@@ -32,6 +32,13 @@ namespace SDG.Unturned
 		private MobileNPCBrainDriver brain;
 		private float nextDecisionTime;
 		private bool lastReportedSupplyNeed;
+		[SerializeField, Min(0.5f)] private float treatmentDuration = 2.0f;
+		private Item pendingItem;
+		private bool pendingBandage;
+		private float pendingHealAmount;
+		private MobileNPCInjurySystem.BodyPart pendingLeg;
+		private float treatmentFinishesAt;
+		public bool IsTreating => pendingItem != null;
 
 		/// <summary>Signals the scavenging/crafting layer that medical supplies are missing.</summary>
 		public event Action<bool> MedicalSupplyNeedChanged;
@@ -56,10 +63,68 @@ namespace SDG.Unturned
 			brain = GetComponent<MobileNPCBrainDriver>();
 		}
 
+		private void OnDisable()
+		{
+			CancelTreatment();
+		}
+
+		private void CancelTreatment()
+		{
+			if (pendingItem == null)
+				return;
+			Item reserved = pendingItem;
+			pendingItem = null;
+			if (Provider.isServer && inventory != null
+				&& !inventory.TryStoreTransferredItem(reserved))
+				Debug.LogError("[MobileNPCMedicalBehavior] Cannot restore interrupted treatment item "
+					+ reserved.id, this);
+		}
+
+		private void BeginTreatment(Item reserved, bool bandage,
+			float healAmount, MobileNPCInjurySystem.BodyPart leg)
+		{
+			pendingItem = reserved;
+			pendingBandage = bandage;
+			pendingHealAmount = healAmount;
+			pendingLeg = leg;
+			treatmentFinishesAt = Time.time + Mathf.Max(0.5f, treatmentDuration);
+			MobileNPCVisualAnimation visual = GetComponent<MobileNPCVisualAnimation>();
+			if (visual != null)
+				visual.PlayMedicalUseAnimation();
+		}
+
 		private void Update()
 		{
 			if (!Provider.isServer || injuries == null || vitals == null || inventory == null || vitals.IsDead)
 				return;
+
+			if (pendingItem != null)
+			{
+				bool unsafeCombat = brain != null && brain.Target != null
+					&& brain.CurrentGoal != MobileNPCTactics.Goal.SeekCover
+					&& brain.CurrentGoal != MobileNPCTactics.Goal.Retreat
+					&& vitals.CurrentHealth > minimumHealthToTreatUnderFire;
+				if (unsafeCombat)
+				{
+					CancelTreatment();
+					return;
+				}
+				if (Time.time < treatmentFinishesAt)
+					return;
+				Item used = pendingItem;
+				pendingItem = null;
+				bool applied = pendingBandage
+					? injuries.CurrentBleeding != MobileNPCInjurySystem.BleedingSeverity.None
+						&& injuries.ApplyBandageServer(pendingHealAmount)
+					: injuries.ApplySplintServer(pendingLeg);
+				if (!applied && !inventory.TryStoreTransferredItem(used))
+					Debug.LogError("[MobileNPCMedicalBehavior] Could not return unused item " + used.id, this);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+				Debug.Log("[MobileNPCMedicalBehavior] Finished treatment item=" + used.id
+					+ " applied=" + applied + " HP=" + vitals.CurrentHealth.ToString("F1"), this);
+#endif
+				return;
+			}
 
 			bool needsSupplies = NeedsMedicalSupplies;
 			if (needsSupplies != lastReportedSupplyNeed)
@@ -72,6 +137,9 @@ namespace SDG.Unturned
 				return;
 			nextDecisionTime = Time.time + Mathf.Max(0.2f, decisionInterval);
 
+			MobileNPCMedicalUse genericCare = GetComponent<MobileNPCMedicalUse>();
+			if (genericCare != null && genericCare.IsTreating)
+				return;
 			if (!injuries.NeedsMedicalAttention || !CanSafelyTreat())
 				return;
 
@@ -82,22 +150,21 @@ namespace SDG.Unturned
 				&& !HasConfiguredItem(bandageItemIDs))
 				inventory.TryCraftNativeWoundDressingServer();
 
-			// Stop ongoing blood loss first. Do not consume a random item of the
-			// generic MEDICAL category: the configured ID must represent a bandage.
+			// Reserve one unit; effect is granted only after treatment ends,
+			// as with the native player's Use/Aid sequence.
 			if (injuries.CurrentBleeding != MobileNPCInjurySystem.BleedingSeverity.None
-				&& TryConsumeConfiguredItem(bandageItemIDs, out ushort bandageID))
+				&& TryConsumeConfiguredItem(bandageItemIDs, out Item bandage))
 			{
-				injuries.ApplyBandageServer(GetNativeBandageHealAmount(bandageID));
+				BeginTreatment(bandage, true, GetNativeBandageHealAmount(bandage.id),
+					MobileNPCInjurySystem.BodyPart.LeftLeg);
 				return;
 			}
-
-			// A splint treats a fracture but intentionally does not refill limb condition.
-			if (injuries.HasFracturedLeg && TryConsumeConfiguredItem(splintItemIDs, out _))
+			if (injuries.HasFracturedLeg && TryConsumeConfiguredItem(splintItemIDs, out Item splint))
 			{
 				MobileNPCInjurySystem.BodyPart leg = injuries.LeftLeg.IsFractured
 					? MobileNPCInjurySystem.BodyPart.LeftLeg
 					: MobileNPCInjurySystem.BodyPart.RightLeg;
-				injuries.ApplySplintServer(leg);
+				BeginTreatment(splint, false, 0f, leg);
 			}
 		}
 
@@ -140,9 +207,9 @@ namespace SDG.Unturned
 			}
 		}
 
-		private bool TryConsumeConfiguredItem(ushort[] itemIDs, out ushort consumedID)
+		private bool TryConsumeConfiguredItem(ushort[] itemIDs, out Item consumedItem)
 		{
-			consumedID = 0;
+			consumedItem = null;
 			if (!Provider.isServer || itemIDs == null || itemIDs.Length == 0)
 				return false;
 			for (int slot = 0; slot < inventory.UsedSlots; ++slot)
@@ -160,7 +227,7 @@ namespace SDG.Unturned
 				}
 				if (match && inventory.TryConsumeOneItemByIdServer(item.id, out Item consumed))
 				{
-					consumedID = consumed != null ? consumed.id : item.id;
+					consumedItem = consumed;
 					return true;
 				}
 			}
