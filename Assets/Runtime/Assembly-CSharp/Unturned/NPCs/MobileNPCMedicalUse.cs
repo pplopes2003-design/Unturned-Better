@@ -25,6 +25,7 @@ namespace SDG.Unturned
 		private Item pendingItem;
 		private float pendingHeal;
 		private float treatmentFinishesAt;
+		public bool IsTreating => pendingItem != null;
 
 		private MobileNPCHumanoidVitals vitals;
 		private MobileNPCInventory inventory;
@@ -94,6 +95,9 @@ namespace SDG.Unturned
 					Debug.LogError("[MobileNPCMedicalUse] Could not restore rejected treatment item.", this);
 				return;
 			}
+			MobileNPCMedicalBehavior woundCare = GetComponent<MobileNPCMedicalBehavior>();
+			if (woundCare != null && woundCare.IsTreating)
+				return;
 			if (vitals.IsDead || vitals.HealthFraction <= 0f || vitals.HealthFraction >= healThreshold
 				|| Time.time < nextAttemptTime || Time.time < nextAllowedUseTime)
 				return;
