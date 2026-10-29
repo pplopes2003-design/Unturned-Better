@@ -60,6 +60,37 @@ namespace SDG.Unturned
 		public MobileNPCTactics.Goal CurrentGoal => tactics != null ? tactics.CurrentGoal : MobileNPCTactics.Goal.None;
 		public Transform Target => brain != null ? brain.Target : null;
 
+		// Central movement ownership: decision state is authoritative even
+		// when the chosen action has no destination (aim, reload, search
+		// pause, or withdrawal waiting for verified ground).
+		public enum MovementOwner
+		{
+			Routine,
+			Investigation,
+			Combat,
+			Tactical,
+			DefensivePending
+		}
+
+		public MovementOwner CurrentMovementOwner
+		{
+			get
+			{
+				if (IsDefensiveMovementPending)
+					return MovementOwner.DefensivePending;
+				if (tactics != null && tactics.CurrentGoal != MobileNPCTactics.Goal.None)
+					return MovementOwner.Tactical;
+				if (brain != null && (brain.CurrentState == MobileNPCBrain.State.Pursuing
+					|| brain.Target != null))
+					return MovementOwner.Combat;
+				if (brain != null && brain.CurrentState == MobileNPCBrain.State.Investigating)
+					return MovementOwner.Investigation;
+				return MovementOwner.Routine;
+			}
+		}
+		public bool RoutineMayControlMovement => CurrentMovementOwner == MovementOwner.Routine;
+
+
 		/// <summary>
 		/// Single authority for offensive action eligibility. Tactical movement,
 		/// weapon execution and body pose may change independently, but none may
