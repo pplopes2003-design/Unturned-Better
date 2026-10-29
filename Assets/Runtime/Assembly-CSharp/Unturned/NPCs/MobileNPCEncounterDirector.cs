@@ -234,6 +234,15 @@ namespace SDG.Unturned
                 return false;
 
             MobileNPCGroupMember member = agent.GetComponent<MobileNPCGroupMember>();
+            // The director supplies only OPTIONAL investigation opportunities.
+            // Never steal an actor currently serving as a covering or advancing
+            // squad member, nor contradict an audible hold/withdraw order.
+            // Firsthand sightings, real sound investigation, fire and retreat
+            // remain independent of this speculative-search permission.
+            if (member != null && (member.CurrentSquadRole != MobileNPCGroupMember.SquadRole.None
+                || member.CurrentSquadDirective == MobileNPCGroupMember.SquadDirective.Hold
+                || member.CurrentSquadDirective == MobileNPCGroupMember.SquadDirective.Withdraw))
+                return false;
             int key = member != null && member.GroupId > 0
                 ? member.GroupId : -agent.GetInstanceID();
             if (!leasesByGroup.TryGetValue(key, out List<OptionalSearchLease> list))
@@ -296,7 +305,11 @@ namespace SDG.Unturned
                     continue;
                 }
                 MobileNPCHumanoidVitals vitals = owner.GetComponent<MobileNPCHumanoidVitals>();
-                if (vitals != null && vitals.IsDead)
+                MobileNPCGroupMember member = owner.GetComponent<MobileNPCGroupMember>();
+                if (vitals != null && vitals.IsDead
+                    || member != null && (member.CurrentSquadRole != MobileNPCGroupMember.SquadRole.None
+                        || member.CurrentSquadDirective == MobileNPCGroupMember.SquadDirective.Hold
+                        || member.CurrentSquadDirective == MobileNPCGroupMember.SquadDirective.Withdraw))
                     list.RemoveAt(i);
             }
         }
