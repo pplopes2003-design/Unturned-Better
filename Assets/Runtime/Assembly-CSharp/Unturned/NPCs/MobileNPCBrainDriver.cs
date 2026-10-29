@@ -25,6 +25,10 @@ namespace SDG.Unturned
 		private float retreatTrackingStartedAt = -1f;
 		private float retreatLastProgressAt;
 		private float retreatBestDistance = float.PositiveInfinity;
+		private float flankTrackingStartedAt = -1f;
+		private float flankLastProgressAt;
+		private float flankBestDistance = float.PositiveInfinity;
+		private Vector3 trackedFlankDestination;
 		private Vector3 lastDefensiveThreatPosition;
 		private float nextStalkPlanAt;
 		private float ambushArmedUntil;
@@ -1206,6 +1210,38 @@ namespace SDG.Unturned
 			{
 				retreatTrackingStartedAt = -1f;
 				retreatBestDistance = float.PositiveInfinity;
+			}
+
+			// A flanking route is an actual navigation commitment, not
+			// a timer that forces an NPC back into frontal pursuit before
+			// it reaches its selected firing lane. Allow a bounded extension
+			// only during measurable progress toward the SAME validated point.
+			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Flank
+				&& tactics.HasTacticalDestination)
+			{
+				Vector3 flankGoal = tactics.TacticalDestination;
+				float remaining = Vector3.Distance(transform.position, flankGoal);
+				if (flankTrackingStartedAt < 0f
+					|| (flankGoal - trackedFlankDestination).sqrMagnitude > 0.25f)
+				{
+					trackedFlankDestination = flankGoal;
+					flankTrackingStartedAt = Time.time;
+					flankLastProgressAt = Time.time;
+					flankBestDistance = remaining;
+				}
+				else if (remaining < flankBestDistance - 0.35f)
+				{
+					flankBestDistance = remaining;
+					flankLastProgressAt = Time.time;
+				}
+				if (remaining > 1.5f && Time.time - flankLastProgressAt < 4.5f
+					&& Time.time - flankTrackingStartedAt < 32f)
+					tactics.ExtendActiveFlank(Time.time);
+			}
+			else
+			{
+				flankTrackingStartedAt = -1f;
+				flankBestDistance = float.PositiveInfinity;
 			}
 
 			if (tactics.IsGoalExpired(Time.time))
