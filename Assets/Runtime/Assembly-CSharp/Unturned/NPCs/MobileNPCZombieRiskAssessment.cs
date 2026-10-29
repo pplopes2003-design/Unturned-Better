@@ -16,6 +16,7 @@ namespace SDG.Unturned
         private readonly Zombie[] nearestCandidates = new Zombie[3];
         private readonly float[] nearestDistances = new float[3];
         private readonly Vector3[] observed = new Vector3[MaximumKnown];
+        private readonly float[] observedSeverity = new float[MaximumKnown];
         private readonly float[] expires = new float[MaximumKnown];
         private readonly RaycastHit[] rayHits = new RaycastHit[12];
         private MobileNPCBrainDriver brain;
@@ -45,7 +46,7 @@ namespace SDG.Unturned
 
             Zombie visible = perception.VisibleZombie;
             if (visible != null && !visible.isDead)
-                RememberObservedServer(visible.transform.position);
+                RememberObservedServer(visible);
             // Bounded personal hazard scan. Build a nearest-three shortlist
             // without allocating or raycasting every zombie in the map.
             // Close zombies behind a wall are NOT automatically known.
@@ -97,7 +98,7 @@ namespace SDG.Unturned
                         if (candidate == null)
                             continue;
                         if (CanReallySeeServer(candidate))
-                            RememberObservedServer(candidate.transform.position);
+                            RememberObservedServer(candidate);
                     }
                 }
             }
@@ -167,8 +168,33 @@ namespace SDG.Unturned
             return closest == null || closest.GetComponentInParent<Zombie>() == zombie;
         }
 
-        private void RememberObservedServer(Vector3 pos)
+        /// <summary>Innate understanding of an actually observed variant.
+        /// No lookup from a hidden zombie during later risk evaluation.</summary>
+        private static float GetInnateVariantSeverity(EZombieSpeciality type)
         {
+            switch (type)
+            {
+                case EZombieSpeciality.CRAWLER: return 1.45f;
+                case EZombieSpeciality.SPRINTER: return 1.65f;
+                case EZombieSpeciality.BURNER: return 2.1f;
+                case EZombieSpeciality.ACID: return 1.8f;
+                case EZombieSpeciality.FLANKER_FRIENDLY:
+                case EZombieSpeciality.FLANKER_STALK: return 1.6f;
+                case EZombieSpeciality.MEGA: return 3f;
+                default:
+                    // Bosses and special forms are dangerous even when the
+                    // NPC has not individually experienced their attacks.
+                    return type.ToString().StartsWith("BOSS_") ? 3.2f
+                        : type == EZombieSpeciality.DL_RED_VOLATILE
+                            || type == EZombieSpeciality.DL_BLUE_VOLATILE ? 2.5f : 1f;
+            }
+        }
+
+        private void RememberObservedServer(Zombie zombie)
+        {
+            if (zombie == null || zombie.isDead)
+                return;
+            Vector3 pos = zombie.transform.position;
             if (!Provider.isServer || !Level.checkSafeIncludingClipVolumes(pos))
                 return;
             int slot = -1;
@@ -189,6 +215,7 @@ namespace SDG.Unturned
             }
             if (slot < 0) return;
             observed[slot] = pos;
+            observedSeverity[slot] = GetInnateVariantSeverity(zombie.speciality);
             expires[slot] = Time.time + 4.5f;
         }
 
@@ -205,9 +232,10 @@ namespace SDG.Unturned
                 delta.y = 0f;
                 float dist = delta.magnitude;
                 if (dist > 11f) continue;
-                threat += Mathf.Lerp(1.2f, 0f, dist / 11f);
+                threat += Mathf.Lerp(1.2f, 0f, dist / 11f)
+                    * Mathf.Max(1f, observedSeverity[i]);
                 if (dist < 3.5f)
-                    threat += 0.25f;
+                    threat += 0.25f * Mathf.Max(1f, observedSeverity[i]);
             }
             return threat;
         }
