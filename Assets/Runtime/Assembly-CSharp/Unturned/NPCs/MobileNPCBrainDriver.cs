@@ -185,7 +185,16 @@ namespace SDG.Unturned
 
 			// Ambush readiness is only armed by an actual concealed approach.
 			// Repeated perception scans do not reset its countdown.
-			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Regroup)
+			// A personally observed hostile contact preempts noncombat
+			// tactical errands, not defensive cover, retreat or a committed
+			// fighting maneuver. Clear those assignments before publishing
+			// the pursuit state, so a stale loot/raid waypoint cannot keep
+			// steering the NPC through the gunfight.
+			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Regroup
+				|| tactics.CurrentGoal == MobileNPCTactics.Goal.Loot
+				|| tactics.CurrentGoal == MobileNPCTactics.Goal.Investigate
+				|| tactics.CurrentGoal == MobileNPCTactics.Goal.Reinforce
+				|| tactics.CurrentGoal == MobileNPCTactics.Goal.RaidStaging)
 				tactics.ClearGoal();
 			bool wasStalking = tactics.CurrentGoal == MobileNPCTactics.Goal.Stalk;
 			if (wasStalking)
