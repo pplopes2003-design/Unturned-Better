@@ -1337,6 +1337,17 @@ namespace SDG.Unturned
 
 			if (tactics.IsGoalExpired(Time.time))
 			{
+				// A flank that timed out before physical arrival is an
+				// outcome, not evidence that combat itself was lost. Avoid
+				// double-counting a successfully reached firing position.
+				if (tactics.CurrentGoal == MobileNPCTactics.Goal.Flank
+					&& tactics.HasTacticalDestination && !flankArrivalRecorded)
+				{
+					MobileNPCAdaptiveMemory memory = GetComponent<MobileNPCAdaptiveMemory>();
+					if (memory != null)
+						memory.RecordOwnOutcomeServer(MobileNPCAdaptiveMemory.ExperienceKind.FlankAccess,
+							tactics.TacticalDestination, false);
+				}
 				// Failure here means the validated cover destination was not reached
 				// before its deadline, NOT that cover would have stopped incoming fire.
 				if (tactics.CurrentGoal == MobileNPCTactics.Goal.SeekCover && tactics.HasTacticalDestination)
