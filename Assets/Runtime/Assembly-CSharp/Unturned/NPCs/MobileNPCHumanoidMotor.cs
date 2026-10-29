@@ -559,7 +559,6 @@ namespace SDG.Unturned
 			brainDriver.TickServer(targetIsVisible);
 			Vector3 planarDirection = Vector3.zero;
 			bool hasBrainDestination = brainDriver.HasDestination;
-			bool defensiveDecisionPending = brainDriver.IsDefensiveMovementPending;
 			bool routineOwnsMovement = brainDriver.RoutineMayControlMovement;
 			// A retreat awaiting a valid escape route owns the locomotion slot.
 			// Never start or resume a patrol, loot search or return-home path
