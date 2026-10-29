@@ -787,7 +787,11 @@ namespace SDG.Unturned
 				// Large movements or a different floor still invalidate it.
 				bool changedDestination = PlanarDistanceSquared(destination,
 					detourGoalSnapshot) > 2.25f
-					|| Mathf.Abs(destination.y - detourGoalSnapshot.y) > 0.8f;
+					|| Mathf.Abs(destination.y - detourGoalSnapshot.y) > 0.8f
+					// Even an identical world point may now represent an urgent
+					// retreat rather than the old exploration or pursuit task.
+					|| hasPhysicalThresholdRoute
+						&& physicalThresholdOwner != brainDriver.CurrentMovementOwner;
 				bool preserveObservedThreshold = hasPhysicalThresholdRoute
 					// A nearby NEW tactical decision must never inherit the old
 					// patrol/investigation crossing merely due to proximity.
