@@ -101,6 +101,7 @@ namespace SDG.Unturned
 		// A physical doorway is narrow: the generic 1m waypoint-arrival
 		// tolerance could skip its approach and push into a solid jamb.
 		private bool hasPhysicalThresholdRoute;
+		private MobileNPCBrainDriver.MovementOwner physicalThresholdOwner;
 		private int physicalThresholdApproachWaypointIndex;
 		private Vector3 physicalThresholdBeyondWaypoint;
 		// A verified floor-level low opening can be crawled through with
@@ -788,6 +789,9 @@ namespace SDG.Unturned
 					detourGoalSnapshot) > 2.25f
 					|| Mathf.Abs(destination.y - detourGoalSnapshot.y) > 0.8f;
 				bool preserveObservedThreshold = hasPhysicalThresholdRoute
+					// A nearby NEW tactical decision must never inherit the old
+					// patrol/investigation crossing merely due to proximity.
+					&& physicalThresholdOwner == brainDriver.CurrentMovementOwner
 					&& routeWaypointIndex < routeWaypoints.Count
 					&& routeWaypointIndex <= physicalThresholdApproachWaypointIndex + 2
 					&& Mathf.Abs(destination.y - detourGoalSnapshot.y) <= 0.8f
@@ -3918,6 +3922,8 @@ namespace SDG.Unturned
 			routeWaypoints.Add(bestFar);
 			physicalThresholdBeyondWaypoint = bestFar;
 			hasPhysicalThresholdRoute = true;
+			physicalThresholdOwner = brainDriver != null
+				? brainDriver.CurrentMovementOwner : MobileNPCBrainDriver.MovementOwner.Routine;
 			routeWaypointIndex = 0;
 			hasDetourWaypoint = false;
 			hasPartialLocalFrontier = false;
