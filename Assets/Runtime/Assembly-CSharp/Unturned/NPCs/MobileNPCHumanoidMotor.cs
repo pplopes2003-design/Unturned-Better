@@ -862,7 +862,8 @@ namespace SDG.Unturned
 					&& routeWaypoints.Count == 0 && !hasDetourWaypoint
 					&& doorwayGoal.sqrMagnitude >= 4f
 					&& doorwayGoal.sqrMagnitude <= 144f
-					&& Mathf.Abs(destination.y - transform.position.y) <= 0.8f
+					// The final goal may be upstairs; doorway approach stays ground-level.
+					&& Mathf.Abs(destination.y - transform.position.y) <= 4.5f
 					&& Time.time >= nextPhysicalThresholdScanTime
 					&& Time.time >= nextSharedPhysicalThresholdSlot)
 				{
@@ -983,7 +984,8 @@ namespace SDG.Unturned
 				if (!hasPhysicalThresholdRoute && consecutiveStuckRecoveries >= 1
 					&& !isUnderwater && !IsTraversingLadder
 					&& characterController.isGrounded
-					&& Mathf.Abs(destination.y - transform.position.y) <= 0.8f
+					// The final goal may be upstairs; doorway approach stays ground-level.
+					&& Mathf.Abs(destination.y - transform.position.y) <= 4.5f
 					&& PlanarDistanceSquared(transform.position, destination) <= 400f
 					&& TryPlanObservedBuildingThresholdServer(destination))
 				{
