@@ -158,7 +158,7 @@ namespace SDG.Unturned
 						break;
 					}
 				}
-				if (match && inventory.TryTakeItemServer(slot, out Item consumed))
+				if (match && inventory.TryConsumeOneItemByIdServer(item.id, out Item consumed))
 				{
 					consumedID = consumed != null ? consumed.id : item.id;
 					return true;
