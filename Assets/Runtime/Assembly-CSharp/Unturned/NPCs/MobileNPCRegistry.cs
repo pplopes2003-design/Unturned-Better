@@ -53,6 +53,31 @@ namespace SDG.Unturned
 			}
 		}
 
+		/// <summary>Classify a real zombie vocalization, not ambient zombie
+		/// presence. Listeners get an approximate location and no subtype.</summary>
+		public static void NotifyZombieGrowl(Vector3 vocalizationPosition, float radius = 17f)
+		{
+			if (!Provider.isServer || radius <= 0f || float.IsNaN(radius)
+				|| float.IsInfinity(radius)) return;
+			activeDrivers.RemoveWhere(driver => driver == null || !driver.isActiveAndEnabled);
+			foreach (MobileNPCBrainDriver driver in activeDrivers)
+			{
+				if (driver == null || !driver.gameObject.activeInHierarchy) continue;
+				MobileNPCHumanoidVitals vitals = driver.GetComponent<MobileNPCHumanoidVitals>();
+				if (vitals != null && vitals.IsDead) continue;
+				Vector3 delta = driver.transform.position - vocalizationPosition;
+				float distance = delta.magnitude;
+				if (distance > radius) continue;
+				float confidence = Mathf.Clamp01(1f - distance / radius);
+				if (confidence < 0.12f) continue;
+				Vector2 error = Random.insideUnitCircle * Mathf.Lerp(6f, 1.4f, confidence);
+				Vector3 clue = vocalizationPosition + new Vector3(error.x, 0f, error.y);
+				driver.ReportClassifiedNoiseServer(clue,
+					MobileNPCBrainDriver.InnateSoundClass.ZombieGrowl,
+					confidence, 12f);
+			}
+		}
+
 		/// <summary>Broadcasts a server-confirmed gunshot as a stimulus to mobile NPCs in hearing range.</summary>
 		public static void NotifyGunfire(Vector3 shooterPosition, float radius, Player shooter,
 			Transform sourceNPC = null)
