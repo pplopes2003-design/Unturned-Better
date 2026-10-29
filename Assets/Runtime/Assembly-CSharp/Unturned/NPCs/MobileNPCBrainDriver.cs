@@ -79,10 +79,20 @@ namespace SDG.Unturned
 			&& brain != null && brain.CurrentState == MobileNPCBrain.State.Pursuing
 			&& brain.Target != null && !IsAmbushPreparing;
 
-		public bool HasDestination => tactics != null && tactics.HasTacticalDestination || brain != null && brain.HasDestination;
-		public Vector3 Destination => tactics != null && tactics.HasTacticalDestination
-			? tactics.TacticalDestination
-			: brain != null && brain.HasDestination ? brain.Destination : transform.position;
+		// Defensive decision without a verified safe destination MUST NOT
+		// inherit the pursuit waypoint. The NPC may still return fire, but
+		// cannot automatically rush its attacker while choosing an exit.
+		public bool IsDefensiveMovementPending => tactics != null
+			&& (tactics.CurrentGoal == MobileNPCTactics.Goal.Retreat
+				|| tactics.CurrentGoal == MobileNPCTactics.Goal.SeekCover)
+			&& !tactics.HasTacticalDestination;
+		public bool HasDestination => !IsDefensiveMovementPending
+			&& (tactics != null && tactics.HasTacticalDestination
+				|| brain != null && brain.HasDestination);
+		public Vector3 Destination => IsDefensiveMovementPending ? transform.position
+			: tactics != null && tactics.HasTacticalDestination
+				? tactics.TacticalDestination
+				: brain != null && brain.HasDestination ? brain.Destination : transform.position;
 
 		public void InitializeServer(Vector3 spawnPosition)
 		{
