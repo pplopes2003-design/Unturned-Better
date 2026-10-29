@@ -76,7 +76,20 @@ namespace SDG.Unturned
 				if (offset.sqrMagnitude > radiusSquared)
 					continue;
 
-				driver.ReportIncomingFire(shooterPosition, shooter != null ? shooter.transform : null);
+				// An audible shot is not proof that this NPC is being shot at.
+				// Do not grant the shooter's exact coordinates or Transform to
+				// every listener; genuine impacts retain ReportIncomingFire.
+				float distance = Mathf.Sqrt(offset.sqrMagnitude);
+				float confidence = Mathf.Clamp01(1f - distance / Mathf.Max(1f, radius));
+				if (confidence < 0.12f)
+					continue;
+				float uncertainty = Mathf.Lerp(8f, 1.5f, confidence);
+				Vector2 error = Random.insideUnitCircle * uncertainty;
+				Vector3 approximate = shooterPosition
+					+ new Vector3(error.x, 0f, error.y);
+				driver.ReportClassifiedNoiseServer(approximate,
+					MobileNPCBrainDriver.InnateSoundClass.Gunshot,
+					confidence, 22f);
 			}
 		}
 
