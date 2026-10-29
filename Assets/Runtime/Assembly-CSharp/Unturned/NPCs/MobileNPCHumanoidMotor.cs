@@ -559,11 +559,24 @@ namespace SDG.Unturned
 			brainDriver.TickServer(targetIsVisible);
 			Vector3 planarDirection = Vector3.zero;
 			bool hasBrainDestination = brainDriver.HasDestination;
+			bool defensiveDecisionPending = brainDriver.IsDefensiveMovementPending;
+			// A retreat awaiting a valid escape route owns the locomotion slot.
+			// Never start or resume a patrol, loot search or return-home path
+			// while its tactical arbiter is deciding where to withdraw.
+			if (defensiveDecisionPending)
+			{
+				if (hasRoamingDestination && autonomyPlanner != null)
+					autonomyPlanner.ReleaseExplorationSectorServer(false, false);
+				hasRoamingDestination = false;
+				routeWaypoints.Clear();
+				routeWaypointIndex = 0;
+				hasDetourWaypoint = false;
+			}
 
 			// A routine switch may invalidate only a low-priority wander,
 			// never a combat/loot/reinforcement path. This is the online
 			// handoff between strategic job arbitration and physical motor.
-			if (!hasBrainDestination && autonomyPlanner != null)
+			if (!hasBrainDestination && !defensiveDecisionPending && autonomyPlanner != null)
 			{
 				MobileNPCAutonomyPlanner.Job routine = autonomyPlanner.EvaluateRoutineServer();
 				if (hasPreviousRoutineJob && routine != previousRoutineJob)
@@ -605,6 +618,10 @@ namespace SDG.Unturned
 				}
 				// Combat, investigation and tactical goals always take precedence over roaming or returning home.
 				hasRoamingDestination = false;
+			}
+			else if (defensiveDecisionPending)
+			{
+				// Keep aiming/returning fire; movement awaits validated defense.
 			}
 			else if (!IsWithinHomeTerritory)
 			{
