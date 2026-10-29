@@ -219,6 +219,19 @@ namespace SDG.Unturned
 			if (visibleNow)
 			{
 				blockedSince = -1f;
+				// Once a special zombie is actually seen, prefer a safe
+				// lateral/away firing lane instead of holding point-blank range.
+				// Never replace explicit squad orders or defensive goals.
+				if (observedZombie != null && rangedCombat.SelectedGunAsset != null
+					&& rangedCombat.RoundsRemaining > 0 && !rangedCombat.IsReloading
+					&& brain.CurrentGoal == MobileNPCTactics.Goal.None
+					&& Time.time >= nextShotQualityRepositionAt
+					&& distance < PreferredZombieDistance(observedZombie.speciality)
+					&& TryShortCombatRepositionServer(target))
+				{
+					nextShotQualityRepositionAt = Time.time + 5f;
+					return;
+				}
 				if (visibleEngagementSince < 0f)
 					visibleEngagementSince = Time.time;
 				// Holding line of sight indefinitely is not automatically tactically useful.
@@ -326,6 +339,23 @@ namespace SDG.Unturned
 			return false;
 		}
 
+		/// <summary>Native, innate spacing for an INDIVIDUALLY sighted zombie.
+		/// This never queries zombie identities outside current perception.</summary>
+		private static float PreferredZombieDistance(EZombieSpeciality speciality)
+		{
+			switch (speciality)
+			{
+				case EZombieSpeciality.BURNER: return 14f;
+				case EZombieSpeciality.ACID: return 13f;
+				case EZombieSpeciality.CRAWLER: return 9f;
+				case EZombieSpeciality.SPRINTER: return 11f;
+				case EZombieSpeciality.FLANKER_FRIENDLY:
+				case EZombieSpeciality.FLANKER_STALK: return 10f;
+				case EZombieSpeciality.MEGA: return 17f;
+				default: return speciality.ToString().StartsWith("BOSS_") ? 18f : 7f;
+			}
+		}
+
 		private bool IsCurrentTargetConfirmed(Transform target)
 		{
 			Player player = target.GetComponent<Player>();
@@ -394,6 +424,13 @@ namespace SDG.Unturned
 			Vector3 sideways = Vector3.Cross(Vector3.up, fromThreat).normalized;
 			MobileNPCZombieRiskAssessment risk =
 				GetComponent<MobileNPCZombieRiskAssessment>();
+			Zombie observedZombie = target.GetComponentInParent<Zombie>();
+			bool specialZombieConfirmed = observedZombie != null
+				&& perception != null && perception.VisibleZombie == observedZombie;
+			float preferredSpacing = specialZombieConfirmed
+				? Mathf.Max(preferredMinimumRange,
+					PreferredZombieDistance(observedZombie.speciality))
+				: Mathf.Max(8f, preferredMinimumRange);
 			Vector3 best = Vector3.zero;
 			float bestScore = float.NegativeInfinity;
 			MobileNPCAdaptiveMemory experience = GetComponent<MobileNPCAdaptiveMemory>();
@@ -417,9 +454,11 @@ namespace SDG.Unturned
 					+ Vector3.up * targetHeight, target))
 					continue;
 				float spacing = Vector3.Distance(position, target.position);
-				if (spacing < 4.5f || spacing > preferredMaximumRange)
+				if (spacing < (specialZombieConfirmed ? 5.5f : 4.5f)
+					|| spacing > preferredMaximumRange
+					|| specialZombieConfirmed && spacing < Vector3.Distance(transform.position, target.position) + 0.5f)
 					continue;
-				float score = -Mathf.Abs(spacing - Mathf.Max(8f, preferredMinimumRange))
+				float score = -Mathf.Abs(spacing - preferredSpacing)
 					+ (risk != null ? -risk.GetKnownRiskAtServer(position) * 5f : 0f)
 					+ NearbySolidCoverPreference(position, target.position)
 					+ (experience != null ? experience.GetFlankAccessAdjustment(position) : 0f)
