@@ -729,6 +729,23 @@ namespace SDG.Unturned
                 TryPlayActionClip("Shoot", "Fire", "Recoil");
         }
 
+        /// <summary>Best-effort visual treatment on the NPC's legacy rig.
+        /// Player consumables play the native Use clip, but the NPC_Client
+        /// prefab may not include it. Never impersonate PlayerAnimator or
+        /// apply health from an animation callback.</summary>
+        public void PlayMedicalUseAnimation()
+        {
+            if (vitals == null || vitals.IsDead)
+                return;
+            if (!TryPlayActionClip("Use"))
+            {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                Debug.LogWarning("[MobileNPCMedical] NPC rig has no playable Use clip: "
+                    + name + ". Treatment still follows its server timer.", this);
+#endif
+            }
+        }
+
         private void HandleReloadStarted()
         {
             gunFallbackReloadUntil = Time.time + 0.55f;
