@@ -259,6 +259,57 @@ namespace SDG.Unturned
 			PublishDecisionIfChanged();
 		}
 
+		// Innate acoustic knowledge belongs to the agent's decision rules,
+		// not its learnable experience records. Acoustic category does NOT
+		// reveal an actor's identity or hidden transform.
+		public enum InnateSoundClass { Unknown, ZombieGrowl, Gunshot, Footsteps }
+		public enum SuspectedSoundThreat { Unknown, Zombie, ArmedSurvivorPossible, SurvivorPossible }
+		public static SuspectedSoundThreat InterpretSound(InnateSoundClass sound)
+		{
+			switch (sound)
+			{
+				case InnateSoundClass.ZombieGrowl: return SuspectedSoundThreat.Zombie;
+				case InnateSoundClass.Gunshot: return SuspectedSoundThreat.ArmedSurvivorPossible;
+				case InnateSoundClass.Footsteps: return SuspectedSoundThreat.SurvivorPossible;
+				default: return SuspectedSoundThreat.Unknown;
+			}
+		}
+
+		/// <summary>Only callers that really recognized the sound may label it.
+		/// Hearing a growl suggests a zombie, never its subtype or exact position.
+		/// Unknown sounds retain the existing generic investigation path.</summary>
+		public void ReportClassifiedNoiseServer(Vector3 approximatePosition,
+			InnateSoundClass sound, float confidence, float duration = 25f)
+		{
+			if (!CanAcceptServerInput || !IsFiniteSquadPoint(approximatePosition)
+				|| float.IsNaN(confidence) || float.IsInfinity(confidence)
+				|| confidence < 0.12f)
+				return;
+			if (sound == InnateSoundClass.Footsteps)
+			{
+				ReportPlayerFootstepClue(approximatePosition, confidence);
+				return;
+			}
+			// No new sound may override directly observed targets, retreat,
+			// cover, group advances or a search already in progress.
+			if (brain.CurrentState == MobileNPCBrain.State.Pursuing
+				|| brain.CurrentState == MobileNPCBrain.State.Investigating
+				|| brain.CurrentState == MobileNPCBrain.State.Following
+				|| tactics.CurrentGoal != MobileNPCTactics.Goal.None)
+				return;
+			MobileNPCHumanoidPerception eyes = GetComponent<MobileNPCHumanoidPerception>();
+			if (eyes != null && (eyes.VisiblePlayer != null
+				|| eyes.VisibleNPC != null || eyes.VisibleZombie != null))
+				return;
+			// Growls are not proof that combat is necessary: shorter,
+			// cautious investigation. Gunfire calls for longer surveillance.
+			float investigationTime = sound == InnateSoundClass.ZombieGrowl
+				? Mathf.Min(duration, 12f) : Mathf.Min(duration, 25f);
+			ReportNoise(approximatePosition, investigationTime);
+			listeningClue = approximatePosition;
+			listenUntil = Time.time + (sound == InnateSoundClass.ZombieGrowl ? 1.3f : 0.8f);
+		}
+
 		public void ReportNoise(Vector3 position, float duration = 25.0f)
 		{
 			if (!CanAcceptServerInput)
