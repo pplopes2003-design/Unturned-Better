@@ -324,6 +324,16 @@ namespace SDG.Unturned
 			return true;
 		}
 
+		/// <summary>Extend a verified flank only while its motor has made
+		/// observable progress. Never change the chosen firing position.</summary>
+		public bool ExtendActiveFlank(float now)
+		{
+			if (currentGoal != Goal.Flank || !hasTacticalDestination)
+				return false;
+			goalDeadline = Mathf.Max(goalDeadline, now + 4f);
+			return true;
+		}
+
 		public bool IsGoalExpired(float now)
 		{
 			return currentGoal != Goal.None && now >= goalDeadline;
