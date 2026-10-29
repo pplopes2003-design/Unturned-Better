@@ -28,6 +28,10 @@ namespace SDG.Unturned
         [SerializeField, Range(10f, 95f)] private float highPressureThreshold = 64f;
         [SerializeField, Range(5f, 35f)] private float recoverySeconds = 19f;
         private readonly List<MobileNPCBrainDriver> activeDrivers = new List<MobileNPCBrainDriver>(40);
+        // One nearby squad seeing the player is one encounter pressure source,
+        // not four independent encounters simply because all four members
+        // observe the same person. Ungrouped actors remain independent.
+        private readonly HashSet<int> currentlyEngagedGroups = new HashSet<int>();
         private readonly Dictionary<int, List<OptionalSearchLease>> leasesByGroup =
             new Dictionary<int, List<OptionalSearchLease>>(24);
         private readonly List<int> emptyGroups = new List<int>(16);
@@ -161,6 +165,7 @@ namespace SDG.Unturned
             nextSampleAt = now + Mathf.Max(0.5f, sampleInterval);
             MobileNPCRegistry.CopyActiveDrivers(activeDrivers);
             int genuineHostileSightings = 0;
+            currentlyEngagedGroups.Clear();
             for (int i = 0; i < activeDrivers.Count; ++i)
             {
                 MobileNPCBrainDriver driver = activeDrivers[i];
@@ -177,7 +182,13 @@ namespace SDG.Unturned
                 // Do NOT infer a target from mere proximity to the live player.
                 if (actuallyVisible != null && disposition != null
                     && disposition.CanEngagePlayer(actuallyVisible))
-                    ++genuineHostileSightings;
+                {
+                    MobileNPCGroupMember squad = driver.GetComponent<MobileNPCGroupMember>();
+                    int encounterKey = squad != null && squad.GroupId > 0
+                        ? squad.GroupId : -driver.GetInstanceID();
+                    if (currentlyEngagedGroups.Add(encounterKey))
+                        ++genuineHostileSightings;
+                }
             }
 
             if (genuineHostileSightings > 0)
@@ -328,6 +339,7 @@ namespace SDG.Unturned
                 instance = null;
             leasesByGroup.Clear();
             activeDrivers.Clear();
+            currentlyEngagedGroups.Clear();
         }
 
         private void OnDestroy()
