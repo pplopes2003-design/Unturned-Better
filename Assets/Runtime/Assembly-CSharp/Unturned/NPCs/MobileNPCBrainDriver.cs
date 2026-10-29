@@ -29,6 +29,7 @@ namespace SDG.Unturned
 		private float flankLastProgressAt;
 		private float flankBestDistance = float.PositiveInfinity;
 		private Vector3 trackedFlankDestination;
+		private bool flankArrivalRecorded;
 		private Vector3 lastDefensiveThreatPosition;
 		private float nextStalkPlanAt;
 		private float ambushArmedUntil;
@@ -626,6 +627,14 @@ namespace SDG.Unturned
 					&& tactics.CurrentGoal != MobileNPCTactics.Goal.Reinforce)
 				|| (tactics.TacticalDestination - failedPoint).sqrMagnitude > 4f)
 				return false;
+			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Flank)
+			{
+				MobileNPCAdaptiveMemory memory = GetComponent<MobileNPCAdaptiveMemory>();
+				if (memory != null && !flankArrivalRecorded)
+					memory.RecordOwnOutcomeServer(
+						MobileNPCAdaptiveMemory.ExperienceKind.FlankAccess,
+						tactics.TacticalDestination, false);
+			}
 			if (tactics.CurrentGoal == MobileNPCTactics.Goal.SeekCover)
 			{
 				MobileNPCAdaptiveMemory memory = GetComponent<MobileNPCAdaptiveMemory>();
@@ -1142,6 +1151,15 @@ namespace SDG.Unturned
 			}
 			if (tactics.CurrentGoal == MobileNPCTactics.Goal.Flank)
 			{
+				if (!flankArrivalRecorded && tactics.HasTacticalDestination)
+				{
+					flankArrivalRecorded = true;
+					MobileNPCAdaptiveMemory memory = GetComponent<MobileNPCAdaptiveMemory>();
+					if (memory != null)
+						memory.RecordOwnOutcomeServer(
+							MobileNPCAdaptiveMemory.ExperienceKind.FlankAccess,
+							tactics.TacticalDestination, true);
+				}
 				// Keep the NPC at its alternate firing position for the bounded flank
 				// window instead of immediately resuming direct pursuit and crowding the player.
 				return;
@@ -1293,6 +1311,7 @@ namespace SDG.Unturned
 					|| (flankGoal - trackedFlankDestination).sqrMagnitude > 0.25f)
 				{
 					trackedFlankDestination = flankGoal;
+					flankArrivalRecorded = false;
 					flankTrackingStartedAt = Time.time;
 					flankLastProgressAt = Time.time;
 					flankBestDistance = remaining;
@@ -1309,6 +1328,7 @@ namespace SDG.Unturned
 			else
 			{
 				flankTrackingStartedAt = -1f;
+				flankArrivalRecorded = false;
 				flankBestDistance = float.PositiveInfinity;
 			}
 
