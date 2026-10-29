@@ -186,6 +186,11 @@ namespace SDG.Unturned
 			{
 				gameObject.AddComponent<MobileNPCMedicalBehavior>();
 			}
+			// Wound care treats bleeding/fractures, but generic HP recovery
+			// belongs to a distinct component. Ensure both exist on spawned
+			// and restored NPCs; otherwise low-HP survivors never self-heal.
+			if (GetComponent<MobileNPCMedicalUse>() == null)
+				gameObject.AddComponent<MobileNPCMedicalUse>();
 			if (motor != null && !motor.IsInitialized)
 			{
 				motor.InitializeServer();
