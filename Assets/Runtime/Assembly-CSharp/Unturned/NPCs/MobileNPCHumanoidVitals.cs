@@ -36,13 +36,24 @@ namespace SDG.Unturned
 		// attempt healing or damage. Only the original lethal hit can finalize death.
 		private bool lethalTransitionReserved;
 		private float nextBloodImpactEffectAt;
+		private bool missingBloodEffectReported;
 		private void SpawnBloodImpactServer(Vector3 impactPoint, Vector3 hitDirection)
 		{
 			if (!Provider.isServer || Time.time < nextBloodImpactEffectAt)
 				return;
 			EffectAsset blood = DamageTool.FleshDynamicRef.Find();
 			if (blood == null)
+			{
+				// Without the referenced native effect, accepted damage is
+				// invisible. Diagnose missing asset bundles once per actor.
+				if (!missingBloodEffectReported)
+				{
+					missingBloodEffectReported = true;
+					Debug.LogWarning("[MobileNPCBloodImpact] Native FleshDynamicRef effect unavailable for "
+						+ name + "; hit damage remains valid but blood VFX cannot play.", this);
+				}
 				return;
+			}
 			nextBloodImpactEffectAt = Time.time + 0.075f;
 			TriggerEffectParameters effect = new TriggerEffectParameters(blood);
 			effect.relevantDistance = EffectManager.SMALL;
