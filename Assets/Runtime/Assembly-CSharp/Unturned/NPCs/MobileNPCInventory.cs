@@ -908,6 +908,35 @@ namespace SDG.Unturned
 			return false;
 		}
 
+		/// <summary>Consume precisely one unit of an owned specified item.
+		/// Shared by injury care and ordinary HP healing. Never remove a
+		/// whole stack or consume an arbitrary medical-category item.</summary>
+		public bool TryConsumeOneItemByIdServer(ushort itemID, out Item consumedItem)
+		{
+			consumedItem = null;
+			if (!Provider.isServer || itemID == 0)
+				return false;
+			for (int i = 0; i < slots.Count; ++i)
+			{
+				Item stored = slots[i];
+				if (stored == null || stored.id != itemID || stored.amount == 0)
+					continue;
+				byte[] stateCopy = stored.state != null
+					? (byte[])stored.state.Clone() : new byte[0];
+				consumedItem = new Item(stored.id, 1, stored.quality, stateCopy);
+				if (stored.amount > 1)
+					slots[i] = new Item(stored.id, (byte)(stored.amount - 1),
+						stored.quality, stateCopy);
+				else
+				{
+					slots.RemoveAt(i);
+					slotInstanceIDs.RemoveAt(i);
+				}
+				return true;
+			}
+			return false;
+		}
+
 		public bool TryConsumeFirstItemOfType(EItemType type, out Item consumedItem)
 		{
 			consumedItem = null;
