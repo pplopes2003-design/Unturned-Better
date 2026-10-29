@@ -123,6 +123,7 @@ namespace SDG.Unturned
 			// Group identity alone never copies knowledge to absent group members.
 			TryShareExperienceByLocalSpeechServer();
 			TryAidNearbyWoundedMemberServer();
+			MaintainCoverAdvancePairServer();
 			TryIssueLeaderDirectiveServer();
 			if (!Provider.isServer || CurrentSquadRole != SquadRole.Advancing
 				|| pendingAdvanceAt <= 0f || Time.time < pendingAdvanceAt)
@@ -141,6 +142,36 @@ namespace SDG.Unturned
 					assignedCoverer.ClearSquadRole();
 				ClearSquadRole();
 			}
+		}
+
+		// Revalidate the paired maneuver while it is underway, not only
+		// at the delayed moment the advance begins. A coverer who reloads,
+		// loses sight, gets wounded or withdraws cannot keep an ally in a
+		// fictitious protected advance. Never cancel the other NPC's genuine
+		// independent defense; just release the temporary squad assignment.
+		private float nextPairValidationAt;
+		private void MaintainCoverAdvancePairServer()
+		{
+			if (!Provider.isServer || Time.time < nextPairValidationAt
+				|| squadRole == SquadRole.None && assignedCoverer == null)
+				return;
+			nextPairValidationAt = Time.time + 0.65f;
+			MobileNPCGroupMember partner = assignedCoverer;
+			bool expired = CurrentSquadRole == SquadRole.None;
+			bool invalid = partner == null || partner.assignedCoverer != this
+				|| partner.GroupId != GroupId || partner.leftGroup
+				|| partner.vitals != null && partner.vitals.IsDead;
+			if (!expired && !invalid && squadRole == SquadRole.Advancing)
+				invalid = !partner.CanActuallyCoverAdvanceServer()
+					|| vitals != null && vitals.HealthFraction < 0.45f;
+			if (!expired && !invalid && squadRole == SquadRole.Covering)
+				invalid = !CanActuallyCoverAdvanceServer()
+					|| partner.CurrentSquadRole != SquadRole.Advancing;
+			if (!expired && !invalid)
+				return;
+			if (partner != null && partner.assignedCoverer == this)
+				partner.ClearSquadRole();
+			ClearSquadRole();
 		}
 
 		/// <summary>
