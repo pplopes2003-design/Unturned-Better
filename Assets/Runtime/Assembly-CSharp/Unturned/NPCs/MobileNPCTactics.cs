@@ -249,7 +249,10 @@ namespace SDG.Unturned
 			currentGoal = Goal.Flank;
 			tacticalDestination = validatedPosition;
 			hasTacticalDestination = true;
-			goalDeadline = now + 8.0f;
+			// Eight seconds often expired before a multi-corner, physically
+			// validated flank could finish, causing an immediate frontal rush.
+			// Urgent retreat/cover and failed-route callbacks still preempt it.
+			goalDeadline = now + 18.0f;
 			return true;
 		}
 
