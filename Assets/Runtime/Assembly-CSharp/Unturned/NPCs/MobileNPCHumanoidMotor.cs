@@ -3720,7 +3720,12 @@ namespace SDG.Unturned
 				|| !characterController.enabled || !characterController.isGrounded
 				|| Time.time < nextPhysicalThresholdScanTime
 				|| Time.time < nextSharedPhysicalThresholdSlot
-				|| Mathf.Abs(destination.y - transform.position.y) > 0.8f)
+				// A destination upstairs/downstairs can still require a genuine
+				// ground-floor doorway first. Rejecting the entire scan based on
+				// the FINAL goal elevation prevented NPCs entering buildings to
+				// reach interior stairs. The actual opening remains constrained
+				// by near/far floor height, standing capsule and continuous floor.
+				|| Mathf.Abs(destination.y - transform.position.y) > 4.5f)
 				return false;
 			Vector3 toGoal = destination - transform.position;
 			toGoal.y = 0f;
