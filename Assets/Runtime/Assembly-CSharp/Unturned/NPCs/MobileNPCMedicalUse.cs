@@ -65,7 +65,11 @@ namespace SDG.Unturned
 				// Vanilla UseableConsumeable grants the effect only after the
 				// Use animation. Likewise, do not heal on the first treatment frame.
 				// An interrupted treatment returns the reserved owned item.
-				if (vitals.IsDead || driver.CurrentGoal == MobileNPCTactics.Goal.Flank
+				bool urgentCombat = driver.Target != null
+					&& driver.CurrentGoal != MobileNPCTactics.Goal.SeekCover
+					&& driver.CurrentGoal != MobileNPCTactics.Goal.Retreat;
+				if (vitals.IsDead || urgentCombat
+					|| driver.CurrentGoal == MobileNPCTactics.Goal.Flank
 					|| driver.CurrentGoal == MobileNPCTactics.Goal.Stalk
 					|| driver.CurrentGoal == MobileNPCTactics.Goal.Loot)
 				{
