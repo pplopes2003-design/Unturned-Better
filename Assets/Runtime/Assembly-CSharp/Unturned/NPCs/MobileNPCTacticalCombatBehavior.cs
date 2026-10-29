@@ -434,13 +434,19 @@ namespace SDG.Unturned
 			Vector3 best = Vector3.zero;
 			float bestScore = float.NegativeInfinity;
 			MobileNPCAdaptiveMemory experience = GetComponent<MobileNPCAdaptiveMemory>();
-			for (int i = 0; i < 4; ++i)
+			// Special zombies justify a wider separation than a 4m
+			// sidestep. Every candidate still needs real walkable ground,
+			// validated navigation and an unobstructed firing lane.
+			for (int i = 0; i < (specialZombieConfirmed ? 6 : 4); ++i)
 			{
 				Vector3 bearing = i == 0 ? sideways
 					: i == 1 ? -sideways
 					: i == 2 ? (fromThreat + sideways).normalized
-					: (fromThreat - sideways).normalized;
-				Vector3 guess = transform.position + bearing * 4.1f;
+					: i == 3 ? (fromThreat - sideways).normalized
+					: i == 4 ? fromThreat
+					: (fromThreat * 1.5f + sideways).normalized;
+				Vector3 guess = transform.position + bearing
+					* (i >= 4 ? 7f : 4.1f);
 				if (!MobileNPCSpawnService.TryFindSafeGroundPosition(guess,
 					1.2f, 1.5f, RayMasks.BLOCK_COLLISION | RayMasks.GROUND2,
 					50f, out Vector3 position, out Collider support, out _)
