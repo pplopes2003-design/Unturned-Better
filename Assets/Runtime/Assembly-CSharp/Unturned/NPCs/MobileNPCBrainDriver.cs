@@ -804,6 +804,24 @@ namespace SDG.Unturned
 			return selected;
 		}
 
+		/// <summary>Opportunistic cover for a reload against a currently
+		/// observed threat. The caller establishes visibility; the normal
+		/// cover finder verifies solid occlusion and a real approach route.
+		/// Without viable cover this simply returns false.</summary>
+		public bool TrySeekReloadCoverServer(Vector3 observedThreatPosition)
+		{
+			if (!CanAcceptServerInput || tactics.CurrentGoal != MobileNPCTactics.Goal.None)
+				return false;
+			Vector3? verified = TryFindNearbyCoverPoint(observedThreatPosition);
+			if (!verified.HasValue
+				|| (verified.Value - transform.position).sqrMagnitude < 2.25f)
+				return false;
+			bool selected = tactics.TryStartReloadCover(verified.Value, Time.time);
+			if (selected)
+				PublishDecisionIfChanged();
+			return selected;
+		}
+
 		/// <summary>
 		/// Starts a flank only after the caller validates safe ground, line of fire,
 		/// and a meaningful displacement from the current position.
