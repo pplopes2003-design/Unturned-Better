@@ -453,7 +453,10 @@ namespace SDG.Unturned
 					|| support == null
 					|| !Level.checkSafeIncludingClipVolumes(position)
 					|| !motor.CanReachNearbyCoverServer(position)
-					|| risk != null && risk.GetKnownRiskAtServer(position) >= 0.85f)
+					|| risk != null && risk.GetKnownRiskAtServer(position) >= 0.85f
+						&& (!specialZombieConfirmed
+							|| risk.GetKnownRiskAtServer(position)
+								>= risk.GetKnownRiskAtServer(transform.position) * 0.78f))
 					continue;
 				Vector3 eye = position + Vector3.up * eyeHeight;
 				if (!IsClearLineOfFire(eye, target.position
