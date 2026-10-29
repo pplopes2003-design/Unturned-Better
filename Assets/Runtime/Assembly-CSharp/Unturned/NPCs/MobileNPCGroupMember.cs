@@ -203,11 +203,57 @@ namespace SDG.Unturned
 			else
 				desired = SquadDirective.Hold;
 
-			ApplyLocalDirectiveServer(desired, this);
+			// Strategy is collective, execution is individual. A blanket
+			// Probe order made every armed NPC abandon its firing lane to
+			// charge/flank together. Nominate at most one physically present,
+			// independently sighted, healthy shooter as the maneuver element;
+			// all other audible members hold and provide ordinary return fire.
+			MobileNPCGroupMember maneuverMember = null;
+			float maneuverScore = float.NegativeInfinity;
+			if (desired == SquadDirective.Probe)
+			{
+				foreach (MobileNPCGroupMember ally in group.Members)
+				{
+					if (ally == null || ally == this || !CanExchangeOrdersServer(ally)
+						|| ally.CurrentSquadRole == SquadRole.Covering)
+						continue;
+					MobileNPCHumanoidRangedCombat gun = ally.GetComponent<MobileNPCHumanoidRangedCombat>();
+					MobileNPCBrainDriver allyBrain = ally.GetComponent<MobileNPCBrainDriver>();
+					MobileNPCHumanoidPerception allyEyes = ally.GetComponent<MobileNPCHumanoidPerception>();
+					if (gun == null || gun.SelectedGunAsset == null || gun.IsReloading
+						|| gun.RoundsRemaining <= 3 || ally.vitals == null
+						|| ally.vitals.HealthFraction < 0.65f || allyBrain == null
+						|| allyBrain.CurrentState != MobileNPCBrain.State.Pursuing
+						|| allyBrain.CurrentGoal != MobileNPCTactics.Goal.None
+						|| allyBrain.Target == null || allyEyes == null)
+						continue;
+					Transform enemy = allyBrain.Target;
+					bool ownSight = allyEyes.VisiblePlayer != null
+						&& enemy == allyEyes.VisiblePlayer.transform
+						|| allyEyes.VisibleNPC != null
+						&& enemy == allyEyes.VisibleNPC.transform
+						|| allyEyes.VisibleZombie != null
+						&& enemy == allyEyes.VisibleZombie.transform;
+					if (!ownSight)
+						continue;
+					float score = ally.CurrentSquadRole == SquadRole.Advancing ? 100f : 0f;
+					score += ally.vitals.HealthFraction * 10f
+						+ Mathf.Min(15, gun.RoundsRemaining) * 0.25f;
+					if (score > maneuverScore)
+					{
+						maneuverScore = score;
+						maneuverMember = ally;
+					}
+				}
+			}
+			ApplyLocalDirectiveServer(desired == SquadDirective.Probe
+				? SquadDirective.Hold : desired, this);
 			foreach (MobileNPCGroupMember ally in group.Members)
 			{
 				if (ally != null && ally != this && CanExchangeOrdersServer(ally))
-					ApplyLocalDirectiveServer(desired, ally);
+					ApplyLocalDirectiveServer(desired == SquadDirective.Probe
+						? ally == maneuverMember ? SquadDirective.Probe : SquadDirective.Hold
+						: desired, ally);
 			}
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
 			Debug.Log("[MobileNPCGroupMember] Group " + GroupId + " leader "
