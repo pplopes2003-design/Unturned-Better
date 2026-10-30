@@ -157,7 +157,7 @@ namespace SDG.Unturned
 		private float nextLadderApproachPlanTime;
 		private readonly List<Vector3> ladderApproachScratch = new List<Vector3>(128);
 		private MobileNPCTravelMemory travelMemory;
-		private MobileNPCNativeAStarRouteProvider nativeAStarRouteProvider;
+		private MobileNPCIndependentRouteProvider nativeAStarRouteProvider;
 		private Vector3 spawnPosition;
 		private Vector3 velocity;
 		private bool hasInitialized;
@@ -590,9 +590,9 @@ namespace SDG.Unturned
 			// each Update on 20-40 NPCs would cause needless GC spikes.
 			globalFootingResolver = TryResolveGlobalFootingServer;
 			globalEdgeValidator = IsGlobalEdgePhysicallyTraversableServer;
-			nativeAStarRouteProvider = GetComponent<MobileNPCNativeAStarRouteProvider>();
+			nativeAStarRouteProvider = GetComponent<MobileNPCIndependentRouteProvider>();
 			if (nativeAStarRouteProvider == null)
-				nativeAStarRouteProvider = gameObject.AddComponent<MobileNPCNativeAStarRouteProvider>();
+				nativeAStarRouteProvider = gameObject.AddComponent<MobileNPCIndependentRouteProvider>();
 			if (visualRoot == null)
 			{
 				visualRoot = transform;
@@ -1015,8 +1015,6 @@ namespace SDG.Unturned
 			if (!isUnderwater && !isPlannedJumping
 				&& !waitingForLearnedAccess && !waitingForLadderApproach
 				&& routeWaypoints.Count == 0 && !hasDetourWaypoint
-				&& (nativeAStarRouteProvider == null
-					|| !nativeAStarRouteProvider.IsAvailable)
 				&& globalGoalOffset.sqrMagnitude > 100f
 				&& Mathf.Abs(destination.y - transform.position.y) <= 6f)
 			{
