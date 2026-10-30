@@ -104,3 +104,10 @@ When a hybrid plan is accepted, the motor feeds path waypoints to its existing r
 - `MobileNPCHumanoidMotor.TryHybridRecovery` excludes the actor's Agent layer from *static route planning* to avoid mapping temporary NPC crowds as walls. Normal CharacterController collision remains active; this is NOT phasing through other characters.
 - Navigation reports default enabled in the motor for the next diagnostic build (disable explicitly before a 40-NPC performance run). Output under `Application.persistentDataPath/MobileNPC/NavigationReports`.
 - The new hybrid system is a local on-demand geometry-derived grid, not a baked full-map navmesh. Existing doorway, ladder, multi-floor and global planning code is preserved. Real traversal quality is UNVERIFIED pending a Unity build; no claim of solved interior navigation.
+
+## Combat Total telemetry — Player(10) and 11 JSONL files (2026-10-30)
+The submitted files contain 32 hybrid route events, **zero successful paths**, nine 'verified_facade_opening' events, and zero hybrid movement samples. The old global route planner logs repeated 'No connected corridor' errors and the opening scanner also sometimes reports 'No traversable opening'. This verifies a failure between recognizing openings and producing executable routes; it does not demonstrate that ALL openings are absent. Some 0.02-0.04 ms hybrid failures suggest rejection at the initial validation stage; actual reason was previously omitted.
+
+**Diagnostic code correction:** `HybridNPCGridPlanner.LastFailureReason` now distinguishes `invalid_configuration`, `destination_outside_local_radius`, `start_ground_not_found`, `start_capsule_blocked`, `node_budget_exhausted`, and `no_reachable_corridor`. The motor writes the specific reason to JSONL instead of undifferentiated `hybrid_local_failed`. This is needed to safely choose a physics/mesh fix; not a claim that traversal is fixed.
+
+Scope: user tested **Combat Total only**; do not extrapolate results to Normal mode. Unity rebuild and in-game validation outstanding. Next fix should follow the dominant specific failure reason, and test one NPC standing outside a known unobstructed doorway.
