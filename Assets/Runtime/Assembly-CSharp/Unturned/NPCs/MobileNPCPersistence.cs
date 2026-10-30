@@ -67,6 +67,8 @@ namespace SDG.Unturned
 			// Version 6 is backward-compatible with version 1-5 snapshots.
 			public List<MobileNPCTravelMemory.LearnedRoute> learnedRoutes
 				= new List<MobileNPCTravelMemory.LearnedRoute>();
+			public List<MobileNPCSpatialMemory.PassageSnapshot> crossedPassages
+				= new List<MobileNPCSpatialMemory.PassageSnapshot>();
 			// Version 7: a surviving individual's strategic intention and
 			// physiological urgency. Absent/null fields in v1-v6 stay default;
 			// no dead survivor's plan is inherited by a fresh replacement.
@@ -408,6 +410,10 @@ namespace SDG.Unturned
 				MobileNPCTravelMemory travelMemory = instance.GetComponent<MobileNPCTravelMemory>();
 				if (travelMemory != null)
 					travelMemory.RestoreSnapshotServer(record.learnedRoutes);
+				MobileNPCSpatialMemory spatialMemory = instance.GetComponent<MobileNPCSpatialMemory>();
+				if (spatialMemory == null)
+					spatialMemory = instance.AddComponent<MobileNPCSpatialMemory>();
+				spatialMemory.RestorePassagesServer(record.crossedPassages);
 
 				// Restore physiological needs BEFORE the A-Life utility planner.
 				// Never restore an old tactical destination or a stale physics path.
@@ -537,6 +543,9 @@ namespace SDG.Unturned
 				MobileNPCTravelMemory travelMemory = driver.GetComponent<MobileNPCTravelMemory>();
 				if (travelMemory != null)
 					record.learnedRoutes = travelMemory.ExportSnapshotServer();
+				MobileNPCSpatialMemory spatialMemory = driver.GetComponent<MobileNPCSpatialMemory>();
+				if (spatialMemory != null)
+					record.crossedPassages = spatialMemory.ExportPassagesServer();
 
 				MobileNPCSurvivalNeeds survival = driver.GetComponent<MobileNPCSurvivalNeeds>();
 				if (survival != null)
