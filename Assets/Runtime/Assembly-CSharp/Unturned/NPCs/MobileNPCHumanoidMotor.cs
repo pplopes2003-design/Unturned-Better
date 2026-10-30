@@ -764,7 +764,30 @@ namespace SDG.Unturned
 				// resuming the prior strategic destination ONCE. Every piece
 				// of world ground and group coordination is checked again.
 				if (!TryResumeSuspendedRoutineWaypointServer())
-					TryChooseRoamingDestination();
+				{
+					// When scouting, favor a nearby, physically observed
+					// boundary of personal knowledge before random wandering.
+					// Tactical/combat destinations have already preempted this.
+					bool sensedFrontier = false;
+					if (autonomyPlanner != null
+						&& (autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Patrol
+							|| autonomyPlanner.CurrentJob == MobileNPCAutonomyPlanner.Job.Scavenge))
+					{
+						MobileNPCSpatialMemory spatial = GetComponent<MobileNPCSpatialMemory>();
+						Vector3 frontier;
+						if (spatial != null
+							&& spatial.TryGetExplorationFrontier(transform.position, out frontier)
+							&& Level.checkSafeIncludingClipVolumes(frontier))
+						{
+							roamingDestination = frontier;
+							hasRoamingDestination = true;
+							nextRoamingDecisionTime = Time.time + 5f;
+							sensedFrontier = true;
+						}
+					}
+					if (!sensedFrontier)
+						TryChooseRoamingDestination();
+				}
 			}
 
 			// Refuse an optional scouting assignment which would lead
