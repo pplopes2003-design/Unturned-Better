@@ -157,7 +157,7 @@ namespace SDG.Unturned
 		private float nextLadderApproachPlanTime;
 		private readonly List<Vector3> ladderApproachScratch = new List<Vector3>(128);
 		private MobileNPCTravelMemory travelMemory;
-		private MobileNPCIndependentRouteProvider nativeAStarRouteProvider;
+		private MobileNPCIndependentRouteProvider independentRouteProvider;
 		private Vector3 spawnPosition;
 		private Vector3 velocity;
 		private bool hasInitialized;
@@ -590,9 +590,9 @@ namespace SDG.Unturned
 			// each Update on 20-40 NPCs would cause needless GC spikes.
 			globalFootingResolver = TryResolveGlobalFootingServer;
 			globalEdgeValidator = IsGlobalEdgePhysicallyTraversableServer;
-			nativeAStarRouteProvider = GetComponent<MobileNPCIndependentRouteProvider>();
-			if (nativeAStarRouteProvider == null)
-				nativeAStarRouteProvider = gameObject.AddComponent<MobileNPCIndependentRouteProvider>();
+			independentRouteProvider = GetComponent<MobileNPCIndependentRouteProvider>();
+			if (independentRouteProvider == null)
+				independentRouteProvider = gameObject.AddComponent<MobileNPCIndependentRouteProvider>();
 			if (visualRoot == null)
 			{
 				visualRoot = transform;
@@ -1000,8 +1000,8 @@ namespace SDG.Unturned
 					&& Time.time >= nextRoutePlanTime)
 				{
 					nextRoutePlanTime = Time.time + 0.75f;
-					if (nativeAStarRouteProvider != null && nativeAStarRouteProvider.IsAvailable
-						&& TryBuildNativeAStarRoute(destination))
+					if (independentRouteProvider != null && independentRouteProvider.IsAvailable
+						&& TryBuildIndependentRoute(destination))
 					{
 						detourGoalSnapshot = destination;
 						hasDetourWaypoint = false;
@@ -3204,7 +3204,7 @@ namespace SDG.Unturned
 						+ "; goal=" + brainDriver.Destination
 						+ ", waypointMode=" + routeMode
 						+ ", nativeAStarAvailable="
-						+ (nativeAStarRouteProvider != null && nativeAStarRouteProvider.IsAvailable)
+						+ (independentRouteProvider != null && independentRouteProvider.IsAvailable)
 						+ ", steeringSide=" + avoidanceSide
 						+ ", stuckRecoveries=" + consecutiveStuckRecoveries
 						+ ", brainGoal=" + brainDriver.CurrentGoal + ".", this);
@@ -3652,7 +3652,7 @@ namespace SDG.Unturned
 
 			// Prefer Unturned's native A* graph when the licensed runtime library exists.
 			// The provider is reflection-only because the public SDK omits ASPFP sources.
-			if (TryBuildNativeAStarRoute(destination))
+			if (TryBuildIndependentRoute(destination))
 			{
 				detourGoalSnapshot = destination;
 				hasDetourWaypoint = false;
@@ -3666,8 +3666,8 @@ namespace SDG.Unturned
 			// completed answer gets a chance to be consumed. If native A*
 			// fails or times out, its existing retry cooldown permits the
 			// normal local fallback below.
-			if (nativeAStarRouteProvider != null
-				&& nativeAStarRouteProvider.IsRequestPending)
+			if (independentRouteProvider != null
+				&& independentRouteProvider.IsRequestPending)
 				return;
 
 			// A survivor who ACTUALLY landed on a crate may need to step
@@ -4733,18 +4733,18 @@ namespace SDG.Unturned
 			}
 			else
 			{
-				if (nativeAStarRouteProvider == null
-					|| !nativeAStarRouteProvider.IsAvailable)
+				if (independentRouteProvider == null
+					|| !independentRouteProvider.IsAvailable)
 				{
 					knownAccessEntryRetryUntil[entryRouteIndex] = Time.time + 5f;
 					hasPendingKnownAccessPath = false;
 					pendingKnownAccessEntryRouteId = -1;
 					return false;
 				}
-				if (!nativeAStarRouteProvider.TryGetRoute(
+				if (!independentRouteProvider.TryGetRoute(
 					transform.position, entrance, learnedAccessApproach))
 				{
-					hasPendingKnownAccessPath = nativeAStarRouteProvider.IsRequestPending;
+					hasPendingKnownAccessPath = independentRouteProvider.IsRequestPending;
 					pendingKnownAccessEntryRouteId = hasPendingKnownAccessPath
 						? entryRouteIndex : -1;
 					waitingForApproach = hasPendingKnownAccessPath;
@@ -4925,17 +4925,17 @@ namespace SDG.Unturned
 			}
 			else
 			{
-				if (nativeAStarRouteProvider == null
-					|| !nativeAStarRouteProvider.IsAvailable)
+				if (independentRouteProvider == null
+					|| !independentRouteProvider.IsAvailable)
 				{
 					hasPlannedLadderApproach = false;
 					nextLadderApproachPlanTime = Time.time + 4f;
 					return false;
 				}
-				if (!nativeAStarRouteProvider.TryGetRoute(transform.position,
+				if (!independentRouteProvider.TryGetRoute(transform.position,
 					plannedLadderEntrance, ladderApproachScratch))
 				{
-					waitingForNativeLadderPath = nativeAStarRouteProvider.IsRequestPending;
+					waitingForNativeLadderPath = independentRouteProvider.IsRequestPending;
 					nextLadderApproachPlanTime = Time.time + 0.45f;
 					if (!waitingForNativeLadderPath)
 					{
@@ -4979,11 +4979,11 @@ namespace SDG.Unturned
 			return true;
 		}
 
-		private bool TryBuildNativeAStarRoute(Vector3 destination)
+		private bool TryBuildIndependentRoute(Vector3 destination)
 		{
 			if (Time.time < nativeNearObstructionRetryUntil
-				|| nativeAStarRouteProvider == null
-				|| !nativeAStarRouteProvider.TryGetRoute(transform.position, destination, routeWaypoints))
+				|| independentRouteProvider == null
+				|| !independentRouteProvider.TryGetRoute(transform.position, destination, routeWaypoints))
 				return false;
 
 			routeWaypointIndex = 0;
@@ -5030,8 +5030,8 @@ namespace SDG.Unturned
 							Debug.LogWarning("[MobileNPCHumanoidMotor] Native A* first step "
 								+ "physically blocked (check interior furniture, barricades or walls). "
 								+ "Local collision-aware route will be attempted; backend="
-								+ nativeAStarRouteProvider.ObservedBackendName
-								+ ", status=" + nativeAStarRouteProvider.DiagnosticStatus
+								+ independentRouteProvider.ObservedBackendName
+								+ ", status=" + independentRouteProvider.DiagnosticStatus
 								+ ", position=" + transform.position + ".", this);
 						}
 						return false;
