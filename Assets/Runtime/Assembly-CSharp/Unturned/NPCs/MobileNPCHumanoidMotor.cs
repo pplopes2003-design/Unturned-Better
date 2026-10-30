@@ -352,6 +352,67 @@ namespace SDG.Unturned
 		private MobileNPCGlobalRoutePlanner.ResolveFooting globalFootingResolver;
 		private MobileNPCGlobalRoutePlanner.ValidateEdge globalEdgeValidator;
 		private float nextGlobalRouteDiagnosticAt;
+		// Conservative, opt-in hybrid local recovery. Never replace native/known door paths.
+		[SerializeField] private bool enableHybridRecovery = true;
+		[SerializeField] private bool enableNavigationReports = false;
+		private float nextHybridRecoveryAt;
+		private static float nextSharedHybridRecoveryAt;
+		private readonly List<Vector3> hybridRouteScratch = new List<Vector3>(128);
+		private HybridNPCNavigationTelemetry navigationTelemetry;
+		private HybridNPCPathFollower hybridPathMonitor = new HybridNPCPathFollower();
+		private bool monitoringHybridPath;
+
+		private void RecordHybridRoute(Vector3 from, Vector3 goal, bool success, string cause, float elapsedMs)
+		{
+			if (navigationTelemetry == null || !navigationTelemetry.LoggingEnabled) return;
+			float distance = 0f;
+			for (int i = 1; i < hybridRouteScratch.Count; i++)
+				distance += Vector3.Distance(hybridRouteScratch[i - 1], hybridRouteScratch[i]);
+			navigationTelemetry.RecordRoute(GetInstanceID().ToString(), "level",
+				from, goal, -1, -1, -1, hybridRouteScratch.Count,
+				distance, elapsedMs, success, cause);
+		}
+
+		private bool TryHybridRecovery(Vector3 goal)
+		{
+			if (!enableHybridRecovery || Time.time < nextHybridRecoveryAt
+				|| Time.time < nextSharedHybridRecoveryAt
+				|| routeWaypoints.Count != 0 || hasDetourWaypoint)
+				return false;
+			nextHybridRecoveryAt = Time.time + 4f;
+			nextSharedHybridRecoveryAt = Time.time + 0.35f;
+			if (Vector3.Distance(transform.position, goal) > 24f)
+				return false;
+			// Prefer physical world collision layers over DefaultRaycastLayers;
+			// the motor already uses obstacleMask for blocking geometry.
+			var config = HybridNPCGridPlanner.Settings.Default;
+			config.collisionMask = obstacleMask;
+			config.maxSearchRadius = 24f;
+			config.maxExpandedNodes = 850;
+			config.agentRadius = characterController.radius * 0.90f;
+			config.agentHeight = characterController.height;
+			config.maxStepUp = characterController.stepOffset;
+			config.maxSlopeDegrees = characterController.slopeLimit;
+			hybridRouteScratch.Clear();
+			var watch = System.Diagnostics.Stopwatch.StartNew();
+			bool found = HybridNPCGridPlanner.TryFindPath(transform.position,
+				goal, config, hybridRouteScratch);
+			watch.Stop();
+			RecordHybridRoute(transform.position, goal, found,
+				found ? "hybrid_local_success" : "hybrid_local_failed",
+				(float)watch.Elapsed.TotalMilliseconds);
+			if (!found || hybridRouteScratch.Count < 2)
+				return false;
+			routeWaypoints.AddRange(hybridRouteScratch);
+			routeWaypointIndex = 0;
+			hasPartialLocalFrontier = false;
+			hasPhysicalThresholdRoute = false;
+			detourGoalSnapshot = goal;
+			nextPlannedRouteValidationTime = 0f;
+			hybridPathMonitor.SetPath(hybridRouteScratch);
+			monitoringHybridPath = true;
+			return true;
+		}
 
 		/// <summary>Limited, per-individual beginning-of-life guidance is
 		/// progress, not a rechargeable resource after save/reload.</summary>
@@ -421,6 +482,17 @@ namespace SDG.Unturned
 			physicallyCrouched = false;
 			locomotionPolicy.Reset();
 			globalRoutePlanner.Reset();
+			nextHybridRecoveryAt = 0f;
+			monitoringHybridPath = false;
+			hybridPathMonitor.Clear();
+			if (enableNavigationReports)
+			{
+				if (navigationTelemetry == null)
+					navigationTelemetry = GetComponent<HybridNPCNavigationTelemetry>();
+				if (navigationTelemetry == null)
+					navigationTelemetry = gameObject.AddComponent<HybridNPCNavigationTelemetry>();
+				navigationTelemetry.SetEnabled(true);
+			}
 			globalRouteScratch.Clear();
 			nextGlobalRouteDiagnosticAt = 0f;
 			nextJumpTime = 0f;
@@ -947,6 +1019,12 @@ namespace SDG.Unturned
 				}
 #endif
 			}
+			// Hybrid recovery is attempted only after existing navigation has
+			// declined a route, and only for a nearby physically verified goal.
+			if (!isUnderwater && !isPlannedJumping && !waitingForLearnedAccess
+				&& !waitingForLadderApproach && routeWaypoints.Count == 0
+				&& !hasDetourWaypoint && !hasPhysicalThresholdRoute)
+				TryHybridRecovery(destination);
 			// A separate, bounded two-surface-per-cell local search can
 				// discover REAL stairs between nearby floors. Never infer a
 				// vertical shortcut merely from identical X/Z coordinates.
