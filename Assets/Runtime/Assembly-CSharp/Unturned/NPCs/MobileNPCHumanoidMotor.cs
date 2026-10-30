@@ -104,6 +104,7 @@ namespace SDG.Unturned
 		private MobileNPCBrainDriver.MovementOwner physicalThresholdOwner;
 		private int physicalThresholdApproachWaypointIndex;
 		private Vector3 physicalThresholdBeyondWaypoint;
+		private Vector3 physicalThresholdEntryWaypoint;
 		// A verified floor-level low opening can be crawled through with
 		// the SAME real CharacterController at its actual crouch height.
 		// Neither window sills nor solid walls are passable by this helper.
@@ -1157,6 +1158,21 @@ namespace SDG.Unturned
 					&& Mathf.Abs(routeWaypoints[routeWaypointIndex].y - transform.position.y)
 					<= Mathf.Max(0.45f, characterController.stepOffset + 0.2f))
 				{
+					// Reaching the FAR threshold waypoint, not merely discovering
+					// an opening, proves that the NPC actually crossed it.
+					if (hasPhysicalThresholdRoute
+						&& routeWaypointIndex == routeWaypoints.Count - 1
+						&& Vector3.Distance(transform.position, physicalThresholdBeyondWaypoint) < 0.55f)
+					{
+						MobileNPCSpatialMemory personal = GetComponent<MobileNPCSpatialMemory>();
+						if (personal != null)
+							personal.RememberObservedPassage(physicalThresholdEntryWaypoint,
+								physicalThresholdBeyondWaypoint);
+						if (navigationTelemetry != null && navigationTelemetry.LoggingEnabled)
+							navigationTelemetry.RecordPortal(GetInstanceID().ToString(),
+								"level", physicalThresholdEntryWaypoint, physicalThresholdBeyondWaypoint,
+								-1, -1, -1, true, "physically_crossed_facade");
+					}
 					// This is the only valid proof of progressing through the
 					// verified opening; route discovery alone is not success.
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -4061,6 +4077,7 @@ namespace SDG.Unturned
 			// replanning toward the original investigation/combat goal.
 			routeWaypoints.Add(bestFar);
 			physicalThresholdBeyondWaypoint = bestFar;
+			physicalThresholdEntryWaypoint = bestNear;
 			// Register only the aperture accepted by the motor's actual
 			// floor, capsule and reachable-approach checks.
 			HybridNPCObservedPortalRegistry.Remember(bestNear, bestFar);
