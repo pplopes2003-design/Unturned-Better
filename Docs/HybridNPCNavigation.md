@@ -45,3 +45,19 @@ Do not merge this branch into main until runtime references resolve and Unity te
 - The probe assumes axis-aligned rectangular bounds for each region. It is not a robust building-shape detector and must not be described as complete automatic portal recognition.
 - The original planner's default physics mask is only a placeholder. Set static world collision layers to exclude NPC colliders, triggers and unwanted surfaces.
 - A successful path test does not guarantee animation, weapon alignment, collision-free motor execution or multiplayer replication.
+
+## Dedicated machine-learning-ready diagnostics (third iteration)
+- `HybridNPCNavigationTelemetry`: opt-in JSON Lines events for movement, routes, portals, faults and recovery outcomes. Writes into `Application.persistentDataPath/MobileNPC/NavigationReports/` using `nav_<session>_<sequence>.jsonl`. Creates directory lazily, batches writes, rotates by size and prunes older files. Logging is off by default.
+- `HybridNPCNavigationSession`: wrapper for route planning, waypoint status, stalled-event emission and reporting recovery outcomes. It needs to be instantiated and called by the actual MobileNPC runtime; not automatically connected.
+- `Tools/analyze_npc_navigation.py`: offline standard-library script to group recurring portal failures, route issues, and recovery outcomes.
+
+Example offline analysis:
+```shell
+python Tools/analyze_npc_navigation.py "<Unity persistentDataPath>/MobileNPC/NavigationReports" --output npc_navigation_report.md
+```
+
+**Important:** This is a telemetry/reporting foundation that enables later offline supervised learning, not a trained model, automatic online learning, or an in-game training interface. To train any model, reviewed labels, a replay/test dataset, policy selection and validation are needed. User feedback can be encoded as approved route/portal overrides, rather than blindly mutating navigation while the game runs.
+
+**Activation:** Add the telemetry component to an appropriate persistent Unity object and call `SetEnabled(true)` with a future debug setting; feed events from the real NPC motor and portal traversal; create one `HybridNPCNavigationSession` per NPC. Keep write calls on the Unity main thread. No integration with the missing MobileNPC classes has yet been performed.
+
+**Privacy and performance:** Event fields do not include chat, SteamID or IP address; in-world positions and map identity are recorded. Logs require the user's opt-in, use bounded rotation, and should not be enabled in routine releases until performance is validated.
