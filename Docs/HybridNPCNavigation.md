@@ -61,3 +61,20 @@ python Tools/analyze_npc_navigation.py "<Unity persistentDataPath>/MobileNPC/Nav
 **Activation:** Add the telemetry component to an appropriate persistent Unity object and call `SetEnabled(true)` with a future debug setting; feed events from the real NPC motor and portal traversal; create one `HybridNPCNavigationSession` per NPC. Keep write calls on the Unity main thread. No integration with the missing MobileNPC classes has yet been performed.
 
 **Privacy and performance:** Event fields do not include chat, SteamID or IP address; in-world positions and map identity are recorded. Logs require the user's opt-in, use bounded rotation, and should not be enabled in routine releases until performance is validated.
+
+## Pre-build gate (2026-10-30)
+Run at repository root:
+```sh
+python Tools/preflight_mobile_npc.py
+```
+Exit 2 means missing NPC runtime sources; resolve these before attempting a MobileNPC validation build. The current GitHub branch tree does not show definitions for several types required by `MobileNPCHumanoidVitals`. Do not introduce no-op classes solely to silence C# errors: that would conceal broken combat, movement and injury behavior.
+
+The new navigation code is a prototype and is not connected to the actual NPC brain/motor. Before the next functional build:
+1. Restore the current implementation of MobileNPCBrainDriver, MobileNPCHumanoidMotor, MobileNPCInjurySystem, perception, combat, aim and medical behavior to the source tree.
+2. Run preflight again and fix missing references.
+3. Compile scripts in Unity 2022.3.62f3, resolve editor errors, ensure prefabs have components correctly wired.
+4. Instrument NPC spawn, path planning, motor movement, portal attempts and recovery with HybridNPCNavigationTelemetry (opt-in).
+5. Run a development build on Washington and capture Player.log plus nav JSONL after a doorway/ramp test.
+6. Keep main unchanged until the branch passes an actual editor and player test.
+
+The source-only preflight is not equivalent to a Unity compile or successful runtime navigation test.
