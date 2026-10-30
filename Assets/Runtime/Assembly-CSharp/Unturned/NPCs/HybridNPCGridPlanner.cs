@@ -27,6 +27,8 @@ namespace SDG.Unturned
             public float maxSearchRadius;
             public int maxExpandedNodes;
             public LayerMask collisionMask;
+            // Exclude the NPC's own rig colliders, regardless of child layer.
+            public Transform ignoredRoot;
 
             public static Settings Default
             {
@@ -235,8 +237,21 @@ namespace SDG.Unturned
         {
             Vector3 lower = feet + Vector3.up * (s.agentRadius + 0.07f);
             Vector3 upper = feet + Vector3.up * (s.agentHeight - s.agentRadius - 0.04f);
-            return !Physics.CheckCapsule(lower, upper, s.agentRadius,
+            // CheckCapsule cannot distinguish this agent's own equipment/rig
+            // colliders from level geometry, causing false blocked starts.
+            Collider[] overlaps = Physics.OverlapCapsule(lower, upper, s.agentRadius,
                 s.collisionMask, QueryTriggerInteraction.Ignore);
+            foreach (Collider hit in overlaps)
+            {
+                if (hit == null || (s.ignoredRoot != null &&
+                    hit.transform.IsChildOf(s.ignoredRoot))) continue;
+                // A supporting floor may slightly touch the lower hemisphere
+                // due to floating-point overlap. Walls and raised objects
+                // remain blockers.
+                if (hit.bounds.max.y <= feet.y + 0.10f) continue;
+                return false;
+            }
+            return true;
         }
 
         private static bool CanTraverse(Vector3 from, Vector3 to, Settings s)
@@ -251,8 +266,17 @@ namespace SDG.Unturned
             Vector3 lower = from + Vector3.up * (s.agentRadius + 0.10f);
             Vector3 upper = from + Vector3.up * (s.agentHeight - s.agentRadius);
             Vector3 direction = flat / horizontal;
-            return !Physics.CapsuleCast(lower, upper, s.agentRadius,
+            RaycastHit[] hits = Physics.CapsuleCastAll(lower, upper, s.agentRadius,
                 direction, horizontal, s.collisionMask, QueryTriggerInteraction.Ignore);
+            foreach (RaycastHit hit in hits)
+            {
+                if (hit.collider == null || (s.ignoredRoot != null &&
+                    hit.collider.transform.IsChildOf(s.ignoredRoot))) continue;
+                if (hit.collider.bounds.max.y <= Mathf.Min(from.y, to.y) + 0.10f)
+                    continue;
+                return false;
+            }
+            return true;
         }
 
         private static void Reconstruct(Node node, List<Vector3> output)
