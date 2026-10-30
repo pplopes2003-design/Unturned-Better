@@ -395,8 +395,14 @@ namespace SDG.Unturned
 			config.maxSlopeDegrees = characterController.slopeLimit;
 			hybridRouteScratch.Clear();
 			var watch = System.Diagnostics.Stopwatch.StartNew();
-			bool found = HybridNPCGridPlanner.TryFindPath(transform.position,
+			bool found = HybridNPCObservedPortalRegistry.TryRoute(transform.position,
 				goal, config, hybridRouteScratch);
+			if (!found)
+			{
+				hybridRouteScratch.Clear();
+				found = HybridNPCGridPlanner.TryFindPath(transform.position,
+					goal, config, hybridRouteScratch);
+			}
 			watch.Stop();
 			RecordHybridRoute(transform.position, goal, found,
 				found ? "hybrid_local_success" : "hybrid_local_failed",
@@ -4055,6 +4061,12 @@ namespace SDG.Unturned
 			// replanning toward the original investigation/combat goal.
 			routeWaypoints.Add(bestFar);
 			physicalThresholdBeyondWaypoint = bestFar;
+			// Register only the aperture accepted by the motor's actual
+			// floor, capsule and reachable-approach checks.
+			HybridNPCObservedPortalRegistry.Remember(bestNear, bestFar);
+			if (navigationTelemetry != null && navigationTelemetry.LoggingEnabled)
+				navigationTelemetry.RecordPortal(GetInstanceID().ToString(), "level",
+					bestNear, bestFar, -1, -1, -1, true, "verified_facade_opening");
 			hasPhysicalThresholdRoute = true;
 			physicalThresholdOwner = brainDriver != null
 				? brainDriver.CurrentMovementOwner : MobileNPCBrainDriver.MovementOwner.Routine;
