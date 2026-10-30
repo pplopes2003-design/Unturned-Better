@@ -88,6 +88,10 @@ namespace SDG.Unturned
 			pendingHealAmount = healAmount;
 			pendingLeg = leg;
 			treatmentFinishesAt = Time.time + Mathf.Max(0.5f, treatmentDuration);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			Debug.Log("[MobileNPCMedicalBehavior] Treatment started npc=" + name
+				+ " item=" + reserved.id + " HP=" + vitals.CurrentHealth.ToString("F1"), this);
+#endif
 			MobileNPCVisualAnimation visual = GetComponent<MobileNPCVisualAnimation>();
 			if (visual != null)
 				visual.PlayMedicalUseAnimation();
