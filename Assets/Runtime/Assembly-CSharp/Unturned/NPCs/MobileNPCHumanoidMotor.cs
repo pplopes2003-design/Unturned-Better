@@ -2058,7 +2058,19 @@ namespace SDG.Unturned
 				}
 			}
 			if (bestScore == float.NegativeInfinity)
+			{
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+				if (Time.time >= nextPhysicalThresholdDiagnosticTime)
+				{
+					nextPhysicalThresholdDiagnosticTime = Time.time + 5f;
+					Debug.Log("[MobileNPCGeometryThreshold] No traversable opening npc=" + name
+						+ " groundedPairs=" + groundedOpeningPairs
+						+ " capsuleClearPairs=" + capsuleClearPairs
+						+ " wall=" + wall.point + " goal=" + destination, this);
+				}
+#endif
 				return false;
+			}
 			float acceleration = Mathf.Abs(Physics.gravity.y)
 				* Mathf.Clamp(gravityMultiplier, 0.5f, 2f) * 3f;
 			if (!vaultTraversal.TryPlanJumpServer(observedGoal,
@@ -3799,6 +3811,8 @@ namespace SDG.Unturned
 			float bestScore = float.NegativeInfinity;
 			float secondScore = float.NegativeInfinity;
 			Vector3 bestNear = Vector3.zero, bestFar = Vector3.zero;
+			int groundedOpeningPairs = 0;
+			int capsuleClearPairs = 0;
 			Vector3 secondNear = Vector3.zero, secondFar = Vector3.zero;
 			// Search at most 11.7m along each side; no global architecture
 			// scan. One geometrically verified candidate then gets one
@@ -3830,6 +3844,7 @@ namespace SDG.Unturned
 						|| IsRouteNodeOccupied(far, radius))
 						continue;
 
+					++groundedOpeningPairs;
 					Vector3 crossing = far - near;
 					crossing.y = 0f;
 					float length = crossing.magnitude;
@@ -3838,6 +3853,7 @@ namespace SDG.Unturned
 							near, crossing / length, length, radius)
 						|| !HasContinuousLocalFloor(near, far))
 						continue;
+					++capsuleClearPairs;
 					// Sample the middle quarters as well. The facade can
 					// have two floors with a gap even when its two sides
 					// happen to be walkable (windows, ledges, balconies).
