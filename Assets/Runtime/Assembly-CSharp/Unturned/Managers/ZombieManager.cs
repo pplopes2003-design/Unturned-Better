@@ -1185,9 +1185,15 @@ namespace SDG.Unturned
 					// spawnpoints allow it. Respect the map's maximum and never
 					// fabricate spawnpoints or exceed the region's zombie budget.
 					if (!Dedicator.IsDedicatedServer && Level.info.type == ELevelType.SURVIVAL)
+						{
 						serverMaxZombies = Mathf.CeilToInt(serverMaxZombies * 1.5f);
-					regionMaxZombies = Mathf.Min(flagMaxZombies,
-						Mathf.Min(eligibleSpawnpoints.Count, serverMaxZombies));
+						int expandedMapCap = Mathf.Clamp(Mathf.CeilToInt(
+							Mathf.Max(0, flagMaxZombies) * 1.5f), 0, 80);
+						regionMaxZombies = Mathf.Min(expandedMapCap,
+							Mathf.Min(eligibleSpawnpoints.Count, serverMaxZombies));
+					}
+					else
+						regionMaxZombies = Mathf.Min(flagMaxZombies, serverMaxZombies);
 					regionMaxBossZombies = LevelNavigation.flagData[bound].maxBossZombies;
 				}
 
