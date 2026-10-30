@@ -604,6 +604,33 @@ namespace SDG.Unturned
 			}
 
 			float deltaTime = Time.deltaTime;
+			if (monitoringHybridPath)
+			{
+				var progress = hybridPathMonitor.Tick(transform.position, deltaTime);
+				if (navigationTelemetry != null && navigationTelemetry.LoggingEnabled)
+					navigationTelemetry.RecordMovement(GetInstanceID().ToString(),
+						"level", transform.position, detourGoalSnapshot,
+						hybridPathMonitor.DesiredWaypoint, velocity.magnitude,
+						progress.ToString());
+				if (progress == HybridNPCPathFollower.RouteState.Stalled)
+				{
+					if (navigationTelemetry != null)
+						navigationTelemetry.RecordProblem(GetInstanceID().ToString(),
+							"level", transform.position, detourGoalSnapshot,
+							"hybrid_waypoint_stalled", "reset_and_replan", false);
+					routeWaypoints.Clear();
+					routeWaypointIndex = 0;
+					monitoringHybridPath = false;
+					hybridPathMonitor.Clear();
+					nextHybridRecoveryAt = Time.time + 5f;
+				}
+				else if (progress == HybridNPCPathFollower.RouteState.Arrived
+					|| routeWaypoints.Count == 0)
+				{
+					monitoringHybridPath = false;
+					hybridPathMonitor.Clear();
+				}
+			}
 			if (verifiedFurnitureSupportCollider != null
 				&& Time.time >= nextVerifiedFurnitureSupportCheckTime)
 				RefreshVerifiedFurnitureSupportServer();
