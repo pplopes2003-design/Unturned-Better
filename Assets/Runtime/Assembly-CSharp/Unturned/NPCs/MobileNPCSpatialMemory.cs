@@ -11,6 +11,67 @@ namespace SDG.Unturned
     [DisallowMultipleComponent]
     public sealed class MobileNPCSpatialMemory : MonoBehaviour
     {
+        private struct CrossedPassage
+        {
+            public Vector3 entry;
+            public Vector3 exit;
+            public float observedAt;
+        }
+        private readonly List<CrossedPassage> crossed = new List<CrossedPassage>(12);
+
+        public void RememberObservedPassage(Vector3 entry, Vector3 exit)
+        {
+            for (int i = 0; i < crossed.Count; ++i)
+            {
+                if ((crossed[i].entry - entry).sqrMagnitude < 0.64f
+                    && (crossed[i].exit - exit).sqrMagnitude < 0.64f)
+                {
+                    crossed[i] = new CrossedPassage { entry = entry, exit = exit,
+                        observedAt = Time.time };
+                    return;
+                }
+            }
+            if (crossed.Count >= 12) crossed.RemoveAt(0);
+            crossed.Add(new CrossedPassage { entry = entry, exit = exit,
+                observedAt = Time.time });
+        }
+
+        public bool TryRouteCrossedPassage(Vector3 start, Vector3 goal,
+            HybridNPCGridPlanner.Settings settings, List<Vector3> result)
+        {
+            for (int i = crossed.Count - 1; i >= 0; --i)
+            {
+                CrossedPassage p = crossed[i];
+                if (Time.time - p.observedAt > 120f) continue;
+                bool reverse = Vector3.Distance(start, p.exit) +
+                    Vector3.Distance(goal, p.entry) <
+                    Vector3.Distance(start, p.entry) + Vector3.Distance(goal, p.exit);
+                Vector3 entry = reverse ? p.exit : p.entry;
+                Vector3 exit = reverse ? p.entry : p.exit;
+                var first = new List<Vector3>(24);
+                var middle = new List<Vector3>(12);
+                var last = new List<Vector3>(24);
+                if (!HybridNPCGridPlanner.TryFindPath(start, entry, settings, first)
+                    || !HybridNPCGridPlanner.TryFindPath(entry, exit, settings, middle)
+                    || !HybridNPCGridPlanner.TryFindPath(exit, goal, settings, last))
+                    continue;
+                result.Clear();
+                Append(first, result);
+                Append(middle, result);
+                Append(last, result);
+                if (result.Count >= 2) return true;
+            }
+            return false;
+        }
+
+        private static void Append(List<Vector3> leg, List<Vector3> route)
+        {
+            foreach (Vector3 point in leg)
+                if (route.Count == 0 ||
+                    (route[route.Count - 1] - point).sqrMagnitude > 0.0025f)
+                    route.Add(point);
+        }
+
         private struct Observation
         {
             public Vector3 position;
