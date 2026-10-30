@@ -74,6 +74,7 @@ namespace SDG.Unturned
         private float gunFallbackShotAt;
         private float gunFallbackReloadUntil;
         private bool weaponPoseFallbackReported;
+        private float proceduralMedicalUntil;
         private Transform hitReactionSpine;
         private float proceduralHitUntil;
         private float proceduralHitStartedAt;
@@ -481,7 +482,22 @@ namespace SDG.Unturned
 
             // Normal native Animation evaluation has already finished. An
             // ineffective Equip state cannot be detected merely with IsPlaying.
-            UpdateActualGunShoulderPose();
+            if (Time.time < proceduralMedicalUntil && weaponRightShoulder != null
+                && weaponLeftShoulder != null && weaponRightHand != null
+                && weaponLeftHand != null)
+            {
+                // Unlike the Player rig this prefab lacks native Use/Aid.
+                // Place both forearms toward the abdomen without consuming
+                // health or claiming a native animation was played.
+                Vector3 care = (weaponLeftShoulder.position + weaponRightShoulder.position)
+                    * 0.5f + transform.forward * 0.32f + Vector3.down * 0.34f;
+                AimShoulderToward(weaponRightShoulder, weaponRightHand,
+                    care - weaponRightShoulder.position, 0.85f);
+                AimShoulderToward(weaponLeftShoulder, weaponLeftHand,
+                    care - weaponLeftShoulder.position, 0.85f);
+            }
+            else
+                UpdateActualGunShoulderPose();
 
             if (hitReactionSpine == null || legacyAnimation == null
                 || Time.time >= proceduralHitUntil)
@@ -737,11 +753,13 @@ namespace SDG.Unturned
         {
             if (vitals == null || vitals.IsDead)
                 return;
+            suppressWeaponPoseUntil = Mathf.Max(suppressWeaponPoseUntil, Time.time + 2.05f);
+            proceduralMedicalUntil = Time.time + 2.05f;
             if (!TryPlayActionClip("Use"))
             {
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-                Debug.LogWarning("[MobileNPCMedical] NPC rig has no playable Use clip: "
-                    + name + ". Treatment still follows its server timer.", this);
+                Debug.Log("[MobileNPCMedical] Native Use clip absent; procedural care pose active npc="
+                    + name + ".", this);
 #endif
             }
         }
