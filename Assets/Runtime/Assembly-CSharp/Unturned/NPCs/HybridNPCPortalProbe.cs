@@ -60,7 +60,8 @@ namespace SDG.Unturned
                 Vector3 center = Vector3.Lerp(a, b, i / (float)count);
                 Vector3 inside = center - outward * depth;
                 Vector3 outside = center + outward * depth;
-                Vector3 groundInside, groundOutside;
+                Vector3 groundInside = Vector3.zero;
+                Vector3 groundOutside = Vector3.zero;
                 bool valid = GroundAt(inside, center.y, mask, maxStep, maxSlope, out groundInside)
                     && GroundAt(outside, center.y, mask, maxStep, maxSlope, out groundOutside)
                     && Mathf.Abs(groundInside.y - groundOutside.y) <= maxStep
