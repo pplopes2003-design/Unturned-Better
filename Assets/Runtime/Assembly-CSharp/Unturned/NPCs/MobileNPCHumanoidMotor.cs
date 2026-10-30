@@ -3750,7 +3750,7 @@ namespace SDG.Unturned
 				Mathf.Max(0.15f, characterController.radius * 0.9f));
 			Vector3 origin = transform.position + Vector3.up * 1.05f;
 			int hits = Physics.SphereCastNonAlloc(origin, radius, forward,
-				ObstacleHitBuffer, 2.0f, obstacleMask,
+				ObstacleHitBuffer, 3.5f, obstacleMask,
 				QueryTriggerInteraction.Ignore);
 			if (hits == 0)
 			{
@@ -3759,7 +3759,7 @@ namespace SDG.Unturned
 				// Only take this second low probe AFTER a measured stall.
 				origin = transform.position + Vector3.up * 0.42f;
 				hits = Physics.SphereCastNonAlloc(origin, radius, forward,
-					ObstacleHitBuffer, 2.0f, obstacleMask,
+					ObstacleHitBuffer, 3.5f, obstacleMask,
 					QueryTriggerInteraction.Ignore);
 			}
 			if (hits <= 0 || hits >= ObstacleHitBuffer.Length)
@@ -3805,7 +3805,7 @@ namespace SDG.Unturned
 			// expensive exact local path to its near-side approach.
 			for (int side = -1; side <= 1; side += 2)
 			{
-				for (int step = 1; step <= 18; ++step)
+				for (int step = 0; step <= 18; ++step)
 				{
 					float lateral = step * 0.65f;
 					Vector3 aperture = wallFoot + sideways * (side * lateral);
