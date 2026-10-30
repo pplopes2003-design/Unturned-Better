@@ -66,13 +66,18 @@ namespace SDG.Unturned
 				// Vanilla UseableConsumeable grants the effect only after the
 				// Use animation. Likewise, do not heal on the first treatment frame.
 				// An interrupted treatment returns the reserved owned item.
-				bool urgentCombat = driver.Target != null
+				// Combat Total NPCs frequently retain a target even while
+				// badly wounded. Mere target memory must not cancel a life-saving
+				// consumable already reserved. At critical HP finish the action;
+				// normal wounds still require cover or a break in engagement.
+				bool criticalCare = vitals.HealthFraction <= 0.25f;
+				bool urgentCombat = !criticalCare && driver.Target != null
 					&& driver.CurrentGoal != MobileNPCTactics.Goal.SeekCover
 					&& driver.CurrentGoal != MobileNPCTactics.Goal.Retreat;
 				if (vitals.IsDead || urgentCombat
-					|| driver.CurrentGoal == MobileNPCTactics.Goal.Flank
-					|| driver.CurrentGoal == MobileNPCTactics.Goal.Stalk
-					|| driver.CurrentGoal == MobileNPCTactics.Goal.Loot)
+					|| !criticalCare && driver.CurrentGoal == MobileNPCTactics.Goal.Flank
+					|| !criticalCare && driver.CurrentGoal == MobileNPCTactics.Goal.Stalk
+					|| !criticalCare && driver.CurrentGoal == MobileNPCTactics.Goal.Loot)
 				{
 					CancelPendingTreatment();
 					return;
@@ -115,7 +120,7 @@ namespace SDG.Unturned
 			bool protectedTreatment = driver.CurrentGoal == MobileNPCTactics.Goal.SeekCover
 				|| driver.CurrentGoal == MobileNPCTactics.Goal.Retreat;
 			if ((driver.Target != null || driver.CurrentGoal != MobileNPCTactics.Goal.None)
-				&& !protectedTreatment)
+				&& !protectedTreatment && vitals.HealthFraction > 0.25f)
 			{
 				nextAttemptTime = Time.time + retryInterval;
 				return;
@@ -146,6 +151,11 @@ namespace SDG.Unturned
 				return;
 			pendingItem = consumed;
 			pendingHeal = healAmount;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			Debug.Log("[MobileNPCMedicalUse] Treatment started npc=" + name
+				+ " hp=" + vitals.CurrentHealth.ToString("F1")
+				+ " item=" + consumed.id, this);
+#endif
 			treatmentFinishesAt = Time.time + Mathf.Max(0.5f, treatmentDuration);
 			// Presentation may play a real native Use clip when available;
 			// treatment and HP remain authoritative on the server.
