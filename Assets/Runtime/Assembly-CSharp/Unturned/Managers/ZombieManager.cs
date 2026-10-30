@@ -1046,7 +1046,8 @@ namespace SDG.Unturned
 			if (asset != null && asset.Overrides_Spawn_Chance)
 			{
 				zombieSpecialityTable.add(EZombieSpeciality.CRAWLER, asset.Crawler_Chance);
-				zombieSpecialityTable.add(EZombieSpeciality.SPRINTER, asset.Sprinter_Chance);
+				zombieSpecialityTable.add(EZombieSpeciality.SPRINTER,
+					asset.Sprinter_Chance * (!Dedicator.IsDedicatedServer && Level.info.type == ELevelType.SURVIVAL ? 0.45f : 1f));
 				zombieSpecialityTable.add(EZombieSpeciality.FLANKER_FRIENDLY, asset.Flanker_Chance);
 				zombieSpecialityTable.add(EZombieSpeciality.BURNER, asset.Burner_Chance);
 				zombieSpecialityTable.add(EZombieSpeciality.ACID, asset.Acid_Chance);
@@ -1069,7 +1070,8 @@ namespace SDG.Unturned
 			else
 			{
 				zombieSpecialityTable.add(EZombieSpeciality.CRAWLER, Provider.modeConfigData.Zombies.Crawler_Chance);
-				zombieSpecialityTable.add(EZombieSpeciality.SPRINTER, Provider.modeConfigData.Zombies.Sprinter_Chance);
+				zombieSpecialityTable.add(EZombieSpeciality.SPRINTER,
+					Provider.modeConfigData.Zombies.Sprinter_Chance * (!Dedicator.IsDedicatedServer && Level.info.type == ELevelType.SURVIVAL ? 0.45f : 1f));
 				zombieSpecialityTable.add(EZombieSpeciality.FLANKER_FRIENDLY, Provider.modeConfigData.Zombies.Flanker_Chance);
 				zombieSpecialityTable.add(EZombieSpeciality.BURNER, Provider.modeConfigData.Zombies.Burner_Chance);
 				zombieSpecialityTable.add(EZombieSpeciality.ACID, Provider.modeConfigData.Zombies.Acid_Chance);
@@ -1179,7 +1181,13 @@ namespace SDG.Unturned
 				{
 					int serverMaxZombies = Mathf.CeilToInt(levelSpawnpoints.Count * Provider.modeConfigData.Zombies.Spawn_Chance);
 					int flagMaxZombies = LevelNavigation.flagData[bound].maxZombies;
-					regionMaxZombies = Mathf.Min(flagMaxZombies, serverMaxZombies);
+					// Offline survival: 50% more baseline population when authored
+					// spawnpoints allow it. Respect the map's maximum and never
+					// fabricate spawnpoints or exceed the region's zombie budget.
+					if (!Dedicator.IsDedicatedServer && Level.info.type == ELevelType.SURVIVAL)
+						serverMaxZombies = Mathf.CeilToInt(serverMaxZombies * 1.5f);
+					regionMaxZombies = Mathf.Min(flagMaxZombies,
+						Mathf.Min(eligibleSpawnpoints.Count, serverMaxZombies));
 					regionMaxBossZombies = LevelNavigation.flagData[bound].maxBossZombies;
 				}
 
