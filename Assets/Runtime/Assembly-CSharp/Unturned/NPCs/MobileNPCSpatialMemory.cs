@@ -87,6 +87,9 @@ namespace SDG.Unturned
         private const int MaxCells = 192;
         private float nextScanAt;
         private int scanPhase;
+        private Vector2Int lastFrontierKey;
+        private float lastFrontierChosenAt;
+        private bool hasLastFrontier;
 
         private static Vector2Int Key(Vector3 position)
         {
@@ -246,12 +249,23 @@ namespace SDG.Unturned
                 if (!cells.ContainsKey(k + Vector2Int.left)) ++unknown;
                 if (!cells.ContainsKey(k + Vector2Int.right)) ++unknown;
                 if (unknown == 0) continue;
+                // Do not send the same NPC back to an identical frontier
+                // every time its routine requests a new destination.
+                if (hasLastFrontier && k == lastFrontierKey &&
+                    Time.time - lastFrontierChosenAt < 24f) continue;
                 float score = unknown * 3f - Mathf.Abs(distance - 5f);
                 if (score <= best) continue;
                 best = score;
                 frontier = known.position;
             }
-            return best > float.NegativeInfinity;
+            if (best > float.NegativeInfinity)
+            {
+                lastFrontierKey = Key(frontier);
+                lastFrontierChosenAt = Time.time;
+                hasLastFrontier = true;
+                return true;
+            }
+            return false;
         }
 
         /// <summary>
