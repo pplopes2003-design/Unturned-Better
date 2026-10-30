@@ -757,6 +757,7 @@ namespace SDG.Unturned
 			float[] angles = { -70f, -40f, -20f, 0f, 20f, 40f, 70f };
 			float[] distances = { 4f, 7f, 10f };
 			MobileNPCAdaptiveMemory memory = GetComponent<MobileNPCAdaptiveMemory>();
+			MobileNPCSpatialMemory sensed = GetComponent<MobileNPCSpatialMemory>();
 			// Contextual epsilon-greedy cover selection over physically validated
 			// candidates. Individual first-hand/overheard successes influence score;
 			// a small chance to explore prevents permanently avoiding an old failure.
@@ -876,6 +877,12 @@ namespace SDG.Unturned
 						// Individual success/failure history then biases its score.
 						float learnedScore = memory != null
 							? memory.GetCoverAccessAdjustment(candidate) : 0f;
+						// Sensory memory is a preference, not an authority:
+						// keep the ground, shielding and reachable-path proof above.
+						bool lastObservedBlocked;
+						if (sensed != null &&
+							sensed.TryGetRecentObservation(candidate, out lastObservedBlocked))
+							learnedScore += lastObservedBlocked ? -4f : 1.25f;
 						float distanceCost = (candidate - transform.position).magnitude * 0.5f;
 						float score = learnedScore - distanceCost;
 						if (score > bestCoverScore)
