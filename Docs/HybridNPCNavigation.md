@@ -147,3 +147,6 @@ Validation still required in actual Unity Player build; no promise that doorway 
 
 ## Combat sensor memory used for cover selection
 `MobileNPCSpatialMemory.TryGetRecentObservation` exposes recent known/unknown/blocked 1m cells with height/time checks. `MobileNPCBrainDriver.TryFindNearbyCoverPoint` now incorporates these observations into scoring **after** its existing ground, shielding, direct-corridor or bounded A* accessibility checks. Recently free endpoints receive a small preference; observed blocked endpoints a strong penalty. Unknown sites retain existing validation and are not automatically rejected. This applies to verified combat/reload defensive cover selection without overriding target hostility, firing authorization or player/zombie navigation. No build/test performed yet.
+
+## Investigation and frontier behavior consolidation
+Investigation spiral candidates are now rejected if individual sensor memory recently observed a blocked destination, before existing physically grounded route validation. Exploration frontiers are suppressed for 24 seconds after selection, avoiding immediate reselection of identical boundaries. Neither observation alone is sufficient to claim accessibility, enemy location, or successful entry. The prior brain investigation deadlines and combat priority remain unchanged. Compile and Unity playtest still unverified.
