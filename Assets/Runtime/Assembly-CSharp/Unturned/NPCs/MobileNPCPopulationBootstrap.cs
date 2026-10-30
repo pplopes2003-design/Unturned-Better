@@ -36,6 +36,7 @@ namespace SDG.Unturned
 
         private static void OnPostLevelLoaded(int level)
         {
+            HybridNPCObservedPortalRegistry.Reset();
             CreateForLoadedMap(level);
         }
 
