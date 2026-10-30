@@ -3913,6 +3913,15 @@ namespace SDG.Unturned
 				|| TryBuildLocalRoute(bestNear, narrowPassageScratch, true);
 			if (!firstReachable)
 			{
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+				if (Time.time >= nextPhysicalThresholdDiagnosticTime)
+				{
+					nextPhysicalThresholdDiagnosticTime = Time.time + 5f;
+					Debug.Log("[MobileNPCGeometryThreshold] Opening found but near-side route rejected npc="
+						+ name + " near=" + bestNear + " secondary=" + secondNear
+						+ " actor=" + transform.position, this);
+				}
+#endif
 				// A clear opening is not a valid route if furniture
 				// or a wall blocks its near-side approach. Bounded to
 				// a single runner-up exact-path evaluation.
