@@ -111,3 +111,11 @@ The submitted files contain 32 hybrid route events, **zero successful paths**, n
 **Diagnostic code correction:** `HybridNPCGridPlanner.LastFailureReason` now distinguishes `invalid_configuration`, `destination_outside_local_radius`, `start_ground_not_found`, `start_capsule_blocked`, `node_budget_exhausted`, and `no_reachable_corridor`. The motor writes the specific reason to JSONL instead of undifferentiated `hybrid_local_failed`. This is needed to safely choose a physics/mesh fix; not a claim that traversal is fixed.
 
 Scope: user tested **Combat Total only**; do not extrapolate results to Normal mode. Unity rebuild and in-game validation outstanding. Next fix should follow the dominant specific failure reason, and test one NPC standing outside a known unobstructed doorway.
+
+## NPC-only independent routing switchover (2026-10-30)
+
+NPC humanoid motor now instantiates `MobileNPCIndependentRouteProvider` instead of `MobileNPCNativeAStarRouteProvider`. The independent provider uses locally sampled physical A*, the observed aperture registry, a bounded 30 m request horizon, 1700 expansion cap and 0.15 s shared request slot. It exposes the same essential TryGetRoute/status API for motor integrations including ladder and learned-access approaches; no Seeker or Pathfinding runtime library required.
+
+The motor's existing `MobileNPCGlobalRoutePlanner` remains enabled for long-distance routing, regardless of native A* availability, including its brief physical-stall wait. Fine doorway detection, threshold crossing, local refinements, jump/ladder motor behavior are preserved. Other systems, especially zombie movement and the original Pathfinding classes, were not modified. The native bridge source file is retained unused as legacy and may be removed later after regression tests.
+
+**Important limitations:** This creates a self-contained NPC route *provider*, not a fully baked whole-world NavMesh. The owned local A* currently plans synchronously and remains subject to collision layer calibration and CPU budgets; it is not a guarantee of full indoor/stair traversal. First compile in Unity and verify one NPC completing an actual entrance/exit traversal, then profile 10–40 agents. Do not claim runtime success without tests.
