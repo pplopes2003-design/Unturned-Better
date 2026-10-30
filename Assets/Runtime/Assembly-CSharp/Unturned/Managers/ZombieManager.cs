@@ -1956,6 +1956,32 @@ namespace SDG.Unturned
 			}
 			UnityEngine.Profiling.Profiler.EndSample();
 
+			// The performance baseline ordinarily updates only regions with
+			// players. Preserve already acquired chases after a player exits a
+			// POI: active hunters in other regions still need movement ticks.
+			// Bound the extra work on offline clients (no dedicated server).
+			if (!Dedicator.IsDedicatedServer && AllZombies != null)
+			{
+				int offRegionHuntersUpdated = 0;
+				for (int i = 0; i < AllZombies.Count && offRegionHuntersUpdated < 48; ++i)
+				{
+					Zombie pursuing = AllZombies[i];
+					if (pursuing == null || pursuing.isDead || !pursuing.isHunting
+						|| regionsWithPlayers.Contains(pursuing.bound))
+						continue;
+					try
+					{
+						pursuing.OnUpdate();
+						++offRegionHuntersUpdated;
+					}
+					catch (System.Exception exception)
+					{
+						UnturnedLog.exception(exception,
+								"Caught exception updating out-of-region pursuing zombie:");
+					}
+				}
+			}
+
 			if (Time.realtimeSinceStartup - lastTick > Provider.UPDATE_TIME)
 			{
 				lastTick += Provider.UPDATE_TIME;
