@@ -410,7 +410,7 @@ namespace SDG.Unturned
 			}
 			watch.Stop();
 			RecordHybridRoute(transform.position, goal, found,
-				found ? "hybrid_local_success" : "hybrid_local_failed",
+				found ? "hybrid_local_success" : "hybrid_" + HybridNPCGridPlanner.LastFailureReason,
 				(float)watch.Elapsed.TotalMilliseconds);
 			if (!found || hybridRouteScratch.Count < 2)
 				return false;
