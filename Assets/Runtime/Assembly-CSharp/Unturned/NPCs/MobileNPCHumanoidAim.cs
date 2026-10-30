@@ -30,6 +30,8 @@ namespace SDG.Unturned
 		private MobileNPCBrainDriver brainDriver;
 		private MobileNPCHumanoidPerception perception;
 		private MobileNPCHumanoidDisposition disposition;
+		private MobileNPCSpatialMemory spatialMemory;
+		[SerializeField] private LayerMask sensorOcclusionMask = ~(1 << 22);
 		private Transform trackedTarget;
 		private Vector3 lastTargetPosition;
 		private Vector3 estimatedTargetVelocity;
@@ -174,6 +176,7 @@ namespace SDG.Unturned
 			brainDriver = GetComponent<MobileNPCBrainDriver>();
 			perception = GetComponent<MobileNPCHumanoidPerception>();
 			disposition = GetComponent<MobileNPCHumanoidDisposition>();
+			spatialMemory = GetComponent<MobileNPCSpatialMemory>();
 		}
 
 		private void Update()
@@ -268,6 +271,17 @@ namespace SDG.Unturned
 			return TryGetShotDirection(muzzlePosition, isMoving, skill, 0f, out direction);
 		}
 
+		private bool HasObservedFiringLine(Vector3 muzzle, Vector3 aimPoint)
+		{
+			// The brain and perception own target selection. The sensor only
+			// rejects a physically obstructed shot, never grants fire permission.
+			if (spatialMemory == null)
+				spatialMemory = GetComponent<MobileNPCSpatialMemory>();
+			if (spatialMemory == null) return true; // preserve existing combat
+			return spatialMemory.HasClearSightline(muzzle, aimPoint,
+				sensorOcclusionMask, trackedTarget);
+		}
+
 		/// <summary>Weapon-aware overload that incorporates the selected firearm's authored spread.</summary>
 		public bool TryGetShotDirection(Vector3 muzzlePosition, bool isMoving, float skill, float weaponSpreadDegrees, out Vector3 direction)
 		{
@@ -282,6 +296,7 @@ namespace SDG.Unturned
 			// Keeping this offset configurable avoids every rifle firing toward the ground.
 			Vector3 aimPoint = trackedTarget.position + Vector3.up * Mathf.Max(0.0f, targetAimHeight)
 				+ estimatedTargetVelocity * Mathf.Max(0.0f, leadTime);
+			if (!HasObservedFiringLine(muzzlePosition, aimPoint)) return false;
 			Vector3 toTarget = aimPoint - muzzlePosition;
 			if (toTarget.sqrMagnitude < 0.0001f)
 			{
@@ -343,6 +358,7 @@ namespace SDG.Unturned
 				aimPoint.y += Mathf.Max(0f, -Physics.gravity.y * gravityScale)
 					* 0.5f * estimatedFlight * estimatedFlight * dropFraction;
 
+			if (!HasObservedFiringLine(muzzlePosition, aimPoint)) return false;
 			Vector3 delta = aimPoint - muzzlePosition;
 			if (delta.sqrMagnitude < 0.01f) return false;
 			skill = Mathf.Clamp01(skill);
