@@ -205,6 +205,23 @@ namespace SDG.Unturned
         }
 
         /// <summary>
+        /// Query the owner's recent observation without treating unknown space
+        /// as free. Tactical cover uses this only to rank physically verified
+        /// destinations; it never replaces route/geometry validation.
+        /// </summary>
+        public bool TryGetRecentObservation(Vector3 point, out bool blocked)
+        {
+            blocked = false;
+            Observation observation;
+            if (!cells.TryGetValue(Key(point), out observation)
+                || Time.time - observation.seenAt > Lifetime
+                || Mathf.Abs(observation.position.y - point.y) > 0.8f)
+                return false;
+            blocked = observation.blocked;
+            return true;
+        }
+
+        /// <summary>
         /// Choose a sensed edge of explored space for exploration behavior.
         /// Unknown cells are never treated as navigable; movement to the
         /// observed frontier still requires an ordinary verified route.
