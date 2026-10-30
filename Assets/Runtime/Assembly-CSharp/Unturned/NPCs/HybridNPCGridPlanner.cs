@@ -72,6 +72,11 @@ namespace SDG.Unturned
             public bool closed;
         }
 
+        // Unity physics queries run on the gameplay thread. Reuse buffers to
+        // avoid per-edge garbage collection when several NPCs plan together.
+        private static readonly Collider[] OccupancyHits = new Collider[48];
+        private static readonly RaycastHit[] MovementHits = new RaycastHit[48];
+
         private static readonly int[] StepX = { 1, -1, 0, 0, 1, 1, -1, -1 };
         private static readonly int[] StepZ = { 0, 0, 1, -1, 1, -1, 1, -1 };
 
@@ -239,10 +244,13 @@ namespace SDG.Unturned
             Vector3 upper = feet + Vector3.up * (s.agentHeight - s.agentRadius - 0.04f);
             // CheckCapsule cannot distinguish this agent's own equipment/rig
             // colliders from level geometry, causing false blocked starts.
-            Collider[] overlaps = Physics.OverlapCapsule(lower, upper, s.agentRadius,
-                s.collisionMask, QueryTriggerInteraction.Ignore);
-            foreach (Collider hit in overlaps)
+            int count = Physics.OverlapCapsuleNonAlloc(lower, upper, s.agentRadius,
+                OccupancyHits, s.collisionMask, QueryTriggerInteraction.Ignore);
+            // A saturated buffer cannot prove clearance safely.
+            if (count == OccupancyHits.Length) return false;
+            for (int i = 0; i < count; ++i)
             {
+                Collider hit = OccupancyHits[i];
                 if (hit == null || (s.ignoredRoot != null &&
                     hit.transform.IsChildOf(s.ignoredRoot))) continue;
                 // A supporting floor may slightly touch the lower hemisphere
@@ -266,10 +274,13 @@ namespace SDG.Unturned
             Vector3 lower = from + Vector3.up * (s.agentRadius + 0.10f);
             Vector3 upper = from + Vector3.up * (s.agentHeight - s.agentRadius);
             Vector3 direction = flat / horizontal;
-            RaycastHit[] hits = Physics.CapsuleCastAll(lower, upper, s.agentRadius,
-                direction, horizontal, s.collisionMask, QueryTriggerInteraction.Ignore);
-            foreach (RaycastHit hit in hits)
+            int count = Physics.CapsuleCastNonAlloc(lower, upper, s.agentRadius,
+                direction, MovementHits, horizontal, s.collisionMask,
+                QueryTriggerInteraction.Ignore);
+            if (count == MovementHits.Length) return false;
+            for (int i = 0; i < count; ++i)
             {
+                RaycastHit hit = MovementHits[i];
                 if (hit.collider == null || (s.ignoredRoot != null &&
                     hit.collider.transform.IsChildOf(s.ignoredRoot))) continue;
                 if (hit.collider.bounds.max.y <= Mathf.Min(from.y, to.y) + 0.10f)
