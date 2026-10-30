@@ -1656,11 +1656,11 @@ namespace SDG.Unturned
 					{
 						if (Provider.modeConfigData.Zombies.Slow_Movement)
 						{
-							seeker.Speed = 6.0f;// 6.25f;
+							seeker.Speed = speciality == EZombieSpeciality.SPRINTER ? 8.0f : 6.0f;
 						}
 						else
 						{
-							seeker.Speed = 6.5f;// 6.25f;
+							seeker.Speed = speciality == EZombieSpeciality.SPRINTER ? 9.0f : 6.5f;
 						}
 					}
 					else if (speciality == EZombieSpeciality.FLANKER_FRIENDLY || speciality == EZombieSpeciality.FLANKER_STALK)
@@ -1823,7 +1823,7 @@ namespace SDG.Unturned
 			}
 			else if (speciality == EZombieSpeciality.SPRINTER)
 			{
-				health = (ushort) (health * 0.5f);
+				health = (ushort) Mathf.Clamp(Mathf.RoundToInt(health * 1.65f), 1, ushort.MaxValue);
 			}
 			else if (speciality == EZombieSpeciality.BOSS_ALL || speciality == EZombieSpeciality.BOSS_MAGMA)
 			{
@@ -2761,9 +2761,63 @@ namespace SDG.Unturned
 			if (seeker != null)
 			{
 				UnityEngine.Profiling.Profiler.BeginSample("AIPath");
-				seeker.Move(delta);
+				if (!TryOfflineOffNavPlayerPursuit(delta))
+					seeker.Move(delta);
 				UnityEngine.Profiling.Profiler.EndSample();
 			}
+		}
+
+		/// <summary>
+		/// Offline-only continuation when a living player exits the native POI
+		/// navigation area. Short, grounded, collision-checked CharacterController
+		/// motion; native seeker resumes inside navigable regions.
+		/// </summary>
+		private bool TryOfflineOffNavPlayerPursuit(float delta)
+		{
+			if (!Provider.isServer || Dedicator.IsDedicatedServer || isDead
+				|| !isHunting || player == null || player.life == null
+				|| player.life.isDead || seeker == null || !seeker.CanMove
+				|| isStunned || isLeaving || delta <= 0f)
+				return false;
+			Vector3 destination = player.transform.position;
+			if (LevelNavigation.checkNavigation(destination)
+				&& LevelNavigation.checkNavigation(transform.position))
+				return false;
+			Vector3 movement = destination - transform.position;
+			if (Mathf.Abs(movement.y) > 1.6f) return false;
+			movement.y = 0f;
+			float distance = movement.magnitude;
+			if (distance <= 1.75f || distance > 65f) return false;
+			Vector3 direction = movement / distance;
+			CharacterController controller = GetComponent<CharacterController>();
+			if (controller == null || !controller.enabled || !controller.isGrounded)
+				return false;
+			float sample = Mathf.Min(distance - 1.3f, 1.2f);
+			Vector3 capsuleLow = transform.position + Vector3.up * 0.42f;
+			Vector3 capsuleHigh = transform.position + Vector3.up * 1.52f;
+			int mask = RayMasks.BLOCK_COLLISION | RayMasks.GROUND2;
+			RaycastHit[] hits = Physics.CapsuleCastAll(capsuleLow, capsuleHigh, 0.3f,
+				direction, sample, mask, QueryTriggerInteraction.Ignore);
+			foreach (RaycastHit hit in hits)
+			{
+				if (hit.collider == null || hit.collider.transform.IsChildOf(transform))
+					continue;
+				if (hit.collider.bounds.max.y <= transform.position.y + 0.1f)
+					continue;
+				return false;
+			}
+			// Never advance into a gap or over a cliff.
+			Vector3 next = transform.position + direction * Mathf.Min(sample, 0.7f);
+			RaycastHit ground;
+			if (!Physics.Raycast(next + Vector3.up * 0.55f, Vector3.down,
+				out ground, 1.35f, mask, QueryTriggerInteraction.Ignore)
+				|| Vector3.Angle(ground.normal, Vector3.up) > 45f
+				|| Mathf.Abs(ground.point.y - transform.position.y) > 0.55f)
+				return false;
+			controller.Move(direction * Mathf.Min(distance - 1.3f,
+					(speciality == EZombieSpeciality.SPRINTER ? 9f : 4.5f) * delta)
+				+ Vector3.down * 0.15f * delta);
+			return true;
 		}
 
 		/// <summary>
