@@ -56,6 +56,8 @@ namespace SDG.Unturned
             public float observedAt;
         }
         private readonly List<CrossedPassage> crossed = new List<CrossedPassage>(12);
+        private readonly RaycastHit[] scanHits = new RaycastHit[24];
+        private readonly Collider[] clearanceHits = new Collider[24];
 
         public void RememberObservedPassage(Vector3 entry, Vector3 exit)
         {
@@ -175,11 +177,13 @@ namespace SDG.Unturned
             {
                 float degrees = ((i * 2 + scanPhase) * 45f);
                 Vector3 direction = Quaternion.Euler(0f, degrees, 0f) * Vector3.forward;
-                RaycastHit[] hits = Physics.RaycastAll(origin, direction, 5f,
+                int hitCount = Physics.RaycastNonAlloc(origin, direction, scanHits, 5f,
                     mask, QueryTriggerInteraction.Ignore);
+                if (hitCount == scanHits.Length) continue;
                 float nearest = 5f;
-                foreach (RaycastHit hit in hits)
+                for (int h = 0; h < hitCount; ++h)
                 {
+                    RaycastHit hit = scanHits[h];
                     if (hit.collider == null ||
                         (owner != null && hit.collider.transform.IsChildOf(owner))) continue;
                     if (hit.distance < nearest) nearest = hit.distance;
@@ -200,17 +204,17 @@ namespace SDG.Unturned
                         continue;
                     Vector3 low = floor.point + Vector3.up * 0.45f;
                     Vector3 high = floor.point + Vector3.up * 1.4f;
-                    Collider[] contacts = Physics.OverlapCapsule(low, high, 0.30f,
-                        mask, QueryTriggerInteraction.Ignore);
-                    bool occupied = false;
-                    foreach (Collider contact in contacts)
+                    int contactCount = Physics.OverlapCapsuleNonAlloc(low, high, 0.30f,
+                        clearanceHits, mask, QueryTriggerInteraction.Ignore);
+                    bool occupied = contactCount == clearanceHits.Length;
+                    for (int c = 0; c < contactCount && !occupied; ++c)
                     {
+                        Collider contact = clearanceHits[c];
                         if (contact == null ||
                             (owner != null && contact.transform.IsChildOf(owner)) ||
                             contact.bounds.max.y <= floor.point.y + 0.10f)
                             continue;
                         occupied = true;
-                        break;
                     }
                     if (!occupied) Remember(floor.point, false);
                 }
@@ -231,10 +235,12 @@ namespace SDG.Unturned
             Vector3 delta = point - eye;
             float distance = delta.magnitude;
             if (distance <= 0.01f) return true;
-            RaycastHit[] hits = Physics.RaycastAll(eye, delta / distance,
-                distance, mask, QueryTriggerInteraction.Ignore);
-            foreach (RaycastHit hit in hits)
+            int hitCount = Physics.RaycastNonAlloc(eye, delta / distance,
+                scanHits, distance, mask, QueryTriggerInteraction.Ignore);
+            if (hitCount == scanHits.Length) return false;
+            for (int i = 0; i < hitCount; ++i)
             {
+                RaycastHit hit = scanHits[i];
                 if (hit.collider == null ||
                     hit.collider.transform.IsChildOf(transform) ||
                     (targetRoot != null &&
