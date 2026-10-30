@@ -78,3 +78,15 @@ The new navigation code is a prototype and is not connected to the actual NPC br
 6. Keep main unchanged until the branch passes an actual editor and player test.
 
 The source-only preflight is not equivalent to a Unity compile or successful runtime navigation test.
+
+## Motor integration milestone — 2026-10-30
+
+Commits `7121350` and `2703576` connect `HybridNPCGridPlanner` to the **existing** `MobileNPCHumanoidMotor` as conservative, budgeted local fallback when no native/global/threshold/ladder route is active. Existing movement and special traversal code remains authoritative. The fallback does not yet auto-populate `HybridNPCRegionNavigator` from discovered buildings; only local geometry-aware fallback is wired.
+
+New per-motor serialized flags:
+- `Enable Hybrid Recovery`: defaults ON. Planner bounded to 24m, 850 expansions and a shared 0.35s scheduling slot. Uses motor obstacleMask and CharacterController dimensions. This is a test default; profile CPU impact.
+- `Enable Navigation Reports`: defaults OFF. To capture telemetry in test builds, enable this on the MobileNPCHumanoidMotor instance/template in the Unity Inspector *before* initialization. Log output: Application.persistentDataPath/MobileNPC/NavigationReports/nav_*.jsonl.
+
+When a hybrid plan is accepted, the motor feeds path waypoints to its existing route follower and separately tracks a watchdog. On a stall, logs a diagnostic event, clears the failing route, and delays retry for 5s. Runs only on server authority.
+
+**Test status:** GitHub source committed only. No Unity compilation or player build was executed. Potential conflicts with existing recovery behavior and physics masks must be validated in Washington. The region portal graph and opening probe remain experimental and not auto-wired; do not assert universal interior navigation is solved.
