@@ -354,7 +354,9 @@ namespace SDG.Unturned
 		private float nextGlobalRouteDiagnosticAt;
 		// Conservative, opt-in hybrid local recovery. Never replace native/known door paths.
 		[SerializeField] private bool enableHybridRecovery = true;
-		[SerializeField] private bool enableNavigationReports = false;
+		// Diagnostic build: produce the promised separate navigation trace by default.
+		// Can be disabled in Inspector on crowded/performance runs.
+		[SerializeField] private bool enableNavigationReports = true;
 		private float nextHybridRecoveryAt;
 		private static float nextSharedHybridRecoveryAt;
 		private readonly List<Vector3> hybridRouteScratch = new List<Vector3>(128);
