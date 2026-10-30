@@ -11,6 +11,44 @@ namespace SDG.Unturned
     [DisallowMultipleComponent]
     public sealed class MobileNPCSpatialMemory : MonoBehaviour
     {
+        [System.Serializable]
+        public sealed class PassageSnapshot
+        {
+            public Vector3 entry;
+            public Vector3 exit;
+        }
+
+        public List<PassageSnapshot> ExportPassagesServer()
+        {
+            var result = new List<PassageSnapshot>(crossed.Count);
+            if (!Provider.isServer) return result;
+            foreach (CrossedPassage p in crossed)
+                result.Add(new PassageSnapshot { entry = p.entry, exit = p.exit });
+            return result;
+        }
+
+        public void RestorePassagesServer(List<PassageSnapshot> saved)
+        {
+            if (!Provider.isServer) return;
+            crossed.Clear();
+            if (saved == null) return;
+            foreach (PassageSnapshot p in saved)
+            {
+                if (p == null || !ValidPoint(p.entry) || !ValidPoint(p.exit)
+                    || Vector3.Distance(p.entry, p.exit) > 4f)
+                    continue;
+                RememberObservedPassage(p.entry, p.exit);
+                if (crossed.Count >= 12) break;
+            }
+        }
+
+        private static bool ValidPoint(Vector3 v)
+        {
+            return !float.IsNaN(v.x) && !float.IsNaN(v.y) && !float.IsNaN(v.z)
+                && !float.IsInfinity(v.x) && !float.IsInfinity(v.y)
+                && !float.IsInfinity(v.z);
+        }
+
         private struct CrossedPassage
         {
             public Vector3 entry;
