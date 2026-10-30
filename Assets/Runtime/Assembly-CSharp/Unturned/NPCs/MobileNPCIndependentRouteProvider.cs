@@ -74,7 +74,10 @@ namespace SDG.Unturned
             settings.collisionMask = navigationMask & ~(1 << gameObject.layer);
             settings.ignoredRoot = transform;
 
-            bool found = HybridNPCObservedPortalRegistry.TryRoute(start, goal, settings, output);
+            bool found = spatialMemory != null &&
+                spatialMemory.TryRouteCrossedPassage(start, goal, settings, output);
+            if (!found)
+                found = HybridNPCObservedPortalRegistry.TryRoute(start, goal, settings, output);
             if (!found)
                 found = HybridNPCGridPlanner.TryFindPath(start, goal, settings, output);
             if (!found && spatialMemory != null)
