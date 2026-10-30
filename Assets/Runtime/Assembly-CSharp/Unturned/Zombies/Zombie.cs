@@ -2509,7 +2509,7 @@ namespace SDG.Unturned
 								}
 								else if (speciality == EZombieSpeciality.SPRINTER)
 								{
-									damage = (byte) (damage * 0.75f);
+									damage = (byte) Mathf.Clamp(Mathf.RoundToInt(damage * 1.35f), 1, byte.MaxValue);
 								}
 
 								if (targetStructure != null)
