@@ -48,10 +48,13 @@ namespace SDG.Unturned
             HybridNPCGridPlanner.Settings config, List<Vector3> output)
         {
             output.Clear();
-            // Only one checked candidate per request to bound CPU cost.
-            int chosen = -1;
-            bool reverse = false;
-            float lowest = float.PositiveInfinity;
+            // Retry several actually observed openings. One inaccessible
+            // entrance must not prevent a second doorway from being used.
+            const int MaxCandidates = 4;
+            int[] indices = { -1, -1, -1, -1 };
+            bool[] reverse = new bool[MaxCandidates];
+            float[] scores = { float.PositiveInfinity, float.PositiveInfinity,
+                float.PositiveInfinity, float.PositiveInfinity };
             for (int i = 0; i < entries.Count; ++i)
             {
                 Passage p = entries[i];
@@ -60,35 +63,58 @@ namespace SDG.Unturned
                     Vector3.Distance(goal, p.far);
                 float backward = Vector3.Distance(start, p.far) +
                     Vector3.Distance(goal, p.near);
+                bool backwardPreferred = backward < forward;
                 float score = Mathf.Min(forward, backward);
-                if (score < lowest && score <= config.maxSearchRadius * 1.75f)
+                if (score > config.maxSearchRadius * 1.75f) continue;
+                for (int slot = 0; slot < MaxCandidates; ++slot)
                 {
-                    lowest = score;
-                    chosen = i;
-                    reverse = backward < forward;
+                    if (score >= scores[slot]) continue;
+                    for (int shift = MaxCandidates - 1; shift > slot; --shift)
+                    {
+                        scores[shift] = scores[shift - 1];
+                        indices[shift] = indices[shift - 1];
+                        reverse[shift] = reverse[shift - 1];
+                    }
+                    scores[slot] = score;
+                    indices[slot] = i;
+                    reverse[slot] = backwardPreferred;
+                    break;
                 }
             }
-            if (chosen < 0) return false;
-            Passage chosenPassage = entries[chosen];
-            Vector3 entry = reverse ? chosenPassage.far : chosenPassage.near;
-            Vector3 exit = reverse ? chosenPassage.near : chosenPassage.far;
-            var first = new List<Vector3>();
-            var transition = new List<Vector3>();
-            var last = new List<Vector3>();
-            if (!HybridNPCGridPlanner.TryFindPath(start, entry, config, first)
-                || !HybridNPCGridPlanner.TryFindPath(entry, exit, config, transition)
-                || !HybridNPCGridPlanner.TryFindPath(exit, goal, config, last))
-                return false;
-            // Reject a detour masquerading as a doorway crossing.
-            float crossingLength = 0f;
-            for (int i = 1; i < transition.Count; ++i)
-                crossingLength += Vector3.Distance(transition[i - 1], transition[i]);
-            if (crossingLength > Mathf.Max(2.5f, Vector3.Distance(entry, exit) * 1.6f))
-                return false;
-            Append(output, first);
-            Append(output, transition);
-            Append(output, last);
-            return output.Count >= 2;
+
+            var first = new List<Vector3>(32);
+            var crossing = new List<Vector3>(16);
+            var last = new List<Vector3>(32);
+            for (int candidate = 0; candidate < MaxCandidates; ++candidate)
+            {
+                if (indices[candidate] < 0) break;
+                Passage p = entries[indices[candidate]];
+                Vector3 entry = reverse[candidate] ? p.far : p.near;
+                Vector3 exit = reverse[candidate] ? p.near : p.far;
+                first.Clear();
+                crossing.Clear();
+                last.Clear();
+                // Every leg must be grounded and navigable. A doorway is
+                // never treated as a teleport or an exception to collisions.
+                if (!HybridNPCGridPlanner.TryFindPath(start, entry, config, first)
+                    || !HybridNPCGridPlanner.TryFindPath(entry, exit, config, crossing)
+                    || !HybridNPCGridPlanner.TryFindPath(exit, goal, config, last))
+                    continue;
+
+                float crossingLength = 0f;
+                for (int i = 1; i < crossing.Count; ++i)
+                    crossingLength += Vector3.Distance(crossing[i - 1], crossing[i]);
+                if (crossingLength > Mathf.Max(2.5f,
+                    Vector3.Distance(entry, exit) * 1.6f))
+                    continue;
+                output.Clear();
+                Append(output, first);
+                Append(output, crossing);
+                Append(output, last);
+                if (output.Count >= 2) return true;
+            }
+            output.Clear();
+            return false;
         }
 
         private static void Append(List<Vector3> target, List<Vector3> source)
