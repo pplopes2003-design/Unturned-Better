@@ -12,6 +12,9 @@ namespace SDG.Unturned
     /// </summary>
     public static class HybridNPCGridPlanner
     {
+        // Diagnostics describe the most recent synchronous planning request.
+        // Read immediately after TryFindPath on the same Unity main thread.
+        public static string LastFailureReason { get; private set; } = "not_started";
         [Serializable]
         public struct Settings
         {
@@ -80,15 +83,27 @@ namespace SDG.Unturned
         {
             if (output == null) throw new ArgumentNullException(nameof(output));
             output.Clear();
+            LastFailureReason = "invalid_configuration";
             if (settings.cellSize <= 0f || settings.agentHeight <= 2f * settings.agentRadius
                 || settings.maxExpandedNodes <= 0 || settings.maxSearchRadius <= 0f)
                 return false;
             if (Vector3.Distance(start, destination) > settings.maxSearchRadius)
+            {
+                LastFailureReason = "destination_outside_local_radius";
                 return false;
+            }
 
             Vector3 groundStart;
-            if (!TryGround(start, start.y, settings, out groundStart) || !IsClear(groundStart, settings))
+            if (!TryGround(start, start.y, settings, out groundStart))
+            {
+                LastFailureReason = "start_ground_not_found";
                 return false;
+            }
+            if (!IsClear(groundStart, settings))
+            {
+                LastFailureReason = "start_capsule_blocked";
+                return false;
+            }
 
             var nodes = new Dictionary<Key, Node>();
             var open = new List<Node>();
@@ -130,6 +145,7 @@ namespace SDG.Unturned
                     {
                         Reconstruct(current, output);
                         output.Add(targetGround);
+                        LastFailureReason = "success";
                         return true;
                     }
                 }
@@ -177,8 +193,14 @@ namespace SDG.Unturned
                     if (!open.Contains(next)) open.Add(next);
                 }
             }
-            if (!allowPartial || best == first) return false;
+            if (!allowPartial || best == first)
+            {
+                LastFailureReason = expanded >= settings.maxExpandedNodes
+                    ? "node_budget_exhausted" : "no_reachable_corridor";
+                return false;
+            }
             Reconstruct(best, output);
+            LastFailureReason = output.Count > 1 ? "partial_frontier" : "no_reachable_corridor";
             return output.Count > 1;
         }
 
