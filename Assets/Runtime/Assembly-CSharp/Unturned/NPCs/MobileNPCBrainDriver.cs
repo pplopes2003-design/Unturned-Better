@@ -1259,11 +1259,20 @@ namespace SDG.Unturned
 		/// At most three bounded route validations per reached sensory clue,
 		/// never per frame or during ordinary idle roaming.
 		/// </summary>
+		private static bool IsKnownBlockedInvestigationPoint(
+			MobileNPCSpatialMemory memory, Vector3 point)
+		{
+			bool blocked;
+			return memory != null && memory.TryGetRecentObservation(point, out blocked)
+				&& blocked;
+		}
+
 		private void ValidateInvestigationSweepServer()
 		{
 			MobileNPCHumanoidMotor motor = GetComponent<MobileNPCHumanoidMotor>();
 			if (motor == null)
 				return;
+			MobileNPCSpatialMemory spatial = GetComponent<MobileNPCSpatialMemory>();
 			for (int attempt = 0; attempt < 3
 				&& brain.CurrentState == MobileNPCBrain.State.Investigating; ++attempt)
 			{
@@ -1276,6 +1285,9 @@ namespace SDG.Unturned
 					&& support.GetComponentInParent<Zombie>() == null
 					&& support.GetComponentInParent<MobileNPCHumanoidVitals>() == null
 					&& Mathf.Abs(confirmed.y - transform.position.y) <= 0.55f
+					// A recently observed occupied destination is a bad
+					// investigation waypoint even if its ground is valid.
+					&& !IsKnownBlockedInvestigationPoint(spatial, confirmed)
 					&& motor.CanReachNearbyCoverServer(confirmed)
 					&& brain.TrySetInvestigationHint(confirmed, Time.time))
 					return;
