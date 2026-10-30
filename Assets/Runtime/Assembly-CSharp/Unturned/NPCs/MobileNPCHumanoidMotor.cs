@@ -392,6 +392,7 @@ namespace SDG.Unturned
 			// excluding their layer prevents the stationary A* grid from
 			// treating a temporary spawn crowd as permanent building walls.
 			config.collisionMask = obstacleMask & ~(1 << gameObject.layer);
+			config.ignoredRoot = transform;
 			config.maxSearchRadius = 24f;
 			config.maxExpandedNodes = 850;
 			config.agentRadius = characterController.radius * 0.90f;
