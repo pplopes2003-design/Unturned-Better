@@ -1364,8 +1364,6 @@ namespace SDG.Unturned
 					&& !waitingForLearnedAccess && !waitingForLadderApproach
 					&& consecutiveStuckRecoveries >= 2
 					&& goalOffset.sqrMagnitude > 196f
-					&& (nativeAStarRouteProvider == null
-						|| !nativeAStarRouteProvider.IsAvailable)
 					&& globalRoutePlanner.IsWithinBriefWaitWindow(Time.time);
 				if (waitingForGlobalPlan)
 					movementDestination = transform.position;
@@ -3701,8 +3699,6 @@ namespace SDG.Unturned
 			// steals the route slot before the incremental search can return.
 			// Nearby doorway goals and immediate physical access retain priority.
 			if (consecutiveStuckRecoveries >= 2 && toGoal.sqrMagnitude > 196f
-				&& (nativeAStarRouteProvider == null
-					|| !nativeAStarRouteProvider.IsAvailable)
 				&& globalRoutePlanner.IsWithinBriefWaitWindow(Time.time))
 				return;
 
