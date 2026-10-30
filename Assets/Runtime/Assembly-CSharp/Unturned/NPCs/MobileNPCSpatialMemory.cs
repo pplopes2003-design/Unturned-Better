@@ -205,6 +205,39 @@ namespace SDG.Unturned
         }
 
         /// <summary>
+        /// Choose a sensed edge of explored space for exploration behavior.
+        /// Unknown cells are never treated as navigable; movement to the
+        /// observed frontier still requires an ordinary verified route.
+        /// </summary>
+        public bool TryGetExplorationFrontier(Vector3 origin, out Vector3 frontier)
+        {
+            frontier = Vector3.zero;
+            float best = float.NegativeInfinity;
+            foreach (KeyValuePair<Vector2Int, Observation> pair in cells)
+            {
+                Observation known = pair.Value;
+                if (known.blocked || Time.time - known.seenAt > Lifetime)
+                    continue;
+                float distance = Vector3.Distance(origin, known.position);
+                if (distance < 2.5f || distance > 9f ||
+                    Mathf.Abs(origin.y - known.position.y) > 0.7f)
+                    continue;
+                int unknown = 0;
+                Vector2Int k = pair.Key;
+                if (!cells.ContainsKey(k + Vector2Int.up)) ++unknown;
+                if (!cells.ContainsKey(k + Vector2Int.down)) ++unknown;
+                if (!cells.ContainsKey(k + Vector2Int.left)) ++unknown;
+                if (!cells.ContainsKey(k + Vector2Int.right)) ++unknown;
+                if (unknown == 0) continue;
+                float score = unknown * 3f - Mathf.Abs(distance - 5f);
+                if (score <= best) continue;
+                best = score;
+                frontier = known.position;
+            }
+            return best > float.NegativeInfinity;
+        }
+
+        /// <summary>
         /// Returns an observed, unobstructed intermediary, never a teleport.
         /// The route provider must still verify both legs using physical A*.
         /// </summary>
