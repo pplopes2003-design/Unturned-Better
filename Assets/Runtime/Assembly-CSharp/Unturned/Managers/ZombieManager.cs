@@ -1183,11 +1183,37 @@ namespace SDG.Unturned
 					regionMaxBossZombies = LevelNavigation.flagData[bound].maxBossZombies;
 				}
 
+				// Offline survival creates naturally clustered packs from authored
+				// spawnpoints. No extra entities beyond the map's region budget.
+				Vector3 packCenter = Vector3.zero;
+				int packRemaining = 0;
 				while (eligibleSpawnpoints.Count > 0 && region.zombies.Count < regionMaxZombies)
 				{
 					int randomSpawnpointIndex = Random.Range(0, eligibleSpawnpoints.Count);
+					if (Level.info.type == ELevelType.SURVIVAL && !Dedicator.IsDedicatedServer
+						&& packRemaining > 0)
+					{
+						float nearest = 625f; // within 25m of pack leader
+						int nearIndex = -1;
+						for (int c = 0; c < eligibleSpawnpoints.Count; ++c)
+						{
+							float sqr = (eligibleSpawnpoints[c].point - packCenter).sqrMagnitude;
+							if (sqr < nearest) { nearest = sqr; nearIndex = c; }
+						}
+						if (nearIndex >= 0) randomSpawnpointIndex = nearIndex;
+						else packRemaining = 0;
+					}
 					ZombieSpawnpoint spawn = eligibleSpawnpoints[randomSpawnpointIndex];
 					eligibleSpawnpoints.RemoveAt(randomSpawnpointIndex);
+					if (Level.info.type == ELevelType.SURVIVAL && !Dedicator.IsDedicatedServer)
+					{
+						if (packRemaining <= 0)
+						{
+							packCenter = spawn.point;
+							packRemaining = Random.Range(8, 19);
+						}
+						--packRemaining;
+					}
 
 					byte spawnType = spawn.type;
 					ZombieTable table = LevelZombies.tables[spawnType];
@@ -1748,8 +1774,8 @@ namespace SDG.Unturned
 		private const float AMBIENT_HORDE_SEARCH_RADIUS = 32.0f;
 		private const float AMBIENT_HORDE_MIN_TRAVEL_DISTANCE = 38.0f;
 		private const float AMBIENT_HORDE_MAX_TRAVEL_DISTANCE = 78.0f;
-		private const int AMBIENT_HORDE_MIN_SIZE = 3;
-		private const int AMBIENT_HORDE_MAX_SIZE = 8;
+		private const int AMBIENT_HORDE_MIN_SIZE = 8;
+		private const int AMBIENT_HORDE_MAX_SIZE = 18;
 
 		private static void UpdateAmbientHordes()
 		{
@@ -1812,7 +1838,7 @@ namespace SDG.Unturned
 			}
 
 			int alerted = 0;
-			int maxHordeSize = LightingManager.isFullMoon ? 16 : AMBIENT_HORDE_MAX_SIZE;
+			int maxHordeSize = AMBIENT_HORDE_MAX_SIZE;
 			float groupRadiusSquared = AMBIENT_HORDE_SEARCH_RADIUS * AMBIENT_HORDE_SEARCH_RADIUS;
 			// The same destination makes the group converge naturally; pathfinding remains
 			// responsible for routing around buildings and terrain.
