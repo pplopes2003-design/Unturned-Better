@@ -386,7 +386,10 @@ namespace SDG.Unturned
 			// Prefer physical world collision layers over DefaultRaycastLayers;
 			// the motor already uses obstacleMask for blocking geometry.
 			var config = HybridNPCGridPlanner.Settings.Default;
-			config.collisionMask = obstacleMask;
+			// Dynamic humanoid agents belong to a separate movement problem:
+			// excluding their layer prevents the stationary A* grid from
+			// treating a temporary spawn crowd as permanent building walls.
+			config.collisionMask = obstacleMask & ~(1 << gameObject.layer);
 			config.maxSearchRadius = 24f;
 			config.maxExpandedNodes = 850;
 			config.agentRadius = characterController.radius * 0.90f;
