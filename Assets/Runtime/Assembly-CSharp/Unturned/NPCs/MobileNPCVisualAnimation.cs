@@ -640,6 +640,26 @@ namespace SDG.Unturned
             AimShoulderToward(weaponLeftShoulder, weaponLeftHand,
                 leftDirection, gunPoseFallbackBlend);
 
+            // Unturned's item clip and the NPC_Client skeleton do not share
+            // the same effective aiming pose. A raised hand is insufficient:
+            // orient the actual muzzle direction through the RIGHT shoulder
+            // while retaining the native Right_Hook attachment. This adjusts
+            // presentation only, never authoritative shot rays or hitboxes.
+            Vector3 currentBore = GetHeldWeaponForwardWorld();
+            if (boundWeaponModel != null && boundWeaponBarrel != null
+                && currentBore.sqrMagnitude > 0.5f && aimForward.sqrMagnitude > 0.5f)
+            {
+                float angularError = Vector3.Angle(currentBore, aimForward);
+                if (angularError > 4f && angularError < 165f)
+                {
+                    Quaternion correction = Quaternion.FromToRotation(currentBore, aimForward);
+                    Quaternion adjusted = correction * weaponRightShoulder.rotation;
+                    weaponRightShoulder.rotation = Quaternion.RotateTowards(
+                        weaponRightShoulder.rotation, adjusted,
+                        Mathf.Min(angularError, 65f) * gunPoseFallbackBlend);
+                }
+            }
+
             // The vanilla hand-hook rotation alone does not prove that an NPC
             // rig's weapon barrel faces its observed aim direction. The Test4
             // log recorded barrelForwardDotBody around -0.10 with a live gun.
