@@ -126,3 +126,11 @@ The motor's existing `MobileNPCGlobalRoutePlanner` remains enabled for long-dist
 - Combat, cover, search/investigation, escort, loot and exploration already flow through the same `MobileNPCBrainDriver.Destination` -> motor -> independent provider. They therefore share this spatial memory without changing combat policy or zombie code. This is an integration through the common routing interface, not proof of NPCs understanding doors semantically.
 - Individual memory is transient (no save/load, sharing or radio broadcast yet); no map-wide perception, no NavMesh dependence and no guarantee the first build successfully traverses entrances. Scan observations mark sightline clearance only; foot placement is still checked by the pathfinder.
 - Unity compilation and an actual indoor/outdoor Development Build remain required. Performance checks should include 1, 10 and 30 agents.
+
+## Sensor validity and future gun-sight integration (2026-10-30)
+
+The spatial scanner now requires actual supporting geometry, manageable slope, and standing capsule clearance before storing a free cell. Clear eye-level space alone is not a door and cannot constitute navigability. Blocked horizontal probes are still observations, not movement commands.
+
+`MobileNPCSpatialMemory.HasClearSightline(eye, point, mask, targetRoot)` is a reusable *read-only* sensor API reserved for future combat integration: ignore the observing actor and the intended target's colliders, return whether world geometry occludes the sightline. The shooting pipeline is deliberately untouched. Proposed future link: target recognition (brain) -> visibility of eye/head/torso samples (sensor) -> select shootable aim point (tactics) -> existing weapon pose, ray origin and ballistics (combat) -> memory of last-seen position with decay. Visibility alone must not authorize shooting: faction hostility, target identity, ammo and friendly-fire checks remain mandatory. Add capped scan cadence and occlusion caching before using multiple sightlines per NPC.
+
+Validation still required in actual Unity Player build; no promise that doorway traversal is fixed.
