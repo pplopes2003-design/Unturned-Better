@@ -35,3 +35,13 @@ bool found = navigator.TryRoute(agentFeet, lootFeet, exteriorId, interiorId,
 ```
 
 Do not merge this branch into main until runtime references resolve and Unity tests pass.
+
+## Added in the second iteration
+- `HybridNPCPortalProbe.FindOpenings`: samples rectangle bounds to suggest doorless geometric openings using ground rays and humanoid capsule checks. Candidate discovery **does not** establish that the opening is connected to the global graph. Sampling can miss narrow openings, sloped thresholds, rotated/irregular structures and upper floors; automatically created links require explicit validation and appropriate local region bounds.
+- `HybridNPCPathFollower`: motor-agnostic waypoint tracker with progress/stall status. It deliberately does not modify agent physics or AI transitions.
+
+## Important limits
+- No C# compilation or Unity Development Player was executed by the GitHub connector.
+- The probe assumes axis-aligned rectangular bounds for each region. It is not a robust building-shape detector and must not be described as complete automatic portal recognition.
+- The original planner's default physics mask is only a placeholder. Set static world collision layers to exclude NPC colliders, triggers and unwanted surfaces.
+- A successful path test does not guarantee animation, weapon alignment, collision-free motor execution or multiplayer replication.
