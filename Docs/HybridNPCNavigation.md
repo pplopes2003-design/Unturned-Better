@@ -90,3 +90,10 @@ New per-motor serialized flags:
 When a hybrid plan is accepted, the motor feeds path waypoints to its existing route follower and separately tracks a watchdog. On a stall, logs a diagnostic event, clears the failing route, and delays retry for 5s. Runs only on server authority.
 
 **Test status:** GitHub source committed only. No Unity compilation or player build was executed. Potential conflicts with existing recovery behavior and physics masks must be validated in Washington. The region portal graph and opening probe remain experimental and not auto-wired; do not assert universal interior navigation is solved.
+
+## Verified doorway discovery wired — build candidate
+- `MobileNPCHumanoidMotor` now calls `HybridNPCObservedPortalRegistry.Remember` only **after** its existing facade scanner accepted a real opening (ground, capsule and reachable-approach checks). Successful discoveries are optionally recorded by the JSONL telemetry service.
+- `TryHybridRecovery` now attempts a bounded path via one recently observed crossing, revalidating all three legs with geometry-aware local A*, before reverting to the direct local fallback.
+- `MobileNPCPopulationBootstrap.OnPostLevelLoaded` clears cached passages across maps. Bounded to 64 observations, 180s TTL. No persistence or sharing as personal NPC knowledge.
+- This does not yet build complete multistorey regional graphs: the regional graph/probe modules remain optional research prototypes. Native ladder, stair, existing threshold traversal and global route planner remain in use.
+- Changes were committed in GitHub, **not compiled or runtime-tested**. For next Development Build first inspect Unity Console; test one facade/doorway, no-crossing through walls, stairs, and analyze Player.log + JSONL (if report flag enabled). If there are C# errors, report the first compiler diagnostic rather than assuming behavior is ready.
