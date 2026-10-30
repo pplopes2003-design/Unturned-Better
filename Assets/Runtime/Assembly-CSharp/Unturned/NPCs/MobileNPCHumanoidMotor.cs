@@ -2058,19 +2058,7 @@ namespace SDG.Unturned
 				}
 			}
 			if (bestScore == float.NegativeInfinity)
-			{
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-				if (Time.time >= nextPhysicalThresholdDiagnosticTime)
-				{
-					nextPhysicalThresholdDiagnosticTime = Time.time + 5f;
-					Debug.Log("[MobileNPCGeometryThreshold] No traversable opening npc=" + name
-						+ " groundedPairs=" + groundedOpeningPairs
-						+ " capsuleClearPairs=" + capsuleClearPairs
-						+ " wall=" + wall.point + " goal=" + destination, this);
-				}
-#endif
 				return false;
-			}
 			float acceleration = Mathf.Abs(Physics.gravity.y)
 				* Mathf.Clamp(gravityMultiplier, 0.5f, 2f) * 3f;
 			if (!vaultTraversal.TryPlanJumpServer(observedGoal,
@@ -3586,7 +3574,7 @@ namespace SDG.Unturned
 			// the survivor to walk into the wall first. The threshold probe
 			// itself is server-only and throttled per NPC and across the crowd.
 			bool nearbyBlockedFacade = toGoal.sqrMagnitude <= 400f
-				&& Mathf.Abs(destination.y - transform.position.y) <= 0.8f
+				&& Mathf.Abs(destination.y - transform.position.y) <= 4.5f
 				&& IsObstacleBlocking(toGoal.normalized);
 			if ((consecutiveStuckRecoveries >= 1 || nearbyBlockedFacade)
 				&& TryPlanObservedBuildingThresholdServer(destination))
@@ -3898,7 +3886,19 @@ namespace SDG.Unturned
 				}
 			}
 			if (bestScore == float.NegativeInfinity)
+			{
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+				if (Time.time >= nextPhysicalThresholdDiagnosticTime)
+				{
+					nextPhysicalThresholdDiagnosticTime = Time.time + 5f;
+					Debug.Log("[MobileNPCGeometryThreshold] No traversable opening npc=" + name
+						+ " groundedPairs=" + groundedOpeningPairs
+						+ " capsuleClearPairs=" + capsuleClearPairs
+						+ " wall=" + wall.point + " goal=" + destination, this);
+				}
+#endif
 				return false;
+			}
 
 			// EXACT physical approach. The fallback's "closest reachable
 			// frontier" is not sufficient proof of reaching this entrance.
