@@ -18,6 +18,9 @@ namespace SDG.Unturned
         [SerializeField] private float replanningInterval = 1.0f;
 
         private CharacterController controller;
+        private MobileNPCSpatialMemory spatialMemory;
+        private readonly List<Vector3> approachLeg = new List<Vector3>(48);
+        private readonly List<Vector3> finalLeg = new List<Vector3>(48);
         private float nextRequestAt;
         private static float nextSharedRequestAt;
         private string diagnosticStatus = "ready";
@@ -30,6 +33,15 @@ namespace SDG.Unturned
         private void Awake()
         {
             controller = GetComponent<CharacterController>();
+            spatialMemory = GetComponent<MobileNPCSpatialMemory>();
+            if (spatialMemory == null)
+                spatialMemory = gameObject.AddComponent<MobileNPCSpatialMemory>();
+        }
+
+        private void Update()
+        {
+            if (!Provider.isServer || controller == null || spatialMemory == null) return;
+            spatialMemory.Scan(transform.position, navigationMask & ~(1 << gameObject.layer), transform);
         }
 
         public bool TryGetRoute(Vector3 start, Vector3 goal, List<Vector3> output)
@@ -65,6 +77,28 @@ namespace SDG.Unturned
             bool found = HybridNPCObservedPortalRegistry.TryRoute(start, goal, settings, output);
             if (!found)
                 found = HybridNPCGridPlanner.TryFindPath(start, goal, settings, output);
+            if (!found && spatialMemory != null)
+            {
+                // A sensed position is only a proposal; physics-verified
+                // A* must approve BOTH segments before it becomes a route.
+                Vector3 waypoint;
+                if (spatialMemory.TryGetObservedIntermediate(start, goal, out waypoint))
+                {
+                    approachLeg.Clear();
+                    finalLeg.Clear();
+                    if (HybridNPCGridPlanner.TryFindPath(start, waypoint, settings, approachLeg)
+                        && HybridNPCGridPlanner.TryFindPath(waypoint, goal, settings, finalLeg))
+                    {
+                        output.Clear();
+                        output.AddRange(approachLeg);
+                        for (int i = 0; i < finalLeg.Count; ++i)
+                            if (output.Count == 0 ||
+                                (output[output.Count - 1] - finalLeg[i]).sqrMagnitude > 0.01f)
+                                output.Add(finalLeg[i]);
+                        found = output.Count >= 2;
+                    }
+                }
+            }
             LastPathFailed = !found;
             diagnosticStatus = found ? "route-complete" : HybridNPCGridPlanner.LastFailureReason;
             if (!found || output.Count < 2)
