@@ -399,11 +399,15 @@ namespace SDG.Unturned
 
             // Try several nearby ground positions in front of the player. This bypasses
             // the normal distant spawn-anchor selection but still uses safe-ground checks.
-            for (int attempt = 0; attempt < 8; ++attempt)
+            for (int attempt = 0; attempt < 32; ++attempt)
             {
-                float angle = (attempt * 45f) * Mathf.Deg2Rad;
-                Vector3 direction = Quaternion.Euler(0f, angle, 0f) * forward;
-                Vector3 candidate = player.transform.position + direction * 7f;
+                // Spiral across several rings, rather than retrying the same
+                // eight slots when repeated manual spawns fill the first ring.
+                int ring = attempt / 8;
+                int slot = attempt % 8;
+                float angle = (slot * 45f + ring * 11.25f) * Mathf.Deg2Rad;
+                Vector3 direction = Quaternion.Euler(0f, angle * Mathf.Rad2Deg, 0f) * forward;
+                Vector3 candidate = player.transform.position + direction * (7f + ring * 2.5f);
                 if (!MobileNPCSpawnService.TryFindSafeGroundPosition(candidate, 12f, 20f,
                     ~0, maximumSlopeAngle, out Vector3 groundPosition, out string groundError))
                 {
@@ -427,13 +431,13 @@ namespace SDG.Unturned
                     return true;
                 }
 
-                if (attempt == 7)
+                if (attempt == 31)
                 {
                     Debug.LogWarning("[MobileNPCPopulationDirector] Nearby test spawn failed. Last spawn error: " + spawnError, this);
                 }
             }
 
-            Debug.LogWarning("[MobileNPCPopulationDirector] Nearby test spawn could not find safe ground within about 7 metres of the player. Try an open, flat area.", this);
+            Debug.LogWarning("[MobileNPCPopulationDirector] Nearby test spawn could not find safe ground within 7-15 metres of the player. Try an open, flat area.", this);
             return false;
         }
 
