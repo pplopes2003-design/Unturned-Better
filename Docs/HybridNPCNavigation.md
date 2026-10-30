@@ -97,3 +97,10 @@ When a hybrid plan is accepted, the motor feeds path waypoints to its existing r
 - `MobileNPCPopulationBootstrap.OnPostLevelLoaded` clears cached passages across maps. Bounded to 64 observations, 180s TTL. No persistence or sharing as personal NPC knowledge.
 - This does not yet build complete multistorey regional graphs: the regional graph/probe modules remain optional research prototypes. Native ladder, stair, existing threshold traversal and global route planner remain in use.
 - Changes were committed in GitHub, **not compiled or runtime-tested**. For next Development Build first inspect Unity Console; test one facade/doorway, no-crossing through walls, stairs, and analyze Player.log + JSONL (if report flag enabled). If there are C# errors, report the first compiler diagnostic rather than assuming behavior is ready.
+
+## Follow-up after Player(9).log / reported clustered command spawns
+
+- `MobileNPCPopulationDirector.TrySpawnNPCNearPlayer` now samples 32 sites across four offset rings (7–14.5m) rather than the same eight positions after repeated chat spawns. The existing server-side `IsSpawnCapsuleClear` remains the final placement guard. When all sites are blocked, a spawn is refused instead of knowingly overlapping.
+- `MobileNPCHumanoidMotor.TryHybridRecovery` excludes the actor's Agent layer from *static route planning* to avoid mapping temporary NPC crowds as walls. Normal CharacterController collision remains active; this is NOT phasing through other characters.
+- Navigation reports default enabled in the motor for the next diagnostic build (disable explicitly before a 40-NPC performance run). Output under `Application.persistentDataPath/MobileNPC/NavigationReports`.
+- The new hybrid system is a local on-demand geometry-derived grid, not a baked full-map navmesh. Existing doorway, ladder, multi-floor and global planning code is preserved. Real traversal quality is UNVERIFIED pending a Unity build; no claim of solved interior navigation.
