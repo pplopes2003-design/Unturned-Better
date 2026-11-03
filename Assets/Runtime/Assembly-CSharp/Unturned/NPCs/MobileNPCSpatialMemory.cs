@@ -160,27 +160,30 @@ namespace SDG.Unturned
             public float seenAt;
         }
 
-        private readonly Dictionary<Vector2Int, Observation> cells =
-            new Dictionary<Vector2Int, Observation>(192);
-        private readonly List<Vector2Int> eviction = new List<Vector2Int>(24);
+        private readonly Dictionary<Vector3Int, Observation> cells =
+            new Dictionary<Vector3Int, Observation>(192);
+        private readonly List<Vector3Int> eviction = new List<Vector3Int>(24);
         private const float Cell = 1f;
         private const float Lifetime = 120f;
         private const int MaxCells = 192;
         private float nextScanAt;
         private int scanPhase;
-        private Vector2Int lastFrontierKey;
+        private Vector3Int lastFrontierKey;
         private float lastFrontierChosenAt;
         private bool hasLastFrontier;
 
-        private static Vector2Int Key(Vector3 position)
+        private static Vector3Int Key(Vector3 position)
         {
-            return new Vector2Int(Mathf.RoundToInt(position.x / Cell),
+            // Keep stacked floors separate: one (x,z) column can contain
+            // a room, a mezzanine and a roof. 2D keys erased that evidence.
+            return new Vector3Int(Mathf.RoundToInt(position.x / Cell),
+                Mathf.RoundToInt(position.y / 0.75f),
                 Mathf.RoundToInt(position.z / Cell));
         }
 
         private void Remember(Vector3 position, bool blocked)
         {
-            Vector2Int key = Key(position);
+            Vector3Int key = Key(position);
             cells[key] = new Observation
             {
                 position = position,
@@ -189,14 +192,14 @@ namespace SDG.Unturned
             };
             if (cells.Count <= MaxCells) return;
             eviction.Clear();
-            foreach (KeyValuePair<Vector2Int, Observation> item in cells)
+            foreach (KeyValuePair<Vector3Int, Observation> item in cells)
                 if (Time.time - item.Value.seenAt > Lifetime)
                     eviction.Add(item.Key);
-            foreach (Vector2Int stale in eviction) cells.Remove(stale);
+            foreach (Vector3Int stale in eviction) cells.Remove(stale);
             if (cells.Count <= MaxCells) return;
-            Vector2Int oldestKey = default(Vector2Int);
+            Vector3Int oldestKey = default(Vector3Int);
             float oldestTime = float.PositiveInfinity;
-            foreach (KeyValuePair<Vector2Int, Observation> item in cells)
+            foreach (KeyValuePair<Vector3Int, Observation> item in cells)
                 if (item.Value.seenAt < oldestTime)
                 {
                     oldestTime = item.Value.seenAt;
@@ -318,7 +321,7 @@ namespace SDG.Unturned
         {
             frontier = Vector3.zero;
             float best = float.NegativeInfinity;
-            foreach (KeyValuePair<Vector2Int, Observation> pair in cells)
+            foreach (KeyValuePair<Vector3Int, Observation> pair in cells)
             {
                 Observation known = pair.Value;
                 if (known.blocked || Time.time - known.seenAt > Lifetime)
@@ -328,11 +331,11 @@ namespace SDG.Unturned
                     Mathf.Abs(origin.y - known.position.y) > 0.7f)
                     continue;
                 int unknown = 0;
-                Vector2Int k = pair.Key;
-                if (!cells.ContainsKey(k + Vector2Int.up)) ++unknown;
-                if (!cells.ContainsKey(k + Vector2Int.down)) ++unknown;
-                if (!cells.ContainsKey(k + Vector2Int.left)) ++unknown;
-                if (!cells.ContainsKey(k + Vector2Int.right)) ++unknown;
+                Vector3Int k = pair.Key;
+                if (!cells.ContainsKey(k + new Vector3Int(0, 0, 1))) ++unknown;
+                if (!cells.ContainsKey(k + new Vector3Int(0, 0, -1))) ++unknown;
+                if (!cells.ContainsKey(k + new Vector3Int(-1, 0, 0))) ++unknown;
+                if (!cells.ContainsKey(k + new Vector3Int(1, 0, 0))) ++unknown;
                 if (unknown == 0) continue;
                 // Do not send the same NPC back to an identical frontier
                 // every time its routine requests a new destination.
@@ -362,7 +365,7 @@ namespace SDG.Unturned
         {
             intermediate = Vector3.zero;
             float best = float.PositiveInfinity;
-            foreach (KeyValuePair<Vector2Int, Observation> item in cells)
+            foreach (KeyValuePair<Vector3Int, Observation> item in cells)
             {
                 Observation o = item.Value;
                 if (o.blocked || Time.time - o.seenAt > Lifetime ||
