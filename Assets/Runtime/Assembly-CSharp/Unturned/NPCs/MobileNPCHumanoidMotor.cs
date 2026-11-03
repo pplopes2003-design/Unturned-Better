@@ -1191,6 +1191,10 @@ namespace SDG.Unturned
 						if (personal != null)
 							personal.RememberObservedPassage(physicalThresholdEntryWaypoint,
 								physicalThresholdBeyondWaypoint);
+						// Promote a candidate to a shared graph edge only after
+						// the actual character controller reaches its far side.
+						HybridNPCObservedPortalRegistry.ConfirmCrossing(
+							physicalThresholdEntryWaypoint, physicalThresholdBeyondWaypoint);
 						if (navigationTelemetry != null && navigationTelemetry.LoggingEnabled)
 							navigationTelemetry.RecordPortal(GetInstanceID().ToString(),
 								"level", physicalThresholdEntryWaypoint, physicalThresholdBeyondWaypoint,
@@ -3132,6 +3136,21 @@ namespace SDG.Unturned
 					blockedMovementDuration = 0f;
 				}
 				return;
+			}
+
+			// A sustained stall without temporary actor crowding is physical
+			// feedback to the personal occupancy map. Keep this evidence
+			// short-lived and never block the far strategic destination.
+			if (!isUnderwater && !IsTraversingLadder && characterController.isGrounded)
+			{
+				Vector3 blockedToward = routeWaypointIndex < routeWaypoints.Count
+					? routeWaypoints[routeWaypointIndex] - samplePosition
+					: (brainDriver != null && brainDriver.HasDestination
+						? brainDriver.Destination - samplePosition
+						: roamingDestination - samplePosition);
+				MobileNPCSpatialMemory sensorMemory = GetComponent<MobileNPCSpatialMemory>();
+				if (sensorMemory != null)
+					sensorMemory.RememberPhysicalMovementBlock(samplePosition, blockedToward);
 			}
 
 			// Preserve combat/investigation destinations. Only roaming waypoints are discarded;
