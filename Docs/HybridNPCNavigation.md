@@ -160,3 +160,10 @@ Investigation spiral candidates are now rejected if individual sensor memory rec
 - With native map layers retained in the independent provider, `HybridNPCGridPlanner.TryGround` and spatial sensor floor probes now explicitly ignore the owner's colliders. Both use bounded nonalloc ray results and reject saturated scans.
 - This is an incremental **verified doorway-edge registry**, not yet a globally complete polygon NavMesh or a connected cross-city sector graph. The existing `MobileNPCGlobalRoutePlanner` remains the coarse long-distance fallback.
 - **No Unity compilation or gameplay validation performed**. Next test must capture the first compile error and verify that actual actor displacement crosses the far side of a Washington doorway.
+
+## Long-distance gateway staging (2026-11-03)
+- `HybridNPCObservedPortalRegistry.TryStageThroughConfirmedCrossing` uses up to **two** previously crossed entrances as possible short-range staging hops toward a distant goal. Candidate selection requires proximity and meaningful progress; entry and crossing legs both get new ground/capsule A* checks, with no assumed route beyond the crossing.
+- `MobileNPCIndependentRouteProvider.TryGetConfirmedGatewayStage` provides a separately throttled public call. Direct requests outside its 30m horizon no longer consume the shared planning slot.
+- `MobileNPCHumanoidMotor` attempts a confirmed stage before its coarse global 3m-cell planner for goals farther than 30m; the final brain destination is retained. On reaching the staged route endpoint, the regular planner resumes. The origin waypoint is removed before movement.
+- Existing local combat/cover/ladder requests still use `TryGetRoute`, whose success means an exact, physically validated route rather than partial progress. Ordinary global fallback and nearby threshold detection remain available.
+- **Not yet verified in Unity**. Test two adjacent buildings at 30-60m, an entrance blocked by furniture, and a destination requiring a second opening; confirm no repeated inside/outside oscillation. Record first compiler error before gameplay debugging.
