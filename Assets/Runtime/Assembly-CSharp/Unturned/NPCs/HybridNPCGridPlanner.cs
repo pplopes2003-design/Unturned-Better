@@ -76,6 +76,7 @@ namespace SDG.Unturned
         // avoid per-edge garbage collection when several NPCs plan together.
         private static readonly Collider[] OccupancyHits = new Collider[48];
         private static readonly RaycastHit[] MovementHits = new RaycastHit[48];
+        private static readonly RaycastHit[] GroundHits = new RaycastHit[48];
 
         private static readonly int[] StepX = { 1, -1, 0, 0, 1, 1, -1, -1 };
         private static readonly int[] StepZ = { 0, 0, 1, -1, 1, -1, 1, -1 };
@@ -225,17 +226,35 @@ namespace SDG.Unturned
         private static bool TryGround(Vector3 point, float referenceY, Settings s, out Vector3 ground)
         {
             ground = Vector3.zero;
-            RaycastHit hit;
             float above = s.maxStepUp + 0.12f;
             float distance = above + s.maxStepDown + 0.12f;
-            if (!Physics.Raycast(new Vector3(point.x, referenceY + above, point.z),
-                Vector3.down, out hit, distance, s.collisionMask, QueryTriggerInteraction.Ignore))
-                return false;
-            if (Vector3.Angle(hit.normal, Vector3.up) > s.maxSlopeDegrees) return false;
-            float delta = hit.point.y - referenceY;
-            if (delta > s.maxStepUp + 0.02f || delta < -s.maxStepDown - 0.02f) return false;
-            ground = hit.point;
-            return true;
+            Vector3 rayOrigin = new Vector3(point.x, referenceY + above, point.z);
+            int count = Physics.RaycastNonAlloc(rayOrigin, Vector3.down,
+                GroundHits, distance, s.collisionMask, QueryTriggerInteraction.Ignore);
+            if (count == GroundHits.Length) return false;
+            bool found = false;
+            float highestGround = float.NegativeInfinity;
+            for (int i = 0; i < count; ++i)
+            {
+                RaycastHit hit = GroundHits[i];
+                if (hit.collider == null || (s.ignoredRoot != null
+                    && hit.collider.transform.IsChildOf(s.ignoredRoot)))
+                    continue;
+                if (Vector3.Angle(hit.normal, Vector3.up) > s.maxSlopeDegrees)
+                    continue;
+                float delta = hit.point.y - referenceY;
+                if (delta > s.maxStepUp + 0.02f || delta < -s.maxStepDown - 0.02f)
+                    continue;
+                // Choose highest physically supported floor, not an arbitrary
+                // unsorted hit; keep upper/lower stories independent.
+                if (!found || hit.point.y > highestGround)
+                {
+                    found = true;
+                    highestGround = hit.point.y;
+                    ground = hit.point;
+                }
+            }
+            return found;
         }
 
         private static bool IsClear(Vector3 feet, Settings s)
