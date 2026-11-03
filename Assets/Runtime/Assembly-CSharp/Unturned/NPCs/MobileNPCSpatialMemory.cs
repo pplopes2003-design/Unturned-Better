@@ -298,6 +298,29 @@ namespace SDG.Unturned
         }
 
         /// <summary>
+        /// Feedback from a real, sustained physical movement stall. Store a
+        /// short-lived blocked observation just ahead of the actor rather
+        /// than pretending its distant intended destination is obstructed.
+        /// The motor must filter temporary actor crowding before calling.
+        /// </summary>
+        public void RememberPhysicalMovementBlock(Vector3 feet, Vector3 toward)
+        {
+            if (!Provider.isServer) return;
+            toward.y = 0f;
+            if (toward.sqrMagnitude < 0.05f) return;
+            Vector3 ahead = feet + toward.normalized * 0.8f;
+            Remember(ahead, true);
+            Vector3Int key = Key(ahead);
+            Observation value;
+            if (cells.TryGetValue(key, out value))
+            {
+                // A stalled NPC is not proof of a permanent map wall.
+                value.seenAt = Time.time - Lifetime + 12f;
+                cells[key] = value;
+            }
+        }
+
+        /// <summary>
         /// Query the owner's recent observation without treating unknown space
         /// as free. Tactical cover uses this only to rank physically verified
         /// destinations; it never replaces route/geometry validation.
