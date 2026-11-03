@@ -41,7 +41,10 @@ namespace SDG.Unturned
         private void Update()
         {
             if (!Provider.isServer || controller == null || spatialMemory == null) return;
-            spatialMemory.Scan(transform.position, navigationMask & ~(1 << gameObject.layer), transform);
+            // Excluding the entire NPC layer also hides building geometry when a
+            // map happens to reuse that layer. The sensor already filters the
+            // owner's transform hierarchy, so preserve world collision layers.
+            spatialMemory.Scan(transform.position, navigationMask, transform);
         }
 
         public bool TryGetRoute(Vector3 start, Vector3 goal, List<Vector3> output)
@@ -64,14 +67,18 @@ namespace SDG.Unturned
             }
 
             HybridNPCGridPlanner.Settings settings = HybridNPCGridPlanner.Settings.Default;
-            settings.cellSize = 0.65f;
-            settings.agentRadius = Mathf.Max(0.15f, controller.radius * 0.82f);
+            // Read actual agent dimensions at runtime; no doorway measurements
+            // or map-specific baked navigation data are required.
+            settings.cellSize = Mathf.Clamp(controller.radius * 1.1f, 0.35f, 0.65f);
+            settings.agentRadius = Mathf.Max(0.15f, controller.radius - controller.skinWidth * 0.5f);
             settings.agentHeight = Mathf.Max(1.1f, controller.height);
-            settings.maxStepUp = Mathf.Max(0.25f, controller.stepOffset);
+            settings.maxStepUp = Mathf.Max(0.05f, controller.stepOffset);
             settings.maxSlopeDegrees = controller.slopeLimit;
             settings.maxSearchRadius = searchRadius;
             settings.maxExpandedNodes = Mathf.Clamp(maximumExpansions, 200, 3200);
-            settings.collisionMask = navigationMask & ~(1 << gameObject.layer);
+            // Reject only this actor's own colliders through ignoredRoot.
+            // Never exclude a whole layer: wall/furniture colliders may share it.
+            settings.collisionMask = navigationMask;
             settings.ignoredRoot = transform;
 
             bool found = spatialMemory != null &&
