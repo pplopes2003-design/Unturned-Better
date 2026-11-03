@@ -72,6 +72,70 @@ namespace SDG.Unturned
         }
 
         /// <summary>
+        /// Long-distance staging over ONE personally verified crossing
+        /// learned by the shared scene registry. This is deliberately not a
+        /// full route to the distant goal: the global planner remains
+        /// responsible for the next region and must be run again after arrival.
+        /// Both approach and crossing require fresh physical A* proof.
+        /// </summary>
+        internal static bool TryStageThroughConfirmedCrossing(Vector3 start,
+            Vector3 distantGoal, HybridNPCGridPlanner.Settings config,
+            List<Vector3> output)
+        {
+            if (output == null) return false;
+            output.Clear();
+            int bestIndex = -1;
+            bool bestReverse = false;
+            float bestScore = float.NegativeInfinity;
+            float startToGoal = Vector3.Distance(start, distantGoal);
+            for (int i = 0; i < entries.Count; ++i)
+            {
+                Passage p = entries[i];
+                if (!p.crossed || Time.time - p.observedAt > ConfirmedLifetime)
+                    continue;
+                for (int orientation = 0; orientation < 2; ++orientation)
+                {
+                    Vector3 entry = orientation == 0 ? p.near : p.far;
+                    Vector3 exit = orientation == 0 ? p.far : p.near;
+                    float approach = Vector3.Distance(start, entry);
+                    float across = Vector3.Distance(entry, exit);
+                    if (approach > Mathf.Min(13f, config.maxSearchRadius * 0.6f)
+                        || across < 0.5f || across > 4f)
+                        continue;
+                    // The exit should bring us significantly nearer to the
+                    // distant objective; avoid returning through the doorway
+                    // just crossed or oscillating between adjacent rooms.
+                    float progress = startToGoal - Vector3.Distance(exit, distantGoal);
+                    if (progress < 3f) continue;
+                    float score = progress - approach * 0.4f;
+                    if (score <= bestScore) continue;
+                    bestScore = score;
+                    bestIndex = i;
+                    bestReverse = orientation == 1;
+                }
+            }
+            if (bestIndex < 0) return false;
+            Passage candidate = entries[bestIndex];
+            Vector3 from = bestReverse ? candidate.far : candidate.near;
+            Vector3 to = bestReverse ? candidate.near : candidate.far;
+            var approachPath = new List<Vector3>(32);
+            var crossingPath = new List<Vector3>(12);
+            if (!HybridNPCGridPlanner.TryFindPath(start, from, config, approachPath)
+                || !HybridNPCGridPlanner.TryFindPath(from, to, config, crossingPath))
+                return false;
+            float crossingLength = 0f;
+            for (int i = 1; i < crossingPath.Count; ++i)
+                crossingLength += Vector3.Distance(crossingPath[i - 1], crossingPath[i]);
+            if (crossingLength > Mathf.Max(2.5f, Vector3.Distance(from, to) * 1.6f))
+                return false;
+            Append(output, approachPath);
+            Append(output, crossingPath);
+            if (output.Count >= 2) return true;
+            output.Clear();
+            return false;
+        }
+
+        /// <summary>
         /// Select a nearby observed crossing, then compute exact ground route
         /// to its entry and from its exit to the destination. Never cross
         /// without validating the entire portal-to-portal path again.
