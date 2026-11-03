@@ -56,6 +56,11 @@ namespace SDG.Unturned
             public float observedAt;
         }
         private readonly List<CrossedPassage> crossed = new List<CrossedPassage>(12);
+        // Reuse route workspaces; avoid allocating three lists for each
+        // remembered passage on every planning request.
+        private readonly List<Vector3> passageFirstLeg = new List<Vector3>(32);
+        private readonly List<Vector3> passageCrossLeg = new List<Vector3>(16);
+        private readonly List<Vector3> passageLastLeg = new List<Vector3>(32);
         private readonly RaycastHit[] scanHits = new RaycastHit[24];
         private readonly Collider[] clearanceHits = new Collider[24];
 
@@ -79,26 +84,62 @@ namespace SDG.Unturned
         public bool TryRouteCrossedPassage(Vector3 start, Vector3 goal,
             HybridNPCGridPlanner.Settings settings, List<Vector3> result)
         {
+            // A memory of a doorway is not a route. Try only the nearest
+            // plausible observed openings and physically validate all legs.
+            // The budget avoids up to 36 full A* searches per NPC request.
+            int firstCandidate = -1;
+            int secondCandidate = -1;
+            float firstScore = float.PositiveInfinity;
+            float secondScore = float.PositiveInfinity;
+            float directDistance = Vector3.Distance(start, goal);
             for (int i = crossed.Count - 1; i >= 0; --i)
             {
                 CrossedPassage p = crossed[i];
                 if (Time.time - p.observedAt > 120f) continue;
-                bool reverse = Vector3.Distance(start, p.exit) +
-                    Vector3.Distance(goal, p.entry) <
-                    Vector3.Distance(start, p.entry) + Vector3.Distance(goal, p.exit);
+                float forward = Vector3.Distance(start, p.entry)
+                    + Vector3.Distance(p.exit, goal);
+                float backward = Vector3.Distance(start, p.exit)
+                    + Vector3.Distance(p.entry, goal);
+                float score = Mathf.Min(forward, backward);
+                // Reject disproportionate detours and pairs outside this
+                // provider's local planning horizon.
+                if (score > settings.maxSearchRadius * 1.6f
+                    || score > directDistance + 16f) continue;
+                if (score < firstScore)
+                {
+                    secondCandidate = firstCandidate;
+                    secondScore = firstScore;
+                    firstCandidate = i;
+                    firstScore = score;
+                }
+                else if (score < secondScore)
+                {
+                    secondCandidate = i;
+                    secondScore = score;
+                }
+            }
+            for (int attempt = 0; attempt < 2; ++attempt)
+            {
+                int chosen = attempt == 0 ? firstCandidate : secondCandidate;
+                if (chosen < 0) continue;
+                CrossedPassage p = crossed[chosen];
+                bool reverse = Vector3.Distance(start, p.exit)
+                    + Vector3.Distance(goal, p.entry)
+                    < Vector3.Distance(start, p.entry)
+                    + Vector3.Distance(goal, p.exit);
                 Vector3 entry = reverse ? p.exit : p.entry;
                 Vector3 exit = reverse ? p.entry : p.exit;
-                var first = new List<Vector3>(24);
-                var middle = new List<Vector3>(12);
-                var last = new List<Vector3>(24);
-                if (!HybridNPCGridPlanner.TryFindPath(start, entry, settings, first)
-                    || !HybridNPCGridPlanner.TryFindPath(entry, exit, settings, middle)
-                    || !HybridNPCGridPlanner.TryFindPath(exit, goal, settings, last))
+                passageFirstLeg.Clear();
+                passageCrossLeg.Clear();
+                passageLastLeg.Clear();
+                if (!HybridNPCGridPlanner.TryFindPath(start, entry, settings, passageFirstLeg)
+                    || !HybridNPCGridPlanner.TryFindPath(entry, exit, settings, passageCrossLeg)
+                    || !HybridNPCGridPlanner.TryFindPath(exit, goal, settings, passageLastLeg))
                     continue;
                 result.Clear();
-                Append(first, result);
-                Append(middle, result);
-                Append(last, result);
+                Append(passageFirstLeg, result);
+                Append(passageCrossLeg, result);
+                Append(passageLastLeg, result);
                 if (result.Count >= 2) return true;
             }
             return false;
