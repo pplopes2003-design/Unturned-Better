@@ -75,6 +75,21 @@ namespace SDG.Unturned
             });
         }
 
+        internal static bool IsTemporarilyBlocked(Vector3 entry, Vector3 exit)
+        {
+            for (int i = 0; i < entries.Count; ++i)
+            {
+                Passage p = entries[i];
+                if (Time.time >= p.blockedUntil) continue;
+                bool same = (p.near - entry).sqrMagnitude < 0.64f
+                    && (p.far - exit).sqrMagnitude < 0.64f;
+                bool reverse = (p.near - exit).sqrMagnitude < 0.64f
+                    && (p.far - entry).sqrMagnitude < 0.64f;
+                if (same || reverse) return true;
+            }
+            return false;
+        }
+
         /// <summary>
         /// Temporarily deprioritize a confirmed passage after sustained,
         /// actor-free physical obstruction immediately at its approach.
