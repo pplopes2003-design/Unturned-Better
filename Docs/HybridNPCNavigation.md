@@ -167,3 +167,10 @@ Investigation spiral candidates are now rejected if individual sensor memory rec
 - `MobileNPCHumanoidMotor` attempts a confirmed stage before its coarse global 3m-cell planner for goals farther than 30m; the final brain destination is retained. On reaching the staged route endpoint, the regular planner resumes. The origin waypoint is removed before movement.
 - Existing local combat/cover/ladder requests still use `TryGetRoute`, whose success means an exact, physically validated route rather than partial progress. Ordinary global fallback and nearby threshold detection remain available.
 - **Not yet verified in Unity**. Test two adjacent buildings at 30-60m, an entrance blocked by furniture, and a destination requiring a second opening; confirm no repeated inside/outside oscillation. Record first compiler error before gameplay debugging.
+
+## Dynamic passage obstruction cooldown (2026-11-03)
+- After a sustained **physical** stall, the motor first checks for a temporary NPC/player/zombie occupying its approach. This actor-only case does **not** mark the environment or shared gateway as blocked.
+- Only an actor-free stall near a **confirmed crossing** and a current waypoint near that crossing temporarily marks the edge unavailable for **8 seconds** in `HybridNPCObservedPortalRegistry.ReportBlockedApproach`. The verified geometry remains intact, with no long-term deletion or teleport.
+- Both shared registry candidate searches and `MobileNPCSpatialMemory.TryRouteCrossedPassage` respect this cooldown, preventing the same NPC from bypassing it through personal remembered routes. Physical completion at the far threshold via `ConfirmCrossing` clears cooldown.
+- This is bounded, conservative **runtime feedback**, not a full dynamic obstacle graph or baked NavMesh replacement. Validate one furniture-blocked doorway, a second available doorway, and a briefly occupied door by an NPC. Observe that the first is avoided temporarily and the last does not poison the crossing.
+- **No Unity compiler/build/playtest has been run**. Resolve the first compiler error before attributing any observed gameplay issue to navigation.
