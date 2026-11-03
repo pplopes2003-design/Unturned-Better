@@ -1057,6 +1057,11 @@ namespace SDG.Unturned
 						transform.position, globalRouteScratch[0]))
 				{
 					routeWaypoints.AddRange(globalRouteScratch);
+					// The physical planner includes its origin point. Avoid
+					// asking the motor to revisit the position it already has.
+					if (routeWaypoints.Count > 0
+						&& (routeWaypoints[0] - transform.position).sqrMagnitude <= 0.36f)
+						routeWaypoints.RemoveAt(0);
 					routeWaypointIndex = 0;
 					hasPartialLocalFrontier = false;
 					hasPhysicalThresholdRoute = false;
@@ -1099,7 +1104,7 @@ namespace SDG.Unturned
 #endif
 				}
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-				else if (!globalRoutePlanner.IsSearching
+				else if (routeWaypoints.Count == 0 && !globalRoutePlanner.IsSearching
 					&& globalRoutePlanner.LastOutcome == "no-connected-route"
 					&& Time.time >= nextGlobalRouteDiagnosticAt)
 				{
