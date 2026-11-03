@@ -1043,7 +1043,38 @@ namespace SDG.Unturned
 				&& Mathf.Abs(destination.y - transform.position.y) <= 6f)
 			{
 				globalRouteScratch.Clear();
-				if (globalRoutePlanner.Step(transform.position, destination,
+				// Before the coarse 3m global search, try one physically
+				// verified, already traversed doorway as a SHORT staging hop.
+				// This does not claim to reach the final world destination.
+				// Once the far side is reached, the global planner resumes.
+				if (globalGoalOffset.sqrMagnitude > 900f
+					&& independentRouteProvider != null
+					&& independentRouteProvider.IsAvailable
+					&& independentRouteProvider.TryGetConfirmedGatewayStage(
+						transform.position, destination, globalRouteScratch)
+					&& globalRouteScratch.Count >= 2
+					&& IsGlobalEdgePhysicallyTraversableServer(
+						transform.position, globalRouteScratch[0]))
+				{
+					routeWaypoints.AddRange(globalRouteScratch);
+					routeWaypointIndex = 0;
+					hasPartialLocalFrontier = false;
+					hasPhysicalThresholdRoute = false;
+					detourGoalSnapshot = destination;
+					nextPlannedRouteValidationTime = 0f;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+					if (Time.time >= nextGlobalRouteDiagnosticAt)
+					{
+						nextGlobalRouteDiagnosticAt = Time.time + 5f;
+						Debug.Log("[MobileNPCGlobalRoute] verified gateway stage npc="
+							+ name + " stageEnd="
+							+ routeWaypoints[routeWaypoints.Count - 1]
+							+ " finalGoal=" + destination, this);
+					}
+#endif
+				}
+				globalRouteScratch.Clear();
+				if (routeWaypoints.Count == 0 && globalRoutePlanner.Step(transform.position, destination,
 					Time.time, Time.frameCount, GetInstanceID(),
 					globalFootingResolver, globalEdgeValidator,
 					globalRouteScratch) && globalRouteScratch.Count > 0
