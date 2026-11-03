@@ -16,9 +16,13 @@ namespace SDG.Unturned
             internal Vector3 near;
             internal Vector3 far;
             internal float observedAt;
+            // A passage may be physically sensed but not yet traversed.
+            // Only real arrival at its far side promotes it to confirmed.
+            internal bool crossed;
         }
         private static readonly List<Passage> entries = new List<Passage>(64);
         private const float Lifetime = 180f;
+        private const float ConfirmedLifetime = 600f;
         private const int Capacity = 64;
 
         internal static void Reset() { entries.Clear(); }
@@ -27,16 +31,44 @@ namespace SDG.Unturned
         {
             for (int i = entries.Count - 1; i >= 0; --i)
             {
-                if (Time.time - entries[i].observedAt > Lifetime) entries.RemoveAt(i);
+                if (Time.time - entries[i].observedAt >
+                    (entries[i].crossed ? ConfirmedLifetime : Lifetime)) entries.RemoveAt(i);
                 else if ((entries[i].near - near).sqrMagnitude < 0.5f &&
                     (entries[i].far - far).sqrMagnitude < 0.5f)
                 {
-                    entries[i] = new Passage { near = near, far = far, observedAt = Time.time };
+                    entries[i] = new Passage { near = near, far = far,
+                        observedAt = Time.time, crossed = entries[i].crossed };
                     return;
                 }
             }
             if (entries.Count >= Capacity) entries.RemoveAt(0);
             entries.Add(new Passage { near = near, far = far, observedAt = Time.time });
+        }
+
+        /// <summary>
+        /// Share only an actually traversed doorway as confirmed topology.
+        /// The registry is an advisory graph; consumers still perform full
+        /// ground and capsule route validation before moving.
+        /// </summary>
+        internal static void ConfirmCrossing(Vector3 entry, Vector3 exit)
+        {
+            for (int i = 0; i < entries.Count; ++i)
+            {
+                Passage existing = entries[i];
+                bool same = (existing.near - entry).sqrMagnitude < 0.64f
+                    && (existing.far - exit).sqrMagnitude < 0.64f;
+                bool opposite = (existing.near - exit).sqrMagnitude < 0.64f
+                    && (existing.far - entry).sqrMagnitude < 0.64f;
+                if (!same && !opposite) continue;
+                existing.crossed = true;
+                existing.observedAt = Time.time;
+                entries[i] = existing;
+                return;
+            }
+            if (entries.Count >= Capacity) entries.RemoveAt(0);
+            entries.Add(new Passage {
+                near = entry, far = exit, observedAt = Time.time, crossed = true
+            });
         }
 
         /// <summary>
@@ -58,13 +90,16 @@ namespace SDG.Unturned
             for (int i = 0; i < entries.Count; ++i)
             {
                 Passage p = entries[i];
-                if (Time.time - p.observedAt > Lifetime) continue;
+                if (Time.time - p.observedAt >
+                    (p.crossed ? ConfirmedLifetime : Lifetime)) continue;
                 float forward = Vector3.Distance(start, p.near) +
                     Vector3.Distance(goal, p.far);
                 float backward = Vector3.Distance(start, p.far) +
                     Vector3.Distance(goal, p.near);
                 bool backwardPreferred = backward < forward;
-                float score = Mathf.Min(forward, backward);
+                // Prefer successfully traversed connections without treating them
+                // as collision-free: every leg is validated below.
+                float score = Mathf.Min(forward, backward) - (p.crossed ? 2f : 0f);
                 if (score > config.maxSearchRadius * 1.75f) continue;
                 for (int slot = 0; slot < MaxCandidates; ++slot)
                 {
