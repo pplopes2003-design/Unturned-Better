@@ -47,28 +47,30 @@ namespace SDG.Unturned
             spatialMemory.Scan(transform.position, navigationMask, transform);
         }
 
-        public bool TryGetRoute(Vector3 start, Vector3 goal, List<Vector3> output)
+        /// <summary>
+        /// Only a verified short gateway stage for a far-away objective,
+        /// never a promise that the entire distant route was solved.
+        /// </summary>
+        public bool TryGetConfirmedGatewayStage(Vector3 start, Vector3 distantGoal,
+            List<Vector3> output)
         {
             if (output == null) return false;
             output.Clear();
-            if (!isActiveAndEnabled || controller == null) return false;
-            if (Time.time < nextRequestAt || Time.time < nextSharedRequestAt)
-            {
-                diagnosticStatus = "throttled";
+            if (!Provider.isServer || !isActiveAndEnabled || controller == null
+                || Time.time < nextRequestAt || Time.time < nextSharedRequestAt)
                 return false;
-            }
-            nextRequestAt = Time.time + Mathf.Max(0.25f, replanningInterval);
+            nextRequestAt = Time.time + Mathf.Max(0.5f, replanningInterval);
             nextSharedRequestAt = Time.time + 0.15f;
-            if (Vector3.Distance(start, goal) > searchRadius)
-            {
-                diagnosticStatus = "outside-local-horizon";
-                LastPathFailed = true;
-                return false;
-            }
+            HybridNPCGridPlanner.Settings settings = BuildSettings();
+            bool staged = HybridNPCObservedPortalRegistry.TryStageThroughConfirmedCrossing(
+                start, distantGoal, settings, output);
+            diagnosticStatus = staged ? "verified-gateway-stage" : "no-confirmed-gateway";
+            return staged;
+        }
 
+        private HybridNPCGridPlanner.Settings BuildSettings()
+        {
             HybridNPCGridPlanner.Settings settings = HybridNPCGridPlanner.Settings.Default;
-            // Read actual agent dimensions at runtime; no doorway measurements
-            // or map-specific baked navigation data are required.
             settings.cellSize = Mathf.Clamp(controller.radius * 1.1f, 0.35f, 0.65f);
             settings.agentRadius = Mathf.Max(0.15f, controller.radius - controller.skinWidth * 0.5f);
             settings.agentHeight = Mathf.Max(1.1f, controller.height);
@@ -76,10 +78,33 @@ namespace SDG.Unturned
             settings.maxSlopeDegrees = controller.slopeLimit;
             settings.maxSearchRadius = searchRadius;
             settings.maxExpandedNodes = Mathf.Clamp(maximumExpansions, 200, 3200);
-            // Reject only this actor's own colliders through ignoredRoot.
-            // Never exclude a whole layer: wall/furniture colliders may share it.
             settings.collisionMask = navigationMask;
             settings.ignoredRoot = transform;
+            return settings;
+        }
+
+        public bool TryGetRoute(Vector3 start, Vector3 goal, List<Vector3> output)
+        {
+            if (output == null) return false;
+            output.Clear();
+            if (!isActiveAndEnabled || controller == null) return false;
+            // Out-of-horizon calls must not consume the global planning
+            // throttle: a real staging request may follow this same frame.
+            if (Vector3.Distance(start, goal) > searchRadius)
+            {
+                diagnosticStatus = "outside-local-horizon";
+                LastPathFailed = true;
+                return false;
+            }
+            if (Time.time < nextRequestAt || Time.time < nextSharedRequestAt)
+            {
+                diagnosticStatus = "throttled";
+                return false;
+            }
+            nextRequestAt = Time.time + Mathf.Max(0.25f, replanningInterval);
+            nextSharedRequestAt = Time.time + 0.15f;
+
+            HybridNPCGridPlanner.Settings settings = BuildSettings();
 
             bool found = spatialMemory != null &&
                 spatialMemory.TryRouteCrossedPassage(start, goal, settings, output);
