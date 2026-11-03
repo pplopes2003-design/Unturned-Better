@@ -3174,6 +3174,19 @@ namespace SDG.Unturned
 				return;
 			}
 
+			// A confirmed shared gateway can be physically blocked today even
+			// though it was crossed earlier. Quarantine only an entrance
+			// immediately implicated by the current waypoint, never the
+			// unrelated distant tactical goal. Temporary actor blockers were
+			// handled above, so they cannot poison this shared evidence.
+			if (routeWaypointIndex < routeWaypoints.Count
+				&& !isUnderwater && !IsTraversingLadder
+				&& characterController.isGrounded)
+			{
+				HybridNPCObservedPortalRegistry.ReportBlockedApproach(
+					samplePosition, routeWaypoints[routeWaypointIndex]);
+			}
+
 			// A sustained stall without temporary actor crowding is physical
 			// feedback to the personal occupancy map. Keep this evidence
 			// short-lived and never block the far strategic destination.
