@@ -19,10 +19,12 @@ namespace SDG.Unturned
             // A passage may be physically sensed but not yet traversed.
             // Only real arrival at its far side promotes it to confirmed.
             internal bool crossed;
+            internal float blockedUntil;
         }
         private static readonly List<Passage> entries = new List<Passage>(64);
         private const float Lifetime = 180f;
         private const float ConfirmedLifetime = 600f;
+        private const float BlockedCooldown = 8f;
         private const int Capacity = 64;
 
         internal static void Reset() { entries.Clear(); }
@@ -37,7 +39,8 @@ namespace SDG.Unturned
                     (entries[i].far - far).sqrMagnitude < 0.5f)
                 {
                     entries[i] = new Passage { near = near, far = far,
-                        observedAt = Time.time, crossed = entries[i].crossed };
+                        observedAt = Time.time, crossed = entries[i].crossed,
+                        blockedUntil = entries[i].blockedUntil };
                     return;
                 }
             }
@@ -62,6 +65,7 @@ namespace SDG.Unturned
                 if (!same && !opposite) continue;
                 existing.crossed = true;
                 existing.observedAt = Time.time;
+                existing.blockedUntil = 0f;
                 entries[i] = existing;
                 return;
             }
@@ -69,6 +73,45 @@ namespace SDG.Unturned
             entries.Add(new Passage {
                 near = entry, far = exit, observedAt = Time.time, crossed = true
             });
+        }
+
+        /// <summary>
+        /// Temporarily deprioritize a confirmed passage after sustained,
+        /// actor-free physical obstruction immediately at its approach.
+        /// This does NOT invalidate the discovered geometry or erase it
+        /// from individual memory. A nearby success clears the cooldown.
+        /// </summary>
+        internal static bool ReportBlockedApproach(Vector3 actorPosition,
+            Vector3 requestedWaypoint)
+        {
+            int nearestIndex = -1;
+            float nearestScore = float.PositiveInfinity;
+            for (int i = 0; i < entries.Count; ++i)
+            {
+                Passage passage = entries[i];
+                if (!passage.crossed ||
+                    Time.time - passage.observedAt > ConfirmedLifetime)
+                    continue;
+                float nearActor = (passage.near - actorPosition).sqrMagnitude;
+                float farActor = (passage.far - actorPosition).sqrMagnitude;
+                float nearWaypoint = (passage.near - requestedWaypoint).sqrMagnitude;
+                float farWaypoint = (passage.far - requestedWaypoint).sqrMagnitude;
+                // Reject unrelated nearby doorways and distant tactical goals.
+                float actorScore = Mathf.Min(nearActor, farActor);
+                float waypointScore = Mathf.Min(nearWaypoint, farWaypoint);
+                if (actorScore > 9f || waypointScore > 4f)
+                    continue;
+                float score = actorScore + waypointScore;
+                if (score >= nearestScore) continue;
+                nearestScore = score;
+                nearestIndex = i;
+            }
+            if (nearestIndex < 0) return false;
+            Passage blocked = entries[nearestIndex];
+            blocked.blockedUntil = Mathf.Max(blocked.blockedUntil,
+                Time.time + BlockedCooldown);
+            entries[nearestIndex] = blocked;
+            return true;
         }
 
         /// <summary>
@@ -95,7 +138,8 @@ namespace SDG.Unturned
             for (int i = 0; i < entries.Count; ++i)
             {
                 Passage p = entries[i];
-                if (!p.crossed || Time.time - p.observedAt > ConfirmedLifetime)
+                if (!p.crossed || Time.time - p.observedAt > ConfirmedLifetime
+                    || Time.time < p.blockedUntil)
                     continue;
                 for (int orientation = 0; orientation < 2; ++orientation)
                 {
@@ -174,7 +218,8 @@ namespace SDG.Unturned
             {
                 Passage p = entries[i];
                 if (Time.time - p.observedAt >
-                    (p.crossed ? ConfirmedLifetime : Lifetime)) continue;
+                    (p.crossed ? ConfirmedLifetime : Lifetime)
+                    || Time.time < p.blockedUntil) continue;
                 float forward = Vector3.Distance(start, p.near) +
                     Vector3.Distance(goal, p.far);
                 float backward = Vector3.Distance(start, p.far) +
