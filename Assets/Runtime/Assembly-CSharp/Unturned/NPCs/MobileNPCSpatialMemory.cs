@@ -161,11 +161,13 @@ namespace SDG.Unturned
         }
 
         private readonly Dictionary<Vector3Int, Observation> cells =
-            new Dictionary<Vector3Int, Observation>(192);
+            new Dictionary<Vector3Int, Observation>(320);
         private readonly List<Vector3Int> eviction = new List<Vector3Int>(24);
-        private const float Cell = 1f;
+        // Denser samples discover narrow indoor corridors without measuring
+        // authored door openings in the Unity editor.
+        private const float Cell = 0.75f;
         private const float Lifetime = 120f;
-        private const int MaxCells = 192;
+        private const int MaxCells = 320;
         private float nextScanAt;
         private int scanPhase;
         private Vector3Int lastFrontierKey;
@@ -235,7 +237,7 @@ namespace SDG.Unturned
                 // A clear horizontal sightline does not prove that there is a
                 // floor. Validate support, slope and standing clearance for
                 // every candidate before registering navigable cells.
-                for (float d = 1f; d < nearest - 0.2f; d += 1f)
+                for (float d = 0.75f; d < nearest - 0.2f; d += 0.75f)
                 {
                     Vector3 sample = feet + direction * d;
                     RaycastHit floor;
