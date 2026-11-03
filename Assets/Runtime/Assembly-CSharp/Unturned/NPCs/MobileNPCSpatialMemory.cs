@@ -95,7 +95,9 @@ namespace SDG.Unturned
             for (int i = crossed.Count - 1; i >= 0; --i)
             {
                 CrossedPassage p = crossed[i];
-                if (Time.time - p.observedAt > 120f) continue;
+                if (Time.time - p.observedAt > 120f
+                    || HybridNPCObservedPortalRegistry.IsTemporarilyBlocked(
+                        p.entry, p.exit)) continue;
                 float forward = Vector3.Distance(start, p.entry)
                     + Vector3.Distance(p.exit, goal);
                 float backward = Vector3.Distance(start, p.exit)
