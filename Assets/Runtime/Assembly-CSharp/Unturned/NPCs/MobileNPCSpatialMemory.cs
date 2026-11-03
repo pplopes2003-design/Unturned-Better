@@ -240,14 +240,27 @@ namespace SDG.Unturned
                 for (float d = 0.75f; d < nearest - 0.2f; d += 0.75f)
                 {
                     Vector3 sample = feet + direction * d;
-                    RaycastHit floor;
-                    if (!Physics.Raycast(sample + Vector3.up * 0.6f,
-                        Vector3.down, out floor, 1.7f, mask,
-                        QueryTriggerInteraction.Ignore))
-                        continue;
-                    if (Vector3.Angle(floor.normal, Vector3.up) > 48f ||
-                        Mathf.Abs(floor.point.y - feet.y) > 0.7f)
-                        continue;
+                    int floorCount = Physics.RaycastNonAlloc(
+                        sample + Vector3.up * 0.6f, Vector3.down, scanHits,
+                        1.7f, mask, QueryTriggerInteraction.Ignore);
+                    if (floorCount == scanHits.Length) continue;
+                    RaycastHit floor = default(RaycastHit);
+                    bool foundFloor = false;
+                    for (int h = 0; h < floorCount; ++h)
+                    {
+                        RaycastHit hit = scanHits[h];
+                        if (hit.collider == null ||
+                            (owner != null && hit.collider.transform.IsChildOf(owner)) ||
+                            Vector3.Angle(hit.normal, Vector3.up) > 48f ||
+                            Mathf.Abs(hit.point.y - feet.y) > 0.7f)
+                            continue;
+                        if (!foundFloor || hit.point.y > floor.point.y)
+                        {
+                            floor = hit;
+                            foundFloor = true;
+                        }
+                    }
+                    if (!foundFloor) continue;
                     Vector3 low = floor.point + Vector3.up * 0.45f;
                     Vector3 high = floor.point + Vector3.up * 1.4f;
                     int contactCount = Physics.OverlapCapsuleNonAlloc(low, high, 0.30f,
