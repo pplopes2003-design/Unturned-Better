@@ -84,9 +84,13 @@ namespace SDG.Unturned
         {
             if (output == null) return false;
             output.Clear();
-            int bestIndex = -1;
-            bool bestReverse = false;
-            float bestScore = float.NegativeInfinity;
+            // Two physically proven candidates rather than blindly trusting
+            // the highest-scoring doorway. A temporary obstruction may block
+            // the first while another genuine passage remains available.
+            int firstIndex = -1, secondIndex = -1;
+            bool firstReverse = false, secondReverse = false;
+            float firstScore = float.NegativeInfinity;
+            float secondScore = float.NegativeInfinity;
             float startToGoal = Vector3.Distance(start, distantGoal);
             for (int i = 0; i < entries.Count; ++i)
             {
@@ -102,36 +106,51 @@ namespace SDG.Unturned
                     if (approach > Mathf.Min(13f, config.maxSearchRadius * 0.6f)
                         || across < 0.5f || across > 4f)
                         continue;
-                    // The exit should bring us significantly nearer to the
-                    // distant objective; avoid returning through the doorway
-                    // just crossed or oscillating between adjacent rooms.
                     float progress = startToGoal - Vector3.Distance(exit, distantGoal);
                     if (progress < 3f) continue;
                     float score = progress - approach * 0.4f;
-                    if (score <= bestScore) continue;
-                    bestScore = score;
-                    bestIndex = i;
-                    bestReverse = orientation == 1;
+                    if (score > firstScore)
+                    {
+                        secondIndex = firstIndex;
+                        secondReverse = firstReverse;
+                        secondScore = firstScore;
+                        firstIndex = i;
+                        firstReverse = orientation == 1;
+                        firstScore = score;
+                    }
+                    else if (score > secondScore && i != firstIndex)
+                    {
+                        secondIndex = i;
+                        secondReverse = orientation == 1;
+                        secondScore = score;
+                    }
                 }
             }
-            if (bestIndex < 0) return false;
-            Passage candidate = entries[bestIndex];
-            Vector3 from = bestReverse ? candidate.far : candidate.near;
-            Vector3 to = bestReverse ? candidate.near : candidate.far;
             var approachPath = new List<Vector3>(32);
             var crossingPath = new List<Vector3>(12);
-            if (!HybridNPCGridPlanner.TryFindPath(start, from, config, approachPath)
-                || !HybridNPCGridPlanner.TryFindPath(from, to, config, crossingPath))
-                return false;
-            float crossingLength = 0f;
-            for (int i = 1; i < crossingPath.Count; ++i)
-                crossingLength += Vector3.Distance(crossingPath[i - 1], crossingPath[i]);
-            if (crossingLength > Mathf.Max(2.5f, Vector3.Distance(from, to) * 1.6f))
-                return false;
-            Append(output, approachPath);
-            Append(output, crossingPath);
-            if (output.Count >= 2) return true;
-            output.Clear();
+            for (int attempt = 0; attempt < 2; ++attempt)
+            {
+                int index = attempt == 0 ? firstIndex : secondIndex;
+                if (index < 0) continue;
+                Passage candidate = entries[index];
+                bool reverse = attempt == 0 ? firstReverse : secondReverse;
+                Vector3 from = reverse ? candidate.far : candidate.near;
+                Vector3 to = reverse ? candidate.near : candidate.far;
+                approachPath.Clear();
+                crossingPath.Clear();
+                if (!HybridNPCGridPlanner.TryFindPath(start, from, config, approachPath)
+                    || !HybridNPCGridPlanner.TryFindPath(from, to, config, crossingPath))
+                    continue;
+                float crossingLength = 0f;
+                for (int i = 1; i < crossingPath.Count; ++i)
+                    crossingLength += Vector3.Distance(crossingPath[i - 1], crossingPath[i]);
+                if (crossingLength > Mathf.Max(2.5f, Vector3.Distance(from, to) * 1.6f))
+                    continue;
+                Append(output, approachPath);
+                Append(output, crossingPath);
+                if (output.Count >= 2) return true;
+                output.Clear();
+            }
             return false;
         }
 
