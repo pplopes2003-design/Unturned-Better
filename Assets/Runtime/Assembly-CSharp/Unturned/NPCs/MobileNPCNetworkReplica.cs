@@ -48,6 +48,8 @@ namespace SDG.Unturned
             SendNpcShot = ClientStaticMethod<int, Vector3, ushort>.Get(ReceiveNpcShot);
         private static readonly ClientStaticMethod<int, Vector3>
             SendNpcDeath = ClientStaticMethod<int, Vector3>.Get(ReceiveNpcDeath);
+        private static readonly ClientStaticMethod<int, ushort>
+            SendNpcReload = ClientStaticMethod<int, ushort>.Get(ReceiveNpcReload);
 
         private readonly List<MobileNPCBrainDriver> drivers =
             new List<MobileNPCBrainDriver>(64);
@@ -394,6 +396,33 @@ namespace SDG.Unturned
                 sound.SetLinearRolloff(1f, 64f);
                 sound.Play();
             }
+        }
+
+        internal static void NotifyReloadStartedServer(MobileNPCBrainDriver driver,
+            ushort gunId)
+        {
+            if (!Provider.isServer || !Dedicator.IsDedicatedServer
+                || driver == null || gunId == 0) return;
+            SendNpcReload.Invoke(ENetReliability.Reliable,
+                Provider.GatherRemoteClientConnections(), driver.GetInstanceID(), gunId);
+        }
+
+        [SteamCall(ESteamCallValidation.ONLY_FROM_SERVER)]
+        public static void ReceiveNpcReload(int id, ushort gunId)
+        {
+            if (Provider.isServer || !Provider.isConnected || !Level.isLoaded
+                || instance == null || id == 0
+                || !instance.remote.TryGetValue(id, out Replica replica)
+                || replica.Root == null)
+                return;
+            PlayRemoteGunAction(replica, replica.GunReloadState);
+            ItemGunAsset gun = Assets.find(EAssetType.ITEM, gunId) as ItemGunAsset;
+            if (gun == null || gun.reload == null) return;
+            OneShotAudioParameters sound =
+                new OneShotAudioParameters(replica.Root.transform, gun.reload);
+            sound.volume = 0.7f;
+            sound.SetLinearRolloff(1f, 64f);
+            sound.Play();
         }
 
         internal static void NotifyConfirmedDeathServer(MobileNPCBrainDriver driver)
