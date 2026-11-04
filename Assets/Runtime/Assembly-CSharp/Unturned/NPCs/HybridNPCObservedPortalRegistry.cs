@@ -115,6 +115,10 @@ namespace SDG.Unturned
                         });
                     }
                     loaded = true;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                    Debug.Log("[NPCCollectiveNavigation] Loaded "
+                        + entries.Count + " confirmed crossing candidates for " + mapName);
+#endif
                 }
                 catch (Exception error)
                 {
@@ -165,6 +169,10 @@ namespace SDG.Unturned
                 }
                 else File.Move(pending, path);
                 learningDirty = false;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                Debug.Log("[NPCCollectiveNavigation] Saved "
+                    + snapshot.crossings.Count + " confirmed crossings for " + activeMapName);
+#endif
             }
             catch (Exception error)
             {
