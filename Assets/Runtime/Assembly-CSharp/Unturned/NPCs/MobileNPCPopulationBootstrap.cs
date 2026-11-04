@@ -50,14 +50,13 @@ namespace SDG.Unturned
                 return;
             }
 
-            // The dedicated host has separate PlayerPrefs; select the
-            // session's authoritative Normal / Combat / CombatOnly mode
-            // before creating or restoring any population entities.
-            MobileNPCFriendsHostModeConfig.ApplyServerMode();
-
-            // Flush the outgoing map before group state and the persistence queue are reset.
-            // This is especially important when changing maps before the 30-second autosave.
+            // Snapshot outgoing NPCs using the outgoing mode and map key before
+            // switching the dedicated server to its next authoritative mode.
             MobileNPCPersistence.PrepareForMapTransitionServer();
+
+            // Dedicated PlayerPrefs differ from the client's. Only apply the
+            // selected mode after the previous world's snapshot was flushed.
+            MobileNPCFriendsHostModeConfig.ApplyServerMode();
             MobileNPCGroupMember.ResetAllServerGroups();
             MobileNPCRadioOutbox.ResetRadioSessionServer();
             MobileNPCPersistence.ResetForLoadedMapServer();
