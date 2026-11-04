@@ -32,6 +32,10 @@ namespace SDG.Unturned
             public float NextWeaponRefresh;
             public float NextAnimationRefresh;
             public float ShotVisualUntil;
+            public string GunHoldState;
+            public string GunShootState;
+            public string GunReloadState;
+
         }
 
         private static MobileNPCNetworkReplica instance;
@@ -379,6 +383,7 @@ namespace SDG.Unturned
                 || replica.Root == null)
                 return; // snapshot may be in flight; never create a ghost for a shot
             replica.ShotVisualUntil = Time.time + 0.16f;
+            PlayRemoteGunAction(replica, replica.GunShootState);
             instance.remote[id] = replica;
             ItemGunAsset gun = Assets.find(EAssetType.ITEM, gunId) as ItemGunAsset;
             if (gun != null && gun.shoot != null)
@@ -434,6 +439,80 @@ namespace SDG.Unturned
             return null;
         }
 
+        private static void ClearRemoteGunClips(Replica replica)
+        {
+            if (replica.NativeAnimation != null && replica.DisplayedGunId != 0)
+            {
+                string prefix = "RemoteNPC_Item_" + replica.DisplayedGunId + "_";
+                // Iterate a snapshot of our own clip names because removing
+                // states while enumerating Animation can invalidate iteration.
+                var names = new List<string>(12);
+                foreach (AnimationState state in replica.NativeAnimation)
+                    if (state != null && state.name.StartsWith(prefix,
+                        System.StringComparison.Ordinal))
+                        names.Add(state.name);
+                for (int i = 0; i < names.Count; ++i)
+                    replica.NativeAnimation.RemoveClip(names[i]);
+            }
+            replica.GunHoldState = null;
+            replica.GunShootState = null;
+            replica.GunReloadState = null;
+        }
+
+        private static void BindRemoteGunClips(Replica replica, ItemGunAsset gun,
+            Transform weaponModel)
+        {
+            if (replica.NativeAnimation == null)
+                replica.NativeAnimation = replica.Root.GetComponentInChildren<Animation>(true);
+            Animation animation = replica.NativeAnimation;
+            if (animation == null || gun == null || gun.animations == null)
+                return;
+            Transform spine = replica.Root.transform.Find(
+                "HumanoidVisual/Root/Skeleton/Spine");
+            Transform left = spine != null ? spine.Find("Left_Shoulder") : null;
+            Transform right = spine != null ? spine.Find("Right_Shoulder") : null;
+            if (left == null || right == null) return;
+            for (int i = 0; i < gun.animations.Length; ++i)
+            {
+                AnimationClip clip = gun.animations[i];
+                if (clip == null || !clip.legacy) continue;
+                string name = "RemoteNPC_Item_" + gun.id + "_" + i + "_" + clip.name;
+                if (animation[name] != null)
+                    animation.RemoveClip(name);
+                animation.AddClip(clip, name);
+                AnimationState state = animation[name];
+                if (state == null) continue;
+                state.AddMixingTransform(left, true);
+                state.AddMixingTransform(right, true);
+                state.layer = 1;
+                state.blendMode = AnimationBlendMode.Blend;
+                string clipName = clip.name.ToLowerInvariant();
+                if (clipName.Contains("aim") || clipName == "idle")
+                    replica.GunHoldState = name;
+                if (clipName.Contains("shoot") || clipName.Contains("fire"))
+                    replica.GunShootState = name;
+                if (clipName.Contains("reload"))
+                    replica.GunReloadState = name;
+            }
+            if (replica.GunHoldState != null)
+            {
+                AnimationState hold = animation[replica.GunHoldState];
+                if (hold != null) hold.wrapMode = WrapMode.Loop;
+                animation.CrossFade(replica.GunHoldState, 0.15f);
+            }
+        }
+
+        private static void PlayRemoteGunAction(Replica replica, string clip)
+        {
+            if (replica == null || replica.NativeAnimation == null
+                || string.IsNullOrEmpty(clip))
+                return;
+            AnimationState action = replica.NativeAnimation[clip];
+            if (action == null) return;
+            action.wrapMode = WrapMode.Once;
+            replica.NativeAnimation.CrossFade(clip, 0.05f);
+        }
+
         private static void UpdateRemoteWeaponAndAnimation(ref Replica replica)
         {
             if (replica.Root == null) return;
@@ -443,6 +522,7 @@ namespace SDG.Unturned
                 replica.NextWeaponRefresh = Time.time + 0.5f;
                 if (replica.WeaponModel != null)
                     Destroy(replica.WeaponModel.gameObject);
+                ClearRemoteGunClips(replica);
                 replica.WeaponModel = null;
                 replica.DisplayedGunId = 0;
                 if (replica.GunId != 0)
@@ -490,6 +570,7 @@ namespace SDG.Unturned
                                 itemModel.DestroyRigidbody();
                                 Layerer.enemy(itemModel);
                                 replica.WeaponModel = itemModel;
+                                BindRemoteGunClips(replica, gun, itemModel);
                             }
                         }
                         replica.DisplayedGunId = replica.GunId;
@@ -501,6 +582,9 @@ namespace SDG.Unturned
             if (replica.NativeAnimation == null
                 || Time.time < replica.NextAnimationRefresh)
                 return;
+            if (replica.GunHoldState != null && Time.time >= replica.ShotVisualUntil
+                && !replica.NativeAnimation.IsPlaying(replica.GunHoldState))
+                replica.NativeAnimation.CrossFade(replica.GunHoldState, 0.2f);
             replica.NextAnimationRefresh = Time.time + 0.12f;
             bool moving = (replica.MotionFlags & 1) != 0;
             bool running = (replica.MotionFlags & 2) != 0;
