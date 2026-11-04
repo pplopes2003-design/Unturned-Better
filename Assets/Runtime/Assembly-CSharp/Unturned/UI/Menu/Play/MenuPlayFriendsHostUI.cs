@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace SDG.Unturned
 {
-    /// <summary>Simple first-party "Host LAN" menu backed by official U3DS.</summary>
+    /// <summary>Host LAN using the matching Unturned Better dedicated server build.</summary>
     internal sealed class MenuPlayFriendsHostUI
     {
         private static SleekFullscreenBox container;
@@ -47,7 +47,7 @@ namespace SDG.Unturned
             configuration.MaxPlayers = playersField.Value;
             configuration.Port = portField.Value;
             if (MobileNPCIntegratedHostLauncher.TryStart(configuration, out string error))
-                statusBox.Text = "Servidor LAN iniciado. Aguarde carregar o mapa, depois clique Conectar.";
+                statusBox.Text = "Processo LAN iniciado. Aguarde o mapa carregar; depois clique Conectar.";
             else
                 statusBox.Text = error;
         }
@@ -96,7 +96,7 @@ namespace SDG.Unturned
 
             configuration.DedicatedServerDirectory =
                 MobileNPCIntegratedHostLauncher.SuggestDirectory();
-            folderField = AddField("Pasta U3DS", configuration.DedicatedServerDirectory, -170, false, 255);
+            folderField = AddField("Build dedicada", configuration.DedicatedServerDirectory, -170, false, 255);
             mapField = AddField("Mapa", configuration.Map, -130, false, 64);
             nameField = AddField("Nome do servidor", configuration.ServerName, -90, false, 50);
             passwordField = AddField("Senha (LAN)", configuration.Password, -50, true, 64);
@@ -152,7 +152,7 @@ namespace SDG.Unturned
             statusBox.PositionOffset_Y = 85;
             statusBox.SizeOffset_X = 570;
             statusBox.SizeOffset_Y = 44;
-            statusBox.Text = "LAN: amigos na mesma rede. Instale U3DS pelo Steam (Ferramentas).";
+            statusBox.Text = "LAN: compile a build dedicada do Unturned Better no Unity. Amigos precisam da mesma versao.";
             container.AddChild(statusBox);
 
             ISleekButton back = Glazier.Get().CreateButton();
