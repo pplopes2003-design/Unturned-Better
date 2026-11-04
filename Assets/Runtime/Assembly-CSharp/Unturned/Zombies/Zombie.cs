@@ -115,6 +115,13 @@ namespace SDG.Unturned
 		private Player player;
 		// Mobile NPCs have their own server-authoritative vitals rather than Player.life.
 		private MobileNPCHumanoidVitals mobileNPCTarget;
+		/// <summary>Authoritative direct aggression evidence for the NPC being hunted.</summary>
+		public bool IsHuntingMobileNPC(MobileNPCHumanoidVitals candidate)
+		{
+			return Provider.isServer && !isDead && isHunting && candidate != null
+				&& !candidate.IsDead && mobileNPCTarget == candidate;
+		}
+
 		private static readonly List<MobileNPCBrainDriver> mobileNPCTargetCandidates = new List<MobileNPCBrainDriver>(32);
 
 		/// <summary>
