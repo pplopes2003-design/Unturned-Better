@@ -111,16 +111,37 @@ namespace SDG.Unturned
             if (apex < clearanceHeight + 0.07f)
                 return false;
 
+            // A window sill may have a different thickness from a crate.
+            // Probe several real landing surfaces rather than assuming all
+            // openings are exactly 1.65m deep. All later ballistic sweeps
+            // still have to clear the unchanged physical obstacle.
             float travelDistance = 1.65f;
-            Vector3 landingProbe = root + direction * travelDistance;
-            bool hasGroundBeyond = MobileNPCSpawnService.TryFindSafeGroundPosition(
-                landingProbe, 1.25f, 1.6f, groundMask, maxSlope,
-                out Vector3 landing, out Collider groundCollider, out _)
-                && Mathf.Abs(landing.y - root.y) <= 0.22f
-                && Level.checkSafeIncludingClipVolumes(landing)
-                // A furniture top behind the first object is not a
-                // ground-level landing, even if the ray finds it.
-                && !IsSamePhysicalObstacle(groundCollider, wall.collider);
+            Vector3 landing = Vector3.zero;
+            Collider groundCollider = null;
+            bool hasGroundBeyond = false;
+            for (int landingIndex = 0; landingIndex < 4; ++landingIndex)
+            {
+                float candidateDistance = 1.25f + landingIndex * 0.25f;
+                Vector3 landingProbe = root + direction * candidateDistance;
+                Vector3 candidateGround;
+                Collider candidateSupport;
+                if (!MobileNPCSpawnService.TryFindSafeGroundPosition(
+                    landingProbe, 1.25f, 1.6f, groundMask, maxSlope,
+                    out candidateGround, out candidateSupport, out _)
+                    || candidateSupport == null
+                    || Mathf.Abs(candidateGround.y - root.y) > 0.22f
+                    || !Level.checkSafeIncludingClipVolumes(candidateGround)
+                    || IsSamePhysicalObstacle(candidateSupport, wall.collider)
+                    || !CapsuleClearAt(candidateGround,
+                        Mathf.Clamp(controller.radius * 0.78f, 0.15f, 0.29f),
+                        obstacleMask))
+                    continue;
+                landing = candidateGround;
+                groundCollider = candidateSupport;
+                travelDistance = candidateDistance;
+                hasGroundBeyond = true;
+                break;
+            }
             bool landingOnTop = false;
             Collider landingTopCollider = null;
             // A climbable LOW object may be a real intermediate footstep.
