@@ -2417,13 +2417,11 @@ namespace SDG.Unturned
 				return;
 			}
 
-			// Re-check close, unobstructed player visibility before continuing an
-			// investigation or returning to spawn. A visible player outranks point stimuli.
-			Player closeVisiblePlayer = FindPriorityVisiblePlayer();
-			if (closeVisiblePlayer != null && (player == null || huntType != EHuntType.PLAYER))
-			{
-				alert(closeVisiblePlayer);
-			}
+			// Nearby player/NPC acquisition is now done by the shared,
+			// time-budgeted zombie scan. A player-only check on every tick
+			// would override a closer visible NPC during investigation and
+			// violate equal target priority. Do not duplicate the full
+			// multi-actor scan on every zombie's movement frame.
 
 			// Pause briefly between search legs, then sweep nearby points around the
 			// original sound location instead of standing still for the whole investigation.
