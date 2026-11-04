@@ -121,6 +121,7 @@ namespace SDG.Unturned
 				return;
 
 			HybridNPCObservedPortalRegistry.Reset();
+			MobileNPCCorpseLootJournal.Reset();
 			currentMapKey = null;
 			restoredForCurrentMap = false;
 			preserveExistingSnapshot = false;
@@ -139,6 +140,7 @@ namespace SDG.Unturned
 			HybridNPCObservedPortalRegistry.ConfigureForMapServer(
 				Level.info != null ? Level.info.name : "UnknownMap");
 			HybridNPCObservedPortalRegistry.TickLearningServer();
+			MobileNPCCorpseLootJournal.TickServer();
 			string mapKey = GetCurrentMapKey();
 			if (!string.Equals(currentMapKey, mapKey, StringComparison.Ordinal))
 			{
@@ -733,6 +735,8 @@ namespace SDG.Unturned
 				return false;
 			}
 		}
+
+		internal static string GetCurrentMapKeyForJournalServer() => GetCurrentMapKey();
 
 		private static string GetCurrentMapKey()
 		{
