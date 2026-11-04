@@ -363,13 +363,24 @@ namespace SDG.Unturned
                         ? animator.runtimeAnimatorController.name : "none") + ".");
             }
 
-            if (visualRenderers.Length == 0 || usableRendererCount == 0)
+            // Unity's dedicated server build can strip renderable mesh data.
+            // The simulation still needs the actual skeletal transforms and
+            // six animated hitboxes; enforce those below. Only a client-side
+            // host requires usable renderers for its local NPC visuals.
+            if (!Dedicator.IsDedicatedServer
+                && (visualRenderers.Length == 0 || usableRendererCount == 0))
             {
                 Debug.LogError("[MobileNPCPopulationBootstrap] NPC_Client has no usable mesh renderer (renderer count="
                     + visualRenderers.Length + ", usable meshes=" + usableRendererCount
                     + "); refusing to initialize an invisible mobile NPC population.");
                 DestroyExistingRuntimeObjects();
                 return;
+            }
+            if (Dedicator.IsDedicatedServer && usableRendererCount == 0)
+            {
+                Debug.Log("[MobileNPCPopulationBootstrap] Headless NPC has no rendered meshes; "
+                    + "skeletal transforms and hitboxes are still required. Remote client visuals "
+                    + "require a separate replication implementation.");
             }
 
             // The root CharacterController is the mobile NPC's physical body. Keep it
