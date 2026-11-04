@@ -1,0 +1,26 @@
+name: Steam modpack localhost AI (Python)
+on:
+  push:
+    branches:
+      - feature/steam-modpack-local-ai-prototype-2026-11-04
+    paths:
+      - 'SteamModpack/LocalAI/**'
+      - '.github/workflows/steam-modpack-local-ai.yml'
+  pull_request:
+    paths:
+      - 'SteamModpack/LocalAI/**'
+      - '.github/workflows/steam-modpack-local-ai.yml'
+
+jobs:
+  sidecar-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m compileall -q SteamModpack/LocalAI
+      - run: python -m unittest discover -s SteamModpack/LocalAI -p 'test_*.py' -v
