@@ -109,9 +109,12 @@ namespace SDG.Unturned
                 // Native server commands save all world/player data, then
                 // schedule a brief graceful shutdown. NPC-specific save
                 // handlers still need verification in the dedicated build.
+                bool npcSnapshotFlushed =
+                    MobileNPCPersistence.FlushBeforeDedicatedShutdownServer();
                 bool saveAccepted = Commander.execute(CSteamID.Nil, "save");
                 Debug.Log("[MobileNPCFriendsHost] Local save requested; "
-                    + "nativeSaveCommandAccepted=" + saveAccepted);
+                    + "npcSnapshotFlushRequested=" + npcSnapshotFlushed
+                    + " nativeSaveCommandAccepted=" + saveAccepted);
                 Commander.execute(CSteamID.Nil, "shutdown 5");
             }
             catch (Exception ex)
