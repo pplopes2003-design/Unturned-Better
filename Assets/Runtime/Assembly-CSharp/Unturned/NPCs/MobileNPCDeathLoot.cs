@@ -140,8 +140,11 @@ namespace SDG.Unturned
                 }
                 else
                 {
-                    if (!inventory.TryStoreTransferredItem(transferred))
-                        Debug.LogError("[MobileNPCDeathLoot] Could not roll back refused corpse loot for "
+                    // Durable journal owns the refused item only after disk commit.
+                    // Otherwise put the same item back into the dead inventory.
+                    if (!MobileNPCCorpseLootJournal.TryAcceptServer(transferred, dropAnchor)
+                        && !inventory.TryStoreTransferredItem(transferred))
+                        Debug.LogError("[MobileNPCDeathLoot] Journal and rollback both failed for "
                             + name + ", item=" + transferred.id + ". Inspect inventory reservations.", this);
                     ++refused;
                 }
