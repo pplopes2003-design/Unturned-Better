@@ -219,7 +219,7 @@ namespace SDG.Unturned
                 return;
             }
             UnityEngine.Vector3 velocity;
-            if (!reader.ReadVector3(out velocity))
+            if (!reader.ReadClampedVector3(out velocity))
             {
                 context.ReadParameterFailed(nameof(velocity));
                 return;
@@ -241,7 +241,7 @@ namespace SDG.Unturned
             writer.WriteInt32(npcId);
             writer.WriteUInt16(throwableId);
             writer.WriteClampedVector3(origin);
-            writer.WriteVector3(velocity);
+            writer.WriteClampedVector3(velocity);
             writer.WriteFloat(fuseSeconds);
         }
 
