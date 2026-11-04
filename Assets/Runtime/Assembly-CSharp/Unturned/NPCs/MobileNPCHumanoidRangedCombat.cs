@@ -43,6 +43,7 @@ namespace SDG.Unturned
 		private bool selectedGunHasCompatibleMagazine;
 		private uint selectedGunInstanceID;
 		private ushort selectedGunID;
+		private ushort selectedLoadedMagazineID;
 		private int pendingReloadRounds;
 		private ushort pendingReloadMagazineID;
 		private Item pendingReloadMagazine;
@@ -106,7 +107,7 @@ namespace SDG.Unturned
 		// Reused hit buffer avoids allocating and sorting a new RaycastAll array for every shot.
 		private readonly RaycastHit[] shotHits = new RaycastHit[64];
 		private const float NativeBallisticDelta = 0.02f; // UseableGun.BALLISTICS_DELTA_TIME
-		private const int MaxInFlightBullets = 6;
+		private const int MaxInFlightBullets = 24; // permits bounded 6-pellet native shotgun salvos
 		private const int MaxStepChecksPerActorFrame = 5;
 		private const int MaxSharedBulletChecksPerFrame = 100;
 		private static int sharedBallisticFrame = -1;
@@ -127,6 +128,7 @@ namespace SDG.Unturned
 			public float IntendedDistance;
 			public int RemainingSteps;
 			public int Profile;
+			public bool PrimaryPellet;
 			public ushort GunId;
 			public Player TargetPlayer;
 			public MobileNPCHumanoidDisposition TargetNPC;
@@ -227,6 +229,8 @@ namespace SDG.Unturned
 				reloadPending = false;
 				roundsRemaining = ammoStateUpdated ? loadedRounds : 0;
 				selectedGunHasCompatibleMagazine = ammoStateUpdated;
+			if (ammoStateUpdated)
+				selectedLoadedMagazineID = pendingReloadMagazineID;
 				if (!ammoStateUpdated)
 				{
 					Debug.LogWarning("Mobile NPC reload aborted because the stored gun state could not be updated; returning the reserved magazine.", this);
@@ -439,12 +443,39 @@ namespace SDG.Unturned
 				selectedOpticZoom, selectedGunID, out Vector3 shotDirection,
 				out int selectedBallisticProfile))
 				return;
-			int availableBulletSlot = nativeBallistics ? FindFreeBulletSlot() : -1;
-			if (nativeBallistics && availableBulletSlot < 0)
+			// The native 12 Gauge magazine fires six independent pellets for
+			// one consumed shell. Preserve ballistic travel/impact per pellet.
+			// Only the known vanilla Bluntforce/12 Gauge pair opts in here;
+			// other weapons retain their existing single-projectile behavior.
+			int pelletCount = selectedGunID == 112 && selectedLoadedMagazineID == 113
+				? 6 : 1;
+			int[] bulletSlots = nativeBallistics ? new int[pelletCount] : null;
+			int slotsReserved = 0;
+			if (nativeBallistics)
 			{
-				// Too many live rounds: wait, don't fabricate a direct-hit shortcut.
-				nextShotTime = Time.time + 0.1f;
-				return;
+				for (int i = 0; i < pendingBullets.Length && slotsReserved < pelletCount; ++i)
+					if (!pendingBullets[i].Active)
+						bulletSlots[slotsReserved++] = i;
+				if (slotsReserved < pelletCount)
+				{
+					// Fail closed before taking ammunition, rather than
+					// transforming a shotgun into a single perfect bullet.
+					nextShotTime = Time.time + 0.1f;
+					return;
+				}
+			}
+			Vector3[] pelletDirections = new Vector3[pelletCount];
+			pelletDirections[0] = shotDirection;
+			for (int i = 1; i < pelletCount; ++i)
+			{
+				// A bounded cone around the one humanized aim decision:
+				// independent spread, not six copies of an identical ray.
+				pelletDirections[i] = (Quaternion.AngleAxis(
+					Random.Range(0f, 360f), shotDirection)
+					* Quaternion.AngleAxis(Random.Range(1.0f, 5.0f),
+						Vector3.Cross(shotDirection, Vector3.up).sqrMagnitude > 0.01f
+							? Vector3.Cross(shotDirection, Vector3.up).normalized
+							: Vector3.right) * shotDirection).normalized;
 			}
 
 			// A verified line of sight to the enemy is not permission to
@@ -454,11 +485,15 @@ namespace SDG.Unturned
 			// or target/aim information is provided by group membership.
 			if (groupMember == null)
 				groupMember = GetComponent<MobileNPCGroupMember>();
-			if (groupMember != null
-				&& !groupMember.IsSquadFireLaneSafeServer(muzzle, shotDirection, weaponRange))
+			if (groupMember != null)
 			{
-				nextShotTime = Time.time + 0.22f;
-				return;
+				for (int pellet = 0; pellet < pelletCount; ++pellet)
+					if (!groupMember.IsSquadFireLaneSafeServer(muzzle,
+						pelletDirections[pellet], weaponRange))
+					{
+						nextShotTime = Time.time + 0.22f;
+						return;
+					}
 			}
 
 			if (!selectedGunHasCompatibleMagazine)
@@ -549,6 +584,7 @@ namespace SDG.Unturned
 				IntendedDistance = toTarget.magnitude,
 				RemainingSteps = nativeBallistics ? selectedGunAsset.ballisticSteps : 1,
 				Profile = selectedBallisticProfile,
+				PrimaryPellet = true,
 				GunId = selectedGunID,
 				TargetPlayer = targetPlayer,
 				TargetNPC = targetNPC,
@@ -556,15 +592,25 @@ namespace SDG.Unturned
 				OwnDisposition = ownDisposition,
 				Context = shotContext
 			};
-			if (nativeBallistics)
-				pendingBullets[availableBulletSlot] = committed;
-			else
+			for (int pellet = 0; pellet < pelletCount; ++pellet)
 			{
-				// Respect the original game's optional non-ballistic gameplay mode.
-				if (TryGetNearestExternalHit(muzzle, shotDirection, weaponRange, out RaycastHit hit))
-					CompleteCommittedShot(committed, ApplyShotImpact(hit, committed), true);
+				PendingBullet projectile = committed;
+				projectile.InitialDirection = pelletDirections[pellet];
+				projectile.Velocity = pelletDirections[pellet] * bulletSpeed;
+				projectile.PrimaryPellet = pellet == 0;
+				if (nativeBallistics)
+					pendingBullets[bulletSlots[pellet]] = projectile;
 				else
-					CompleteCommittedShot(committed, false, true);
+				{
+					// Hitscan mode still resolves every individual pellet,
+					// consuming only the original single native shell.
+					if (TryGetNearestExternalHit(muzzle, pelletDirections[pellet],
+						weaponRange, out RaycastHit hit))
+						CompleteCommittedShot(projectile,
+							ApplyShotImpact(hit, projectile), true);
+					else
+						CompleteCommittedShot(projectile, false, true);
+				}
 			}
 
 			// Vanilla Player guns use AlertTool.alert() for an unsuppressed
@@ -755,6 +801,9 @@ namespace SDG.Unturned
 					|| bullet.TargetNPC != null && perception.VisibleNPC == bullet.TargetNPC
 					|| bullet.TargetZombie != null && perception.VisibleZombie == bullet.TargetZombie);
 			if (!contacted && !observed) return;
+			// One trigger pull gives one training result, not six biased
+			// observations. Every pellet still independently applies impact.
+			if (!bullet.PrimaryPellet) return;
 			MobileNPCAdaptiveMemory memory = GetComponent<MobileNPCAdaptiveMemory>();
 			if (memory != null)
 				memory.RecordOwnOutcomeServer(bullet.Context, transform.position, contacted);
@@ -789,6 +838,7 @@ namespace SDG.Unturned
 				selectedOpticZoom = 1f;
 				selectedBulletGravityMultiplier = 1f;
 				selectedGunSoundSuppressed = false;
+				selectedLoadedMagazineID = 0;
 				roundsRemaining = 0;
 				return;
 			}
@@ -835,6 +885,7 @@ namespace SDG.Unturned
 			selectedOpticZoom = 1f;
 			selectedBulletGravityMultiplier = gunAsset.bulletGravityMultiplier;
 			selectedGunSoundSuppressed = false;
+			selectedLoadedMagazineID = 0;
 			roundsRemaining = 0;
 			// Native gun state owns actual attachments. A scope from nowhere
 			// must never grant longer-range vision or gun accuracy.
@@ -876,6 +927,7 @@ namespace SDG.Unturned
 			// The detached magazine stores rounds in Item.amount; its asset defines capacity.
 			if (gun.state == null || gun.state.Length < 11) return;
 			ushort loadedMagazineID = System.BitConverter.ToUInt16(gun.state, 8);
+			selectedLoadedMagazineID = loadedMagazineID;
 			ItemMagazineAsset loadedMagazine = Assets.find(EAssetType.ITEM, loadedMagazineID) as ItemMagazineAsset;
 			if (loadedMagazine == null || loadedMagazine.MaxAmountAsByte == 0
 				|| loadedMagazine.calibers == null || gunAsset.magazineCalibers == null
