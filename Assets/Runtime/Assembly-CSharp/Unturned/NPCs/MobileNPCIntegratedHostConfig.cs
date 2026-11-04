@@ -35,6 +35,8 @@ namespace SDG.Unturned
             else if (Password == null || Password.Length > 64
                 || ContainsControlCharacters(Password))
                 error = "A senha deve ter no maximo 64 caracteres sem controles.";
+            else if (InternetFriends && string.IsNullOrWhiteSpace(Password))
+                error = "Para hospedar pela internet, defina uma senha para seus amigos.";
             else if (MaxPlayers < 1 || MaxPlayers > 24)
                 error = "Escolha entre 1 e 24 jogadores.";
             else if (Port < 1024 || Port > 65532)
