@@ -18,6 +18,10 @@ namespace SDG.Unturned
         private const ushort Zubeknakov = 122;
         private const ushort RangerMagazine = 123;
         private const ushort Bluntforce = 112;
+        // Optional content pack IDs; never select if the custom assets
+        // were not loaded and validated by Unturned's native registry.
+        private const ushort BluntforceAuto32 = 59010;
+        private const ushort BluntforceAuto32Drum = 59011;
         private const ushort TwelveGaugeShells = 113;
         private const ushort Snayperskya = 129;
         private const ushort SnayperskyaMagazine = 130;
@@ -119,7 +123,17 @@ namespace SDG.Unturned
             ushort primary;
             ushort spareMagazine;
             string combatRole;
-            if (roll < 30)
+            bool auto32Available =
+                Assets.find(EAssetType.ITEM, BluntforceAuto32) is ItemGunAsset
+                && Assets.find(EAssetType.ITEM, BluntforceAuto32Drum)
+                    is ItemMagazineAsset;
+            if (roll >= 94 && auto32Available)
+            {
+                primary = BluntforceAuto32;
+                spareMagazine = BluntforceAuto32Drum;
+                combatRole = "automatic-shotgun-32";
+            }
+            else if (roll < 30)
             {
                 primary = Maplestrike;
                 spareMagazine = MilitaryMagazine;
