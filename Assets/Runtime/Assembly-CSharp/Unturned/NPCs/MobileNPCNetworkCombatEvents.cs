@@ -12,23 +12,34 @@ namespace SDG.Unturned
     {
         private MobileNPCHumanoidRangedCombat ranged;
         private MobileNPCBrainDriver brain;
+        private MobileNPCHumanoidVitals vitals;
 
         private void Awake()
         {
             ranged = GetComponent<MobileNPCHumanoidRangedCombat>();
             brain = GetComponent<MobileNPCBrainDriver>();
+            vitals = GetComponent<MobileNPCHumanoidVitals>();
         }
 
         private void OnEnable()
         {
             if (ranged != null)
                 ranged.ShotFired += OnCommittedShot;
+            if (vitals != null)
+                vitals.Died += OnConfirmedDeath;
         }
 
         private void OnDisable()
         {
             if (ranged != null)
                 ranged.ShotFired -= OnCommittedShot;
+            if (vitals != null)
+                vitals.Died -= OnConfirmedDeath;
+        }
+
+        private void OnConfirmedDeath()
+        {
+            MobileNPCNetworkReplica.NotifyConfirmedDeathServer(brain);
         }
 
         private void OnCommittedShot()
