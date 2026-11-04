@@ -139,6 +139,22 @@ namespace SDG.Unturned
                 ClearClientReplicas();
         }
 
+        private void LateUpdate()
+        {
+            // Unity evaluates legacy Animation between Update and LateUpdate.
+            // Applying the procedural head pitch in Update would be
+            // overwritten by the rig each frame.
+            if (Provider.isServer || !Provider.isConnected || !Level.isLoaded)
+                return;
+            foreach (Replica replica in remote.Values)
+            {
+                if (replica == null || replica.Root == null)
+                    continue;
+                UpdateRemoteHeadLook(replica);
+                UpdateRemoteNameplate(replica);
+            }
+        }
+
         private void BroadcastServerSnapshots()
         {
             MobileNPCRegistry.CopyActiveDrivers(drivers);
@@ -469,8 +485,6 @@ namespace SDG.Unturned
                     replica.Root.transform.rotation, replica.Rotation,
                     Mathf.Clamp01(Time.deltaTime * 8f));
                 UpdateRemoteWeaponAndAnimation(ref replica);
-                UpdateRemoteHeadLook(replica);
-                UpdateRemoteNameplate(replica);
             }
             foreach (int id in expired)
                 remote.Remove(id);
