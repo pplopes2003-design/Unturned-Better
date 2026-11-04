@@ -102,6 +102,7 @@ namespace SDG.Unturned
 				switch (id)
 				{
 					case 112: // Bluntforce: close-range shotgun
+					case 59010: // Custom Bluntforce Auto-32
 						preferredMinimumRange = 5f;
 						preferredMaximumRange = 14f;
 						break;
