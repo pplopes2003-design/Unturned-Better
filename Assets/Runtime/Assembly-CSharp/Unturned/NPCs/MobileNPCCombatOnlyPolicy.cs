@@ -123,6 +123,7 @@ namespace SDG.Unturned
             {
                 primary = Maplestrike;
                 spareMagazine = MilitaryMagazine;
+                combatRole = "assault-fallback";
                 combatRole = "assault-military";
             }
             else if (roll < 55)
@@ -153,7 +154,7 @@ namespace SDG.Unturned
             ItemMagazineAsset magazineAsset =
                 Assets.find(EAssetType.ITEM, spareMagazine) as ItemMagazineAsset;
             if (gunAsset == null || magazineAsset == null
-                || gunAsset.projectile != null
+                || gunAsset.projectile != null || gunAsset.ammoPerShot == 0
                 || gunAsset.magazineCalibers == null
                 || !magazineAsset.CalibersContainAnyOfIds(gunAsset.magazineCalibers))
             {
