@@ -63,6 +63,14 @@ namespace SDG.Unturned
             statusBox.Text = "Consultando servidor local. Se ainda carregar, tente novamente.";
         }
 
+        private static void OnStop(ISleekElement button)
+        {
+            if (MobileNPCIntegratedHostLauncher.TryStop(out string error))
+                statusBox.Text = "Salvamento e encerramento solicitados ao servidor.";
+            else
+                statusBox.Text = error;
+        }
+
         private static ISleekField AddField(string label, string initial,
             int y, bool secret, int maxLength)
         {
@@ -145,11 +153,22 @@ namespace SDG.Unturned
             join.OnClicked += OnJoin;
             container.AddChild(join);
 
+            ISleekButton stop = Glazier.Get().CreateButton();
+            stop.PositionScale_X = 0.5f;
+            stop.PositionScale_Y = 0.5f;
+            stop.PositionOffset_X = -285;
+            stop.PositionOffset_Y = 80;
+            stop.SizeOffset_X = 570;
+            stop.SizeOffset_Y = 30;
+            stop.Text = "Salvar e encerrar servidor";
+            stop.OnClicked += OnStop;
+            container.AddChild(stop);
+
             statusBox = Glazier.Get().CreateBox();
             statusBox.PositionScale_X = 0.5f;
             statusBox.PositionScale_Y = 0.5f;
             statusBox.PositionOffset_X = -285;
-            statusBox.PositionOffset_Y = 85;
+            statusBox.PositionOffset_Y = 118;
             statusBox.SizeOffset_X = 570;
             statusBox.SizeOffset_Y = 44;
             statusBox.Text = "LAN: compile a build dedicada do Unturned Better no Unity. Amigos precisam da mesma versao.";
@@ -159,7 +178,7 @@ namespace SDG.Unturned
             back.PositionScale_X = 0.5f;
             back.PositionScale_Y = 0.5f;
             back.PositionOffset_X = -285;
-            back.PositionOffset_Y = 146;
+            back.PositionOffset_Y = 175;
             back.SizeOffset_X = 570;
             back.SizeOffset_Y = 32;
             back.Text = "Voltar";
