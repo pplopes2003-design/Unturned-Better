@@ -37,6 +37,27 @@ namespace SDG.Unturned
 		private MobileNPCHumanoidDisposition visibleNPC;
 		private Zombie visibleZombie;
 		private readonly RaycastHit[] sightHits = new RaycastHit[16];
+		// Same principle as PlayerLook.getEyesPosition(): cast from the
+		// animated head, not from the CharacterController's feet/root.
+		private Transform eyeSkull;
+		public Vector3 GetEyePositionWorld()
+		{
+			if (eyeSkull == null)
+				eyeSkull = transform.Find("HumanoidVisual/Root/Skeleton/Spine/Skull");
+			if (eyeSkull == null)
+				return transform.position + Vector3.up * eyeHeight;
+			// Small forward offset prevents the sight ray from beginning
+			// inside the NPC's own skull hit collider.
+			Vector3 point = eyeSkull.position
+				+ transform.forward * 0.16f + Vector3.up * 0.07f;
+			// Misconfigured visual hierarchies must not yield ground-level
+			// eyesight or an out-of-body sensor.
+			float relativeHeight = point.y - transform.position.y;
+			if (relativeHeight < 0.95f || relativeHeight > 2.25f)
+				return transform.position + Vector3.up * eyeHeight;
+			return point;
+		}
+
 		// Shared scratch storage avoids FindObjectsOfType allocations for every NPC scan.
 		// Unity gameplay updates run on the main thread, so this list is not concurrently accessed.
 		private static readonly List<MobileNPCBrainDriver> candidateDrivers = new List<MobileNPCBrainDriver>(32);
@@ -279,7 +300,7 @@ namespace SDG.Unturned
 			bestDistanceSquared *= bestDistanceSquared;
 			float maximumSightDistanceSquared = bestDistanceSquared;
 			int distantOpticalChecks = 0;
-			Vector3 eye = transform.position + Vector3.up * eyeHeight;
+			Vector3 eye = GetEyePositionWorld();
 
 			for (int i = 0; i < candidateDrivers.Count; ++i)
 			{
@@ -372,7 +393,7 @@ namespace SDG.Unturned
 			bestDistanceSquared *= bestDistanceSquared;
 			float maximumSightDistanceSquared = bestDistanceSquared;
 			int distantOpticalChecks = 0;
-			Vector3 eye = transform.position + Vector3.up * eyeHeight;
+			Vector3 eye = GetEyePositionWorld();
 			for (int i = 0; i < zombies.Count; ++i)
 			{
 				Zombie candidate = zombies[i];
@@ -431,7 +452,7 @@ namespace SDG.Unturned
 			float bestDistanceSquared = GetObservationRange(playerSightRange);
 			bestDistanceSquared *= bestDistanceSquared;
 			float maximumSightDistanceSquared = bestDistanceSquared;
-			Vector3 eye = transform.position + Vector3.up * eyeHeight;
+			Vector3 eye = GetEyePositionWorld();
 
 			// Iterate the authoritative connected-player collection instead of allocating
 			// a fresh scene-wide Player array for every NPC scan.
