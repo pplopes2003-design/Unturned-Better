@@ -158,6 +158,21 @@ public partial class BuildMethods
 		UnityEditor.Build.Reporting.BuildReport report = BuildPipeline.BuildPlayer(buildPlayerOptions);
 		if (report.summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded)
 		{
+			if (isDedicatedServerTarget)
+			{
+				// A standard Steam U3DS executable does NOT include
+				// Unturned Better's NPC components. Require a marker only
+				// written by our modified Unity dedicated-server build.
+				string buildFolder = Path.GetDirectoryName(
+					Path.GetFullPath(locationPathName));
+				if (!string.IsNullOrEmpty(buildFolder))
+				{
+					Directory.CreateDirectory(buildFolder);
+					File.WriteAllText(Path.Combine(buildFolder,
+						"UnturnedBetterDedicated.marker"),
+						"UnturnedBetterDedicated-v1\n", new System.Text.UTF8Encoding(false));
+				}
+			}
 			return true;
 		}
 		else
