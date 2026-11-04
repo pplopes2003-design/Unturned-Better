@@ -17,7 +17,7 @@ namespace SDG.Unturned
         private const float RemoteExpiry = 6f;
         private const int MaxSnapshotsPerTick = 128;
 
-        private struct Replica
+        private sealed class Replica
         {
             public GameObject Root;
             public Vector3 Position;
@@ -333,7 +333,6 @@ namespace SDG.Unturned
                     replica.Root.transform.rotation, replica.Rotation,
                     Mathf.Clamp01(Time.deltaTime * 8f));
                 UpdateRemoteWeaponAndAnimation(ref replica);
-                remote[pair.Key] = replica;
             }
             foreach (int id in expired)
                 remote.Remove(id);
