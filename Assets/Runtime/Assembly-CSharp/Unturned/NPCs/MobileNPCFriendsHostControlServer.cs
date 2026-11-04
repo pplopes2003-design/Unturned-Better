@@ -16,6 +16,8 @@ namespace SDG.Unturned
         private const string ServerId = "UnturnedBetterFriends";
         private float nextPoll;
         private bool stopAccepted;
+        private float nextPublish;
+        private string lastPublishedCode;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
@@ -27,10 +29,65 @@ namespace SDG.Unturned
             obj.AddComponent<MobileNPCFriendsHostControlServer>();
         }
 
+        private string GetServerCodePath()
+        {
+            return Path.Combine(Environment.CurrentDirectory, "Servers",
+                ServerId, "Server", "ServerCode.dat");
+        }
+
+        private void PublishRealSteamServerCode()
+        {
+            if (Dedicator.serverVisibility != ESteamServerVisibility.Internet)
+                return;
+            CSteamID id = SteamGameServer.GetSteamID();
+            if (!id.IsValid() || !id.BGameServerAccount())
+                return;
+            string code = id.m_SteamID.ToString();
+            if (string.Equals(code, lastPublishedCode, StringComparison.Ordinal))
+                return;
+            try
+            {
+                string file = GetServerCodePath();
+                Directory.CreateDirectory(Path.GetDirectoryName(file));
+                string temporary = file + ".tmp";
+                File.WriteAllText(temporary, code, new System.Text.UTF8Encoding(false));
+                if (File.Exists(file))
+                    File.Delete(file);
+                File.Move(temporary, file);
+                lastPublishedCode = code;
+                Debug.Log("[MobileNPCFriendsHost] Steam server code available: " + code);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("[MobileNPCFriendsHost] Could not publish Steam code: "
+                    + ex.GetType().Name);
+            }
+        }
+
+        private void OnDisable()
+        {
+            if (Dedicator.IsDedicatedServer && Dedicator.serverID == ServerId)
+            {
+                try
+                {
+                    string file = GetServerCodePath();
+                    if (File.Exists(file)) File.Delete(file);
+                }
+                catch (Exception) { }
+            }
+        }
+
         private void Update()
         {
+            if (!Dedicator.IsDedicatedServer || Dedicator.serverID != ServerId)
+                return;
+            if (Provider.isServer && Level.isLoaded
+                && Time.unscaledTime >= nextPublish)
+            {
+                nextPublish = Time.unscaledTime + 1f;
+                PublishRealSteamServerCode();
+            }
             if (stopAccepted || !Provider.isServer
-                || !Dedicator.IsDedicatedServer || Dedicator.serverID != ServerId
                 || Time.unscaledTime < nextPoll)
                 return;
             nextPoll = Time.unscaledTime + 0.5f;
