@@ -97,6 +97,12 @@ namespace SDG.Unturned
 
         private static void GrantStartingKitServer(GameObject npc)
         {
+            // Previously the native thrower could be absent even when an
+            // owned grenade was issued. Attach exactly one server component;
+            // its own rules still require firsthand sight and safe ballistics.
+            if (npc.GetComponent<MobileNPCGrenadeThrower>() == null)
+                npc.AddComponent<MobileNPCGrenadeThrower>();
+
             MobileNPCInventory inventory = npc.GetComponent<MobileNPCInventory>();
             if (inventory == null)
             {
