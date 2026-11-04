@@ -106,6 +106,7 @@ namespace SDG.Unturned
 				return;
 
 			SaveServer(currentMapKey);
+			HybridNPCObservedPortalRegistry.FlushLearningServer();
 		}
 
 		public static void ResetForLoadedMapServer()
@@ -113,6 +114,7 @@ namespace SDG.Unturned
 			if (!Provider.isServer)
 				return;
 
+			HybridNPCObservedPortalRegistry.Reset();
 			currentMapKey = null;
 			restoredForCurrentMap = false;
 			preserveExistingSnapshot = false;
@@ -126,6 +128,11 @@ namespace SDG.Unturned
 			if (!Provider.isServer || !Level.isLoaded || prefab == null)
 				return;
 
+			// Collective navigation is map-scoped, not character/save-scoped.
+			// Keep its lifecycle separate from the personal NPC snapshot.
+			HybridNPCObservedPortalRegistry.ConfigureForMapServer(
+				Level.info != null ? Level.info.name : "UnknownMap");
+			HybridNPCObservedPortalRegistry.TickLearningServer();
 			string mapKey = GetCurrentMapKey();
 			if (!string.Equals(currentMapKey, mapKey, StringComparison.Ordinal))
 			{
@@ -175,7 +182,9 @@ namespace SDG.Unturned
 
 		public static void SaveOnApplicationQuitServer()
 		{
-			if (Provider.isServer && Level.isLoaded && restoredForCurrentMap && !string.IsNullOrEmpty(currentMapKey))
+			if (!Provider.isServer) return;
+			HybridNPCObservedPortalRegistry.FlushLearningServer();
+			if (Level.isLoaded && restoredForCurrentMap && !string.IsNullOrEmpty(currentMapKey))
 				SaveServer(currentMapKey);
 		}
 
