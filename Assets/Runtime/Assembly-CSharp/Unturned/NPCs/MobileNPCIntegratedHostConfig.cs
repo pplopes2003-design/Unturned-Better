@@ -25,9 +25,9 @@ namespace SDG.Unturned
             if (string.IsNullOrWhiteSpace(Map) || Map.Length > 64
                 || !IsSafeIdentifier(Map))
                 error = "O mapa deve ter de 1 a 64 caracteres validos.";
-            else if (string.IsNullOrWhiteSpace(ServerName) || ServerName.Length > 80
+            else if (string.IsNullOrWhiteSpace(ServerName) || ServerName.Length > 50
                 || ContainsControlCharacters(ServerName))
-                error = "O nome do servidor deve ter de 1 a 80 caracteres sem controles.";
+                error = "O nome do servidor deve ter de 1 a 50 caracteres sem controles.";
             else if (Password == null || Password.Length > 64
                 || ContainsControlCharacters(Password))
                 error = "A senha deve ter no maximo 64 caracteres sem controles.";
