@@ -39,6 +39,9 @@ namespace SDG.Unturned
             public string GunReloadState;
             public int AppearanceSeed;
             public string DisplayName;
+            public byte HeadPitchByte = 90;
+            public Transform Skull;
+            public Quaternion SkullNeutralRotation;
             public TextMesh NameLabel;
             public Transform NameTransform;
 
@@ -47,9 +50,9 @@ namespace SDG.Unturned
         private static MobileNPCNetworkReplica instance;
         // Position updates are unreliable; the weapon and locomotion state
         // are repeated each snapshot to repair packet loss / late joins.
-        private static readonly ClientStaticMethod<int, Vector3, byte, ushort, byte>
+        private static readonly ClientStaticMethod<int, Vector3, byte, ushort, byte, byte>
             SendNpcSnapshot =
-                ClientStaticMethod<int, Vector3, byte, ushort, byte>.Get(ReceiveNpcSnapshot);
+                ClientStaticMethod<int, Vector3, byte, ushort, byte, byte>.Get(ReceiveNpcSnapshot);
         private static readonly ClientStaticMethod<int, Vector3, ushort>
             SendNpcShot = ClientStaticMethod<int, Vector3, ushort>.Get(ReceiveNpcShot);
         private static readonly ClientStaticMethod<int, Vector3>
@@ -167,6 +170,22 @@ namespace SDG.Unturned
                 if (motor != null && motor.IsMoving) motionFlags |= 1;
                 if (motor != null && motor.IsSprinting) motionFlags |= 2;
                 if (gun != null && gun.IsReloading) motionFlags |= 4;
+                byte headPitch = 90;
+                MobileNPCHumanoidAim aim =
+                    driver.GetComponent<MobileNPCHumanoidAim>();
+                if (aim != null && driver.Target != null
+                    && aim.TryGetCurrentAimPointServer(driver.Target,
+                        out Vector3 aimedPosition))
+                {
+                    Vector3 delta = aimedPosition
+                        - (driver.transform.position + Vector3.up * 1.6f);
+                    float elevation = Mathf.Atan2(delta.y,
+                        new Vector2(delta.x, delta.z).magnitude)
+                        * Mathf.Rad2Deg;
+                    headPitch = (byte)Mathf.Clamp(
+                        Mathf.RoundToInt(90f + Mathf.Clamp(elevation, -55f, 55f)),
+                        0, 180);
+                }
                 // No loopback: the dedicated host owns real NPC objects.
                 // Unreliable updates are refreshed periodically; no hidden
                 // target coordinates or AI memory are sent to clients.
@@ -174,7 +193,8 @@ namespace SDG.Unturned
                     Provider.GatherRemoteClientConnectionsWithinSphere(
                         driver.transform.position, ReplicationRadius),
                     driver.GetInstanceID(), driver.transform.position,
-                    QuantizeYaw(driver.transform.eulerAngles.y), gunId, motionFlags);
+                    QuantizeYaw(driver.transform.eulerAngles.y), gunId,
+                    motionFlags, headPitch);
             }
             nextDriverIndex = (nextDriverIndex + limit) % drivers.Count;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -268,7 +288,7 @@ namespace SDG.Unturned
 
         [SteamCall(ESteamCallValidation.ONLY_FROM_SERVER)]
         public static void ReceiveNpcSnapshot(int instanceId, Vector3 position,
-            byte yaw, ushort gunId, byte motionFlags)
+            byte yaw, ushort gunId, byte motionFlags, byte headPitch)
         {
             if (Provider.isServer || !Provider.isConnected || !Level.isLoaded
                 || instance == null || instanceId == 0
@@ -278,11 +298,11 @@ namespace SDG.Unturned
                 return;
 
             instance.ApplySnapshot(instanceId, position, DecodeYaw(yaw),
-                gunId, motionFlags);
+                gunId, motionFlags, headPitch);
         }
 
         private void ApplySnapshot(int id, Vector3 pos, Quaternion yaw,
-            ushort gunId, byte motionFlags)
+            ushort gunId, byte motionFlags, byte headPitch)
         {
             if (deathTombstones.TryGetValue(id, out float deathAt)
                 && Time.time - deathAt < TombstoneSeconds)
@@ -293,6 +313,10 @@ namespace SDG.Unturned
                 if (root == null)
                     return;
                 replica = new Replica { Root = root };
+                replica.Skull = root.transform.Find(
+                    "HumanoidVisual/Root/Skeleton/Spine/Skull");
+                if (replica.Skull != null)
+                    replica.SkullNeutralRotation = replica.Skull.localRotation;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
                 if (!firstRemoteReplicaLogged)
                 {
@@ -307,6 +331,7 @@ namespace SDG.Unturned
             replica.Rotation = yaw;
             replica.GunId = gunId;
             replica.MotionFlags = motionFlags;
+            replica.HeadPitchByte = headPitch;
             replica.LastUpdate = Time.time;
             remote[id] = replica;
         }
@@ -444,6 +469,7 @@ namespace SDG.Unturned
                     replica.Root.transform.rotation, replica.Rotation,
                     Mathf.Clamp01(Time.deltaTime * 8f));
                 UpdateRemoteWeaponAndAnimation(ref replica);
+                UpdateRemoteHeadLook(replica);
                 UpdateRemoteNameplate(replica);
             }
             foreach (int id in expired)
@@ -580,6 +606,19 @@ namespace SDG.Unturned
                         return state.name;
             }
             return null;
+        }
+
+        private static void UpdateRemoteHeadLook(Replica replica)
+        {
+            if (replica.Skull == null || replica.Skull.parent == null)
+                return;
+            // Apply after legacy animation locomotion evaluation. The NPC
+            // root owns yaw; the Skull receives only server-authorized pitch.
+            float pitch = Mathf.Clamp(replica.HeadPitchByte - 90f, -55f, 55f);
+            Quaternion reference = replica.Skull.parent.rotation
+                * replica.SkullNeutralRotation;
+            replica.Skull.rotation = Quaternion.AngleAxis(-pitch,
+                replica.Root.transform.right) * reference;
         }
 
         private static void UpdateRemoteNameplate(Replica replica)
