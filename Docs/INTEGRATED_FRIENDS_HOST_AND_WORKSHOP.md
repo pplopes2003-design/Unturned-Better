@@ -73,13 +73,13 @@ O menu **Jogar > Hospedar amigos** controla um **segundo executável** compilado
 
 Alterações efetuadas nesta branch:
 - `MobileNPCPersistence.NPCRecord.displayName` adiciona o nome individual ao formato de snapshot existente **sem incrementar a versão**: é um campo opcional para versões antigas. No restore, `MobileNPCHumanoidDisposition.RestoreDisplayNameServer` valida tamanho/caracteres antes de substituir o nome criado no spawn. Saves anteriores continuam sem nome explícito e adotam o nome gerado normalmente.
-- Identidade cosmética remota passa a usar FNV-1a determinístico sobre o nome persistente, em vez de `GetInstanceID()` efêmero. Há possibilidade de aparência idêntica entre dois NPCs com o mesmo nome; não é um identificador de rede ou chave de save.
+- `MobileNPCPersistentIdentity` atribui um GUID individual ao spawn. O campo opcional `NPCRecord.persistentId` mantém esse identificador em saves/restarts sem alterar a versão do snapshot e aceita snapshots legados. O servidor deriva um seed visual determinístico do GUID, sem enviá-lo ao cliente. Como fallback defensivo para NPCs sem o componente, usa hash do nome.
 - `MobileNPCFriendsHostControlServer` chama `MobileNPCPersistence.FlushBeforeDedicatedShutdownServer()` **antes** do comando nativo `save`, seguido de `shutdown 5`. O flush mantém os bloqueios de segurança do sistema atual: não sobrescreve snapshots cuja leitura falhou, nem salva mapa ainda não restaurado. `SaveServer` passa a retornar o resultado da gravação para diagnóstico.
 - O salvamento existente já contém atributos vitais, inventário físico, profissão, facção, grupo, âncora da base, peças construídas, memória individual, ferimentos e rotina. Construções físicas continuam sob a persistência de mundo nativa, sem cópias no JSON de NPCs.
 
 ### Trabalho ainda necessário neste ciclo
 
-- [ ] Distinguir de forma persistente identidade única individual (não apenas nome) e separar aparência de colisões de nomes.
+- [ ] Testar em Unity a migração de snapshots antigos sem `persistentId`, dois NPCs de nome igual, persistência de GUID após restart e exclusividade entre novos spawns. Implementação de código já presente.
 - [ ] Replicar metadados visuais de grupo/base e ferimentos necessários à interface remota sem expor memória tática/posições secretas de NPC.
 - [ ] Garantir que todos os itens recusados no drop de morte sobrevivam a um despawn/encerramento: hoje `MobileNPCDeathLoot` mantém itens recusados no inventário do cadáver apenas enquanto o objeto existe. Considerar uma fila persistente de drops com limite e rollback transacional.
 - [ ] Validar que `Provider.serverID`, `Application.persistentDataPath`, modo de jogo e mapa formam a chave correta em dois saves do servidor dedicado. Não migrar diretórios automaticamente sem backups.
