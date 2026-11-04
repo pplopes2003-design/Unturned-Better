@@ -15,6 +15,7 @@ namespace SDG.Unturned
 		private static SleekButtonIcon serversButton;
 		private static SleekButtonIcon serverBookmarksButton;
 		private static SleekButtonIcon singleplayerButton;
+		private static ISleekButton friendsHostButton;
 		private static SleekButtonIcon lobbiesButton;
 		private static SleekButtonIconConfirm tutorialButton;
 		private static SleekButtonIcon backButton;
@@ -66,6 +67,12 @@ namespace SDG.Unturned
 		private static void onClickedSingleplayerButton(ISleekElement button)
 		{
 			MenuPlaySingleplayerUI.open();
+			close();
+		}
+
+		private static void OnClickedFriendsHost(ISleekElement button)
+		{
+			MenuPlayFriendsHostUI.Open();
 			close();
 		}
 
@@ -163,6 +170,17 @@ namespace SDG.Unturned
 			verticalOffset += singleplayerButton.SizeOffset_Y;
 			verticalOffset += spacing;
 
+			friendsHostButton = Glazier.Get().CreateButton();
+			friendsHostButton.PositionOffset_Y = verticalOffset;
+			friendsHostButton.SizeOffset_X = 200;
+			friendsHostButton.SizeOffset_Y = 50;
+			friendsHostButton.Text = "Hospedar amigos (LAN)";
+			friendsHostButton.TooltipText = "Servidor dedicado local pela Steam U3DS.";
+			friendsHostButton.OnClicked += OnClickedFriendsHost;
+			centerFrame.AddChild(friendsHostButton);
+			verticalOffset += friendsHostButton.SizeOffset_Y;
+			verticalOffset += spacing;
+
 			serversButton = new SleekButtonIcon(icons.load<Texture2D>("Servers"));
 			serversButton.PositionOffset_Y = verticalOffset;
 			serversButton.SizeOffset_X = 200;
@@ -232,6 +250,7 @@ namespace SDG.Unturned
 
 #if !UNITY_64
 			lobbiesButton.IsVisible = false;
+			friendsHostButton.IsVisible = false;
 			serversButton.IsVisible = false;
 			connectButton.IsVisible = false;
 			serverBookmarksButton.IsVisible = false;
@@ -271,6 +290,7 @@ namespace SDG.Unturned
 
 			serverInfoUI = new MenuPlayServerInfoUI();
 			singleplayerUI = new MenuPlaySingleplayerUI();
+			friendsHostUI = new MenuPlayFriendsHostUI();
 			lobbiesUI = new MenuPlayLobbiesUI();
 		}
 
@@ -280,6 +300,7 @@ namespace SDG.Unturned
 		public static MenuPlayOnlineSafetyUI onlineSafetyUI;
 		private MenuPlayServerInfoUI serverInfoUI;
 		private MenuPlaySingleplayerUI singleplayerUI;
+		private MenuPlayFriendsHostUI friendsHostUI;
 		private MenuPlayLobbiesUI lobbiesUI;
 	}
 }
