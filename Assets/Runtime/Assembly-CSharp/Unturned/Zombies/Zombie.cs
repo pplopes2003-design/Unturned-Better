@@ -1358,13 +1358,25 @@ namespace SDG.Unturned
 				return;
 			}
 
-			// A visible player is a stronger stimulus than a sound point or search waypoint.
-			// This also prevents a new gunshot / internal search leg from pulling a zombie
-			// away from a player standing in clear view within the close-priority radius.
+			// Any living visible humanoid has priority over a sound point.
+			// Players and mobile NPCs use identical distance ranking here;
+			// neither entity type receives a hard-coded preference.
 			Player priorityPlayer = FindPriorityVisiblePlayer();
-			if (priorityPlayer != null)
+			MobileNPCHumanoidVitals priorityNPC = FindPriorityVisibleNPC();
+			float playerDistance = priorityPlayer != null
+				? (priorityPlayer.transform.position - transform.position).sqrMagnitude
+				: float.PositiveInfinity;
+			float npcDistance = priorityNPC != null
+				? (priorityNPC.transform.position - transform.position).sqrMagnitude
+				: float.PositiveInfinity;
+			if (playerDistance <= npcDistance && priorityPlayer != null)
 			{
 				alert(priorityPlayer);
+				return;
+			}
+			if (priorityNPC != null)
+			{
+				alert(priorityNPC);
 				return;
 			}
 
