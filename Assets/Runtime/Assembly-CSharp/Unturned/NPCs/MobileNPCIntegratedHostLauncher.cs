@@ -102,6 +102,24 @@ namespace SDG.Unturned
                 if (!string.IsNullOrEmpty(config.Password))
                     lines.Append("Password ").AppendLine(config.Password);
                 File.WriteAllText(commands, lines.ToString(), new UTF8Encoding(false));
+                // The native dedicated Workshop downloader resolves child dependencies.
+                // Only change this server's file list when the host explicitly selects IDs;
+                // never silently erase a pre-existing manually maintained configuration.
+                if (!config.TryParseWorkshopIds(out var workshopIds, out error))
+                    return false;
+                if (workshopIds.Count > 0)
+                {
+                    var workshopConfig = new WorkshopDownloadConfig();
+                    workshopConfig.File_IDs.AddRange(workshopIds);
+                    string target = Path.Combine(saveDirectory, "WorkshopDownloadConfig.json");
+                    string temp = target + ".tmp";
+                    File.WriteAllText(temp, JsonUtility.ToJson(workshopConfig, true),
+                        new UTF8Encoding(false));
+                    if (File.Exists(target)) File.Delete(target);
+                    File.Move(temp, target);
+                    UnityEngine.Debug.Log("[MobileNPCFriendsHost] Workshop manifest configured: "
+                        + workshopIds.Count + " top-level IDs, children resolved by native downloader.");
+                }
                 // Headless PlayerPrefs are independent from the host client:
                 // the dedicated server must receive an explicit world mode.
                 File.WriteAllText(Path.Combine(commandDirectory,
