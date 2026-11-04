@@ -234,3 +234,17 @@ Build and test on **Washington / Dev Build**. Do not claim pass until observed i
 - [ ] Inspect `[MobileNPCFireMode]`, `[MobileNPCBurst]`, `[MobileNPCCombatLoadout]`, `[MobileNPCGrenadeThrower]`, `[MobileNPCMuzzleAudit]` and navigation telemetry.
 
 **Release gate:** compiling and code review are insufficient. Keep Combat Total EXPERIMENTAL until actual ammunition, damage, animation, targeting, grenade safety and navigation pass end-to-end.
+
+## 16. Auto-32 custom shotgun and player/NPC grenade parity (NOT validated in Unity)
+
+- [ ] Build standalone; inspect `[Auto32Build]` confirmation and ensure custom `.dat` files are installed under the build's `Bundles/Items` directory.
+- [ ] Inspect game asset logs: custom gun `59010` and drum `59011` load as **different** items from vanilla Bluntforce `112` and 12 Gauge Shells `113`; no ID/GUID clashes.
+- [ ] Give the player item 59010 and 59011. Confirm original Bluntforce mesh is visible from both perspectives via `core.masterbundle` overrides; verify compatible 32-round drum and a real auto-fire mode in native `UseableGun`.
+- [ ] Fire automatic trigger bursts: one shell debited per shot; native drum `Pellets 6`; correct recoil/animations, no silent firing or excess damage; 32 -> 31 -> 30, not 32 -> 26.
+- [ ] NPC Combat Total: optional Auto-32 should spawn **only** if both real item assets load. Confirm magazine slots, native automatic fire mode, visible firearm, six independent pellets, cover and close-range tactical role.
+- [ ] Player crafting: four **FULL** native ID 113 magazines (8 rounds each) -> one full 59011 drum (32 rounds). Verify 3 packs fail; 4 partial packs fail; 4 full plus a partial pack fail conservatively; moving partial packs to storage should permit valid crafting.
+- [ ] Test recycling of a spent drum and loss/persistence after save/load. No magic refill or duplication when the gun is spawned or NPC restored.
+- [ ] Compare NPC grenade with native `UseableThrowable.toss`: both should instantiate `ItemThrowableAsset.throwable`, apply Rigidbody force, register debris and configure `Grenade` explosion fields. NPCs still calculate their own target arc, do NOT use PlayerLook/PlayerEquipment or player swing animation.
+- [ ] Test grenade wall, allies, proximity, one-item inventory debit, fuse, and native explosion; inspect previous Combat Total checklist too.
+
+These are **build-gating checks**. Source commits are not evidence of successfully loaded assets or in-game shooting.
