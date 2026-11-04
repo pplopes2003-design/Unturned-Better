@@ -401,7 +401,13 @@ namespace SDG.Unturned
 				{
 					Vector3 savedAnchor = new Vector3(record.ax, record.ay, record.az);
 					if (record.groupId > 0)
-						groupMember.SetGroupAnchorServer(record.groupId, savedAnchor, record.hasSettlement);
+					{
+						// A mismatch is not a successful restore: retaining the original
+						// snapshot lets us retry instead of quietly changing groups.
+						if (!groupMember.SetGroupAnchorServer(record.groupId,
+							savedAnchor, record.hasSettlement))
+							throw new InvalidOperationException("Saved group membership could not be restored.");
+					}
 					else if (record.hasSettlement)
 						groupMember.SetGroupAnchorServer(savedAnchor);
 					groupMember.RestoreConstructionProgressServer(
