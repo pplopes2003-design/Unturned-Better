@@ -97,6 +97,12 @@ namespace SDG.Unturned
                 if (!string.IsNullOrEmpty(config.Password))
                     lines.Append("Password ").AppendLine(config.Password);
                 File.WriteAllText(commands, lines.ToString(), new UTF8Encoding(false));
+                // Headless PlayerPrefs are independent from the host client:
+                // the dedicated server must receive an explicit world mode.
+                File.WriteAllText(Path.Combine(commandDirectory,
+                    "MobileNPCGameMode.dat"),
+                    ((int)config.NpcMode).ToString(),
+                    new UTF8Encoding(false));
                 ProcessStartInfo start = new ProcessStartInfo
                 {
                     FileName = executable,
