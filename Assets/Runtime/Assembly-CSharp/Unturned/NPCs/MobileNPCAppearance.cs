@@ -53,8 +53,20 @@ namespace SDG.Unturned
                 return;
             }
 
-            ScanAvailableAssets();
             int seed = unchecked(GetInstanceID() * 397 ^ transform.position.GetHashCode());
+            ApplyAppearanceSeed(clothes, seed);
+        }
+
+        /// <summary>
+        /// Uses a server-provided seed for remote visual replicas, so all
+        /// players see the same appearance. Never call on a dedicated
+        /// headless server; the appearance is rendering-only.
+        /// </summary>
+        internal static void ApplyAppearanceSeed(HumanClothes clothes, int seed)
+        {
+            if (clothes == null || Dedicator.IsDedicatedServer)
+                return;
+            ScanAvailableAssets();
             System.Random random = new System.Random(seed);
 
             // Face 0 is the native fallback if the bundle probe did not find a face
@@ -77,8 +89,9 @@ namespace SDG.Unturned
             // it here marks face/skin/hair dirty and makes the chosen appearance visible.
             clothes.apply();
 
-            Debug.Log("[MobileNPCAppearance] Applied native face/hair variation to " + name
-                + " (face=" + clothes.face + ", hair=" + clothes.hair + ", beard=" + clothes.beard + ").", this);
+            Debug.Log("[MobileNPCAppearance] Applied deterministic native appearance"
+                + " face=" + clothes.face + ", hair=" + clothes.hair
+                + ", beard=" + clothes.beard + ", seed=" + seed + ".");
         }
 
         private static void ScanAvailableAssets()
