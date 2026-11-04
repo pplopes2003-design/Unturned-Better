@@ -161,6 +161,10 @@ namespace SDG.Unturned
                     spent.playerDamageMultiplier.damage, spent.fuseLength);
                 body.collisionDetectionMode = CollisionDetectionMode.Continuous;
                 body.AddForce(velocity * body.mass, ForceMode.Impulse);
+                // This runs only after consuming the actual grenade, so
+                // clients cannot see a projectile for a cancelled throw.
+                MobileNPCNetworkReplica.NotifyGrenadeThrowServer(
+                    brain, spent.id, origin, velocity, spent.fuseLength);
                 nextThrowAt = Time.time + Cooldown;
                 Debug.Log("[MobileNPCGrenadeThrower] " + name
                     + " threw 1 native consumed grenade after visual, arc and friendly-safety checks.", this);
