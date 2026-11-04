@@ -2488,7 +2488,7 @@ namespace SDG.Unturned
 			// Only request this when no active walking route exists and a
 			// static obstruction has already been observed. Keep the
 			// existing shared/per-NPC budgets to protect slower machines.
-			if (routeWaypoints.Count == 0 && !hasDetourWaypoint
+			if (routeWaypointIndex >= routeWaypoints.Count && !hasDetourWaypoint
 				&& PlanarDistanceSquared(transform.position, finalGoal) <= 324f
 				&& Time.time >= nextObstacleComparisonTime
 				&& Time.time >= nextSharedObstacleComparisonTime)
@@ -2528,8 +2528,9 @@ namespace SDG.Unturned
 					if (distance <= remaining + 6.0f
 						|| distance <= remaining * 1.8f)
 					{
-						// This route was actually validated by local A*.
-						// Do NOT teach the NPC a speculative shortcut.
+						// This route was validated by the independent physics A*
+						// (or the exact local fallback). Never use a frontier
+						// or a visual window opening as a speculative shortcut.
 						routeWaypoints.Clear();
 						routeWaypoints.AddRange(obstacleWalkComparisonScratch);
 						routeWaypointIndex = 0;
