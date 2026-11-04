@@ -80,6 +80,24 @@ namespace SDG.Unturned
             new Dictionary<int, Replica>(64);
         private readonly List<int> expired = new List<int>(32);
         private readonly List<GameObject> grenadeVisuals = new List<GameObject>(16);
+        // Reliable identity/outfit may precede the unreliable first snapshot.
+        private struct PendingIdentity
+        {
+            public string Name;
+            public int Seed;
+            public float ReceivedAt;
+        }
+        private struct PendingOutfit
+        {
+            public ushort Hat, Shirt, Pants, Vest, Backpack;
+            public float ReceivedAt;
+        }
+        private readonly Dictionary<int, PendingIdentity> pendingIdentities =
+            new Dictionary<int, PendingIdentity>(64);
+        private readonly Dictionary<int, PendingOutfit> pendingOutfits =
+            new Dictionary<int, PendingOutfit>(64);
+        private const int MaximumPendingMetadata = 128;
+        private const float PendingMetadataLifetime = 12f;
         // Delayed unreliable position packets must not resurrect a dead NPC.
         private readonly Dictionary<int, float> deathTombstones =
             new Dictionary<int, float>(32);
@@ -397,10 +415,24 @@ namespace SDG.Unturned
             ushort pants, ushort vest, ushort backpack)
         {
             if (Provider.isServer || !Provider.isConnected || !Level.isLoaded
-                || instance == null || id == 0
-                || !instance.remote.TryGetValue(id, out Replica replica)
-                || replica.Root == null)
+                || instance == null || id == 0)
                 return;
+            if (instance.deathTombstones.TryGetValue(id, out float deathAt)
+                && Time.time - deathAt < TombstoneSeconds)
+                return;
+            if (!instance.remote.TryGetValue(id, out Replica replica)
+                || replica.Root == null)
+            {
+                if (instance.pendingOutfits.Count >= MaximumPendingMetadata
+                    && !instance.pendingOutfits.ContainsKey(id))
+                    instance.pendingOutfits.Clear();
+                instance.pendingOutfits[id] = new PendingOutfit
+                {
+                    Hat = hat, Shirt = shirt, Pants = pants, Vest = vest,
+                    Backpack = backpack, ReceivedAt = Time.time
+                };
+                return;
+            }
             HumanClothes clothes =
                 replica.Root.GetComponentInChildren<HumanClothes>(true);
             if (clothes == null) return;
@@ -434,7 +466,16 @@ namespace SDG.Unturned
                 return;
             if (!instance.remote.TryGetValue(id, out Replica replica)
                 || replica.Root == null)
+            {
+                if (instance.pendingIdentities.Count >= MaximumPendingMetadata
+                    && !instance.pendingIdentities.ContainsKey(id))
+                    instance.pendingIdentities.Clear();
+                instance.pendingIdentities[id] = new PendingIdentity
+                {
+                    Name = name, Seed = seed, ReceivedAt = Time.time
+                };
                 return;
+            }
             if (replica.NameLabel == null)
             {
                 GameObject label = new GameObject("RemoteNPCNameplate");
@@ -519,6 +560,19 @@ namespace SDG.Unturned
             replica.HeadPitchByte = headPitch;
             replica.LastUpdate = Time.time;
             remote[id] = replica;
+            if (pendingIdentities.TryGetValue(id, out PendingIdentity identity))
+            {
+                pendingIdentities.Remove(id);
+                if (Time.time - identity.ReceivedAt <= PendingMetadataLifetime)
+                    ReceiveNpcIdentity(id, identity.Name, identity.Seed);
+            }
+            if (pendingOutfits.TryGetValue(id, out PendingOutfit outfit))
+            {
+                pendingOutfits.Remove(id);
+                if (Time.time - outfit.ReceivedAt <= PendingMetadataLifetime)
+                    ReceiveNpcOutfit(id, outfit.Hat, outfit.Shirt, outfit.Pants,
+                        outfit.Vest, outfit.Backpack);
+            }
         }
 
         private static GameObject CreateVisualRoot(int id, Vector3 pos,
@@ -1059,6 +1113,8 @@ namespace SDG.Unturned
                 if (replica.Root != null)
                     Destroy(replica.Root);
             remote.Clear();
+            pendingIdentities.Clear();
+            pendingOutfits.Clear();
             for (int i = 0; i < grenadeVisuals.Count; ++i)
                 if (grenadeVisuals[i] != null)
                     Destroy(grenadeVisuals[i]);
