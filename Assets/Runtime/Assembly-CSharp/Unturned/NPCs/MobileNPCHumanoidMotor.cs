@@ -4075,6 +4075,23 @@ namespace SDG.Unturned
 			}
 			if (wall.collider == null)
 				return false;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			// The physical hit is the authoritative facade evidence. Record
+			// collider ownership/layer when opening discovery fails; map
+			// prefabs need not contain a Door or Window component at all.
+			if (Time.time >= nextPhysicalThresholdDiagnosticTime)
+			{
+				nextPhysicalThresholdDiagnosticTime = Time.time + 5f;
+				Debug.Log("[MobileNPCGeometryThreshold] facade npc=" + name
+					+ " collider=" + wall.collider.name
+					+ " root=" + wall.collider.transform.root.name
+					+ " layer=" + wall.collider.gameObject.layer
+					+ " mask=" + (int)obstacleMask
+					+ " bounds=" + wall.collider.bounds
+					+ " contact=" + wall.point
+					+ " normal=" + wall.normal, this);
+			}
+#endif
 			Vector3 outward = wall.normal;
 			outward.y = 0f;
 			if (outward.sqrMagnitude < 0.45f)
@@ -4203,7 +4220,14 @@ namespace SDG.Unturned
 					Debug.Log("[MobileNPCGeometryThreshold] No traversable opening npc=" + name
 						+ " groundedPairs=" + groundedOpeningPairs
 						+ " capsuleClearPairs=" + capsuleClearPairs
-						+ " wall=" + wall.point + " goal=" + destination, this);
+						+ " wall=" + wall.point + " goal=" + destination
+						+ " collider=" + wall.collider.name
+						+ " layer=" + wall.collider.gameObject.layer
+						+ " mask=" + (int)obstacleMask
+						+ " root=" + wall.collider.transform.root.name
+						+ " bounds=" + wall.collider.bounds
+						+ " isTrigger=" + wall.collider.isTrigger,
+						this);
 				}
 #endif
 				return false;
