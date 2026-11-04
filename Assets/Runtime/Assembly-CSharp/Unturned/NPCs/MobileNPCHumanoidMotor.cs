@@ -3150,21 +3150,27 @@ namespace SDG.Unturned
 				// the current route/detour waypoint as well, so the motor doesn't
 				// tear down working A* paths halfway around a building.
 				bool advancingAlongPlannedRoute = false;
-				if (routeWaypointIndex < routeWaypoints.Count)
+				bool hasPhysicalRouteTarget = routeWaypointIndex < routeWaypoints.Count;
+				if (hasPhysicalRouteTarget || hasDetourWaypoint)
 				{
-					Vector3 waypoint = routeWaypoints[routeWaypointIndex];
+					Vector3 waypoint = hasPhysicalRouteTarget
+						? routeWaypoints[routeWaypointIndex] : detourWaypoint;
+					// A stair landing above the actor is NOT reached by
+					// passing directly beneath it. Use real XYZ distance
+					// rather than the planar proxy for route progress.
 					advancingAlongPlannedRoute =
-						Mathf.Sqrt(PlanarDistanceSquared(previousPosition, waypoint))
-						- Mathf.Sqrt(PlanarDistanceSquared(samplePosition, waypoint)) >= 0.10f;
+						Vector3.Distance(previousPosition, waypoint)
+						- Vector3.Distance(samplePosition, waypoint) >= 0.10f;
 				}
-				else if (hasDetourWaypoint)
-				{
-					advancingAlongPlannedRoute =
-						Mathf.Sqrt(PlanarDistanceSquared(previousPosition, detourWaypoint))
-						- Mathf.Sqrt(PlanarDistanceSquared(samplePosition, detourWaypoint)) >= 0.10f;
-				}
-				madeMeaningfulProgress = advancingTowardGoal || advancingAroundObstacle
-					|| advancingAlongPlannedRoute;
+				// When following an actual planned corridor, its next waypoint
+				// is authoritative. Straight-line progress toward the distant
+				// brain goal can hide a blocked stair or wall-side loop.
+				// Large, committed contour movement is still allowed for
+				// obstacle recovery when there is no committed corridor.
+				madeMeaningfulProgress = hasPhysicalRouteTarget
+					? advancingAlongPlannedRoute
+					: (advancingTowardGoal || advancingAroundObstacle
+						|| advancingAlongPlannedRoute);
 				if (madeMeaningfulProgress)
 					lastMeaningfulRouteProgressPosition = samplePosition;
 			}
@@ -3174,6 +3180,15 @@ namespace SDG.Unturned
 				lastMeaningfulRouteProgressPosition = samplePosition;
 			}
 
+			// Genuine off-mesh travel owns this movement interval.
+			// Never interpret an airborne jump or active ladder as a failed
+			// walking corridor, and never quarantine its entrance as blocked.
+			if (isPlannedJumping || IsTraversingLadder)
+			{
+				blockedMovementDuration = 0f;
+				lastMeaningfulRouteProgressPosition = samplePosition;
+				return;
+			}
 			if (!wantedToMove || madeMeaningfulProgress)
 			{
 				blockedMovementDuration = 0f;
