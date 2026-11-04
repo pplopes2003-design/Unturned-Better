@@ -17,7 +17,10 @@ namespace SDG.Unturned
         internal int MaxPlayers = 4;
         internal int Port = 27015;
         internal MobileNPCSettings.GameMode NpcMode = MobileNPCSettings.GameMode.Normal;
-        internal bool PublicListing; // LAN-only in initial implementation
+        // Internet sessions use the native Steam server code and relay.
+        // LAN remains available for offline/local diagnostics.
+        internal bool InternetFriends = true;
+        internal bool PublicListing; // Do not request public discovery
         internal string DedicatedServerDirectory = "";
 
         internal bool TryValidate(out string error)
@@ -66,7 +69,7 @@ namespace SDG.Unturned
             {
                 Map = Map, ServerName = ServerName, Password = "",
                 MaxPlayers = MaxPlayers, Port = Port, PublicListing = PublicListing,
-                NpcMode = NpcMode,
+                NpcMode = NpcMode, InternetFriends = InternetFriends,
                 DedicatedServerDirectory = DedicatedServerDirectory
             };
         }
@@ -76,6 +79,7 @@ namespace SDG.Unturned
             // Never print credentials into Player.log or diagnostics.
             return "Map=" + Map + ", ServerName=" + ServerName
                 + ", NPCMode=" + NpcMode + ", MaxPlayers=" + MaxPlayers + ", Port=" + Port
+                + ", InternetFriends=" + InternetFriends
                 + ", PublicListing=" + PublicListing;
         }
     }
