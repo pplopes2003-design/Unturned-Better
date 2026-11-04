@@ -275,12 +275,14 @@ namespace SDG.Unturned
                 string label = disposition != null ? disposition.DisplayName : "Sobrevivente";
                 if (string.IsNullOrEmpty(label)) label = "Sobrevivente";
                 if (label.Length > 40) label = label.Substring(0, 40);
-                // The NPC's saved display name is stable across server
-                // restarts; Unity GetInstanceID() is NOT. Use a deterministic
-                // name hash so clients do not recolor an existing survivor
-                // after reloading the dedicated world. Distinct survivors
-                // sharing a name may have the same cosmetic appearance.
-                int seed = StableNameAppearanceSeed(label);
+                // Persistent GUID survives reload and distinguishes NPCs
+                // with identical names. Never send the GUID itself over
+                // the wire; the client only needs a deterministic seed.
+                MobileNPCPersistentIdentity identity =
+                    driver.GetComponent<MobileNPCPersistentIdentity>();
+                int seed = identity != null
+                    ? identity.AppearanceSeedServer()
+                    : StableNameAppearanceSeed(label);
                 BroadcastServerOutfit(driver);
                 SendNpcIdentity.Invoke(ENetReliability.Reliable,
                     Provider.GatherRemoteClientConnectionsWithinSphere(
