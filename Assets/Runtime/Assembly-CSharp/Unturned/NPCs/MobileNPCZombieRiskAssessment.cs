@@ -44,9 +44,19 @@ namespace SDG.Unturned
                 return;
             nextScanAt = Time.time + Random.Range(0.55f, 0.85f);
 
+            bool visuallyConfirmedPursuer = false;
+            float closestPursuerDistanceSquared = float.PositiveInfinity;
             Zombie visible = perception.VisibleZombie;
             if (visible != null && !visible.isDead)
+            {
                 RememberObservedServer(visible);
+                if (visible.IsHuntingMobileNPC(vitals))
+                {
+                    visuallyConfirmedPursuer = true;
+                    closestPursuerDistanceSquared =
+                        (visible.transform.position - transform.position).sqrMagnitude;
+                }
+            }
             // Bounded personal hazard scan. Build a nearest-three shortlist
             // without allocating or raycasting every zombie in the map.
             // Close zombies behind a wall are NOT automatically known.
@@ -98,7 +108,15 @@ namespace SDG.Unturned
                         if (candidate == null)
                             continue;
                         if (CanReallySeeServer(candidate))
+                        {
                             RememberObservedServer(candidate);
+                            if (candidate.IsHuntingMobileNPC(vitals))
+                            {
+                                visuallyConfirmedPursuer = true;
+                                closestPursuerDistanceSquared = Mathf.Min(
+                                    closestPursuerDistanceSquared, nearestDistances[i]);
+                            }
+                        }
                     }
                 }
             }
@@ -115,8 +133,18 @@ namespace SDG.Unturned
             float crowdThreshold = MobileNPCSettings.CombatOnly
                 ? (hasEffectiveGun ? 1.15f : 0.55f)
                 : (hasEffectiveGun ? 1.85f : 0.85f);
+            // A zombie actively pursuing THIS NPC is an immediate defensive
+            // threat, not a generic nearby zombie. A visible, close pursuer
+            // should force a withdrawal attempt when unarmed, wounded or
+            // already inside striking distance. Armed healthy survivors can
+            // hold position and use the existing gun/melee attack executor.
+            bool immediatePursuerDanger = visuallyConfirmedPursuer
+                && closestPursuerDistanceSquared <= 8f * 8f
+                && (!hasEffectiveGun || vitals.HealthFraction < 0.65f
+                    || closestPursuerDistanceSquared <= 2.8f * 2.8f);
             bool overwhelmed = localRisk >= crowdThreshold
-                || localRisk >= 0.7f && vitals.HealthFraction < 0.45f;
+                || localRisk >= 0.7f && vitals.HealthFraction < 0.45f
+                || immediatePursuerDanger;
             if (!overwhelmed || brain == null || Time.time < nextRetreatAt
                 || brain.CurrentGoal == MobileNPCTactics.Goal.Retreat
                 || brain.CurrentGoal == MobileNPCTactics.Goal.SeekCover)
