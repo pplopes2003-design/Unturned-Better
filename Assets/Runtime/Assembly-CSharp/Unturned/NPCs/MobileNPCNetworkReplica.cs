@@ -67,6 +67,9 @@ namespace SDG.Unturned
         private static readonly ClientStaticMethod<int, ushort, Vector3, Vector3, float>
             SendNpcGrenade = ClientStaticMethod<int, ushort, Vector3, Vector3, float>.Get(
                 ReceiveNpcGrenade);
+        private static readonly ClientStaticMethod<int, ushort, ushort, ushort, ushort, ushort>
+            SendNpcOutfit = ClientStaticMethod<int, ushort, ushort, ushort, ushort, ushort>.Get(
+                ReceiveNpcOutfit);
 
         private readonly List<MobileNPCBrainDriver> drivers =
             new List<MobileNPCBrainDriver>(64);
@@ -261,11 +264,75 @@ namespace SDG.Unturned
                 // stable and would recolor the same NPC every four seconds.
                 int seed = unchecked(driver.GetInstanceID() * 397
                     ^ 0x4B1D2A37);
+                BroadcastServerOutfit(driver);
                 SendNpcIdentity.Invoke(ENetReliability.Reliable,
                     Provider.GatherRemoteClientConnectionsWithinSphere(
                         driver.transform.position, ReplicationRadius),
                     driver.GetInstanceID(), label, seed);
             }
+        }
+
+        /// <summary>
+        /// Inventory is server-owned. Derive visible real clothing IDs from
+        /// the five physical item types, never from client preferences.
+        /// </summary>
+        private static void BroadcastServerOutfit(MobileNPCBrainDriver driver)
+        {
+            MobileNPCInventory inventory = driver != null
+                ? driver.GetComponent<MobileNPCInventory>() : null;
+            if (inventory == null) return;
+            ushort hat = 0, shirt = 0, pants = 0, vest = 0, backpack = 0;
+            for (int i = 0; i < inventory.UsedSlots; ++i)
+            {
+                if (!inventory.TryGetItemSnapshot(i, out Item item)
+                    || item == null) continue;
+                ItemClothingAsset asset =
+                    Assets.find(EAssetType.ITEM, item.id) as ItemClothingAsset;
+                if (asset == null) continue;
+                switch (asset.type)
+                {
+                    case EItemType.HAT: if (hat == 0) hat = item.id; break;
+                    case EItemType.SHIRT: if (shirt == 0) shirt = item.id; break;
+                    case EItemType.PANTS: if (pants == 0) pants = item.id; break;
+                    case EItemType.VEST: if (vest == 0) vest = item.id; break;
+                    case EItemType.BACKPACK:
+                        if (backpack == 0) backpack = item.id; break;
+                }
+            }
+            SendNpcOutfit.Invoke(ENetReliability.Reliable,
+                Provider.GatherRemoteClientConnectionsWithinSphere(
+                    driver.transform.position, ReplicationRadius),
+                driver.GetInstanceID(), hat, shirt, pants, vest, backpack);
+        }
+
+        [SteamCall(ESteamCallValidation.ONLY_FROM_SERVER)]
+        public static void ReceiveNpcOutfit(int id, ushort hat, ushort shirt,
+            ushort pants, ushort vest, ushort backpack)
+        {
+            if (Provider.isServer || !Provider.isConnected || !Level.isLoaded
+                || instance == null || id == 0
+                || !instance.remote.TryGetValue(id, out Replica replica)
+                || replica.Root == null)
+                return;
+            HumanClothes clothes =
+                replica.Root.GetComponentInChildren<HumanClothes>(true);
+            if (clothes == null) return;
+            if (clothes.hat == hat && clothes.shirt == shirt
+                && clothes.pants == pants && clothes.vest == vest
+                && clothes.backpack == backpack)
+                return;
+            clothes.hat = hat;
+            clothes.shirt = shirt;
+            clothes.pants = pants;
+            clothes.vest = vest;
+            clothes.backpack = backpack;
+            clothes.apply();
+            // Real clothing meshes can introduce colliders. They must NOT
+            // participate in client-authoritative combat or obstruction.
+            foreach (Collider collider in
+                replica.Root.GetComponentsInChildren<Collider>(true))
+                if (collider.GetComponent<MobileNPCBodyHitbox>() == null)
+                    collider.enabled = false;
         }
 
         [SteamCall(ESteamCallValidation.ONLY_FROM_SERVER)]
