@@ -114,11 +114,10 @@ namespace SDG.Unturned
                 if (!inventory.TryGetItemSnapshot(slot, out Item snapshot) || snapshot == null)
                     continue;
                 ItemAsset asset = snapshot.GetAsset();
-                if (asset == null || asset.isPro)
-                {
-                    ++refused;
-                    continue;
-                }
+                // Keep ownership of currently unavailable Workshop assets too:
+                // the journal can recover them after that content is installed.
+                // Never materialize Pro-only or unknown items as ordinary drops.
+                bool canDrop = asset != null && !asset.isPro;
 
                 // Claim inventory ownership first. If the world refuses the drop,
                 // restore EXACTLY the original item with amount, quality and state.
@@ -134,7 +133,16 @@ namespace SDG.Unturned
                 // own dynamic collider immediately below its center.
                 Vector3 dropAnchor = transform.position + transform.right * 0.9f
                     + Vector3.up * 0.6f;
-                if (ItemManager.TryDropMobileNPCItemServer(transferred, dropAnchor))
+                bool inserted = false;
+                if (canDrop)
+                {
+                    try { inserted = ItemManager.TryDropMobileNPCItemServer(transferred, dropAnchor); }
+                    catch (System.Exception exception)
+                    {
+                        Debug.LogError("[MobileNPCDeathLoot] Native drop failed: " + exception, this);
+                    }
+                }
+                if (inserted)
                 {
                     ++released;
                 }
