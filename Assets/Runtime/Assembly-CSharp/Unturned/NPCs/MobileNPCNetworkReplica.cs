@@ -18,6 +18,7 @@ namespace SDG.Unturned
         private const int MaxSnapshotsPerTick = 128;
         private const float ReplicationRadius = 165f;
         private const float GunAudioRadius = 90f;
+        private const float GrenadeVisualRadius = 140f;
 
         private sealed class Replica
         {
@@ -63,6 +64,9 @@ namespace SDG.Unturned
         // every 0.35-second movement packet.
         private static readonly ClientStaticMethod<int, string, int>
             SendNpcIdentity = ClientStaticMethod<int, string, int>.Get(ReceiveNpcIdentity);
+        private static readonly ClientStaticMethod<int, ushort, Vector3, Vector3, float>
+            SendNpcGrenade = ClientStaticMethod<int, ushort, Vector3, Vector3, float>.Get(
+                ReceiveNpcGrenade);
 
         private readonly List<MobileNPCBrainDriver> drivers =
             new List<MobileNPCBrainDriver>(64);
@@ -107,6 +111,11 @@ namespace SDG.Unturned
             nextDriverIndex = 0;
             nextSnapshotAt = Time.time + 0.5f;
             nextIdentityAt = Time.time + 1f;
+        }
+
+        private static bool IsFiniteFloat(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
         }
 
         private static byte QuantizeYaw(float yaw)
@@ -501,6 +510,65 @@ namespace SDG.Unturned
         /// client's input or a locally predicted combat simulation.
         /// No damage is applied by this visual notification.
         /// </summary>
+        /// <summary>
+        /// Sends presentation of an already-consumed and server-committed
+        /// native grenade. The replica NEVER receives a Grenade component,
+        /// deals damage, or independently applies an explosion.
+        /// </summary>
+        internal static void NotifyGrenadeThrowServer(MobileNPCBrainDriver driver,
+            ushort throwableId, Vector3 origin, Vector3 velocity, float fuseSeconds)
+        {
+            if (!Provider.isServer || !Dedicator.IsDedicatedServer
+                || driver == null || throwableId == 0
+                || !IsFiniteFloat(origin.x) || !IsFiniteFloat(origin.y)
+                || !IsFiniteFloat(origin.z)
+                || !IsFiniteFloat(velocity.x) || !IsFiniteFloat(velocity.y)
+                || !IsFiniteFloat(velocity.z)
+                || fuseSeconds <= 0f || fuseSeconds > 10f)
+                return;
+            SendNpcGrenade.Invoke(ENetReliability.Reliable,
+                Provider.GatherRemoteClientConnectionsWithinSphere(
+                    origin, GrenadeVisualRadius),
+                driver.GetInstanceID(), throwableId, origin, velocity, fuseSeconds);
+        }
+
+        [SteamCall(ESteamCallValidation.ONLY_FROM_SERVER)]
+        public static void ReceiveNpcGrenade(int npcId, ushort throwableId,
+            Vector3 origin, Vector3 velocity, float fuseSeconds)
+        {
+            if (Provider.isServer || !Provider.isConnected || !Level.isLoaded
+                || instance == null || npcId == 0
+                || fuseSeconds <= 0f || fuseSeconds > 10f
+                || float.IsNaN(origin.x) || float.IsNaN(origin.y)
+                || float.IsNaN(origin.z) || float.IsInfinity(origin.x)
+                || float.IsInfinity(origin.y) || float.IsInfinity(origin.z)
+                || velocity.sqrMagnitude > 3000f)
+                return;
+            ItemThrowableAsset asset = Assets.find(EAssetType.ITEM,
+                throwableId) as ItemThrowableAsset;
+            if (asset == null || asset.throwable == null)
+                return;
+            // The client physics object has no explosive logic. The actual
+            // native Grenade on the server owns fuse, damage and effects.
+            GameObject visual = Object.Instantiate(asset.throwable,
+                origin, Quaternion.LookRotation(
+                    velocity.sqrMagnitude > 0.001f ? velocity : Vector3.forward));
+            if (visual == null)
+                return;
+            visual.name = "RemoteNPC_GrenadeVisual";
+            foreach (Grenade native in visual.GetComponentsInChildren<Grenade>(true))
+                Object.Destroy(native);
+            Rigidbody rigidbody = visual.GetComponent<Rigidbody>();
+            if (rigidbody == null)
+            {
+                Object.Destroy(visual);
+                return;
+            }
+            rigidbody.collisionDetectionMode = CollisionDetectionMode.Continuous;
+            rigidbody.AddForce(velocity * rigidbody.mass, ForceMode.Impulse);
+            Object.Destroy(visual, fuseSeconds);
+        }
+
         internal static void NotifyCommittedShotServer(MobileNPCBrainDriver driver,
             ushort gunId)
         {
