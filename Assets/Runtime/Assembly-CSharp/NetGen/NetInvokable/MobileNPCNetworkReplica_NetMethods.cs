@@ -245,5 +245,58 @@ namespace SDG.Unturned
             writer.WriteFloat(fuseSeconds);
         }
 
+        [NetInvokableGeneratedMethod(nameof(MobileNPCNetworkReplica.ReceiveNpcOutfit), ENetInvokableGeneratedMethodPurpose.Read)]
+        public static void ReceiveNpcOutfit_Read(in ClientInvocationContext context)
+        {
+            NetPakReader reader = context.reader;
+            System.Int32 id;
+            if (!reader.ReadInt32(out id))
+            {
+                context.ReadParameterFailed(nameof(id));
+                return;
+            }
+            System.UInt16 hat;
+            if (!reader.ReadUInt16(out hat))
+            {
+                context.ReadParameterFailed(nameof(hat));
+                return;
+            }
+            System.UInt16 shirt;
+            if (!reader.ReadUInt16(out shirt))
+            {
+                context.ReadParameterFailed(nameof(shirt));
+                return;
+            }
+            System.UInt16 pants;
+            if (!reader.ReadUInt16(out pants))
+            {
+                context.ReadParameterFailed(nameof(pants));
+                return;
+            }
+            System.UInt16 vest;
+            if (!reader.ReadUInt16(out vest))
+            {
+                context.ReadParameterFailed(nameof(vest));
+                return;
+            }
+            System.UInt16 backpack;
+            if (!reader.ReadUInt16(out backpack))
+            {
+                context.ReadParameterFailed(nameof(backpack));
+                return;
+            }
+            MobileNPCNetworkReplica.ReceiveNpcOutfit(id, hat, shirt, pants, vest, backpack);
+        }
+        [NetInvokableGeneratedMethod(nameof(MobileNPCNetworkReplica.ReceiveNpcOutfit), ENetInvokableGeneratedMethodPurpose.Write)]
+        public static void ReceiveNpcOutfit_Write(NetPakWriter writer, System.Int32 id, System.UInt16 hat, System.UInt16 shirt, System.UInt16 pants, System.UInt16 vest, System.UInt16 backpack)
+        {
+            writer.WriteInt32(id);
+            writer.WriteUInt16(hat);
+            writer.WriteUInt16(shirt);
+            writer.WriteUInt16(pants);
+            writer.WriteUInt16(vest);
+            writer.WriteUInt16(backpack);
+        }
+
     }
 }
