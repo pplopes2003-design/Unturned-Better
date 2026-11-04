@@ -2379,6 +2379,9 @@ namespace SDG.Unturned
 			if (!Provider.isServer || characterController == null
 				|| !characterController.enabled || isPlannedJumping
 				|| IsTraversingLadder || hasPlannedLadderApproach
+				// A physically verified threshold route is already selected:
+				// do not replace its grounded door/step crossing with a jump.
+				|| hasPhysicalThresholdRoute
 				|| waitingForDoor || waitingForLearnedRoute || waitingForLadder
 				|| Time.time < noJumpUntil
 				|| Time.time < nextJumpTime)
