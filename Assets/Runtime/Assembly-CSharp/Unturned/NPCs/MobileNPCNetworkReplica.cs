@@ -14,6 +14,9 @@ namespace SDG.Unturned
     {
         private const string ResourcePath = "Characters/MobileNPC_Client";
         private const float SnapshotInterval = 0.35f;
+        // Idle NPCs retain a short heartbeat for late joins and the 6-second
+        // client replica expiry. Moving/combat state keeps the normal cadence.
+        private const float IdleHeartbeatInterval = 1.4f;
         private const float RemoteExpiry = 6f;
         private const int MaxSnapshotsPerTick = 128;
         private const float ReplicationRadius = 165f;
@@ -81,6 +84,21 @@ namespace SDG.Unturned
         private readonly Dictionary<int, float> deathTombstones =
             new Dictionary<int, float>(32);
         private const float TombstoneSeconds = 20f;
+        private struct LastSentSnapshot
+        {
+            public Vector3 Position;
+            public byte Yaw;
+            public ushort GunId;
+            public byte Motion;
+            public byte Pitch;
+            public float SentAt;
+        }
+        private readonly Dictionary<int, LastSentSnapshot> sentSnapshots =
+            new Dictionary<int, LastSentSnapshot>(64);
+        private readonly HashSet<int> activeSnapshotIds = new HashSet<int>();
+        private readonly List<int> staleSnapshotIds = new List<int>(32);
+        private int lastSnapshotsEmitted;
+        private int lastIdleSnapshotsSkipped;
         private float nextSnapshotAt;
         private float nextIdentityAt;
         private float nextReplicationAuditAt;
@@ -107,11 +125,13 @@ namespace SDG.Unturned
         {
             Level.onPostLevelLoaded -= OnLevelChanged;
             ClearClientReplicas();
+            sentSnapshots.Clear();
         }
 
         private void OnLevelChanged(int level)
         {
             ClearClientReplicas();
+            sentSnapshots.Clear();
             nextDriverIndex = 0;
             nextSnapshotAt = Time.time + 0.5f;
             nextIdentityAt = Time.time + 1f;
@@ -173,9 +193,38 @@ namespace SDG.Unturned
             }
         }
 
+        // Pure decision helper: motion, weapon and pitch changes are never
+        // suppressed. Idle snapshots are suppressed only when both pose and
+        // position remain stable, and only until the heartbeat is due.
+        internal static bool ShouldTransmitSnapshot(bool hasPrevious,
+            Vector3 position, byte yaw, ushort gunId, byte motion, byte pitch,
+            Vector3 previousPosition, byte previousYaw, ushort previousGunId,
+            byte previousMotion, byte previousPitch, float elapsed)
+        {
+            if (!hasPrevious || elapsed >= IdleHeartbeatInterval
+                || motion != 0 || previousMotion != motion
+                || gunId != previousGunId || pitch != previousPitch)
+                return true;
+            int angle = Mathf.Abs((int)yaw - (int)previousYaw);
+            angle = Mathf.Min(angle, 256 - angle);
+            return (position - previousPosition).sqrMagnitude >= 0.04f
+                || angle >= 2;
+        }
+
         private void BroadcastServerSnapshots()
         {
             MobileNPCRegistry.CopyActiveDrivers(drivers);
+            activeSnapshotIds.Clear();
+            for (int i = 0; i < drivers.Count; ++i)
+                if (drivers[i] != null && drivers[i].isActiveAndEnabled)
+                    activeSnapshotIds.Add(drivers[i].GetInstanceID());
+            staleSnapshotIds.Clear();
+            foreach (int id in sentSnapshots.Keys)
+                if (!activeSnapshotIds.Contains(id)) staleSnapshotIds.Add(id);
+            for (int i = 0; i < staleSnapshotIds.Count; ++i)
+                sentSnapshots.Remove(staleSnapshotIds[i]);
+            lastSnapshotsEmitted = 0;
+            lastIdleSnapshotsSkipped = 0;
             if (drivers.Count == 0)
             {
                 nextDriverIndex = 0;
@@ -220,15 +269,32 @@ namespace SDG.Unturned
                         Mathf.RoundToInt(90f + Mathf.Clamp(elevation, -55f, 55f)),
                         0, 180);
                 }
+                int npcId = driver.GetInstanceID();
+                Vector3 position = driver.transform.position;
+                byte yaw = QuantizeYaw(driver.transform.eulerAngles.y);
+                bool hasPrevious = sentSnapshots.TryGetValue(npcId,
+                    out LastSentSnapshot previous);
+                if (!ShouldTransmitSnapshot(hasPrevious, position, yaw, gunId,
+                    motionFlags, headPitch, previous.Position, previous.Yaw,
+                    previous.GunId, previous.Motion, previous.Pitch,
+                    hasPrevious ? Time.time - previous.SentAt : float.PositiveInfinity))
+                {
+                    ++lastIdleSnapshotsSkipped;
+                    continue;
+                }
+                sentSnapshots[npcId] = new LastSentSnapshot
+                {
+                    Position = position, Yaw = yaw, GunId = gunId,
+                    Motion = motionFlags, Pitch = headPitch, SentAt = Time.time
+                };
+                ++lastSnapshotsEmitted;
                 // No loopback: the dedicated host owns real NPC objects.
-                // Unreliable updates are refreshed periodically; no hidden
-                // target coordinates or AI memory are sent to clients.
+                // Unreliable snapshots are bounded by the idle heartbeat,
+                // including for clients joining after a stationary period.
                 SendNpcSnapshot.Invoke(ENetReliability.Unreliable,
                     Provider.GatherRemoteClientConnectionsWithinSphere(
-                        driver.transform.position, ReplicationRadius),
-                    driver.GetInstanceID(), driver.transform.position,
-                    QuantizeYaw(driver.transform.eulerAngles.y), gunId,
-                    motionFlags, headPitch);
+                        position, ReplicationRadius),
+                    npcId, position, yaw, gunId, motionFlags, headPitch);
             }
             nextDriverIndex = (nextDriverIndex + limit) % drivers.Count;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -236,6 +302,8 @@ namespace SDG.Unturned
             {
                 nextReplicationAuditAt = Time.time + 15f;
                 Debug.Log("[MobileNPCReplication] dedicated snapshots sampled=" + limit
+                    + " emitted=" + lastSnapshotsEmitted
+                    + " idleSkipped=" + lastIdleSnapshotsSkipped
                     + " totalLiveDrivers=" + drivers.Count
                     + " interval=" + SnapshotInterval + "s");
             }
