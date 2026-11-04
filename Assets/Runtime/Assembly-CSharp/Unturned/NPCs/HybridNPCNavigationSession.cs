@@ -5,9 +5,9 @@ using UnityEngine;
 namespace SDG.Unturned
 {
     /// <summary>
-    /// Navigation service to be invoked by the existing NPC brain/motor integration.
-    /// Keeps route computation, report events and stuck detection in one place.
-    /// It DOES NOT automatically attach to existing NPCs.
+    /// Opt-in navigation session for the existing NPC brain and motor.
+    /// Route ownership is kept until arrival, verified stall, or a material
+    /// destination change. This class never moves transforms.
     /// </summary>
     public sealed class HybridNPCNavigationSession
     {
@@ -32,11 +32,31 @@ namespace SDG.Unturned
         public HybridNPCPathFollower.RouteState State { get { return follower.State; } }
         public Vector3 Waypoint { get { return follower.DesiredWaypoint; } }
         public int ConsecutiveFailures { get { return failureCount; } }
+        public bool IsRouteLocked
+        {
+            get { return follower.State == HybridNPCPathFollower.RouteState.Following; }
+        }
 
+        /// <summary>
+        /// Reject incidental planner updates while a route is being followed.
+        /// A materially different goal or explicit forced replan may interrupt.
+        /// Use force only for urgent danger or motor-confirmed invalidation.
+        /// </summary>
         public bool Plan(Vector3 currentFeet, Vector3 goal, int fromRegion, int toRegion,
             HybridNPCGridPlanner.Settings settings)
         {
-            destination = goal;
+            return Plan(currentFeet, goal, fromRegion, toRegion, settings, false);
+        }
+
+        public bool Plan(Vector3 currentFeet, Vector3 goal, int fromRegion, int toRegion,
+            HybridNPCGridPlanner.Settings settings, bool force)
+        {
+            // Keep the existing route intact on an ordinary refresh.
+            if (!force && IsRouteLocked &&
+                (goal - destination).sqrMagnitude <= 2.25f)
+                return true;
+            if (navigator == null) return false;
+
             var route = new List<Vector3>();
             var watch = Stopwatch.StartNew();
             bool ok = navigator.TryRoute(currentFeet, goal, fromRegion, toRegion,
@@ -50,23 +70,25 @@ namespace SDG.Unturned
                     fromRegion, toRegion, -1, route.Count, length,
                     (float)watch.Elapsed.TotalMilliseconds, ok,
                     ok ? "path_found" : "no_connected_path");
-            if (ok)
+            if (ok && route.Count > 0)
             {
+                destination = goal;
                 failureCount = 0;
                 stallRecorded = false;
                 follower.SetPath(route);
+                return true;
             }
-            else
-            {
-                failureCount++;
+
+            failureCount++;
+            // Failed replacement is not permission to discard a working route.
+            if (!IsRouteLocked || force)
                 follower.Clear();
-            }
-            return ok;
+            return false;
         }
 
         /// <summary>
-        /// Call after motor movement. Caller owns all physics and animation.
-        /// Stalled routes remain stalled until a recovery or fresh Plan.
+        /// Call after the physical motor moves, with actual feet coordinates.
+        /// The route remains stalled until recovery or successful replanning.
         /// </summary>
         public HybridNPCPathFollower.RouteState Tick(Vector3 actualFeet,
             float deltaTime, float speed)
