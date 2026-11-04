@@ -174,3 +174,15 @@ Investigation spiral candidates are now rejected if individual sensor memory rec
 - Both shared registry candidate searches and `MobileNPCSpatialMemory.TryRouteCrossedPassage` respect this cooldown, preventing the same NPC from bypassing it through personal remembered routes. Physical completion at the far threshold via `ConfirmCrossing` clears cooldown.
 - This is bounded, conservative **runtime feedback**, not a full dynamic obstacle graph or baked NavMesh replacement. Validate one furniture-blocked doorway, a second available doorway, and a briefly occupied door by an NPC. Observe that the first is avoided temporarily and the last does not poison the crossing.
 - **No Unity compiler/build/playtest has been run**. Resolve the first compiler error before attributing any observed gameplay issue to navigation.
+
+## Collective navigation knowledge across saves (2026-11-04)
+
+The physically crossed doorway registry now supports **map-scoped persistent collective experience**:
+- `HybridNPCObservedPortalRegistry.ConfirmCrossing` only receives motor-confirmed far-side arrival; these crossings are stored in `Application.persistentDataPath/MobileNPCs/CollectiveNavigation/<map>.json`.
+- It is **not tied to Provider.serverID, NPC identity, faction, combat-only mode or individual saves**. New NPCs and new singleplayer characters playing the **same named map** can benefit from previously traversed openings. Different map names have separate files to avoid mixing unrelated coordinates.
+- JSON schema v1 stores only bounded (up to 128 in the file, 64 active in-memory) physically crossed entry/exit pairs. Coordinates must be finite, separated by 0.4-4.5m. File writes are throttled to 30s, use a temporary file and backup, and flush on NPC shutdown or map transition.
+- On load, all imported passages remain **candidate topology only**: every proposed entry/crossing/exit route must be physically checked again by the existing independent A* using the current CharacterController, floor, slopes and collision geometry. This is crucial for saves with newly placed furniture, maps updated by Workshop authors or changed world geometry.
+- The collective file is not a universal transferable mesh across unrelated maps, and does not change NPC combat intelligence or make a player-controlled agent magically omniscient. The current registry is a shared cache of **physically confirmed openings**, not yet a full persistent city-wide road graph.
+- If the current JSON and backup cannot be loaded, preservation mode prevents accidental overwriting. To reset only collective navigation for a map, back up and remove its file while the game is closed. Existing individual NPC saves are unaffected.
+
+**Build status**: source integration only. No verified Unity compilation, actual file I/O test or Washington doorway traversal yet. Test first compiler error, crossing save/restart/new character in the same map, a different map, and blocking a remembered doorway with furniture.
