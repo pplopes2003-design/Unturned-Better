@@ -74,6 +74,12 @@ namespace SDG.Unturned
             Disable<MobileNPCTerritoryRaidPlanner>(npc);
             Disable<MobileNPCUnknownBaseIntel>(npc);
 
+            // Restored NPCs retain their real saved grenade items; the
+            // executor must exist for BOTH fresh spawns and JSON restores.
+            // GetComponent avoids duplicate throwers on repeated setup.
+            if (npc.GetComponent<MobileNPCGrenadeThrower>() == null)
+                npc.AddComponent<MobileNPCGrenadeThrower>();
+
             if (freshSpawn)
                 GrantStartingKitServer(npc);
 
@@ -97,12 +103,6 @@ namespace SDG.Unturned
 
         private static void GrantStartingKitServer(GameObject npc)
         {
-            // Previously the native thrower could be absent even when an
-            // owned grenade was issued. Attach exactly one server component;
-            // its own rules still require firsthand sight and safe ballistics.
-            if (npc.GetComponent<MobileNPCGrenadeThrower>() == null)
-                npc.AddComponent<MobileNPCGrenadeThrower>();
-
             MobileNPCInventory inventory = npc.GetComponent<MobileNPCInventory>();
             if (inventory == null)
             {
@@ -123,7 +123,6 @@ namespace SDG.Unturned
             {
                 primary = Maplestrike;
                 spareMagazine = MilitaryMagazine;
-                combatRole = "assault-fallback";
                 combatRole = "assault-military";
             }
             else if (roll < 55)
@@ -162,6 +161,7 @@ namespace SDG.Unturned
                     + "or incompatible; trying Military Maplestrike fallback.", npc);
                 primary = Maplestrike;
                 spareMagazine = MilitaryMagazine;
+                combatRole = "assault-fallback";
                 gunAsset = Assets.find(EAssetType.ITEM, primary) as ItemGunAsset;
                 magazineAsset =
                     Assets.find(EAssetType.ITEM, spareMagazine) as ItemMagazineAsset;
