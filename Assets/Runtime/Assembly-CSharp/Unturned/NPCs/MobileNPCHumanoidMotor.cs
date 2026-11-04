@@ -619,6 +619,23 @@ namespace SDG.Unturned
 			float deltaTime = Time.deltaTime;
 			if (monitoringHybridPath)
 			{
+				// The motor owns the actual route index. A verified physical
+				// corner shortcut may advance it ahead of the diagnostic follower.
+				// Never let a stale monitor cancel the motor's newer waypoint.
+				if (routeWaypoints.Count == 0 || routeWaypointIndex >= routeWaypoints.Count)
+				{
+					monitoringHybridPath = false;
+					hybridPathMonitor.Clear();
+				}
+				else if ((hybridPathMonitor.DesiredWaypoint
+					- routeWaypoints[routeWaypointIndex]).sqrMagnitude > 0.25f)
+				{
+					hybridPathMonitor.SetPath(routeWaypoints.GetRange(
+						routeWaypointIndex, routeWaypoints.Count - routeWaypointIndex));
+				}
+			}
+			if (monitoringHybridPath)
+			{
 				var progress = hybridPathMonitor.Tick(transform.position, deltaTime);
 				if (navigationTelemetry != null && navigationTelemetry.LoggingEnabled)
 					navigationTelemetry.RecordMovement(GetInstanceID().ToString(),
@@ -1215,7 +1232,10 @@ namespace SDG.Unturned
 						: routeWaypointIndex < routeWaypoints.Count - 1
 							? 0.49f : 1.0f)
 					&& Mathf.Abs(routeWaypoints[routeWaypointIndex].y - transform.position.y)
-					<= Mathf.Max(0.45f, characterController.stepOffset + 0.2f))
+					<= (hasPhysicalThresholdRoute
+						|| routeWaypointIndex < routeWaypoints.Count - 1
+							? 0.45f
+							: Mathf.Max(0.45f, characterController.stepOffset + 0.2f)))
 				{
 					// Reaching the FAR threshold waypoint, not merely discovering
 					// an opening, proves that the NPC actually crossed it.
@@ -2039,6 +2059,8 @@ namespace SDG.Unturned
 		{
 			routeWaypoints.Clear();
 			routeWaypointIndex = 0;
+			monitoringHybridPath = false;
+			hybridPathMonitor.Clear();
 			hasDetourWaypoint = false;
 			detourGoalSnapshot = finalGoal;
 			hasPendingKnownAccessPath = false;
