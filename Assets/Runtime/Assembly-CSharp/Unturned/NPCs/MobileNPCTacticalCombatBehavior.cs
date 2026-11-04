@@ -92,6 +92,33 @@ namespace SDG.Unturned
 				return;
 
 			nextUpdateTime = Time.time + Mathf.Max(0.1f, tacticalUpdateInterval);
+			// Weapon roles must use different spacing, but never override
+			// an urgent retreat, cover, squad hold, or actual path validation.
+			// These are only preferences for OPTIONAL firing-lane searches.
+			if (MobileNPCSettings.CombatOnly)
+			{
+				ItemGunAsset selected = rangedCombat.SelectedGunAsset;
+				ushort id = selected != null ? selected.id : (ushort)0;
+				switch (id)
+				{
+					case 112: // Bluntforce: close-range shotgun
+						preferredMinimumRange = 5f;
+						preferredMaximumRange = 14f;
+						break;
+					case 129: // Snayperskya
+						preferredMinimumRange = 22f;
+						preferredMaximumRange = 65f;
+						break;
+					case 297: // Grizzly heavy precision rifle
+						preferredMinimumRange = 30f;
+						preferredMaximumRange = 80f;
+						break;
+					default:
+						preferredMinimumRange = 7f;
+						preferredMaximumRange = 28f;
+						break;
+				}
+			}
 			Transform target = brain.Target;
 			if (target == null)
 			{
