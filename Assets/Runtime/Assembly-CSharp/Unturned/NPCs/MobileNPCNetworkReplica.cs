@@ -42,12 +42,18 @@ namespace SDG.Unturned
                 ClientStaticMethod<int, Vector3, byte, ushort, byte>.Get(ReceiveNpcSnapshot);
         private static readonly ClientStaticMethod<int, Vector3, ushort>
             SendNpcShot = ClientStaticMethod<int, Vector3, ushort>.Get(ReceiveNpcShot);
+        private static readonly ClientStaticMethod<int, Vector3>
+            SendNpcDeath = ClientStaticMethod<int, Vector3>.Get(ReceiveNpcDeath);
 
         private readonly List<MobileNPCBrainDriver> drivers =
             new List<MobileNPCBrainDriver>(64);
         private readonly Dictionary<int, Replica> remote =
             new Dictionary<int, Replica>(64);
         private readonly List<int> expired = new List<int>(32);
+        // Delayed unreliable position packets must not resurrect a dead NPC.
+        private readonly Dictionary<int, float> deathTombstones =
+            new Dictionary<int, float>(32);
+        private const float TombstoneSeconds = 20f;
         private float nextSnapshotAt;
         private float nextReplicationAuditAt;
         private bool firstRemoteReplicaLogged;
@@ -176,6 +182,9 @@ namespace SDG.Unturned
         private void ApplySnapshot(int id, Vector3 pos, Quaternion yaw,
             ushort gunId, byte motionFlags)
         {
+            if (deathTombstones.TryGetValue(id, out float deathAt)
+                && Time.time - deathAt < TombstoneSeconds)
+                return;
             if (!remote.TryGetValue(id, out Replica replica))
             {
                 GameObject root = CreateVisualRoot(id, pos, yaw);
@@ -336,6 +345,12 @@ namespace SDG.Unturned
             }
             foreach (int id in expired)
                 remote.Remove(id);
+            expired.Clear();
+            foreach (KeyValuePair<int, float> dead in deathTombstones)
+                if (Time.time - dead.Value >= TombstoneSeconds)
+                    expired.Add(dead.Key);
+            foreach (int id in expired)
+                deathTombstones.Remove(id);
         }
 
         /// <summary>
@@ -374,6 +389,34 @@ namespace SDG.Unturned
                 sound.SetLinearRolloff(1f, 64f);
                 sound.Play();
             }
+        }
+
+        internal static void NotifyConfirmedDeathServer(MobileNPCBrainDriver driver)
+        {
+            if (!Provider.isServer || !Dedicator.IsDedicatedServer
+                || driver == null)
+                return;
+            SendNpcDeath.Invoke(ENetReliability.Reliable,
+                Provider.GatherRemoteClientConnections(),
+                driver.GetInstanceID(), driver.transform.position);
+        }
+
+        [SteamCall(ESteamCallValidation.ONLY_FROM_SERVER)]
+        public static void ReceiveNpcDeath(int id, Vector3 position)
+        {
+            if (Provider.isServer || !Provider.isConnected || !Level.isLoaded
+                || instance == null || id == 0)
+                return;
+            instance.deathTombstones[id] = Time.time;
+            if (instance.remote.TryGetValue(id, out Replica replica))
+            {
+                if (replica.Root != null)
+                    Destroy(replica.Root);
+                instance.remote.Remove(id);
+            }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Debug.Log("[MobileNPCReplication] Server confirmed NPC death id=" + id);
+#endif
         }
 
         private static string FindClip(Animation animation, params string[] matches)
@@ -483,6 +526,7 @@ namespace SDG.Unturned
                     Destroy(replica.Root);
             remote.Clear();
             expired.Clear();
+            deathTombstones.Clear();
         }
     }
 }
