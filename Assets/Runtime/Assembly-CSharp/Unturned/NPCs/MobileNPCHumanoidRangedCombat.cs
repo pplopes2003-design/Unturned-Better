@@ -170,9 +170,9 @@ namespace SDG.Unturned
 			// Short-range buckshot should not freeze the shotgunner 35m
 			// away just because the underlying asset declares a longer
 			// maximum ballistic range. Marksmen keep real optic limits.
-			if (selectedGunID == 112)
+			if (selectedGunID == 112 || selectedGunID == 59010)
 				range = Mathf.Min(range, 14f);
-			float minimum = selectedGunID == 112 ? 4.5f
+			float minimum = (selectedGunID == 112 || selectedGunID == 59010) ? 4.5f
 				: selectedGunID == 129 ? 13f
 				: selectedGunID == 297 ? 18f
 				: selectedOpticZoom >= 2.5f ? 9f : 3.5f;
