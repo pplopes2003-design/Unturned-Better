@@ -1702,7 +1702,7 @@ namespace SDG.Unturned
 							&& clientNPCHit != null
 							? clientNPCHit.GetComponentInParent<MobileNPCBodyHitbox>()
 							: null;
-						if (remoteNpcHit != null && equippedGunAsset.zombieOrPlayerDamageMultiplier.damage > 0f)
+						if (remoteNpcHit != null && equippedGunAsset.zombieDamageMultiplier.damage > 0f)
 						{
 							bool headHit = remoteNpcHit.BodyPart == MobileNPCInjurySystem.BodyPart.Head;
 							PlayerUI.hitmark(info.point, pellets > 1,
