@@ -77,6 +77,7 @@ namespace SDG.Unturned
         private float proceduralMedicalUntil;
         private Transform hitReactionSpine;
         private Transform animatedSkull;
+        private Quaternion skullNeutralLocalRotation;
         private float headPitchDegrees;
         [SerializeField, Range(5f, 75f)] private float maximumHeadElevation = 55f;
         [SerializeField, Range(5f, 75f)] private float maximumHeadDepression = 50f;
@@ -140,6 +141,8 @@ namespace SDG.Unturned
             if (hitReactionSpine != null)
             {
                 animatedSkull = hitReactionSpine.Find("Skull");
+                if (animatedSkull != null)
+                    skullNeutralLocalRotation = animatedSkull.localRotation;
                 weaponLeftShoulder = hitReactionSpine.Find("Left_Shoulder");
                 weaponRightShoulder = hitReactionSpine.Find("Right_Shoulder");
                 weaponLeftHand = weaponLeftShoulder != null
@@ -543,12 +546,14 @@ namespace SDG.Unturned
             }
             headPitchDegrees = Mathf.MoveTowards(headPitchDegrees,
                 desiredPitch, headTurnSpeed * Time.deltaTime);
-            // Local neck geometry uses the native animation as its reference
-            // each frame. World-space pitch avoids guessing the imported
-            // Skull bone's local Euler axis.
+            // Derive the reference from the animated Spine parent and
+            // original Skull bind orientation. Never multiply yesterday's
+            // procedural result back into itself (which causes neck drift).
+            Quaternion baseRotation = animatedSkull.parent.rotation
+                * skullNeutralLocalRotation;
             animatedSkull.rotation =
                 Quaternion.AngleAxis(-headPitchDegrees, transform.right)
-                * animatedSkull.rotation;
+                * baseRotation;
         }
 
         /// <summary>
