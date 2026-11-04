@@ -78,7 +78,12 @@ namespace SDG.Unturned
                 return;
             bool breach = visibleRaidBase
                 && (!genuinelyVisible || Random.value < 0.6f);
-            Vector3 origin = transform.position + Vector3.up * 1.45f;
+            // Player UseableThrowable.toss starts from PlayerLook.aim
+            // (the eyes) and pushes the throwable forward before release.
+            // NPCs use the same anatomical origin without pretending to
+            // have a PlayerLook/PlayerEquipment component.
+            Vector3 origin = perception.GetEyePositionWorld()
+                + transform.forward * 0.65f;
             Vector3 target = breach ? raidPoint + Vector3.up * 0.3f
                 : enemy.position + Vector3.up * 0.3f;
             Vector3 horizontal = target - origin;
