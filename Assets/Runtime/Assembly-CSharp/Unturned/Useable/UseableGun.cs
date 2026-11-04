@@ -1693,7 +1693,24 @@ namespace SDG.Unturned
 						MobileNPCHumanoidVitals mobileNPCVitals = clientNPCHit != null
 							? clientNPCHit.GetComponentInParent<MobileNPCHumanoidVitals>()
 							: null;
-						if (mobileNPCVitals != null && !mobileNPCVitals.IsDead && equippedGunAsset.zombieOrPlayerDamageMultiplier.multiply(
+						// Remote NPCs are visual-only: they cannot have real
+						// client-side Vitals. Their six anatomical hitboxes let
+						// the shooter report an impact position; server-side
+						// MobileNPCDamageBridge still verifies the first
+						// physical hit before applying any damage.
+						MobileNPCBodyHitbox remoteNpcHit = mobileNPCVitals == null
+							&& clientNPCHit != null
+							? clientNPCHit.GetComponentInParent<MobileNPCBodyHitbox>()
+							: null;
+						if (remoteNpcHit != null && equippedGunAsset.zombieOrPlayerDamageMultiplier.damage > 0f)
+						{
+							bool headHit = remoteNpcHit.BodyPart == MobileNPCInjurySystem.BodyPart.Head;
+							PlayerUI.hitmark(info.point, pellets > 1,
+								headHit ? EPlayerHit.CRITICAL : EPlayerHit.ENTITIY);
+							if (hit != EPlayerHit.CRITICAL)
+								hit = headHit ? EPlayerHit.CRITICAL : EPlayerHit.ENTITIY;
+						}
+						else if (mobileNPCVitals != null && !mobileNPCVitals.IsDead && equippedGunAsset.zombieOrPlayerDamageMultiplier.multiply(
 						mobileNPCVitals.ResolveBodyPartAtWorldPoint(info.point, clientNPCHit) == MobileNPCInjurySystem.BodyPart.Head
 							? ELimb.SKULL : info.limb) > 1)
 						{
