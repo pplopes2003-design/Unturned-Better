@@ -44,6 +44,9 @@ namespace SDG.Unturned
 			// Optional in older snapshots. Save alongside the individual's
 			// inventory/experience so a new random name is not assigned after restart.
 			public string displayName;
+			// Unique identity, optional for legacy saves. Distinct survivors
+			// may share a name without sharing cosmetic appearance.
+			public string persistentId;
 			// v8: optional separate occupation; v1-v7 default false.
 			public bool hasOccupation;
 			public int occupation;
@@ -355,6 +358,10 @@ namespace SDG.Unturned
 
 			try
 			{
+				MobileNPCPersistentIdentity restoredIdentity =
+					instance.GetComponent<MobileNPCPersistentIdentity>();
+				if (restoredIdentity != null)
+					restoredIdentity.RestoreServer(record.persistentId);
 				MobileNPCHumanoidDisposition restoredName =
 					instance.GetComponent<MobileNPCHumanoidDisposition>();
 				if (restoredName != null)
@@ -524,6 +531,9 @@ namespace SDG.Unturned
 					rw = driver.transform.rotation.w,
 					role = disposition != null ? (int)disposition.CurrentRole : (int)MobileNPCHumanoidDisposition.Role.Hostile,
 					displayName = disposition != null ? disposition.DisplayName : null,
+					persistentId = driver.GetComponent<MobileNPCPersistentIdentity>() != null
+						? driver.GetComponent<MobileNPCPersistentIdentity>().ExportServer()
+						: null,
 					faction = faction != null ? (int)faction.CurrentFaction : (int)MobileNPCFaction.Id.Unaffiliated,
 					hasOccupation = occupation != null && occupation.HasAssignedOccupation,
 					occupation = (int)MobileNPCArchetypePolicy.ForNPC(driver.gameObject),
