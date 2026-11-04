@@ -75,3 +75,20 @@ Uma **build única para o jogador** pode agregar IA, armas e menu, mas hospedage
 
 - [ ] Mover NPC de lugar e confirmar que face/cabelo e nome não mudam; reconectar cliente e verificar estado reconstituído.
 - [ ] Confirmar que os NPCs não miram por meio de telemetria de cliente; o pitch só é derivado do estado selecionado pela autoridade.
+
+## Nova rodada: granadas e equipamento visual — implementação de código
+
+- `MobileNPCGrenadeThrower` notifica o servidor de replicação **somente após** a criação física da granada, a validação do `Rigidbody` e a retirada de um item real do inventário.
+- `ReceiveNpcGrenade` envia o ID de asset, origem, velocidade e fuse da granada confirmada. O cliente instancia um **prefab físico visual**, **sem componente Grenade de dano/explosão**. Sua cópia é removida ao fim do fuse; as cópias restantes são limpas quando o jogador desconecta ou muda de mapa. O servidor continua sozinho responsável pelos efeitos reais e pelo dano.
+- `ReceiveNpcOutfit` replica os IDs físicos de capacete/chapéu, camisa, calça, colete e mochila encontrados no inventário autoritativo. O cliente os aplica ao `HumanClothes` já existente, limpando os colliders extras de roupa, sem criar inventários paralelos.
+- `MobileNPCNetworkReplica_NetMethods.cs` inclui agora **sete** pares de serialização READ/WRITE: snapshot, identidade, disparo, recarga, morte, granada e roupa. A revisão estática confirmou a mesma contagem de parâmetros nas assinaturas e o uso de codec `ReadClampedVector3/WriteClampedVector3` no projétil.
+
+### Validação pendente (obrigatória)
+
+- [ ] Build Windows x64 cliente e servidor headless da mesma revisão. Confirmar os sete métodos RPC carregados sem erro em `NetReflection`.
+- [ ] Com dois clientes LAN, lançar granadas como NPCs: aparecer apenas **um projétil visível por evento**, e apenas a explosão autoritativa do servidor; validar trajetória, colisão, sincronização do efeito e dano a jogadores/zumbis/NPCs.
+- [ ] Conferir lançamentos junto a paredes e jogadores aliados; a predição de queda e a política anti-dano amigo ainda não cobrem todas as situações reais de quique.
+- [ ] Trocar de mapa/desconectar durante o fuse: nenhum projétil cosmético persiste em mundo descarregado.
+- [ ] NPCs em Combate Total com capacete, colete e mochila: ambos os clientes devem visualizar os mesmos modelos; verificar `HumanClothes.apply` e bonecos com ragdoll sem collider fantasma.
+- [ ] Inventário real versus equipamento vestido: o protótipo seleciona o **primeiro item de cada tipo no inventário**, pois ainda não existe um conjunto separado de slots de roupa dos NPCs. Não apresentar como seleção rigorosa de roupa equipada até adicionar esses slots.
+- [ ] Testar 20–40 NPCs com dois jogadores para medir custo real das mensagens de identidade/roupa a cada quatro segundos e granadas/eventos.
