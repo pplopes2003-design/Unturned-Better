@@ -242,6 +242,21 @@ namespace SDG.Unturned
 #endif
         }
 
+        private static int StableNameAppearanceSeed(string name)
+        {
+            unchecked
+            {
+                uint hash = 2166136261u;
+                if (name != null)
+                    for (int i = 0; i < name.Length; ++i)
+                    {
+                        hash ^= name[i];
+                        hash *= 16777619u;
+                    }
+                return (int)hash;
+            }
+        }
+
         private void BroadcastServerIdentities()
         {
             // Periodic reliable metadata allows late-joiners to discover
@@ -260,10 +275,12 @@ namespace SDG.Unturned
                 string label = disposition != null ? disposition.DisplayName : "Sobrevivente";
                 if (string.IsNullOrEmpty(label)) label = "Sobrevivente";
                 if (label.Length > 40) label = label.Substring(0, 40);
-                // Stable for the NPC lifetime. Its current position is NOT
-                // stable and would recolor the same NPC every four seconds.
-                int seed = unchecked(driver.GetInstanceID() * 397
-                    ^ 0x4B1D2A37);
+                // The NPC's saved display name is stable across server
+                // restarts; Unity GetInstanceID() is NOT. Use a deterministic
+                // name hash so clients do not recolor an existing survivor
+                // after reloading the dedicated world. Distinct survivors
+                // sharing a name may have the same cosmetic appearance.
+                int seed = StableNameAppearanceSeed(label);
                 BroadcastServerOutfit(driver);
                 SendNpcIdentity.Invoke(ENetReliability.Reliable,
                     Provider.GatherRemoteClientConnectionsWithinSphere(
