@@ -198,3 +198,39 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - [ ] Verify FPS and sight-scan allocations with several NPCs in Washington; eye bone is cached rather than searched every scan.
 
 Code review alone does not pass these tests. Confirm in Dev Build before declaring the feature complete.
+
+
+## 15. Combat Total: weapon roles, grenades and tactical IA (PENDING)
+
+Build and test on **Washington / Dev Build**. Do not claim pass until observed in the Unity Player build and Player.log.
+
+### Starting equipment and restoration
+- [ ] Spawn 30+ hostile NPCs individually in Combat Total, record `[MobileNPCCombatLoadout]` gun/magazine/role counts. Check all 5 weighted roles occur over a larger test population (random weights do not guarantee every role in a small sample).
+- [ ] Verify 112/113 Bluntforce + 12 Gauge, 129/130 Snayperskya, 297/298 Grizzly and existing 363/6, 122/123 pairs actually exist in this game build; no invalid projectile weapon or empty/incompatible magazine.
+- [ ] Verify one gun, three genuine spare magazines, normal finite medical supplies, clothing/armor and at most two genuine grenade items. Inventory never silently overflows.
+- [ ] Save/restore an NPC after spending ammo and grenades. Restoring the same NPC MUST NOT issue a second starting kit.
+
+### Firearms and ballistic mechanics
+- [ ] Bluntforce spends ONE shell and emits six distinct ballistic/hitscan pellets (12 Gauge IDs only). Confirm count, spread, occlusion, damage and reload cadence; do not accept a single oversized ray.
+- [ ] Blast six pellets into a wall, then at a close target; verify no hits pass through geometry or unrelated allies and no extra shell is consumed.
+- [ ] 6+ armed NPCs shooting together should respect projectile slot cap, shared physics budget and minimum fire interval. Measure frame-time spikes and log errors.
+- [ ] Snayperskya and Grizzly should fire only when personal vision, actual weapon range, ballistic reach, ammo and safe firing lane all permit it. No unlimited sniper vision or accidental automatic fire.
+- [ ] Test roof-to-ground and ground-to-roof firing; head/arms/barrel presentation should follow the same visible target while actual damage remains authoritative.
+
+### Grenades
+- [ ] Confirm combat-only prefab gets exactly ONE `MobileNPCGrenadeThrower` component (including after load).
+- [ ] NPC without a real owned 254 grenade must never throw one; a valid throw removes exactly one item from its persisted inventory.
+- [ ] Test throw on a personally visible enemy 11–27m away, clear arc, sufficiently distant from NPC/allies; native grenade Rigidbody and fuse execute once.
+- [ ] Test allied NPC near predicted blast point, self inside unsafe radius, wall blocking arc, target behind cover, low health, and retreat/seek-cover. No unsafe throws.
+- [ ] Verify grenade native explosion damages valid entities/world, NPC-only splash does not duplicate vanilla damage, and on save/reload no spent grenade reappears.
+
+### Tactical decision validation
+- [ ] Assault NPC holds medium engagement, seeks real cover on fire/reload and never erases a committed waypoint each tactical tick.
+- [ ] Shotgun NPC favors shorter, physically reachable firing positions instead of staying at sniper range. It must not run blindly through a wall or cancel emergency retreat.
+- [ ] Marksman/sniper favors farther verified firing lanes; LOS loss triggers investigation, NOT omniscient shooting through cover.
+- [ ] Squad Hold and Covering prohibit optional solo flanks; Withdraw and wounded Retreat preempt optional movement.
+- [ ] Test under repeated damage, reload, friend in firing lane, zombie special threat, sustained poor accuracy, moving target, elevation change and expired tactical goal.
+- [ ] Confirm no cross-system tug-of-war between `MobileNPCBrainDriver`, `MobileNPCTacticalCombatBehavior`, grenade executor and `MobileNPCHumanoidMotor`.
+- [ ] Inspect `[MobileNPCFireMode]`, `[MobileNPCBurst]`, `[MobileNPCCombatLoadout]`, `[MobileNPCGrenadeThrower]`, `[MobileNPCMuzzleAudit]` and navigation telemetry.
+
+**Release gate:** compiling and code review are insufficient. Keep Combat Total EXPERIMENTAL until actual ammunition, damage, animation, targeting, grenade safety and navigation pass end-to-end.
