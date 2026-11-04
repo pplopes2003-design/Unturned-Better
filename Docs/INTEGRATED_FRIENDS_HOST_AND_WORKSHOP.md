@@ -22,8 +22,10 @@ O menu **Jogar > Hospedar amigos (LAN)** controla um **segundo executável** com
 
 - `MobileNPCPopulationBootstrap` não descarta mais `Dedicator.IsDedicatedServer`: a IA e os sistemas de dano, motor, percepção e persistência podem rodar no host como autoridades únicas. No multiplayer, o modo do servidor (Normal/Combate/Combate Total) é configurado explicitamente e não depende dos PlayerPrefs locais do usuário.
 - A verificação de visual da população aceita que uma build Unity headless não possua malhas renderizáveis. O esqueleto e as seis regiões físicas continuam obrigatórios; se as transformações ósseas faltarem, a inicialização falha com diagnóstico.
-- `MobileNPCNetworkReplica` envia snapshots periódicos (ID efêmero de instância, posição, ângulo horizontal e ID de arma) via `ClientStaticMethod<...>` com validação `ONLY_FROM_SERVER`, pela rede nativa.
+- `MobileNPCNetworkReplica` envia snapshots periódicos (ID efêmero de instância, posição, ângulo horizontal, ID de arma e flags de movimento/corrida/recarga) via `ClientStaticMethod<...>` com validação `ONLY_FROM_SERVER`, pela rede nativa. Filtra receptores por proximidade (165 m) e limite de NPCs por atualização.
 - Clientes remotos não instanciam um segundo cérebro de NPC. Criam *proxies visuais* baseados em `Resources/Characters/MobileNPC_Client`, com interpolação e seis caixas de raycast; objetos expirados e de mapas anteriores são destruídos.
+- O cliente agora monta o modelo da arma real `ItemGunAsset` no hook correto e tenta executar clipes originais de marcha, corrida, disparo e recarga (quando `AnimationClip.legacy` estiver disponível). Não executa armas nem dano localmente.
+- `MobileNPCNetworkCombatEvents` escuta `ShotFired`, `ReloadStarted` e `Died` reais do servidor. Disparo e recarga produzem RPCs de apresentação com áudio e animação. Morte destrói o proxy imediatamente e instala um tombstone por 20 s para não ressuscitar por um snapshot antigo. Ragdoll e morte com animação cinematográfica ainda estão pendentes.
 - `UseableGun` do cliente reconhece a caixa de acerto do proxy para apresentação do hitmarker; a lógica servidor `MobileNPCDamageBridge.TryResolvePhysicalServerHit` valida geometria/obstrução antes de aplicar qualquer dano. **O hitmarker local não é prova de dano confirmado.**
 
 ## Bloqueadores da validação completa
@@ -32,7 +34,8 @@ O menu **Jogar > Hospedar amigos (LAN)** controla um **segundo executável** com
 - [ ] Iniciar sessão com anfitrião e segundo cliente real na mesma LAN; confirmar handshake, atualização remota e entrada tardia.
 - [ ] Confirmar que o prefab `NPC_Client` existe nas duas builds (headless precisa manter esqueleto) e que os bone hitboxes têm posição correta.
 - [ ] Atirar de dois clientes no mesmo NPC, verificar dano exclusivamente no servidor, acerto através de obstáculo bloqueado e sincronização de mortes.
-- [ ] Replicar **skin, nome, arma visível, animações de braços/cabeça, tiros, sons, granadas, ferimentos e ragdoll**; o primeiro snapshot transporta só dados suficientes para uma representação visual básica. O `GunId` é recebido, mas ainda não renderiza o equipamento.
+- [ ] Validar em dois clientes a **arma renderizada**, clipes de marcha/corrida, eventos de tiro/recarga e desaparecimento pós-morte. Esses mecanismos agora têm uma implementação preliminar, mas não foram executados.
+- [ ] Replicar ainda **skin, nome, mira vertical/cabeça, animação avançada de braços, granadas, ferimentos, ragdoll, loot de cadáver e estado de grupos**. A posição e a arma não equivalem a estado completo de NPC.
 - [ ] Impedir fantasma de NPC em disconnect/reconnect, mudança de mapa e servidor desligado, sob perda de pacotes.
 - [ ] Definir persistência por save do dedicado e verificar Save/Shutdown com NPCs vivos, mortos e reabertura do mundo.
 - [ ] Controlar orçamento de rede (128 snapshots por rodada no máximo, atualizações a cada 0,35 s) por relevância/região e com compressão/agrupamento se necessário.
@@ -55,3 +58,14 @@ Integração planejada de mapas e itens da Steam Workshop por IDs de publicaçõ
 ## Critério para build final
 
 Uma **build única para o jogador** pode agregar IA, armas e menu, mas hospedagem requer um **segundo executável headless compatível** distribuído junto à instalação. Todas as branches de funcionalidades deverão ser incorporadas e testadas na branch de integração final antes do build de release.
+
+## Aceitação de eventos de combate — próxima Dev Build
+
+- [ ] Servidor e cliente de MESMO commit: RPC `ReceiveNpcSnapshot` de cinco argumentos e `ReceiveNpcShot`, `ReceiveNpcReload`, `ReceiveNpcDeath` registrados sem falhas de reflexão/assinatura.
+- [ ] Dois clientes simultâneos, 10 NPCs hostis e 10 neutros: cada um enxerga os mesmos NPCs e armas, sem um segundo cérebro em cliente.
+- [ ] NPC andando/correndo: os modelos seguem posições por interpolação sem gerar travas, com clipe nativo disponível.
+- [ ] NPC disparando/recarregando: eventos do servidor produzem um áudio e uma ação visual no cliente, nunca consumo/dano client-side duplicado.
+- [ ] NPC morrendo: o cliente remove o corpo vivo com evento confiável; snapshots UDP atrasados não recriam personagens; o ragdoll remoto permanece pendente.
+- [ ] Jogador de cliente remoto atirando no NPC: validar o primeiro obstáculo e ponto informado com `MobileNPCDamageBridge.TryResolvePhysicalServerHit`, não confiar no hitmarker.
+- [ ] Entrada tardia, afastamento além de 165 m, retorno, mudança de mapa e desconexão: proxies surgem/somem coerentemente.
+- [ ] Conferir `[MobileNPCReplication]` em Player.log e log do servidor; nenhum teste real foi executado nesta alteração.
