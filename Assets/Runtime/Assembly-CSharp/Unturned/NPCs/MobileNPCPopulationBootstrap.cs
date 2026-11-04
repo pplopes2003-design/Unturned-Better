@@ -7,9 +7,9 @@ using UnityEngine;
 namespace SDG.Unturned
 {
     /// <summary>
-    /// Single-player-first runtime bootstrap for the experimental mobile NPC population.
-    /// Builds an inactive template from the game's humanoid NPC visual asset, then enables
-    /// population only after a local server map has loaded. This is not network replication.
+    /// Server-authoritative runtime bootstrap for experimental mobile NPC population.
+    /// A dedicated server can simulate brains, damage and movement. Replication of these
+    /// non-Player/non-Zombie entities to remote clients is a separate required system.
     /// </summary>
     internal static class MobileNPCPopulationBootstrap
     {
@@ -42,7 +42,10 @@ namespace SDG.Unturned
 
         private static void CreateForLoadedMap(int level)
         {
-            if (!Provider.isServer || Dedicator.IsDedicatedServer)
+            // Both the singleplayer listen server and a separately built
+            // Unturned Better dedicated host own authoritative NPC state.
+            // Remote clients must NOT create a competing AI population.
+            if (!Provider.isServer)
             {
                 return;
             }
@@ -441,9 +444,10 @@ namespace SDG.Unturned
             directorObject.AddComponent<MobileNPCPlayerFootstepSensor>();
             director.Configure(template);
 
-            Debug.Log("[MobileNPCPopulationBootstrap] Single-player mobile NPC population initialized for loaded map "
+            Debug.Log("[MobileNPCPopulationBootstrap] Server-authoritative mobile NPC population initialized for loaded map "
                 + level + " with root layer Agent (" + template.layer + ") and CharacterController overlap recovery disabled."
-                + " Experimental local entities only; local NPC snapshots are persisted, but network replication is not implemented.");
+                + " DedicatedHost=" + Dedicator.IsDedicatedServer
+                + ". NPC state is server-authoritative; remote-client visual replication is NOT implemented.");
         }
 
         /// <summary>
