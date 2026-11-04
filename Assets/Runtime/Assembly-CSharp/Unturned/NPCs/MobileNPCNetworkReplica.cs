@@ -37,6 +37,8 @@ namespace SDG.Unturned
             new Dictionary<int, Replica>(64);
         private readonly List<int> expired = new List<int>(32);
         private float nextSnapshotAt;
+        private float nextReplicationAuditAt;
+        private bool firstRemoteReplicaLogged;
         private int nextDriverIndex;
         private static GameObject cachedVisualPrefab;
 
@@ -127,6 +129,15 @@ namespace SDG.Unturned
                     QuantizeYaw(driver.transform.eulerAngles.y), gunId);
             }
             nextDriverIndex = (nextDriverIndex + limit) % drivers.Count;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (Time.time >= nextReplicationAuditAt)
+            {
+                nextReplicationAuditAt = Time.time + 15f;
+                Debug.Log("[MobileNPCReplication] dedicated snapshots sampled=" + limit
+                    + " totalLiveDrivers=" + drivers.Count
+                    + " interval=" + SnapshotInterval + "s");
+            }
+#endif
         }
 
         [SteamCall(ESteamCallValidation.ONLY_FROM_SERVER)]
@@ -152,6 +163,15 @@ namespace SDG.Unturned
                 if (root == null)
                     return;
                 replica = new Replica { Root = root };
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                if (!firstRemoteReplicaLogged)
+                {
+                    firstRemoteReplicaLogged = true;
+                    Debug.Log("[MobileNPCReplication] First remote visual created."
+                        + " Server NPC id=" + id + " gunAssetId=" + gunId
+                        + ". Rendered weapon and native animation sync pending.");
+                }
+#endif
             }
             replica.Position = pos;
             replica.Rotation = yaw;
