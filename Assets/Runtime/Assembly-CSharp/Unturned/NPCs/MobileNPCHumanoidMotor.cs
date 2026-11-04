@@ -2463,7 +2463,11 @@ namespace SDG.Unturned
 				float unfinished = Vector3.Distance(previous, finalGoal);
 				bool reachesGoal = unfinished <= 1.35f
 					&& Mathf.Abs(previous.y - finalGoal.y) <= 0.65f;
-				if (!reachesGoal && consecutiveStuckRecoveries < 2)
+				// A verified ground/doorway route remains authoritative
+				// while the controller is making progress. Distance alone
+				// must never force a jump through a window just because the
+				// available doorway goes around a building.
+				if (consecutiveStuckRecoveries < 2)
 					return false;
 				if (reachesGoal && (walkingDistance <= remaining + 3.0f
 					|| walkingDistance <= remaining * 1.55f))
@@ -2516,6 +2520,14 @@ namespace SDG.Unturned
 					}
 				}
 			}
+
+			// A jump is a LAST resort. If physical progress has not
+			// failed, give the doorway/contour observer time to find
+			// a floor-level entrance before testing the raised sill.
+			// Stalled agents may bypass this wait for safety.
+			if (consecutiveStuckRecoveries < 2
+				&& Time.time - firstObservedObstacleTime < 2.5f)
+				return false;
 
 			// This only authorizes a feasibility test. The low-hop/parapet
 			// planners STILL require a genuine, collision-free ballistic arc
