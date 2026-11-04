@@ -58,7 +58,7 @@ namespace SDG.Unturned
             ids = new List<ulong>();
             error = null;
             if (string.IsNullOrWhiteSpace(WorkshopFileIds)) return true;
-            string[] parts = WorkshopFileIds.Split(new[] { ',', ';', ' ', '\\t', '\\r', '\\n' },
+            string[] parts = WorkshopFileIds.Split(new[] { ',', ';', ' ', '\t', '\r', '\n' },
                 StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length > 64)
             {
