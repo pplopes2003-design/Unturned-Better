@@ -24,12 +24,24 @@ namespace SDG.Unturned
             public Quaternion Rotation;
             public float LastUpdate;
             public ushort GunId;
+            public ushort DisplayedGunId;
+            public Transform WeaponModel;
+            public Animation NativeAnimation;
+            public string ActiveLocomotion;
+            public byte MotionFlags;
+            public float NextWeaponRefresh;
+            public float NextAnimationRefresh;
+            public float ShotVisualUntil;
         }
 
         private static MobileNPCNetworkReplica instance;
-        private static readonly ClientStaticMethod<int, Vector3, byte, ushort>
+        // Position updates are unreliable; the weapon and locomotion state
+        // are repeated each snapshot to repair packet loss / late joins.
+        private static readonly ClientStaticMethod<int, Vector3, byte, ushort, byte>
             SendNpcSnapshot =
-                ClientStaticMethod<int, Vector3, byte, ushort>.Get(ReceiveNpcSnapshot);
+                ClientStaticMethod<int, Vector3, byte, ushort, byte>.Get(ReceiveNpcSnapshot);
+        private static readonly ClientStaticMethod<int, Vector3, ushort>
+            SendNpcShot = ClientStaticMethod<int, Vector3, ushort>.Get(ReceiveNpcShot);
 
         private readonly List<MobileNPCBrainDriver> drivers =
             new List<MobileNPCBrainDriver>(64);
@@ -120,13 +132,19 @@ namespace SDG.Unturned
                     driver.GetComponent<MobileNPCHumanoidRangedCombat>();
                 ushort gunId = gun != null && gun.SelectedGunAsset != null
                     ? gun.SelectedGunAsset.id : (ushort)0;
+                MobileNPCHumanoidMotor motor =
+                    driver.GetComponent<MobileNPCHumanoidMotor>();
+                byte motionFlags = 0;
+                if (motor != null && motor.IsMoving) motionFlags |= 1;
+                if (motor != null && motor.IsSprinting) motionFlags |= 2;
+                if (gun != null && gun.IsReloading) motionFlags |= 4;
                 // No loopback: the dedicated host owns real NPC objects.
                 // Unreliable updates are refreshed periodically; no hidden
                 // target coordinates or AI memory are sent to clients.
                 SendNpcSnapshot.Invoke(ENetReliability.Unreliable,
                     Provider.GatherRemoteClientConnections(),
                     driver.GetInstanceID(), driver.transform.position,
-                    QuantizeYaw(driver.transform.eulerAngles.y), gunId);
+                    QuantizeYaw(driver.transform.eulerAngles.y), gunId, motionFlags);
             }
             nextDriverIndex = (nextDriverIndex + limit) % drivers.Count;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -142,7 +160,7 @@ namespace SDG.Unturned
 
         [SteamCall(ESteamCallValidation.ONLY_FROM_SERVER)]
         public static void ReceiveNpcSnapshot(int instanceId, Vector3 position,
-            byte yaw, ushort gunId)
+            byte yaw, ushort gunId, byte motionFlags)
         {
             if (Provider.isServer || !Provider.isConnected || !Level.isLoaded
                 || instance == null || instanceId == 0
@@ -151,11 +169,12 @@ namespace SDG.Unturned
                 || float.IsInfinity(position.y) || float.IsInfinity(position.z))
                 return;
 
-            instance.ApplySnapshot(instanceId, position, DecodeYaw(yaw), gunId);
+            instance.ApplySnapshot(instanceId, position, DecodeYaw(yaw),
+                gunId, motionFlags);
         }
 
         private void ApplySnapshot(int id, Vector3 pos, Quaternion yaw,
-            ushort gunId)
+            ushort gunId, byte motionFlags)
         {
             if (!remote.TryGetValue(id, out Replica replica))
             {
@@ -176,6 +195,7 @@ namespace SDG.Unturned
             replica.Position = pos;
             replica.Rotation = yaw;
             replica.GunId = gunId;
+            replica.MotionFlags = motionFlags;
             replica.LastUpdate = Time.time;
             remote[id] = replica;
         }
@@ -312,9 +332,149 @@ namespace SDG.Unturned
                 replica.Root.transform.rotation = Quaternion.Slerp(
                     replica.Root.transform.rotation, replica.Rotation,
                     Mathf.Clamp01(Time.deltaTime * 8f));
+                UpdateRemoteWeaponAndAnimation(ref replica);
+                remote[pair.Key] = replica;
             }
             foreach (int id in expired)
                 remote.Remove(id);
+        }
+
+        /// <summary>
+        /// A shot comes from the committed server-side fire event, never a
+        /// client's input or a locally predicted combat simulation.
+        /// No damage is applied by this visual notification.
+        /// </summary>
+        internal static void NotifyCommittedShotServer(MobileNPCBrainDriver driver,
+            ushort gunId)
+        {
+            if (!Provider.isServer || !Dedicator.IsDedicatedServer
+                || driver == null || gunId == 0)
+                return;
+            SendNpcShot.Invoke(ENetReliability.Reliable,
+                Provider.GatherRemoteClientConnections(),
+                driver.GetInstanceID(), driver.transform.position, gunId);
+        }
+
+        [SteamCall(ESteamCallValidation.ONLY_FROM_SERVER)]
+        public static void ReceiveNpcShot(int id, Vector3 position, ushort gunId)
+        {
+            if (Provider.isServer || !Provider.isConnected || !Level.isLoaded
+                || instance == null || id == 0)
+                return;
+            if (!instance.remote.TryGetValue(id, out Replica replica)
+                || replica.Root == null)
+                return; // snapshot may be in flight; never create a ghost for a shot
+            replica.ShotVisualUntil = Time.time + 0.16f;
+            instance.remote[id] = replica;
+            ItemGunAsset gun = Assets.find(EAssetType.ITEM, gunId) as ItemGunAsset;
+            if (gun != null && gun.shoot != null)
+            {
+                OneShotAudioParameters sound =
+                    new OneShotAudioParameters(replica.Root.transform, gun.shoot);
+                sound.volume = 0.65f;
+                sound.SetLinearRolloff(1f, 64f);
+                sound.Play();
+            }
+        }
+
+        private static string FindClip(Animation animation, params string[] matches)
+        {
+            if (animation == null) return null;
+            foreach (AnimationState state in animation)
+            {
+                if (state == null || string.IsNullOrEmpty(state.name))
+                    continue;
+                for (int i = 0; i < matches.Length; ++i)
+                    if (state.name.IndexOf(matches[i],
+                        System.StringComparison.OrdinalIgnoreCase) >= 0)
+                        return state.name;
+            }
+            return null;
+        }
+
+        private static void UpdateRemoteWeaponAndAnimation(ref Replica replica)
+        {
+            if (replica.Root == null) return;
+            if (replica.GunId != replica.DisplayedGunId
+                && Time.time >= replica.NextWeaponRefresh)
+            {
+                replica.NextWeaponRefresh = Time.time + 0.5f;
+                if (replica.WeaponModel != null)
+                    Destroy(replica.WeaponModel.gameObject);
+                replica.WeaponModel = null;
+                replica.DisplayedGunId = 0;
+                if (replica.GunId != 0)
+                {
+                    ItemGunAsset gun = Assets.find(EAssetType.ITEM,
+                        replica.GunId) as ItemGunAsset;
+                    Transform spine = replica.Root.transform.Find(
+                        "HumanoidVisual/Root/Skeleton/Spine");
+                    Transform rightHook = spine != null ? spine.Find(
+                        "Right_Shoulder/Right_Arm/Right_Hand/Right_Hook") : null;
+                    Transform leftHook = spine != null ? spine.Find(
+                        "Left_Shoulder/Left_Arm/Left_Hand/Left_Hook") : null;
+                    Transform spineHook = spine != null ? spine.Find("Spine_Hook") : null;
+                    if (gun != null && spine != null)
+                    {
+                        Transform parent = rightHook != null ? rightHook
+                            : spineHook != null ? spineHook : spine;
+                        switch (gun.EquipableModelParent)
+                        {
+                            case EEquipableModelParent.LeftHook:
+                                if (leftHook != null) parent = leftHook;
+                                break;
+                            case EEquipableModelParent.Spine:
+                                parent = spine;
+                                break;
+                            case EEquipableModelParent.SpineHook:
+                                if (spineHook != null) parent = spineHook;
+                                break;
+                        }
+                        GameObject prefab = gun.equipablePrefab != null
+                            ? gun.equipablePrefab : gun.item;
+                        if (prefab != null)
+                        {
+                            Material temporaryMaterial;
+                            Transform itemModel = ItemTool.InstantiateItem(
+                                100, gun.getState(), false, gun, null, true,
+                                null, out temporaryMaterial, null,
+                                prefabOverride: prefab);
+                            if (itemModel != null)
+                            {
+                                itemModel.SetParent(parent, false);
+                                itemModel.localPosition = Vector3.zero;
+                                itemModel.localRotation = Quaternion.Euler(0f, 0f, 90f);
+                                itemModel.localScale = Vector3.one;
+                                itemModel.DestroyRigidbody();
+                                Layerer.enemy(itemModel);
+                                replica.WeaponModel = itemModel;
+                            }
+                        }
+                        replica.DisplayedGunId = replica.GunId;
+                    }
+                }
+            }
+            if (replica.NativeAnimation == null)
+                replica.NativeAnimation = replica.Root.GetComponentInChildren<Animation>(true);
+            if (replica.NativeAnimation == null
+                || Time.time < replica.NextAnimationRefresh)
+                return;
+            replica.NextAnimationRefresh = Time.time + 0.12f;
+            bool moving = (replica.MotionFlags & 1) != 0;
+            bool running = (replica.MotionFlags & 2) != 0;
+            string desired = moving
+                ? (running ? FindClip(replica.NativeAnimation, "Run", "Sprint")
+                    : FindClip(replica.NativeAnimation, "Walk", "Move"))
+                : FindClip(replica.NativeAnimation, "Idle", "Stand");
+            if (string.IsNullOrEmpty(desired))
+                return;
+            if (replica.ActiveLocomotion != desired)
+            {
+                AnimationState clip = replica.NativeAnimation[desired];
+                if (clip != null) clip.wrapMode = WrapMode.Loop;
+                replica.NativeAnimation.CrossFade(desired, 0.2f);
+                replica.ActiveLocomotion = desired;
+            }
         }
 
         private void ClearClientReplicas()
