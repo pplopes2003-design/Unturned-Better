@@ -8,16 +8,17 @@ using UnityEngine;
 namespace SDG.Unturned
 {
 	/// <summary>
-	/// Runtime-only group membership for mobile NPCs. A group exists while at least one
+	/// Server-authoritative group membership for mobile NPCs. A group exists while at least one
 	/// living member remains; when its last member dies or is destroyed, the group is removed.
-	/// This registry is not saved to disk and does not provide multiplayer replication.
+	/// Individual living survivors serialize group identity through MobileNPCPersistence;
+	/// this runtime registry is rebuilt from those records and is not client-authoritative.
 	/// </summary>
 	[DisallowMultipleComponent]
 	[RequireComponent(typeof(MobileNPCBrainDriver))]
 	public sealed class MobileNPCGroupMember : MonoBehaviour
 	{
 		private static readonly Dictionary<int, GroupRecord> groups = new Dictionary<int, GroupRecord>();
-		private static readonly Dictionary<int, int> restoredGroupIdMap = new Dictionary<int, int>();
+		private static readonly Dictionary<string, int> restoredGroupIdMap = new Dictionary<string, int>();
 		private static int nextGroupId = 1;
 		private const float GroupJoinRadius = 140f;
 		private const int MaximumGroupSize = 4;
@@ -1523,6 +1524,12 @@ namespace SDG.Unturned
 			record.SettlementCentralStoragePlaced |= storagePlaced;
 		}
 
+		internal static string BuildRestoreGroupKey(int id,
+			MobileNPCHumanoidDisposition.Role role, MobileNPCFaction.Id faction)
+		{
+			return id.ToString() + ":" + ((int)role).ToString() + ":" + ((int)faction).ToString();
+		}
+
 		/// <summary>Restores a saved group identity and shared settlement anchor after snapshot loading.</summary>
 		public bool SetGroupAnchorServer(int savedGroupId, Vector3 savedAnchor, bool hasSettlement)
 		{
@@ -1536,14 +1543,16 @@ namespace SDG.Unturned
 				? disposition.CurrentRole : MobileNPCHumanoidDisposition.Role.Neutral;
 			MobileNPCFaction.Id faction = GetCurrentFaction(role);
 
-			// Snapshot group IDs belong to the save file, not this runtime session. Map them
-			// to fresh runtime IDs so auto-created groups cannot accidentally collide.
-			if (!restoredGroupIdMap.TryGetValue(savedGroupId, out int runtimeGroupId))
+			// Saved group IDs are local to their world. A corrupted/legacy save can
+			// reuse an ID across unrelated factions, so include role/faction when
+			// remapping and NEVER merge incompatible survivors into one squad.
+			string restoredKey = BuildRestoreGroupKey(savedGroupId, role, faction);
+			if (!restoredGroupIdMap.TryGetValue(restoredKey, out int runtimeGroupId))
 			{
 				runtimeGroupId = nextGroupId++;
 				while (groups.ContainsKey(runtimeGroupId))
 					runtimeGroupId = nextGroupId++;
-				restoredGroupIdMap.Add(savedGroupId, runtimeGroupId);
+				restoredGroupIdMap.Add(restoredKey, runtimeGroupId);
 			}
 
 			if (!groups.TryGetValue(runtimeGroupId, out GroupRecord target))
@@ -1577,10 +1586,14 @@ namespace SDG.Unturned
 				motor.TrySetHomePositionServer(target.Anchor);
 			nextGroupId = Mathf.Max(nextGroupId, runtimeGroupId + 1);
 
-			// A later record can be the first member encountered with settlement data.
-			// Apply the saved anchor through the shared setter so every member is synchronized.
-			if (hasSettlement)
+			// A later record may be the first to contain settlement metadata.
+			// However, once a settlement is established by an earlier saved
+			// member, never move it repeatedly to another member's stale anchor.
+			// Physical buildings are still reconciled by native world persistence.
+			if (hasSettlement && !target.HasSettlement)
 				SetGroupAnchorServer(savedAnchor);
+			else if (target.HasSettlement)
+				GroupAnchor = target.Anchor;
 			return true;
 		}
 
