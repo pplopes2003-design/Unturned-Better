@@ -185,3 +185,16 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - [ ] Measure NPC count versus main-thread navigation time in singleplayer at low/high population; physical scans must remain throttled.
 
 **Acceptance rule:** do not mark indoor navigation fixed until complete physical crossings have been observed in the Unity Player build, without teleporting, false goal arrival or repeated route replacement.
+
+## 14. Elevated NPC look and player-eye sensor parity (pending Unity validation)
+
+- [ ] Confirm `HumanoidVisual/Root/Skeleton/Spine/Skull` exists in the spawned NPC and its eye origin is near the rendered head, not at the feet. When visual rig is absent, verify the safe standing-height fallback.
+- [ ] From outside a Washington building, approach a player standing at an upstairs window. Ensure perception uses the real eye anchor and requires unobstructed torso or head rays; no wall penetration.
+- [ ] Move a visible player from ground level to a roof and back. Check body yaw, Skull pitch, raised shoulders and physical barrel direction follow the same confirmed aim point.
+- [ ] Test aiming up/down while standing, walking and holding a rifle; ensure no cumulative neck rotation or permanently twisted arm after target disappears.
+- [ ] Test occlusion: hide the player fully behind a wall. The head must return toward neutral rather than track the hidden transform.
+- [ ] Test civilian/friendly NPC observing a player: visual awareness must not silently authorize hostile aiming or firing.
+- [ ] Compare actual shot direction and visual barrel alignment at elevated targets. The visible muzzle cannot be assumed to be the server projectile origin; use the existing `[MobileNPCMuzzleAudit]` telemetry.
+- [ ] Verify FPS and sight-scan allocations with several NPCs in Washington; eye bone is cached rather than searched every scan.
+
+Code review alone does not pass these tests. Confirm in Dev Build before declaring the feature complete.
