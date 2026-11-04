@@ -69,6 +69,23 @@ O menu **Jogar > Hospedar amigos** controla um **segundo executável** compilado
 - [ ] Verificar no log do dedicado `[MobileNPCFriendsHost] Applied authoritative NPC mode` para cada modo e confirmar equipamentos, agressividade, sobrevivência e spawns.
 - [ ] Testar performance, pois hospedar cliente Unity e servidor dedicado na mesma máquina requer CPU/RAM adicionais.
 
+## Ciclo 1 — persistência dedicada e identidade (2026-11-04)
+
+Alterações efetuadas nesta branch:
+- `MobileNPCPersistence.NPCRecord.displayName` adiciona o nome individual ao formato de snapshot existente **sem incrementar a versão**: é um campo opcional para versões antigas. No restore, `MobileNPCHumanoidDisposition.RestoreDisplayNameServer` valida tamanho/caracteres antes de substituir o nome criado no spawn. Saves anteriores continuam sem nome explícito e adotam o nome gerado normalmente.
+- Identidade cosmética remota passa a usar FNV-1a determinístico sobre o nome persistente, em vez de `GetInstanceID()` efêmero. Há possibilidade de aparência idêntica entre dois NPCs com o mesmo nome; não é um identificador de rede ou chave de save.
+- `MobileNPCFriendsHostControlServer` chama `MobileNPCPersistence.FlushBeforeDedicatedShutdownServer()` **antes** do comando nativo `save`, seguido de `shutdown 5`. O flush mantém os bloqueios de segurança do sistema atual: não sobrescreve snapshots cuja leitura falhou, nem salva mapa ainda não restaurado. `SaveServer` passa a retornar o resultado da gravação para diagnóstico.
+- O salvamento existente já contém atributos vitais, inventário físico, profissão, facção, grupo, âncora da base, peças construídas, memória individual, ferimentos e rotina. Construções físicas continuam sob a persistência de mundo nativa, sem cópias no JSON de NPCs.
+
+### Trabalho ainda necessário neste ciclo
+
+- [ ] Distinguir de forma persistente identidade única individual (não apenas nome) e separar aparência de colisões de nomes.
+- [ ] Replicar metadados visuais de grupo/base e ferimentos necessários à interface remota sem expor memória tática/posições secretas de NPC.
+- [ ] Garantir que todos os itens recusados no drop de morte sobrevivam a um despawn/encerramento: hoje `MobileNPCDeathLoot` mantém itens recusados no inventário do cadáver apenas enquanto o objeto existe. Considerar uma fila persistente de drops com limite e rollback transacional.
+- [ ] Validar que `Provider.serverID`, `Application.persistentDataPath`, modo de jogo e mapa formam a chave correta em dois saves do servidor dedicado. Não migrar diretórios automaticamente sem backups.
+- [ ] Auditar a ordem de restore dos grupos e construções nativas; manter a regra de não duplicar estruturas ao carregar o mundo.
+- [ ] Testar escrita, reinício, erro de acesso ao disco, arquivo corrompido com backup e parada graciosa em Unity. Código não foi executado.
+
 ## Workshop — pendência formal
 
 Integração planejada de mapas e itens da Steam Workshop por IDs de publicações, usando arquivos de dependência e download do próprio Unturned. O uso privado entre amigos não substitui as permissões dos autores para redistribuição.
