@@ -96,6 +96,7 @@ namespace SDG.Unturned
             // overlap recovery, which can push agents unpredictably around map geometry.
             controller.enableOverlapRecovery = false;
 
+            template.AddComponent<MobileNPCPersistentIdentity>();
             template.AddComponent<MobileNPCBrainDriver>();
             // Strategic routine arbitration runs only when tactical AI is idle.
             template.AddComponent<MobileNPCAutonomyPlanner>();
