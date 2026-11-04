@@ -2104,6 +2104,29 @@ namespace SDG.Unturned
 			worker.RequestSearch(path, origin);
 		}
 
+		// Check both bundle and MasterBundle.dat: an empty/incomplete
+		// Bundles directory in a development build must not mask Steam content.
+		private static bool ContainsCoreMasterBundleFile(string bundlesDirectory)
+		{
+			if (!Directory.Exists(bundlesDirectory))
+				return false;
+			try
+			{
+				foreach (string file in Directory.EnumerateFiles(bundlesDirectory,
+					"core.masterbundle", SearchOption.AllDirectories))
+				{
+					if (File.Exists(Path.Combine(Path.GetDirectoryName(file),
+						"MasterBundle.dat")))
+						return true;
+				}
+			}
+			catch (Exception ex)
+			{
+				UnturnedLog.warn("Unable to inspect Bundles for core.masterbundle: " + ex.Message);
+			}
+			return false;
+		}
+
 		private MasterBundleConfig FindAndRemoveLoadedPendingMasterBundle()
 		{
 			for (int index = pendingMasterBundles.Count - 1; index >= 0; --index)
@@ -2209,8 +2232,17 @@ namespace SDG.Unturned
 				{
 					if (coreMasterBundle == null)
 					{
-						// Do nothing until core master bundle is loaded.
-						// Kind of a hack, but lots of stuff depends on it.
+						// Asset definitions cannot load without the core.
+						// If discovery and bundle loading have finished,
+						// waiting on queued definitions would never end.
+						if (!worker.IsWorking && pendingMasterBundles.Count == 0
+							&& pendingAssetsToLoad.Count > 0)
+						{
+							UnturnedLog.error("Asset loading cannot continue: core.masterbundle was not loaded. "
+								+ "Check the build or Steam installation Bundles folder.");
+							pendingAssetsToLoad.Clear();
+							yield break;
+						}
 					}
 					else
 					{
@@ -2318,15 +2350,24 @@ namespace SDG.Unturned
 			{
 				string coreBundlesPath = Path.Combine(ReadWrite.PATH, "Bundles");
 #if UNITY_EDITOR || DEVELOPMENT_BUILD || !WITH_NOREDIST
-				if (!Directory.Exists(coreBundlesPath))
+				// Directory.Exists alone is insufficient for test builds:
+				// an incomplete Bundles folder can mask the Steam core.
+				if (!ContainsCoreMasterBundleFile(coreBundlesPath))
 				{
-					if (Provider.steamAppInstallDirectory != null)
+					string steamBundlesPath = Provider.steamAppInstallDirectory != null
+						? PathEx.Join(Provider.steamAppInstallDirectory, "Bundles")
+						: null;
+					if (!string.IsNullOrEmpty(steamBundlesPath)
+						&& ContainsCoreMasterBundleFile(steamBundlesPath))
 					{
-						coreBundlesPath = PathEx.Join(Provider.steamAppInstallDirectory, "Bundles");
+						UnturnedLog.warn("Build Bundles folder has no core.masterbundle; "
+							+ "falling back to Steam installation: " + steamBundlesPath);
+						coreBundlesPath = steamBundlesPath;
 					}
 					else
 					{
-						// Missing Steam install error will have been shown.
+						UnturnedLog.error("No core.masterbundle in either build or Steam installation "
+							+ "Bundles folder. Unable to initialize game assets.");
 						yield break;
 					}
 				}
