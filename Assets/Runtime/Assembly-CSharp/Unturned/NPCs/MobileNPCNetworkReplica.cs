@@ -189,6 +189,27 @@ namespace SDG.Unturned
                     continue;
                 component.enabled = false;
             }
+            // The original NPC_Client prefab contains renderers beneath
+            // disabled nodes. Re-enable the visual path just as the server's
+            // singleplayer bootstrap does; do not enable gameplay scripts.
+            Renderer[] renderers = model.GetComponentsInChildren<Renderer>(true);
+            for (int i = 0; i < renderers.Length; ++i)
+            {
+                Renderer renderer = renderers[i];
+                if (renderer == null)
+                    continue;
+                renderer.enabled = true;
+                renderer.forceRenderingOff = false;
+                renderer.allowOcclusionWhenDynamic = false;
+                if (renderer is SkinnedMeshRenderer skinned)
+                    skinned.updateWhenOffscreen = true;
+                Transform node = renderer.transform;
+                while (node != null && node != root.transform)
+                {
+                    node.gameObject.SetActive(true);
+                    node = node.parent;
+                }
+            }
             foreach (Collider collider in model.GetComponentsInChildren<Collider>(true))
                 collider.enabled = false;
             foreach (Rigidbody body in model.GetComponentsInChildren<Rigidbody>(true))
