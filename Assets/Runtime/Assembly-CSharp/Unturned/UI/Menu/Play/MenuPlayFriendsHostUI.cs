@@ -89,10 +89,14 @@ namespace SDG.Unturned
                 statusBox.Text = "Inicie o servidor e aguarde o Server Code da Steam.";
                 return;
             }
-            // Steam overlay opens the friends list; sharing the code is
-            // deliberate. This is NOT a game lobby invite.
-            SteamFriends.ActivateGameOverlay("Friends");
-            statusBox.Text = "Amigos Steam abertos. Envie o codigo: " + code;
+            // Native Steam invite dialog accepts a rich-presence connect
+            // string. Unturned's CommandLine.TryGetSteamConnect knows
+            // "+connect {SteamGameServerID}", so no custom URI is needed.
+            // Do not embed the session password in rich presence / logs;
+            // friends must enter the password manually when joining.
+            SteamFriends.ActivateGameOverlayInviteDialogConnectString(
+                "+connect " + code);
+            statusBox.Text = "Convite Steam aberto. Compartilhe a senha separadamente.";
         }
 
         private static void OnNpcModeCycle(ISleekElement button)
@@ -315,7 +319,7 @@ namespace SDG.Unturned
             steamFriends.PositionOffset_Y = 195;
             steamFriends.SizeOffset_X = 270;
             steamFriends.SizeOffset_Y = 34;
-            steamFriends.Text = "Abrir amigos Steam";
+            steamFriends.Text = "Convidar amigos Steam";
             steamFriends.OnClicked += OnOpenSteamFriends;
             container.AddChild(steamFriends);
 
