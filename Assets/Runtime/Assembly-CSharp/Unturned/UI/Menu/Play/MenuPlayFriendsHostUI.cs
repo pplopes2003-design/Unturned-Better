@@ -1,3 +1,4 @@
+using Steamworks;
 using UnityEngine;
 
 namespace SDG.Unturned
@@ -15,6 +16,8 @@ namespace SDG.Unturned
         private static ISleekUInt16Field playersField;
         private static ISleekUInt16Field portField;
         private static ISleekBox statusBox;
+        private static ISleekBox codeBox;
+        private static ISleekButton internetModeButton;
         private static ISleekButton npcModeButton;
         private static MobileNPCIntegratedHostConfig configuration =
             new MobileNPCIntegratedHostConfig();
@@ -24,6 +27,7 @@ namespace SDG.Unturned
             if (active) return;
             active = true;
             container.AnimateIntoView();
+            RefreshSteamCodeDisplay();
         }
 
         public static void Close()
@@ -31,6 +35,64 @@ namespace SDG.Unturned
             if (!active) return;
             active = false;
             container.AnimateOutOfView(0, 1);
+        }
+
+        internal static void RefreshSteamCodeDisplay()
+        {
+            if (!active || codeBox == null)
+                return;
+            if (MobileNPCIntegratedHostLauncher.TryGetSteamServerCode(
+                out string realCode))
+                codeBox.Text = "Steam Server Code: " + realCode;
+            else if (MobileNPCIntegratedHostLauncher.IsRunning
+                && configuration.InternetFriends)
+                codeBox.Text = "Steam Server Code: aguardando autenticacao...";
+            else
+                codeBox.Text = "Steam Server Code: indisponivel";
+        }
+
+        private static void OnInternetModeCycle(ISleekElement button)
+        {
+            if (MobileNPCIntegratedHostLauncher.IsRunning)
+            {
+                statusBox.Text = "Encerre o servidor antes de trocar LAN / Internet.";
+                return;
+            }
+            configuration.InternetFriends = !configuration.InternetFriends;
+            UpdateInternetModeLabel();
+        }
+
+        private static void UpdateInternetModeLabel()
+        {
+            if (internetModeButton != null)
+                internetModeButton.Text = configuration.InternetFriends
+                    ? "Rede: Internet privada (Steam Server Code)"
+                    : "Rede: LAN (teste local)";
+        }
+
+        private static void OnCopySteamCode(ISleekElement button)
+        {
+            if (!MobileNPCIntegratedHostLauncher.TryGetSteamServerCode(
+                out string realCode))
+            {
+                statusBox.Text = "Codigo indisponivel. Confira a autenticacao Steam no console.";
+                return;
+            }
+            GUIUtility.systemCopyBuffer = realCode;
+            statusBox.Text = "Codigo Steam copiado. Envie-o ao seu amigo pelo chat.";
+        }
+
+        private static void OnOpenSteamFriends(ISleekElement button)
+        {
+            if (!MobileNPCIntegratedHostLauncher.TryGetSteamServerCode(out string code))
+            {
+                statusBox.Text = "Inicie o servidor e aguarde o Server Code da Steam.";
+                return;
+            }
+            // Steam overlay opens the friends list; sharing the code is
+            // deliberate. This is NOT a game lobby invite.
+            SteamFriends.ActivateGameOverlay("Friends");
+            statusBox.Text = "Amigos Steam abertos. Envie o codigo: " + code;
         }
 
         private static void OnNpcModeCycle(ISleekElement button)
@@ -72,7 +134,9 @@ namespace SDG.Unturned
             configuration.MaxPlayers = playersField.Value;
             configuration.Port = portField.Value;
             if (MobileNPCIntegratedHostLauncher.TryStart(configuration, out string error))
-                statusBox.Text = "Processo LAN iniciado. Aguarde o mapa carregar; depois clique Conectar.";
+                statusBox.Text = configuration.InternetFriends
+                    ? "Servidor Steam iniciado. Aguarde o codigo aparecer abaixo."
+                    : "Servidor LAN iniciado. Aguarde o mapa; depois conecte localmente.";
             else
                 statusBox.Text = error;
         }
@@ -84,8 +148,19 @@ namespace SDG.Unturned
                 statusBox.Text = "Nenhum servidor foi iniciado neste jogo.";
                 return;
             }
-            MobileNPCIntegratedHostLauncher.TryConnectLocal(configuration);
-            statusBox.Text = "Consultando servidor local. Se ainda carregar, tente novamente.";
+            if (configuration.InternetFriends)
+            {
+                if (MobileNPCIntegratedHostLauncher.TryConnectBySteamCode(
+                    configuration, out string error))
+                    statusBox.Text = "Conectando ao Steam Server Code...";
+                else
+                    statusBox.Text = error;
+            }
+            else
+            {
+                MobileNPCIntegratedHostLauncher.TryConnectLocal(configuration);
+                statusBox.Text = "Consultando servidor LAN local.";
+            }
         }
 
         private static void OnStop(ISleekElement button)
@@ -129,10 +204,21 @@ namespace SDG.Unturned
 
             configuration.DedicatedServerDirectory =
                 MobileNPCIntegratedHostLauncher.SuggestDirectory();
+            internetModeButton = Glazier.Get().CreateButton();
+            internetModeButton.PositionScale_X = 0.5f;
+            internetModeButton.PositionScale_Y = 0.5f;
+            internetModeButton.PositionOffset_X = -285;
+            internetModeButton.PositionOffset_Y = -213;
+            internetModeButton.SizeOffset_X = 570;
+            internetModeButton.SizeOffset_Y = 32;
+            internetModeButton.OnClicked += OnInternetModeCycle;
+            UpdateInternetModeLabel();
+            container.AddChild(internetModeButton);
+
             folderField = AddField("Build dedicada", configuration.DedicatedServerDirectory, -170, false, 255);
             mapField = AddField("Mapa", configuration.Map, -130, false, 64);
             nameField = AddField("Nome do servidor", configuration.ServerName, -90, false, 50);
-            passwordField = AddField("Senha (LAN)", configuration.Password, -50, true, 64);
+            passwordField = AddField("Senha do servidor", configuration.Password, -50, true, 64);
 
             playersField = Glazier.Get().CreateUInt16Field();
             playersField.PositionScale_X = 0.5f;
@@ -175,7 +261,7 @@ namespace SDG.Unturned
             launch.PositionOffset_Y = 73;
             launch.SizeOffset_X = 270;
             launch.SizeOffset_Y = 36;
-            launch.Text = "Iniciar servidor LAN";
+            launch.Text = "Iniciar servidor";
             launch.OnClicked += OnLaunch;
             container.AddChild(launch);
 
@@ -201,21 +287,53 @@ namespace SDG.Unturned
             stop.OnClicked += OnStop;
             container.AddChild(stop);
 
+            codeBox = Glazier.Get().CreateBox();
+            codeBox.PositionScale_X = 0.5f;
+            codeBox.PositionScale_Y = 0.5f;
+            codeBox.PositionOffset_X = -285;
+            codeBox.PositionOffset_Y = 153;
+            codeBox.SizeOffset_X = 570;
+            codeBox.SizeOffset_Y = 34;
+            codeBox.Text = "Steam Server Code: indisponivel";
+            container.AddChild(codeBox);
+
+            ISleekButton copyCode = Glazier.Get().CreateButton();
+            copyCode.PositionScale_X = 0.5f;
+            copyCode.PositionScale_Y = 0.5f;
+            copyCode.PositionOffset_X = -285;
+            copyCode.PositionOffset_Y = 195;
+            copyCode.SizeOffset_X = 270;
+            copyCode.SizeOffset_Y = 34;
+            copyCode.Text = "Copiar Server Code";
+            copyCode.OnClicked += OnCopySteamCode;
+            container.AddChild(copyCode);
+
+            ISleekButton steamFriends = Glazier.Get().CreateButton();
+            steamFriends.PositionScale_X = 0.5f;
+            steamFriends.PositionScale_Y = 0.5f;
+            steamFriends.PositionOffset_X = 15;
+            steamFriends.PositionOffset_Y = 195;
+            steamFriends.SizeOffset_X = 270;
+            steamFriends.SizeOffset_Y = 34;
+            steamFriends.Text = "Abrir amigos Steam";
+            steamFriends.OnClicked += OnOpenSteamFriends;
+            container.AddChild(steamFriends);
+
             statusBox = Glazier.Get().CreateBox();
             statusBox.PositionScale_X = 0.5f;
             statusBox.PositionScale_Y = 0.5f;
             statusBox.PositionOffset_X = -285;
-            statusBox.PositionOffset_Y = 156;
+            statusBox.PositionOffset_Y = 240;
             statusBox.SizeOffset_X = 570;
             statusBox.SizeOffset_Y = 44;
-            statusBox.Text = "LAN: compile a build dedicada do Unturned Better no Unity. Amigos precisam da mesma versao.";
+            statusBox.Text = "Internet via Steam Server Code. Cliente e servidor precisam da mesma build.";
             container.AddChild(statusBox);
 
             ISleekButton back = Glazier.Get().CreateButton();
             back.PositionScale_X = 0.5f;
             back.PositionScale_Y = 0.5f;
             back.PositionOffset_X = -285;
-            back.PositionOffset_Y = 209;
+            back.PositionOffset_Y = 292;
             back.SizeOffset_X = 570;
             back.SizeOffset_Y = 32;
             back.Text = "Voltar";
