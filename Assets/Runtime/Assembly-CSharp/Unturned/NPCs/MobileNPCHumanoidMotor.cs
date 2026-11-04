@@ -2483,19 +2483,37 @@ namespace SDG.Unturned
 				return false; // allow normal route and door discovery first
 			}
 
-			// A local EXACT A* route to the goal is stronger evidence than a
-			// mere "nearest wall cell" frontier. Compare it to the short-hop
-			// cost before abandoning ground navigation. Global time admission
-			// avoids N NPCs running 81-node searches in the same frame.
+			// Prefer physically verified ground access, including a longer
+			// route through a discovered doorway, over a speculative vault.
+			// Only request this when no active walking route exists and a
+			// static obstruction has already been observed. Keep the
+			// existing shared/per-NPC budgets to protect slower machines.
 			if (routeWaypoints.Count == 0 && !hasDetourWaypoint
-				&& PlanarDistanceSquared(transform.position, finalGoal) <= 25f
+				&& PlanarDistanceSquared(transform.position, finalGoal) <= 324f
 				&& Time.time >= nextObstacleComparisonTime
 				&& Time.time >= nextSharedObstacleComparisonTime)
 			{
 				nextObstacleComparisonTime = Time.time + 2.5f;
 				nextSharedObstacleComparisonTime = Time.time + 0.22f;
 				obstacleWalkComparisonScratch.Clear();
-				if (TryBuildLocalRoute(finalGoal, obstacleWalkComparisonScratch, true))
+				bool exactGroundRoute = independentRouteProvider != null
+					&& independentRouteProvider.IsAvailable
+					&& independentRouteProvider.TryGetRoute(
+						transform.position, finalGoal, obstacleWalkComparisonScratch);
+				// The small, exact local route remains a fallback when the
+				// independent planner is throttled or cannot reach the goal.
+				if (!exactGroundRoute
+					&& PlanarDistanceSquared(transform.position, finalGoal) <= 25f)
+				{
+					obstacleWalkComparisonScratch.Clear();
+					exactGroundRoute = TryBuildLocalRoute(
+						finalGoal, obstacleWalkComparisonScratch, true);
+				}
+				if (exactGroundRoute && obstacleWalkComparisonScratch.Count >= 2
+					&& Vector3.Distance(
+						obstacleWalkComparisonScratch[
+							obstacleWalkComparisonScratch.Count - 1], finalGoal)
+						<= 1.0f)
 				{
 					float distance = 0f;
 					Vector3 previous = transform.position;
@@ -2505,8 +2523,10 @@ namespace SDG.Unturned
 							obstacleWalkComparisonScratch[i]);
 						previous = obstacleWalkComparisonScratch[i];
 					}
-					if (distance <= remaining + 3.0f
-						|| distance <= remaining * 1.55f)
+					// A doorway route can be longer than a straight line
+					// through a wall. Do not jump solely to save a few metres.
+					if (distance <= remaining + 6.0f
+						|| distance <= remaining * 1.8f)
 					{
 						// This route was actually validated by local A*.
 						// Do NOT teach the NPC a speculative shortcut.
