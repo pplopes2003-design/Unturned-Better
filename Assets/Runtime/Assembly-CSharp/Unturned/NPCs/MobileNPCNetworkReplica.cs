@@ -73,6 +73,7 @@ namespace SDG.Unturned
         private readonly Dictionary<int, Replica> remote =
             new Dictionary<int, Replica>(64);
         private readonly List<int> expired = new List<int>(32);
+        private readonly List<GameObject> grenadeVisuals = new List<GameObject>(16);
         // Delayed unreliable position packets must not resurrect a dead NPC.
         private readonly Dictionary<int, float> deathTombstones =
             new Dictionary<int, float>(32);
@@ -143,8 +144,13 @@ namespace SDG.Unturned
                 }
             }
             if (!Provider.isServer && Provider.isConnected && Level.isLoaded)
+            {
                 UpdateClientVisuals();
-            else if (remote.Count > 0)
+                for (int i = grenadeVisuals.Count - 1; i >= 0; --i)
+                    if (grenadeVisuals[i] == null)
+                        grenadeVisuals.RemoveAt(i);
+            }
+            else if (remote.Count > 0 || grenadeVisuals.Count > 0)
                 ClearClientReplicas();
         }
 
@@ -542,7 +548,8 @@ namespace SDG.Unturned
                 || float.IsNaN(origin.x) || float.IsNaN(origin.y)
                 || float.IsNaN(origin.z) || float.IsInfinity(origin.x)
                 || float.IsInfinity(origin.y) || float.IsInfinity(origin.z)
-                || velocity.sqrMagnitude > 3000f)
+                || !IsFiniteFloat(velocity.x) || !IsFiniteFloat(velocity.y)
+                || !IsFiniteFloat(velocity.z) || velocity.sqrMagnitude > 3000f)
                 return;
             ItemThrowableAsset asset = Assets.find(EAssetType.ITEM,
                 throwableId) as ItemThrowableAsset;
@@ -566,6 +573,7 @@ namespace SDG.Unturned
             }
             rigidbody.collisionDetectionMode = CollisionDetectionMode.Continuous;
             rigidbody.AddForce(velocity * rigidbody.mass, ForceMode.Impulse);
+            instance.grenadeVisuals.Add(visual);
             Object.Destroy(visual, fuseSeconds);
         }
 
@@ -897,6 +905,10 @@ namespace SDG.Unturned
                 if (replica.Root != null)
                     Destroy(replica.Root);
             remote.Clear();
+            for (int i = 0; i < grenadeVisuals.Count; ++i)
+                if (grenadeVisuals[i] != null)
+                    Destroy(grenadeVisuals[i]);
+            grenadeVisuals.Clear();
             expired.Clear();
             deathTombstones.Clear();
         }
