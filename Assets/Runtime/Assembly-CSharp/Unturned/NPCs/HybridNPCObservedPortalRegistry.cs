@@ -210,7 +210,15 @@ namespace SDG.Unturned
                     return;
                 }
             }
-            if (entries.Count >= Capacity) entries.RemoveAt(0);
+            // Speculative observations cannot evict confirmed traversed doors.
+            if (entries.Count >= Capacity)
+            {
+                int discard = -1;
+                for (int i = 0; i < entries.Count; ++i)
+                    if (!entries[i].crossed) { discard = i; break; }
+                if (discard < 0) return;
+                entries.RemoveAt(discard);
+            }
             entries.Add(new Passage { near = near, far = far, observedAt = Time.time });
         }
 
@@ -236,7 +244,22 @@ namespace SDG.Unturned
                 learningDirty = true;
                 return;
             }
-            if (entries.Count >= Capacity) entries.RemoveAt(0);
+            // Confirmed topology takes precedence when the bounded cache fills.
+            if (entries.Count >= Capacity)
+            {
+                int discard = -1;
+                float oldest = float.PositiveInfinity;
+                for (int i = 0; i < entries.Count; ++i)
+                {
+                    if (!entries[i].crossed) { discard = i; break; }
+                    if (entries[i].observedAt < oldest)
+                    {
+                        oldest = entries[i].observedAt;
+                        discard = i;
+                    }
+                }
+                if (discard >= 0) entries.RemoveAt(discard);
+            }
             entries.Add(new Passage {
                 near = entry, far = exit, observedAt = Time.time, crossed = true
             });
