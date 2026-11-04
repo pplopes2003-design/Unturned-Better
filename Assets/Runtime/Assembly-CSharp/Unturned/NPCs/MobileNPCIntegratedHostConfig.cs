@@ -11,12 +11,13 @@ namespace SDG.Unturned
     /// </summary>
     internal sealed class MobileNPCIntegratedHostConfig
     {
-        internal string Map = "PEI";
+        internal string Map = "Washington";
         internal string ServerName = "Unturned 2 - Amigos";
         internal string Password = "";
         internal int MaxPlayers = 4;
         internal int Port = 27015;
-        internal bool PublicListing;
+        internal bool PublicListing; // LAN-only in initial implementation
+        internal string DedicatedServerDirectory = "";
 
         internal bool TryValidate(out string error)
         {
@@ -34,6 +35,8 @@ namespace SDG.Unturned
                 error = "Escolha entre 1 e 24 jogadores.";
             else if (Port < 1024 || Port > 65532)
                 error = "A porta deve estar entre 1024 e 65532.";
+            else if (PublicListing)
+                error = "A hospedagem publica ainda nao esta habilitada; use LAN."; 
             return error == null;
         }
 
@@ -59,7 +62,8 @@ namespace SDG.Unturned
             return new MobileNPCIntegratedHostConfig
             {
                 Map = Map, ServerName = ServerName, Password = "",
-                MaxPlayers = MaxPlayers, Port = Port, PublicListing = PublicListing
+                MaxPlayers = MaxPlayers, Port = Port, PublicListing = PublicListing,
+                DedicatedServerDirectory = DedicatedServerDirectory
             };
         }
 
