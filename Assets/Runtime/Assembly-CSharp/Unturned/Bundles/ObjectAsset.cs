@@ -229,6 +229,28 @@ namespace SDG.Unturned
 			}
 		}
 
+#if UNITY_EDITOR
+		/// <summary>
+		/// Explicit editor-only source prefab inspection. These are not placed
+		/// scene objects. Invoked only by the Unturned Better building audit;
+		/// never used by runtime pathfinding or collision mutation.
+		/// </summary>
+		public GameObject DebugGetVisualPrefabForBuildingAudit()
+		{
+			return clientModel?.getOrLoad();
+		}
+
+		public GameObject DebugGetClipPrefabForBuildingAudit()
+		{
+			return legacyServerModel?.getOrLoad();
+		}
+
+		public GameObject DebugGetNavPrefabForBuildingAudit()
+		{
+			return navGameObject?.getOrLoad();
+		}
+#endif // UNITY_EDITOR
+
 		public IDeferredAsset<GameObject> skyboxGameObject;
 
 		public IDeferredAsset<GameObject> navGameObject;
