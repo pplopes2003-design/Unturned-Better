@@ -11,6 +11,7 @@ namespace SDG.Unturned
         internal static bool IsActive => active;
         private static ISleekField folderField;
         private static ISleekField mapField;
+        private static ISleekField workshopField;
         private static ISleekField nameField;
         private static ISleekField passwordField;
         private static ISleekUInt16Field playersField;
@@ -133,6 +134,7 @@ namespace SDG.Unturned
         {
             configuration.DedicatedServerDirectory = folderField.Text;
             configuration.Map = mapField.Text;
+            configuration.WorkshopFileIds = workshopField.Text;
             configuration.ServerName = nameField.Text;
             configuration.Password = passwordField.Text;
             configuration.MaxPlayers = playersField.Value;
@@ -219,6 +221,8 @@ namespace SDG.Unturned
             UpdateInternetModeLabel();
             container.AddChild(internetModeButton);
 
+            workshopField = AddField("Workshop IDs (dependencias automaticas)",
+                configuration.WorkshopFileIds, -252, false, 512);
             folderField = AddField("Build dedicada", configuration.DedicatedServerDirectory, -170, false, 255);
             mapField = AddField("Mapa", configuration.Map, -130, false, 64);
             nameField = AddField("Nome do servidor", configuration.ServerName, -90, false, 50);
