@@ -196,8 +196,7 @@ namespace SDG.Unturned
 			HybridNPCObservedPortalRegistry.FlushLearningServer();
 			if (preserveExistingSnapshot)
 				return false;
-			SaveServer(currentMapKey);
-			return true;
+			return SaveServer(currentMapKey);
 		}
 
 		public static void SaveOnApplicationQuitServer()
@@ -479,13 +478,13 @@ namespace SDG.Unturned
 			return true;
 		}
 
-		private static void SaveServer(string mapKey)
+		private static bool SaveServer(string mapKey)
 		{
 			if (preserveExistingSnapshot)
 			{
 				Debug.LogWarning("[MobileNPCPersistence] Skipping save for '" + mapKey
 					+ "' because an existing snapshot could not be loaded safely.");
-				return;
+				return false;
 			}
 
 			MobileNPCRegistry.CopyActiveDrivers(ActiveDriverScratch);
@@ -627,11 +626,13 @@ namespace SDG.Unturned
 						File.Move(temporaryPath, path);
 					}
 				}
+				return true;
 			}
 			catch (Exception exception)
 			{
 				Debug.LogError("[MobileNPCPersistence] Failed to save snapshot '" + path + "': " + exception);
 				try { if (File.Exists(temporaryPath)) File.Delete(temporaryPath); } catch { }
+				return false;
 			}
 		}
 
