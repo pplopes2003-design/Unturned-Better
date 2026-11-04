@@ -76,6 +76,11 @@ namespace SDG.Unturned
         private bool weaponPoseFallbackReported;
         private float proceduralMedicalUntil;
         private Transform hitReactionSpine;
+        private Transform animatedSkull;
+        private float headPitchDegrees;
+        [SerializeField, Range(5f, 75f)] private float maximumHeadElevation = 55f;
+        [SerializeField, Range(5f, 75f)] private float maximumHeadDepression = 50f;
+        [SerializeField, Range(30f, 360f)] private float headTurnSpeed = 180f;
         private float proceduralHitUntil;
         private float proceduralHitStartedAt;
         private float proceduralHitMagnitude;
@@ -134,6 +139,7 @@ namespace SDG.Unturned
                 ? visual.Find("Root/Skeleton/Spine") : null;
             if (hitReactionSpine != null)
             {
+                animatedSkull = hitReactionSpine.Find("Skull");
                 weaponLeftShoulder = hitReactionSpine.Find("Left_Shoulder");
                 weaponRightShoulder = hitReactionSpine.Find("Right_Shoulder");
                 weaponLeftHand = weaponLeftShoulder != null
@@ -499,6 +505,8 @@ namespace SDG.Unturned
             else
                 UpdateActualGunShoulderPose();
 
+            UpdateHeadLook();
+
             if (hitReactionSpine == null || legacyAnimation == null
                 || Time.time >= proceduralHitUntil)
                 return;
@@ -510,6 +518,37 @@ namespace SDG.Unturned
             hitReactionSpine.localRotation *= Quaternion.Euler(
                 -proceduralHitMagnitude * envelope, 0f,
                 proceduralHitMagnitude * envelope * 0.35f);
+        }
+
+        /// <summary>
+        /// Rotate the actual native Skull after legacy animation evaluation.
+        /// The player's look separates yaw from pitch; NPC hips/motor own yaw,
+        /// while the neck follows the same confirmed world-space target as
+        /// the firearm, without granting sight through walls.
+        /// </summary>
+        private void UpdateHeadLook()
+        {
+            if (animatedSkull == null)
+                return;
+            float desiredPitch = 0f;
+            if (brain != null && humanoidAim != null && brain.Target != null
+                && humanoidAim.TryGetCurrentAimPointServer(brain.Target, out Vector3 point))
+            {
+                Vector3 offset = point - animatedSkull.position;
+                float horizontal = new Vector2(offset.x, offset.z).magnitude;
+                if (horizontal > 0.1f)
+                    desiredPitch = Mathf.Clamp(
+                        Mathf.Atan2(offset.y, horizontal) * Mathf.Rad2Deg,
+                        -maximumHeadDepression, maximumHeadElevation);
+            }
+            headPitchDegrees = Mathf.MoveTowards(headPitchDegrees,
+                desiredPitch, headTurnSpeed * Time.deltaTime);
+            // Local neck geometry uses the native animation as its reference
+            // each frame. World-space pitch avoids guessing the imported
+            // Skull bone's local Euler axis.
+            animatedSkull.rotation =
+                Quaternion.AngleAxis(-headPitchDegrees, transform.right)
+                * animatedSkull.rotation;
         }
 
         /// <summary>
@@ -549,8 +588,18 @@ namespace SDG.Unturned
                 intendedForward = Vector3.forward;
             intendedForward.Normalize();
             Vector3 nativeGunForward = GetHeldWeaponForwardWorld();
+            Vector3 intendedGunDirection = intendedForward;
+            if (brain != null && humanoidAim != null && brain.Target != null
+                && humanoidAim.TryGetCurrentAimPointServer(brain.Target, out Vector3 currentAimPoint))
+            {
+                Vector3 gunOrigin = boundWeaponBarrel != null
+                    ? boundWeaponBarrel.position : weaponRightShoulder.position;
+                Vector3 toAim = currentAimPoint - gunOrigin;
+                if (toAim.sqrMagnitude > 0.04f)
+                    intendedGunDirection = toAim.normalized;
+            }
             bool nativeBarrelAligned = nativeGunForward.sqrMagnitude > 0.5f
-                && Vector3.Dot(nativeGunForward, intendedForward) > 0.70f;
+                && Vector3.Dot(nativeGunForward, intendedGunDirection) > 0.94f;
             bool nativePoseAvailable = gunPoseFallbackBlend <= 0.001f
                 && nativePoseRaised && nativeBarrelAligned && legacyAnimation != null
                 && IsOwnedWeaponClip(equippedWeaponHoldClip)
