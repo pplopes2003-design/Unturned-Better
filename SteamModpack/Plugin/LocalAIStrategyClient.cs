@@ -171,6 +171,21 @@ namespace UnturnedBetter.SteamModpack
             }
         }
 
+        /// <summary>Consume a validated, fresh decision batch only once.</summary>
+        public bool TryConsumeDecisions(out List<LocalAIDecision> decisions)
+        {
+            lock (gate)
+            {
+                decisions = null;
+                if (disposed || latest == null ||
+                    DateTime.UtcNow - latestResultUtc > TimeSpan.FromSeconds(2))
+                    return false;
+                decisions = new List<LocalAIDecision>(latest.Values);
+                latest = null;
+                return true;
+            }
+        }
+
         public static bool IsSupportedIntent(string intent)
         {
             return intent == "patrol" || intent == "hold" ||
