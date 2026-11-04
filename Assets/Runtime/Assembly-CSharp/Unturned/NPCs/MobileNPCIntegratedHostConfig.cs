@@ -16,6 +16,7 @@ namespace SDG.Unturned
         internal string Password = "";
         internal int MaxPlayers = 4;
         internal int Port = 27015;
+        internal MobileNPCSettings.GameMode NpcMode = MobileNPCSettings.GameMode.Normal;
         internal bool PublicListing; // LAN-only in initial implementation
         internal string DedicatedServerDirectory = "";
 
@@ -35,6 +36,8 @@ namespace SDG.Unturned
                 error = "Escolha entre 1 e 24 jogadores.";
             else if (Port < 1024 || Port > 65532)
                 error = "A porta deve estar entre 1024 e 65532.";
+            else if ((int)NpcMode < 0 || (int)NpcMode > 2)
+                error = "Modo NPC invalido.";
             else if (PublicListing)
                 error = "A hospedagem publica ainda nao esta habilitada; use LAN."; 
             return error == null;
@@ -63,6 +66,7 @@ namespace SDG.Unturned
             {
                 Map = Map, ServerName = ServerName, Password = "",
                 MaxPlayers = MaxPlayers, Port = Port, PublicListing = PublicListing,
+                NpcMode = NpcMode,
                 DedicatedServerDirectory = DedicatedServerDirectory
             };
         }
@@ -71,7 +75,7 @@ namespace SDG.Unturned
         {
             // Never print credentials into Player.log or diagnostics.
             return "Map=" + Map + ", ServerName=" + ServerName
-                + ", MaxPlayers=" + MaxPlayers + ", Port=" + Port
+                + ", NPCMode=" + NpcMode + ", MaxPlayers=" + MaxPlayers + ", Port=" + Port
                 + ", PublicListing=" + PublicListing;
         }
     }
