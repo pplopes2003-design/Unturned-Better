@@ -7,7 +7,8 @@ using UnityEngine;
 namespace SDG.Unturned
 {
     /// <summary>
-    /// In-menu LAN host: starts the official, SEPARATELY INSTALLED U3DS.
+    /// In-menu LAN host: starts a SECOND build of the SAME MODIFIED project,
+    /// compiled with Unity's Windows64DedicatedServer target.
     /// Never runs a second Provider server inside the Unity client.
     /// No user-supplied executable arguments or shell are evaluated.
     /// </summary>
@@ -29,8 +30,15 @@ namespace SDG.Unturned
             string root = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
             string parent = Directory.GetParent(root) != null
                 ? Directory.GetParent(root).FullName : root;
-            string candidate = Path.Combine(parent, "U3DS");
-            return Directory.Exists(candidate) ? candidate : "";
+            // Unity source build layout: Builds/Windows64 and
+            // Builds/Windows64_Headless are peers. Do not silently pick
+            // vanilla Steam U3DS, which has none of our MobileNPC code.
+            string candidate = Path.Combine(parent, "Windows64_Headless");
+            if (File.Exists(Path.Combine(candidate, "UnturnedBetterDedicated.marker")))
+                return candidate;
+            string projectBuildCandidate = Path.Combine(root, "Builds", "Windows64_Headless");
+            return File.Exists(Path.Combine(projectBuildCandidate, "UnturnedBetterDedicated.marker"))
+                ? projectBuildCandidate : "";
         }
 
         internal static bool TryStart(MobileNPCIntegratedHostConfig config, out string error)
@@ -54,15 +62,23 @@ namespace SDG.Unturned
                     ? SuggestDirectory() : Path.GetFullPath(config.DedicatedServerDirectory);
                 if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
                 {
-                    error = "Instale o Unturned Dedicated Server (U3DS) pela Steam e selecione sua pasta.";
+                    error = "Compile a build dedicada modificada (Builds/Windows64_Headless) e selecione sua pasta.";
                     return false;
                 }
                 // Accept only the official U3DS layout; never execute an
                 // arbitrary path entered by a server name or Workshop metadata.
+                string markerPath = Path.Combine(directory,
+                    "UnturnedBetterDedicated.marker");
+                if (!File.Exists(markerPath)
+                    || File.ReadAllText(markerPath).Trim() != "UnturnedBetterDedicated-v1")
+                {
+                    error = "Servidor incompatível: use a build headless do Unturned Better, não o U3DS padrão.";
+                    return false;
+                }
                 string executable = Path.Combine(directory, "Unturned.exe");
                 if (!File.Exists(executable) || !Directory.Exists(Path.Combine(directory, "Unturned_Data")))
                 {
-                    error = "Pasta U3DS invalida: Unturned.exe / Unturned_Data ausentes.";
+                    error = "Build headless inválida: Unturned.exe / Unturned_Data ausentes.";
                     return false;
                 }
                 string saveDirectory = Path.Combine(directory, "Servers", ServerId);
@@ -94,7 +110,7 @@ namespace SDG.Unturned
                     error = "O sistema operacional nao iniciou o U3DS.";
                     return false;
                 }
-                UnityEngine.Debug.Log("[MobileNPCFriendsHost] U3DS LAN process launched. "
+                UnityEngine.Debug.Log("[MobileNPCFriendsHost] Compatible modified dedicated LAN process launched. "
                     + config.CopyWithoutPassword() + " PID=" + ownedServer.Id);
                 return true;
             }
