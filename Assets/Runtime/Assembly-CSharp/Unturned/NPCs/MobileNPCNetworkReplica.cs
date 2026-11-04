@@ -118,6 +118,26 @@ namespace SDG.Unturned
         private int lastSnapshotsEmitted;
         private int lastIdleSnapshotsSkipped;
         private float nextSnapshotAt;
+        private const float MetadataSafetyRefresh = 12f;
+        private sealed class KnownMetadata
+        {
+            public string Name;
+            public int Seed;
+            public ushort Hat, Shirt, Pants, Vest, Backpack;
+            public float LastSentAt;
+        }
+        // Server-only per-connection state. Clearing when leaving relevancy
+        // ensures a returning player's fresh visual receives metadata.
+        private readonly Dictionary<ITransportConnection, Dictionary<int, KnownMetadata>>
+            metadataByClient =
+                new Dictionary<ITransportConnection, Dictionary<int, KnownMetadata>>();
+        private readonly HashSet<ITransportConnection> metadataRecipients =
+            new HashSet<ITransportConnection>();
+        private readonly List<ITransportConnection> staleMetadataClients =
+            new List<ITransportConnection>(8);
+        private readonly List<int> staleMetadataNpcIds = new List<int>(64);
+        private int lastMetadataPairsSent;
+        private int lastMetadataPairsSkipped;
         private float nextIdentityAt;
         private float nextReplicationAuditAt;
         private bool firstRemoteReplicaLogged;
@@ -144,12 +164,14 @@ namespace SDG.Unturned
             Level.onPostLevelLoaded -= OnLevelChanged;
             ClearClientReplicas();
             sentSnapshots.Clear();
+            metadataByClient.Clear();
         }
 
         private void OnLevelChanged(int level)
         {
             ClearClientReplicas();
             sentSnapshots.Clear();
+            metadataByClient.Clear();
             nextDriverIndex = 0;
             nextSnapshotAt = Time.time + 0.5f;
             nextIdentityAt = Time.time + 1f;
@@ -343,50 +365,15 @@ namespace SDG.Unturned
             }
         }
 
-        private void BroadcastServerIdentities()
+        // Compute visible clothing once per NPC per metadata cycle.
+        private static void ReadServerOutfit(MobileNPCBrainDriver driver,
+            out ushort hat, out ushort shirt, out ushort pants,
+            out ushort vest, out ushort backpack)
         {
-            // Periodic reliable metadata allows late-joiners to discover
-            // names and deterministic appearances without a client request.
-            for (int i = 0; i < drivers.Count; ++i)
-            {
-                MobileNPCBrainDriver driver = drivers[i];
-                if (driver == null || !driver.isActiveAndEnabled)
-                    continue;
-                MobileNPCHumanoidVitals vitals =
-                    driver.GetComponent<MobileNPCHumanoidVitals>();
-                if (vitals != null && vitals.IsDead)
-                    continue;
-                MobileNPCHumanoidDisposition disposition =
-                    driver.GetComponent<MobileNPCHumanoidDisposition>();
-                string label = disposition != null ? disposition.DisplayName : "Sobrevivente";
-                if (string.IsNullOrEmpty(label)) label = "Sobrevivente";
-                if (label.Length > 40) label = label.Substring(0, 40);
-                // Persistent GUID survives reload and distinguishes NPCs
-                // with identical names. Never send the GUID itself over
-                // the wire; the client only needs a deterministic seed.
-                MobileNPCPersistentIdentity identity =
-                    driver.GetComponent<MobileNPCPersistentIdentity>();
-                int seed = identity != null
-                    ? identity.AppearanceSeedServer()
-                    : StableNameAppearanceSeed(label);
-                BroadcastServerOutfit(driver);
-                SendNpcIdentity.Invoke(ENetReliability.Reliable,
-                    Provider.GatherRemoteClientConnectionsWithinSphere(
-                        driver.transform.position, ReplicationRadius),
-                    driver.GetInstanceID(), label, seed);
-            }
-        }
-
-        /// <summary>
-        /// Inventory is server-owned. Derive visible real clothing IDs from
-        /// the five physical item types, never from client preferences.
-        /// </summary>
-        private static void BroadcastServerOutfit(MobileNPCBrainDriver driver)
-        {
+            hat = shirt = pants = vest = backpack = 0;
             MobileNPCInventory inventory = driver != null
                 ? driver.GetComponent<MobileNPCInventory>() : null;
             if (inventory == null) return;
-            ushort hat = 0, shirt = 0, pants = 0, vest = 0, backpack = 0;
             for (int i = 0; i < inventory.UsedSlots; ++i)
             {
                 if (!inventory.TryGetItemSnapshot(i, out Item item)
@@ -404,10 +391,117 @@ namespace SDG.Unturned
                         if (backpack == 0) backpack = item.id; break;
                 }
             }
-            SendNpcOutfit.Invoke(ENetReliability.Reliable,
-                Provider.GatherRemoteClientConnectionsWithinSphere(
-                    driver.transform.position, ReplicationRadius),
-                driver.GetInstanceID(), hat, shirt, pants, vest, backpack);
+        }
+
+        private void PruneMetadataRecipients()
+        {
+            staleMetadataClients.Clear();
+            foreach (ITransportConnection connection in metadataByClient.Keys)
+            {
+                bool connected = false;
+                for (int i = 0; i < Provider.clients.Count; ++i)
+                {
+                    SteamPlayer client = Provider.clients[i];
+                    if (client != null && client.transportConnection == connection)
+                    {
+                        connected = true;
+                        break;
+                    }
+                }
+                if (!connected) staleMetadataClients.Add(connection);
+            }
+            for (int i = 0; i < staleMetadataClients.Count; ++i)
+                metadataByClient.Remove(staleMetadataClients[i]);
+        }
+
+        private void BroadcastServerIdentities()
+        {
+            PruneMetadataRecipients();
+            lastMetadataPairsSent = 0;
+            lastMetadataPairsSkipped = 0;
+            for (int i = 0; i < drivers.Count; ++i)
+            {
+                MobileNPCBrainDriver driver = drivers[i];
+                if (driver == null || !driver.isActiveAndEnabled)
+                    continue;
+                MobileNPCHumanoidVitals vitals =
+                    driver.GetComponent<MobileNPCHumanoidVitals>();
+                if (vitals != null && vitals.IsDead)
+                    continue;
+                MobileNPCHumanoidDisposition disposition =
+                    driver.GetComponent<MobileNPCHumanoidDisposition>();
+                string label = disposition != null ? disposition.DisplayName : "Sobrevivente";
+                if (string.IsNullOrEmpty(label)) label = "Sobrevivente";
+                if (label.Length > 40) label = label.Substring(0, 40);
+                MobileNPCPersistentIdentity identity =
+                    driver.GetComponent<MobileNPCPersistentIdentity>();
+                int seed = identity != null
+                    ? identity.AppearanceSeedServer()
+                    : StableNameAppearanceSeed(label);
+                ReadServerOutfit(driver, out ushort hat, out ushort shirt,
+                    out ushort pants, out ushort vest, out ushort backpack);
+                int id = driver.GetInstanceID();
+                Vector3 position = driver.transform.position;
+                metadataRecipients.Clear();
+                foreach (SteamPlayer client in Provider.clients)
+                {
+                    if (client == null || client.transportConnection == null)
+                        continue;
+#if !DEDICATED_SERVER
+                    if (client.IsLocalServerHost) continue;
+#endif
+                    ITransportConnection connection = client.transportConnection;
+                    if (!metadataByClient.TryGetValue(connection,
+                        out Dictionary<int, KnownMetadata> known))
+                    {
+                        known = new Dictionary<int, KnownMetadata>(64);
+                        metadataByClient.Add(connection, known);
+                    }
+                    // Remove old awareness whenever the client is out of
+                    // relevancy. Re-entry must send a new name and outfit.
+                    if (client.player == null
+                        || (client.player.transform.position - position).sqrMagnitude
+                            >= ReplicationRadius * ReplicationRadius)
+                    {
+                        known.Remove(id);
+                        continue;
+                    }
+                    if (known.TryGetValue(id, out KnownMetadata prior)
+                        && Time.time - prior.LastSentAt < MetadataSafetyRefresh
+                        && prior.Name == label && prior.Seed == seed
+                        && prior.Hat == hat && prior.Shirt == shirt
+                        && prior.Pants == pants && prior.Vest == vest
+                        && prior.Backpack == backpack)
+                    {
+                        ++lastMetadataPairsSkipped;
+                        continue;
+                    }
+                    known[id] = new KnownMetadata
+                    {
+                        Name = label, Seed = seed, Hat = hat, Shirt = shirt,
+                        Pants = pants, Vest = vest, Backpack = backpack,
+                        LastSentAt = Time.time
+                    };
+                    metadataRecipients.Add(connection);
+                    ++lastMetadataPairsSent;
+                }
+                if (metadataRecipients.Count == 0) continue;
+                // Native pooled recipient lists are acquired separately for
+                // each RPC: they are consumed by their invocation.
+                SendNpcOutfit.Invoke(ENetReliability.Reliable,
+                    Provider.GatherRemoteClientConnectionsMatchingPredicate(
+                        client => metadataRecipients.Contains(client.transportConnection)),
+                    id, hat, shirt, pants, vest, backpack);
+                SendNpcIdentity.Invoke(ENetReliability.Reliable,
+                    Provider.GatherRemoteClientConnectionsMatchingPredicate(
+                        client => metadataRecipients.Contains(client.transportConnection)),
+                    id, label, seed);
+            }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Debug.Log("[MobileNPCReplication] metadata recipient-pairs emitted="
+                + lastMetadataPairsSent + " suppressed=" + lastMetadataPairsSkipped
+                + " (two reliable RPCs per emitted pair).");
+#endif
         }
 
         [SteamCall(ESteamCallValidation.ONLY_FROM_SERVER)]
