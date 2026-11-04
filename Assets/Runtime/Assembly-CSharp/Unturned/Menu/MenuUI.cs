@@ -462,6 +462,13 @@ namespace SDG.Unturned
 				return;
 			}
 
+			if (MenuPlayFriendsHostUI.IsActive)
+			{
+				MenuPlayFriendsHostUI.Close();
+				MenuPlayUI.open();
+				return;
+			}
+
 			if (MenuPlayConnectUI.active || MenuPlayUI.serverListUI.active || MenuPlaySingleplayerUI.active || MenuPlayLobbiesUI.active || MenuPlayUI.serverBookmarksUI.active || MenuPlayUI.onlineSafetyUI.active)
 			{
 				MenuPlayConnectUI.close();
