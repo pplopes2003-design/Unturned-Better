@@ -217,8 +217,60 @@ namespace SDG.Unturned
                 body.isKinematic = true;
                 body.detectCollisions = false;
             }
+            // Client-side anatomical ray targets allow UseableGun to
+            // report a hit POINT on the visible NPC. The server still
+            // reconstructs and validates the first unobstructed hit against
+            // its own authoritative NPC colliders before applying damage.
+            CreateClientRayTargets(model.transform);
             root.SetActive(true);
             return root;
+        }
+
+        private static void CreateClientRayTargets(Transform model)
+        {
+            Transform skeleton = model.Find("Root/Skeleton");
+            Transform spine = skeleton != null ? skeleton.Find("Spine") : null;
+            Transform skull = spine != null ? spine.Find("Skull") : null;
+            Transform leftShoulder = spine != null ? spine.Find("Left_Shoulder") : null;
+            Transform rightShoulder = spine != null ? spine.Find("Right_Shoulder") : null;
+            Transform leftArm = leftShoulder != null ? leftShoulder.Find("Left_Arm") : null;
+            Transform rightArm = rightShoulder != null ? rightShoulder.Find("Right_Arm") : null;
+            Transform leftHip = skeleton != null ? skeleton.Find("Left_Hip") : null;
+            Transform rightHip = skeleton != null ? skeleton.Find("Right_Hip") : null;
+            Transform leftLeg = leftHip != null ? leftHip.Find("Left_Leg") : null;
+            Transform rightLeg = rightHip != null ? rightHip.Find("Right_Leg") : null;
+            if (skull == null || spine == null || leftArm == null || rightArm == null
+                || leftLeg == null || rightLeg == null)
+            {
+                Debug.LogWarning("[MobileNPCReplication] Remote rig missing native"
+                    + " anatomical bones; visible NPC may not be shootable.");
+                return;
+            }
+            AddRayTarget(skull, "Head", MobileNPCInjurySystem.BodyPart.Head,
+                new Vector3(-0.45f, 0f, 0f), new Vector3(0.7f, 0.7f, 0.7f));
+            AddRayTarget(spine, "Torso", MobileNPCInjurySystem.BodyPart.Torso,
+                new Vector3(-0.4f, 0f, 0f), new Vector3(0.9f, 1f, 0.6f));
+            AddRayTarget(leftArm, "LeftArm", MobileNPCInjurySystem.BodyPart.LeftArm,
+                new Vector3(-0.4f, 0f, 0f), new Vector3(0.8f, 0.4f, 0.4f));
+            AddRayTarget(rightArm, "RightArm", MobileNPCInjurySystem.BodyPart.RightArm,
+                new Vector3(-0.4f, 0f, 0f), new Vector3(0.8f, 0.4f, 0.4f));
+            AddRayTarget(leftLeg, "LeftLeg", MobileNPCInjurySystem.BodyPart.LeftLeg,
+                new Vector3(-0.4f, -0.05f, 0f), new Vector3(0.8f, 0.4f, 0.4f));
+            AddRayTarget(rightLeg, "RightLeg", MobileNPCInjurySystem.BodyPart.RightLeg,
+                new Vector3(-0.4f, 0.05f, 0f), new Vector3(0.8f, 0.4f, 0.4f));
+        }
+
+        private static void AddRayTarget(Transform bone, string name,
+            MobileNPCInjurySystem.BodyPart region, Vector3 center, Vector3 size)
+        {
+            GameObject target = new GameObject("Hit_" + name);
+            target.layer = LayerMasks.ENTITY;
+            target.transform.SetParent(bone, false);
+            BoxCollider box = target.AddComponent<BoxCollider>();
+            box.center = center;
+            box.size = size;
+            box.isTrigger = false;
+            target.AddComponent<MobileNPCBodyHitbox>().Configure(region);
         }
 
         private void UpdateClientVisuals()
