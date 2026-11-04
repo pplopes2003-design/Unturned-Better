@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 
 namespace SDG.Unturned
@@ -26,8 +28,162 @@ namespace SDG.Unturned
         private const float ConfirmedLifetime = 600f;
         private const float BlockedCooldown = 8f;
         private const int Capacity = 64;
+        // Shared across survivors, worlds and save slots, but isolated by map.
+        // Only crossings proven by actual controller movement are serialized.
+        private const int PersistentCapacity = 128;
+        private const int FormatVersion = 1;
+        private const float WriteInterval = 30f;
+        private static string activeMapName;
+        private static bool learningDirty;
+        private static float nextWriteAt;
+        private static bool preservationMode;
 
-        internal static void Reset() { entries.Clear(); }
+        [Serializable]
+        private sealed class CollectiveFile
+        {
+            public int version = FormatVersion;
+            public string mapName;
+            public List<CollectiveCrossing> crossings = new List<CollectiveCrossing>();
+        }
+
+        [Serializable]
+        private sealed class CollectiveCrossing
+        {
+            public Vector3 near;
+            public Vector3 far;
+        }
+
+        private static bool Finite(Vector3 v)
+        {
+            return !float.IsNaN(v.x) && !float.IsNaN(v.y) && !float.IsNaN(v.z)
+                && !float.IsInfinity(v.x) && !float.IsInfinity(v.y) && !float.IsInfinity(v.z);
+        }
+
+        private static string LearningFilePath(string mapName)
+        {
+            // Map names are scoped independently of the NPC save slot or
+            // character ID. Any imported path characters are sanitized.
+            char[] invalid = Path.GetInvalidFileNameChars();
+            string key = mapName;
+            for (int i = 0; i < invalid.Length; ++i)
+                key = key.Replace(invalid[i], '_');
+            key = key.Replace('/', '_').Replace('\\', '_');
+            return Path.Combine(Application.persistentDataPath,
+                "MobileNPCs", "CollectiveNavigation", key + ".json");
+        }
+
+        internal static void ConfigureForMapServer(string mapName)
+        {
+            if (!Provider.isServer || string.IsNullOrEmpty(mapName)) return;
+            if (string.Equals(activeMapName, mapName, StringComparison.Ordinal))
+                return;
+            FlushLearningServer();
+            entries.Clear();
+            activeMapName = mapName;
+            learningDirty = false;
+            preservationMode = false;
+            nextWriteAt = Time.time + WriteInterval;
+            string path = LearningFilePath(mapName);
+            if (!File.Exists(path) && !File.Exists(path + ".bak")) return;
+            bool loaded = false;
+            string[] sources = { path, path + ".bak" };
+            for (int attempt = 0; attempt < sources.Length && !loaded; ++attempt)
+            {
+                if (!File.Exists(sources[attempt])) continue;
+                try
+                {
+                    CollectiveFile saved = JsonUtility.FromJson<CollectiveFile>(
+                        File.ReadAllText(sources[attempt]));
+                    if (saved == null || saved.version != FormatVersion
+                        || saved.mapName != mapName || saved.crossings == null)
+                        continue;
+                    for (int i = 0; i < saved.crossings.Count && i < PersistentCapacity; ++i)
+                    {
+                        CollectiveCrossing edge = saved.crossings[i];
+                        if (edge == null || !Finite(edge.near) || !Finite(edge.far)
+                            || Vector3.Distance(edge.near, edge.far) < 0.4f
+                            || Vector3.Distance(edge.near, edge.far) > 4.5f)
+                            continue;
+                        // Imported edges are hypotheses until the current
+                        // NPC physically validates a path. Never teleport.
+                        if (entries.Count == Capacity) entries.RemoveAt(0);
+                        entries.Add(new Passage {
+                            near = edge.near, far = edge.far,
+                            observedAt = Time.time, crossed = true
+                        });
+                    }
+                    loaded = true;
+                }
+                catch (Exception error)
+                {
+                    Debug.LogWarning("[NPCCollectiveNavigation] Load failed: " + error.Message);
+                }
+            }
+            if (!loaded)
+            {
+                // Do not destroy a possibly recoverable existing file.
+                preservationMode = true;
+                Debug.LogWarning("[NPCCollectiveNavigation] Invalid learning file; preservation mode enabled.");
+            }
+        }
+
+        internal static void TickLearningServer()
+        {
+            if (Provider.isServer && learningDirty && Time.time >= nextWriteAt)
+                FlushLearningServer();
+        }
+
+        internal static void FlushLearningServer()
+        {
+            if (!Provider.isServer || !learningDirty || preservationMode
+                || string.IsNullOrEmpty(activeMapName)) return;
+            string path = LearningFilePath(activeMapName);
+            string pending = path + ".tmp";
+            try
+            {
+                CollectiveFile snapshot = new CollectiveFile { mapName = activeMapName };
+                for (int i = entries.Count - 1;
+                    i >= 0 && snapshot.crossings.Count < PersistentCapacity; --i)
+                {
+                    Passage p = entries[i];
+                    if (!p.crossed || !Finite(p.near) || !Finite(p.far)) continue;
+                    snapshot.crossings.Add(new CollectiveCrossing { near = p.near, far = p.far });
+                }
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                File.WriteAllText(pending, JsonUtility.ToJson(snapshot, true));
+                if (File.Exists(path))
+                {
+                    try { File.Replace(pending, path, path + ".bak"); }
+                    catch (PlatformNotSupportedException)
+                    {
+                        File.Copy(path, path + ".bak", true);
+                        File.Delete(path);
+                        File.Move(pending, path);
+                    }
+                }
+                else File.Move(pending, path);
+                learningDirty = false;
+            }
+            catch (Exception error)
+            {
+                Debug.LogWarning("[NPCCollectiveNavigation] Save failed: " + error.Message);
+            }
+            finally
+            {
+                try { if (File.Exists(pending)) File.Delete(pending); } catch { }
+                nextWriteAt = Time.time + WriteInterval;
+            }
+        }
+
+
+        internal static void Reset()
+        {
+            FlushLearningServer();
+            entries.Clear();
+            activeMapName = null;
+            learningDirty = false;
+            preservationMode = false;
+        }
 
         internal static void Remember(Vector3 near, Vector3 far)
         {
@@ -67,12 +223,14 @@ namespace SDG.Unturned
                 existing.observedAt = Time.time;
                 existing.blockedUntil = 0f;
                 entries[i] = existing;
+                learningDirty = true;
                 return;
             }
             if (entries.Count >= Capacity) entries.RemoveAt(0);
             entries.Add(new Passage {
                 near = entry, far = exit, observedAt = Time.time, crossed = true
             });
+            learningDirty = true;
         }
 
         internal static bool IsTemporarilyBlocked(Vector3 entry, Vector3 exit)
