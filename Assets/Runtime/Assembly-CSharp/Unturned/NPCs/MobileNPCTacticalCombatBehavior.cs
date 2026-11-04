@@ -231,7 +231,9 @@ namespace SDG.Unturned
 			}
 
 			Vector3 targetPoint = target.position + Vector3.up * targetHeight;
-			Vector3 origin = transform.position + Vector3.up * eyeHeight;
+			// Tactical LOS must originate at the same animated Skull/eyes
+			// used by the server perception sensor, not the actor root.
+			Vector3 origin = perception.GetEyePositionWorld();
 			Vector3 toTarget = targetPoint - origin;
 			float distance = toTarget.magnitude;
 			bool visibleNow = IsClearLineOfFire(origin, targetPoint, target);
