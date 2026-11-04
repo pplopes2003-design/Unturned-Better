@@ -15,7 +15,7 @@ Caliber_0 8
 Pellets 6
 Should_Delete_At_Zero_Amount false
 Blueprints 1
-Blueprint_0_Type Ammo
+Blueprint_0_Type Supply
 Blueprint_0_Supplies 1
 Blueprint_0_Supply_0_ID 113
 Blueprint_0_Supply_0_Amount 4
