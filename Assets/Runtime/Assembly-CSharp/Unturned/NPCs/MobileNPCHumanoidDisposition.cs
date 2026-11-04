@@ -62,6 +62,23 @@ namespace SDG.Unturned
 #endif
 		}
 
+		/// <summary>
+		/// Preserve an individual's server-owned name across save/restart.
+		/// This does not change role, faction, aggression, or player identity.
+		/// </summary>
+		internal void RestoreDisplayNameServer(string savedName)
+		{
+			if (!Provider.isServer || string.IsNullOrWhiteSpace(savedName))
+				return;
+			savedName = savedName.Trim();
+			if (savedName.Length > 40)
+				savedName = savedName.Substring(0, 40);
+			for (int i = 0; i < savedName.Length; ++i)
+				if (char.IsControl(savedName[i]))
+					return;
+			displayName = savedName;
+		}
+
 		public Role CurrentRole => role;
 		public string DisplayName => string.IsNullOrWhiteSpace(displayName) ? "Sobrevivente" : displayName;
 
