@@ -195,5 +195,55 @@ namespace SDG.Unturned
             writer.WriteClampedVector3(position);
         }
 
+        [NetInvokableGeneratedMethod(nameof(MobileNPCNetworkReplica.ReceiveNpcGrenade),
+            ENetInvokableGeneratedMethodPurpose.Read)]
+        public static void ReceiveNpcGrenade_Read(in ClientInvocationContext context)
+        {
+            NetPakReader reader = context.reader;
+            System.Int32 npcId;
+            if (!reader.ReadInt32(out npcId))
+            {
+                context.ReadParameterFailed(nameof(npcId));
+                return;
+            }
+            System.UInt16 throwableId;
+            if (!reader.ReadUInt16(out throwableId))
+            {
+                context.ReadParameterFailed(nameof(throwableId));
+                return;
+            }
+            UnityEngine.Vector3 origin;
+            if (!reader.ReadClampedVector3(out origin))
+            {
+                context.ReadParameterFailed(nameof(origin));
+                return;
+            }
+            UnityEngine.Vector3 velocity;
+            if (!reader.ReadVector3(out velocity))
+            {
+                context.ReadParameterFailed(nameof(velocity));
+                return;
+            }
+            System.Single fuseSeconds;
+            if (!reader.ReadFloat(out fuseSeconds))
+            {
+                context.ReadParameterFailed(nameof(fuseSeconds));
+                return;
+            }
+            MobileNPCNetworkReplica.ReceiveNpcGrenade(npcId, throwableId, origin, velocity, fuseSeconds);
+        }
+
+        [NetInvokableGeneratedMethod(nameof(MobileNPCNetworkReplica.ReceiveNpcGrenade),
+            ENetInvokableGeneratedMethodPurpose.Write)]
+        public static void ReceiveNpcGrenade_Write(NetPakWriter writer,
+            System.Int32 npcId, System.UInt16 throwableId, UnityEngine.Vector3 origin, UnityEngine.Vector3 velocity, System.Single fuseSeconds)
+        {
+            writer.WriteInt32(npcId);
+            writer.WriteUInt16(throwableId);
+            writer.WriteClampedVector3(origin);
+            writer.WriteVector3(velocity);
+            writer.WriteFloat(fuseSeconds);
+        }
+
     }
 }
