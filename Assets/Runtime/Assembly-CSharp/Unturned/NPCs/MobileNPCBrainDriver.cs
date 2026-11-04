@@ -609,7 +609,16 @@ namespace SDG.Unturned
 			if (brain.CurrentState != MobileNPCBrain.State.Pursuing || brain.Target == null)
 				brain.ReportNoise(threatPosition, Time.time, 25f);
 
-			if (keepDefense)
+			// An active cover route normally survives repeated gunshots.
+			// A NEW critical injury is different: it may require abandoning
+			// that cover for a genuine retreat. Do not short-circuit the
+			// defensive priority selector in this emergency.
+			MobileNPCHumanoidVitals currentVitals =
+				GetComponent<MobileNPCHumanoidVitals>();
+			bool criticallyWounded = currentVitals != null
+				&& currentVitals.HealthFraction <=
+					(MobileNPCSettings.CombatMode ? 0.09f : 0.15f);
+			if (keepDefense && !criticallyWounded)
 			{
 				PublishDecisionIfChanged();
 				return;
