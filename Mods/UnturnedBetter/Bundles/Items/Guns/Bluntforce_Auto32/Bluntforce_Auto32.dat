@@ -1,0 +1,45 @@
+GUID 6d874cdbe8a34815a59fb8d02019d610
+Type Gun
+Rarity Epic
+Useable Gun
+ID 59010
+Size_X 5
+Size_Y 2
+Size_Z 0.42
+Slot Primary
+Quality_Min 60
+Quality_Max 100
+Master_Bundle_Override core.masterbundle
+Bundle_Override_Path Items/Guns/Bluntforce
+Caliber 8
+Magazine 59011
+Ammo_Min 32
+Ammo_Max 32
+Ammo_Per_Shot 1
+Action Trigger
+Auto
+Semi
+Safety
+Firerate 9
+Range 35
+Player_Damage 12
+Zombie_Damage 18
+Animal_Damage 15
+Barricade_Damage 4
+Structure_Damage 2
+Vehicle_Damage 3
+Resource_Damage 2
+Object_Damage 2
+Spread_Aim 0.45
+Spread_Hip 0.13
+Recoil_Min_X -3
+Recoil_Max_X 3
+Recoil_Min_Y 3
+Recoil_Max_Y 5
+Shake_Min_X -1
+Shake_Max_X 1
+Shake_Min_Y 1
+Shake_Max_Y 2
+Alert_Radius 55
+Should_Delete_Empty_Magazines false
+Blueprints 0
