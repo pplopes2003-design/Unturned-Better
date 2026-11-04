@@ -546,7 +546,20 @@ namespace SDG.Unturned
             if (instance.remote.TryGetValue(id, out Replica replica))
             {
                 if (replica.Root != null)
-                    Destroy(replica.Root);
+                {
+                    // A cosmetic, non-authoritative ragdoll uses the native
+                    // Ragdoll_Player bone/joint layout and keeps this NPC's
+                    // visible clothing. Fallback to immediate cleanup if
+                    // the native source rig cannot be validated.
+                    Vector3 lastMotion = position - replica.Root.transform.position;
+                    Vector3 impulse = lastMotion.sqrMagnitude > 0.1f
+                        ? lastMotion.normalized * 2.5f
+                        : replica.Root.transform.forward * 1.2f;
+                    if (replica.NameLabel != null)
+                        Destroy(replica.NameLabel.gameObject);
+                    if (!MobileNPCRemoteDeathRagdoll.TryRelease(replica.Root, impulse))
+                        Destroy(replica.Root);
+                }
                 instance.remote.Remove(id);
             }
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
