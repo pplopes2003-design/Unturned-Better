@@ -451,12 +451,14 @@ namespace SDG.Unturned
 				selectedOpticZoom, selectedGunID, out Vector3 shotDirection,
 				out int selectedBallisticProfile))
 				return;
-			// The native 12 Gauge magazine fires six independent pellets for
-			// one consumed shell. Preserve ballistic travel/impact per pellet.
-			// Only the known vanilla Bluntforce/12 Gauge pair opts in here;
-			// other weapons retain their existing single-projectile behavior.
-			int pelletCount = selectedGunID == 112 && selectedLoadedMagazineID == 113
-				? 6 : 1;
+			// Mirror UseableGun's native pellet count from the REAL loaded
+			// ItemMagazineAsset, not a hardcoded Bluntforce gun ID. Both the
+			// original 8-shell magazine and the Auto-32 drum can therefore
+			// spawn the correct six individual pellets per consumed shell.
+			ItemMagazineAsset loadedPelletMagazine = Assets.find(
+				EAssetType.ITEM, selectedLoadedMagazineID) as ItemMagazineAsset;
+			int pelletCount = loadedPelletMagazine != null
+				? Mathf.Clamp(loadedPelletMagazine.pellets, 1, 12) : 1;
 			int[] bulletSlots = nativeBallistics ? new int[pelletCount] : null;
 			int slotsReserved = 0;
 			if (nativeBallistics)
