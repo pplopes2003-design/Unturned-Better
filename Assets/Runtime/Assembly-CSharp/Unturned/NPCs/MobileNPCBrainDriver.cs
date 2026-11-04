@@ -51,6 +51,7 @@ namespace SDG.Unturned
 			&& tactics.CurrentGoal != MobileNPCTactics.Goal.SeekCover;
 		private bool hasInitialized;
 		private bool hasPublishedDecision;
+		private float nextTacticalAuditAt;
 		private bool lastHasDestination;
 		private Vector3 lastDestination;
 		private MobileNPCBrain.State lastState;
@@ -1796,6 +1797,30 @@ namespace SDG.Unturned
 				return;
 			}
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			// Audit STATE/OWNER/GOAL transitions without logging every
+			// 0.2m destination update. These are the decision points used
+			// by the real motor rather than an imagined tactical plan.
+			bool tacticalTransition = !hasPublishedDecision
+				|| state != lastState || goal != lastGoal
+				|| hasDestination != lastHasDestination;
+			if (tacticalTransition && Time.time >= nextTacticalAuditAt)
+			{
+				nextTacticalAuditAt = Time.time + 0.8f;
+				Debug.Log("[MobileNPCTacticalAudit] npc=" + name
+					+ " state=" + state + " goal=" + goal
+					+ " movementOwner=" + CurrentMovementOwner
+					+ " hasDestination=" + hasDestination
+					+ " defensivePending=" + IsDefensiveMovementPending
+					+ " targetVisible="
+					+ (GetComponent<MobileNPCHumanoidPerception>() != null
+						&& (GetComponent<MobileNPCHumanoidPerception>().VisiblePlayer != null
+							|| GetComponent<MobileNPCHumanoidPerception>().VisibleNPC != null
+							|| GetComponent<MobileNPCHumanoidPerception>().VisibleZombie != null))
+					+ " destination=" + (hasDestination ? destination.ToString() : "(none)"),
+					this);
+			}
+#endif
 			hasPublishedDecision = true;
 			lastState = state;
 			lastGoal = goal;
