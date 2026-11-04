@@ -4052,7 +4052,12 @@ namespace SDG.Unturned
 						|| !Level.checkSafeIncludingClipVolumes(near)
 						|| !Level.checkSafeIncludingClipVolumes(far)
 						|| IsRouteNodeOccupied(near, radius)
-						|| IsRouteNodeOccupied(far, radius))
+						|| IsRouteNodeOccupied(far, radius)
+						// A physically stalled entrance may still look clear to
+						// geometric scans. Respect the shared short cooldown so
+						// the NPC actually investigates a different opening.
+						|| HybridNPCObservedPortalRegistry.IsTemporarilyBlocked(
+							near, far))
 						continue;
 
 					++groundedOpeningPairs;
@@ -4088,9 +4093,14 @@ namespace SDG.Unturned
 					}
 					if (!floorConnected)
 						continue;
+					// Prefer a shorter, lower-risk walking entry over a
+					// difficult sill, but never trade physics clearance for
+					// lower score. This also makes a genuine flat doorway
+					// preferable to an unnecessarily stepped alternative.
 					float score = -PlanarDistanceSquared(transform.position, near) * 0.22f
 						- PlanarDistanceSquared(far, destination) * 0.018f
-						- LocalDeadEndPenalty(near, destination);
+						- LocalDeadEndPenalty(near, destination)
+						- Mathf.Abs(near.y - far.y) * 1.5f;
 					if (zombieRisk != null)
 						score -= zombieRisk.GetKnownRiskAtServer(far) * 4f;
 					if (score > bestScore)
