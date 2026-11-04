@@ -18,7 +18,7 @@ namespace SDG.Unturned
         private const int Version = 1;
         private const int MaximumEntries = 512;
         private const float RetrySeconds = 8f;
-        private const float MaxAttemptsPerTick = 4f;
+        private const int MaxAttemptsPerTick = 4;
         [Serializable] private sealed class Entry
         {
             public string id;
@@ -149,7 +149,7 @@ namespace SDG.Unturned
             if (!EnsureLoaded() || Time.time < nextRetry || journal.entries.Count == 0)
                 return;
             nextRetry = Time.time + RetrySeconds;
-            int attempts = Mathf.Min((int)MaxAttemptsPerTick, journal.entries.Count);
+            int attempts = Mathf.Min(MaxAttemptsPerTick, journal.entries.Count);
             for (int i = 0; i < attempts; i++)
             {
                 Entry entry = journal.entries[0];
@@ -173,7 +173,14 @@ namespace SDG.Unturned
                 var item = new Item((ushort)entry.itemId, (byte)entry.amount,
                     (byte)entry.quality, entry.state ?? new byte[0]);
                 Vector3 position = new Vector3(entry.x, entry.y, entry.z);
-                if (!ItemManager.TryDropMobileNPCItemServer(item, position))
+                bool dropped = false;
+                try { dropped = ItemManager.TryDropMobileNPCItemServer(item, position); }
+                catch (Exception e)
+                {
+                    Debug.LogError("[MobileNPCCorpseLootJournal] Native drop threw for "
+                        + entry.id + ": " + e);
+                }
+                if (!dropped)
                 {
                     // If re-commit fails after a refusal, the entry remains in-memory;
                     // a crash in this window can lose the item. Never replay an
