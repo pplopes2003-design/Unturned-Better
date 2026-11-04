@@ -15,6 +15,7 @@ namespace SDG.Unturned
         private static ISleekUInt16Field playersField;
         private static ISleekUInt16Field portField;
         private static ISleekBox statusBox;
+        private static ISleekButton npcModeButton;
         private static MobileNPCIntegratedHostConfig configuration =
             new MobileNPCIntegratedHostConfig();
 
@@ -30,6 +31,30 @@ namespace SDG.Unturned
             if (!active) return;
             active = false;
             container.AnimateOutOfView(0, 1);
+        }
+
+        private static void OnNpcModeCycle(ISleekElement button)
+        {
+            int next = ((int)configuration.NpcMode + 1) % 3;
+            configuration.NpcMode = (MobileNPCSettings.GameMode)next;
+            UpdateNpcModeLabel();
+        }
+
+        private static void UpdateNpcModeLabel()
+        {
+            if (npcModeButton == null) return;
+            switch (configuration.NpcMode)
+            {
+                case MobileNPCSettings.GameMode.Combat:
+                    npcModeButton.Text = "Modo NPC: Combate";
+                    break;
+                case MobileNPCSettings.GameMode.CombatOnly:
+                    npcModeButton.Text = "Modo NPC: Combate Total";
+                    break;
+                default:
+                    npcModeButton.Text = "Modo NPC: Normal";
+                    break;
+            }
         }
 
         private static void OnBack(ISleekElement button)
@@ -131,11 +156,23 @@ namespace SDG.Unturned
             portField.AddLabel("Porta", ESleekSide.RIGHT);
             container.AddChild(portField);
 
+            npcModeButton = Glazier.Get().CreateButton();
+            npcModeButton.PositionScale_X = 0.5f;
+            npcModeButton.PositionScale_Y = 0.5f;
+            npcModeButton.PositionOffset_X = -285;
+            npcModeButton.PositionOffset_Y = 35;
+            npcModeButton.SizeOffset_X = 570;
+            npcModeButton.SizeOffset_Y = 30;
+            npcModeButton.OnClicked += OnNpcModeCycle;
+            npcModeButton.TooltipText = "Clique para alternar Normal / Combate / Combate Total.";
+            UpdateNpcModeLabel();
+            container.AddChild(npcModeButton);
+
             ISleekButton launch = Glazier.Get().CreateButton();
             launch.PositionScale_X = 0.5f;
             launch.PositionScale_Y = 0.5f;
             launch.PositionOffset_X = -285;
-            launch.PositionOffset_Y = 35;
+            launch.PositionOffset_Y = 73;
             launch.SizeOffset_X = 270;
             launch.SizeOffset_Y = 36;
             launch.Text = "Iniciar servidor LAN";
@@ -146,7 +183,7 @@ namespace SDG.Unturned
             join.PositionScale_X = 0.5f;
             join.PositionScale_Y = 0.5f;
             join.PositionOffset_X = 15;
-            join.PositionOffset_Y = 35;
+            join.PositionOffset_Y = 73;
             join.SizeOffset_X = 270;
             join.SizeOffset_Y = 36;
             join.Text = "Conectar ao meu servidor";
@@ -157,7 +194,7 @@ namespace SDG.Unturned
             stop.PositionScale_X = 0.5f;
             stop.PositionScale_Y = 0.5f;
             stop.PositionOffset_X = -285;
-            stop.PositionOffset_Y = 80;
+            stop.PositionOffset_Y = 115;
             stop.SizeOffset_X = 570;
             stop.SizeOffset_Y = 30;
             stop.Text = "Salvar e encerrar servidor";
@@ -168,7 +205,7 @@ namespace SDG.Unturned
             statusBox.PositionScale_X = 0.5f;
             statusBox.PositionScale_Y = 0.5f;
             statusBox.PositionOffset_X = -285;
-            statusBox.PositionOffset_Y = 118;
+            statusBox.PositionOffset_Y = 156;
             statusBox.SizeOffset_X = 570;
             statusBox.SizeOffset_Y = 44;
             statusBox.Text = "LAN: compile a build dedicada do Unturned Better no Unity. Amigos precisam da mesma versao.";
@@ -178,7 +215,7 @@ namespace SDG.Unturned
             back.PositionScale_X = 0.5f;
             back.PositionScale_Y = 0.5f;
             back.PositionOffset_X = -285;
-            back.PositionOffset_Y = 175;
+            back.PositionOffset_Y = 209;
             back.SizeOffset_X = 570;
             back.SizeOffset_Y = 32;
             back.Text = "Voltar";
