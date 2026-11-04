@@ -174,8 +174,8 @@ namespace SDG.Unturned
 			friendsHostButton.PositionOffset_Y = verticalOffset;
 			friendsHostButton.SizeOffset_X = 200;
 			friendsHostButton.SizeOffset_Y = 50;
-			friendsHostButton.Text = "Hospedar amigos (LAN)";
-			friendsHostButton.TooltipText = "Servidor dedicado local pela Steam U3DS.";
+			friendsHostButton.Text = "Hospedar amigos";
+			friendsHostButton.TooltipText = "Hospedagem privada com senha e Server Code Steam ou LAN.";
 			friendsHostButton.OnClicked += OnClickedFriendsHost;
 			centerFrame.AddChild(friendsHostButton);
 			verticalOffset += friendsHostButton.SizeOffset_Y;
