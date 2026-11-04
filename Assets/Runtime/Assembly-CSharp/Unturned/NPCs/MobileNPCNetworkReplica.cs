@@ -37,6 +37,10 @@ namespace SDG.Unturned
             public string GunHoldState;
             public string GunShootState;
             public string GunReloadState;
+            public int AppearanceSeed;
+            public string DisplayName;
+            public TextMesh NameLabel;
+            public Transform NameTransform;
 
         }
 
@@ -52,6 +56,10 @@ namespace SDG.Unturned
             SendNpcDeath = ClientStaticMethod<int, Vector3>.Get(ReceiveNpcDeath);
         private static readonly ClientStaticMethod<int, ushort>
             SendNpcReload = ClientStaticMethod<int, ushort>.Get(ReceiveNpcReload);
+        // Identity is sent separately and reliably; it is not repeated in
+        // every 0.35-second movement packet.
+        private static readonly ClientStaticMethod<int, string, int>
+            SendNpcIdentity = ClientStaticMethod<int, string, int>.Get(ReceiveNpcIdentity);
 
         private readonly List<MobileNPCBrainDriver> drivers =
             new List<MobileNPCBrainDriver>(64);
@@ -63,6 +71,7 @@ namespace SDG.Unturned
             new Dictionary<int, float>(32);
         private const float TombstoneSeconds = 20f;
         private float nextSnapshotAt;
+        private float nextIdentityAt;
         private float nextReplicationAuditAt;
         private bool firstRemoteReplicaLogged;
         private int nextDriverIndex;
@@ -94,6 +103,7 @@ namespace SDG.Unturned
             ClearClientReplicas();
             nextDriverIndex = 0;
             nextSnapshotAt = Time.time + 0.5f;
+            nextIdentityAt = Time.time + 1f;
         }
 
         private static byte QuantizeYaw(float yaw)
@@ -114,6 +124,11 @@ namespace SDG.Unturned
             {
                 nextSnapshotAt = Time.time + SnapshotInterval;
                 BroadcastServerSnapshots();
+                if (Time.time >= nextIdentityAt)
+                {
+                    nextIdentityAt = Time.time + 4f;
+                    BroadcastServerIdentities();
+                }
             }
             if (!Provider.isServer && Provider.isConnected && Level.isLoaded)
                 UpdateClientVisuals();
@@ -171,6 +186,82 @@ namespace SDG.Unturned
                     + " interval=" + SnapshotInterval + "s");
             }
 #endif
+        }
+
+        private void BroadcastServerIdentities()
+        {
+            // Periodic reliable metadata allows late-joiners to discover
+            // names and deterministic appearances without a client request.
+            for (int i = 0; i < drivers.Count; ++i)
+            {
+                MobileNPCBrainDriver driver = drivers[i];
+                if (driver == null || !driver.isActiveAndEnabled)
+                    continue;
+                MobileNPCHumanoidVitals vitals =
+                    driver.GetComponent<MobileNPCHumanoidVitals>();
+                if (vitals != null && vitals.IsDead)
+                    continue;
+                MobileNPCHumanoidDisposition disposition =
+                    driver.GetComponent<MobileNPCHumanoidDisposition>();
+                string label = disposition != null ? disposition.DisplayName : "Sobrevivente";
+                if (string.IsNullOrEmpty(label)) label = "Sobrevivente";
+                if (label.Length > 40) label = label.Substring(0, 40);
+                int seed = unchecked(driver.GetInstanceID() * 397
+                    ^ driver.transform.position.GetHashCode());
+                SendNpcIdentity.Invoke(ENetReliability.Reliable,
+                    Provider.GatherRemoteClientConnectionsWithinSphere(
+                        driver.transform.position, ReplicationRadius),
+                    driver.GetInstanceID(), label, seed);
+            }
+        }
+
+        [SteamCall(ESteamCallValidation.ONLY_FROM_SERVER)]
+        public static void ReceiveNpcIdentity(int id, string name, int seed)
+        {
+            if (Provider.isServer || !Provider.isConnected || !Level.isLoaded
+                || instance == null || id == 0 || name == null
+                || name.Length > 40)
+                return;
+            if (instance.deathTombstones.TryGetValue(id, out float deathAt)
+                && Time.time - deathAt < TombstoneSeconds)
+                return;
+            if (!instance.remote.TryGetValue(id, out Replica replica)
+                || replica.Root == null)
+                return;
+            if (replica.NameLabel == null)
+            {
+                GameObject label = new GameObject("RemoteNPCNameplate");
+                label.layer = replica.Root.transform.Find("HumanoidVisual") != null
+                    ? replica.Root.transform.Find("HumanoidVisual").gameObject.layer
+                    : replica.Root.layer;
+                label.transform.SetParent(replica.Root.transform, false);
+                label.transform.localPosition = Vector3.up * 2.15f;
+                replica.NameTransform = label.transform;
+                replica.NameLabel = label.AddComponent<TextMesh>();
+                replica.NameLabel.anchor = TextAnchor.LowerCenter;
+                replica.NameLabel.alignment = TextAlignment.Center;
+                replica.NameLabel.fontSize = 48;
+                replica.NameLabel.characterSize = 0.018f;
+                replica.NameLabel.color = Color.white;
+                replica.NameLabel.richText = false;
+                MeshRenderer renderer = label.GetComponent<MeshRenderer>();
+                if (renderer != null)
+                {
+                    renderer.shadowCastingMode =
+                        UnityEngine.Rendering.ShadowCastingMode.Off;
+                    renderer.receiveShadows = false;
+                    renderer.sortingOrder = 20;
+                }
+            }
+            replica.DisplayName = name;
+            replica.NameLabel.text = name;
+            if (replica.AppearanceSeed != seed)
+            {
+                replica.AppearanceSeed = seed;
+                HumanClothes clothes =
+                    replica.Root.GetComponentInChildren<HumanClothes>(true);
+                MobileNPCAppearance.ApplyAppearanceSeed(clothes, seed);
+            }
         }
 
         [SteamCall(ESteamCallValidation.ONLY_FROM_SERVER)]
@@ -351,6 +442,7 @@ namespace SDG.Unturned
                     replica.Root.transform.rotation, replica.Rotation,
                     Mathf.Clamp01(Time.deltaTime * 8f));
                 UpdateRemoteWeaponAndAnimation(ref replica);
+                UpdateRemoteNameplate(replica);
             }
             foreach (int id in expired)
                 remote.Remove(id);
@@ -473,6 +565,30 @@ namespace SDG.Unturned
                         return state.name;
             }
             return null;
+        }
+
+        private static void UpdateRemoteNameplate(Replica replica)
+        {
+            if (replica.NameLabel == null || replica.NameTransform == null)
+                return;
+            Camera camera = Camera.main;
+            if (camera == null)
+            {
+                replica.NameLabel.gameObject.SetActive(false);
+                return;
+            }
+            Vector3 view = replica.NameTransform.position - camera.transform.position;
+            float distance = view.magnitude;
+            bool canRead = distance > 0.1f && distance <= 9f
+                && Vector3.Dot(camera.transform.forward,
+                    view / Mathf.Max(distance, 0.01f)) >= 0.92f
+                && !Physics.Linecast(camera.transform.position,
+                    replica.NameTransform.position, RayMasks.BLOCK_COLLISION,
+                    QueryTriggerInteraction.Ignore);
+            if (replica.NameLabel.gameObject.activeSelf != canRead)
+                replica.NameLabel.gameObject.SetActive(canRead);
+            if (canRead)
+                replica.NameTransform.rotation = camera.transform.rotation;
         }
 
         private static void ClearRemoteGunClips(Replica replica)
