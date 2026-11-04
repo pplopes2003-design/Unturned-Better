@@ -25,6 +25,8 @@ namespace SDG.Unturned
         {
             if (ranged != null)
                 ranged.ShotFired += OnCommittedShot;
+            if (ranged != null)
+                ranged.ReloadStarted += OnReloadStarted;
             if (vitals != null)
                 vitals.Died += OnConfirmedDeath;
         }
@@ -33,8 +35,19 @@ namespace SDG.Unturned
         {
             if (ranged != null)
                 ranged.ShotFired -= OnCommittedShot;
+            if (ranged != null)
+                ranged.ReloadStarted -= OnReloadStarted;
             if (vitals != null)
                 vitals.Died -= OnConfirmedDeath;
+        }
+
+        private void OnReloadStarted()
+        {
+            if (!Provider.isServer || !Dedicator.IsDedicatedServer || brain == null)
+                return;
+            ItemGunAsset selected = ranged != null ? ranged.SelectedGunAsset : null;
+            MobileNPCNetworkReplica.NotifyReloadStartedServer(brain,
+                selected != null ? selected.id : (ushort)0);
         }
 
         private void OnConfirmedDeath()
