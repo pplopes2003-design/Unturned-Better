@@ -77,7 +77,12 @@ namespace SDG.Unturned
 
         private void Update()
         {
-            if (!Provider.isServer || pending.Count == 0
+            // Map resets clear the static registry; OnEnable is not guaranteed
+            // to fire again on components surviving a level transition.
+            if (Provider.isServer && Level.isLoaded
+                && vitals != null && !vitals.IsDead)
+                ActiveRadios.Add(this);
+            if (!Provider.isServer || !Level.isLoaded || pending.Count == 0
                 || Time.time < nextAttemptTransmitAt
                 || Time.time < nextGlobalTransmitAt
                 || Time.time < nextPersonalTransmitAt
