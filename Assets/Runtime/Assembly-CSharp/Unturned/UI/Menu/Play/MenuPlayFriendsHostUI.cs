@@ -98,7 +98,7 @@ namespace SDG.Unturned
                 MobileNPCIntegratedHostLauncher.SuggestDirectory();
             folderField = AddField("Pasta U3DS", configuration.DedicatedServerDirectory, -170, false, 255);
             mapField = AddField("Mapa", configuration.Map, -130, false, 64);
-            nameField = AddField("Nome do servidor", configuration.ServerName, -90, false, 80);
+            nameField = AddField("Nome do servidor", configuration.ServerName, -90, false, 50);
             passwordField = AddField("Senha (LAN)", configuration.Password, -50, true, 64);
 
             playersField = Glazier.Get().CreateUInt16Field();
