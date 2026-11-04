@@ -25,7 +25,9 @@ namespace SDG.Unturned
         }
         private static readonly List<Passage> entries = new List<Passage>(64);
         private const float Lifetime = 180f;
-        private const float ConfirmedLifetime = 600f;
+        // Confirmed topology persists for this loaded map. The cache is
+        // bounded, and every actual route is revalidated against current physics.
+        private const float ConfirmedLifetime = float.MaxValue;
         private const float BlockedCooldown = 8f;
         private const int Capacity = 64;
         // Shared across survivors, worlds and save slots, but isolated by map.
