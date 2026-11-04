@@ -2,7 +2,7 @@ GUID 6d874cdbe8a34815a59fb8d02019d610
 Type Gun
 Rarity Epic
 Useable Gun
-ID 59010
+ID 65042
 Size_X 5
 Size_Y 2
 Size_Z 0.42
@@ -12,7 +12,7 @@ Quality_Max 100
 Master_Bundle_Override core.masterbundle
 Bundle_Override_Path Items/Guns/Bluntforce
 Caliber 8
-Magazine 59011
+Magazine 65043
 Ammo_Min 32
 Ammo_Max 32
 Ammo_Per_Shot 1
