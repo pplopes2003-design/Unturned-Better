@@ -13,14 +13,14 @@ O menu **Jogar > Hospedar amigos (LAN)** controla um **segundo executável** com
 3. Usar **Unturned Better > Build Matching Dedicated Server (Windows x64)** no menu do Unity. O BuildMethods existente usa `StandaloneBuildSubtarget.Server`, a define `DEDICATED_SERVER` e a saída `Builds/Windows64_Headless/Unturned.exe`.
 4. A compilação dedicada bem-sucedida grava `Builds/Windows64_Headless/UnturnedBetterDedicated.marker`. O menu recusa servidores sem essa marca; evita lançar um Unturned Steam padrão que não contém nossas classes MobileNPC.
 5. Certificar-se de que os dois builds têm **a mesma revisão do código**. A marca comprova somente origem pelo processo modificado, não igualdade de commit ou compatibilidade binária; o handshake real ainda precisa ser testado.
-6. Abrir o cliente, selecionar **Hospedar amigos (LAN)**, escolher mapa (padrão Washington), senha, nome, porta e capacidade. A pasta da build dedicada é detectada automaticamente quando as saídas são irmãs; caso contrário, selecionar manualmente.
+6. Abrir o cliente, selecionar **Hospedar amigos (LAN)**, escolher mapa (padrão Washington), senha, nome, porta, capacidade e **Modo NPC: Normal / Combate / Combate Total**. O cliente grava `MobileNPCGameMode.dat` na configuração do servidor. O bootstrap dedicado aplica esse modo antes de gerar/restaurar NPCs; o valor de PlayerPrefs do cliente não é usado como autoridade do servidor. A pasta da build dedicada é detectada automaticamente quando as saídas são irmãs; caso contrário, selecionar manualmente.
 7. Clicar **Iniciar servidor LAN**. O cliente cria `Servers/UnturnedBetterFriends/Server/Commands.dat` no diretório da build dedicada e inicia o processo com `-batchmode -nographics +LanServer/UnturnedBetterFriends`. Esse ato não certifica que o mapa já está carregado.
 8. Depois da inicialização do mapa no console, clicar **Conectar ao meu servidor**, que consulta `127.0.0.1:<porta>` usando `MenuPlayConnectUI.connect`. Amigos na mesma LAN precisam usar o IP local da máquina e a porta, com firewall permitindo o tráfego.
 9. **Salvar e encerrar servidor** solicita, por um arquivo local de controle, os comandos nativos `save` e `shutdown 5` no processo dedicado. Não usa `Process.Kill`; conferir o log de salvamento dos NPCs no fechamento.
 
 ## O que foi ligado ao servidor
 
-- `MobileNPCPopulationBootstrap` não descarta mais `Dedicator.IsDedicatedServer`: a IA e os sistemas de dano, motor, percepção e persistência podem rodar no host como autoridades únicas.
+- `MobileNPCPopulationBootstrap` não descarta mais `Dedicator.IsDedicatedServer`: a IA e os sistemas de dano, motor, percepção e persistência podem rodar no host como autoridades únicas. No multiplayer, o modo do servidor (Normal/Combate/Combate Total) é configurado explicitamente e não depende dos PlayerPrefs locais do usuário.
 - A verificação de visual da população aceita que uma build Unity headless não possua malhas renderizáveis. O esqueleto e as seis regiões físicas continuam obrigatórios; se as transformações ósseas faltarem, a inicialização falha com diagnóstico.
 - `MobileNPCNetworkReplica` envia snapshots periódicos (ID efêmero de instância, posição, ângulo horizontal e ID de arma) via `ClientStaticMethod<...>` com validação `ONLY_FROM_SERVER`, pela rede nativa.
 - Clientes remotos não instanciam um segundo cérebro de NPC. Criam *proxies visuais* baseados em `Resources/Characters/MobileNPC_Client`, com interpolação e seis caixas de raycast; objetos expirados e de mapas anteriores são destruídos.
@@ -38,6 +38,7 @@ O menu **Jogar > Hospedar amigos (LAN)** controla um **segundo executável** com
 - [ ] Controlar orçamento de rede (128 snapshots por rodada no máximo, atualizações a cada 0,35 s) por relevância/região e com compressão/agrupamento se necessário.
 - [ ] Diagnosticar sincronização de disparos/hitmarkers no modo Combate Total e no modo Normal, sem regressão do singleplayer.
 - [ ] Adicionar convite Steam/relay ou acesso externo com NAT/portas/firewall e autorização. **LAN não equivale a internet.**
+- [ ] Verificar no log do dedicado `[MobileNPCFriendsHost] Applied authoritative NPC mode` para cada modo e confirmar equipamentos, agressividade, sobrevivência e spawns.
 - [ ] Testar performance, pois hospedar cliente Unity e servidor dedicado na mesma máquina requer CPU/RAM adicionais.
 
 ## Workshop — pendência formal
