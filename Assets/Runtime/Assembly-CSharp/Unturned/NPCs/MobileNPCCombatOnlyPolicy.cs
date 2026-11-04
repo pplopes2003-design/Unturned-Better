@@ -17,6 +17,13 @@ namespace SDG.Unturned
         private const ushort MilitaryMagazine = 6;
         private const ushort Zubeknakov = 122;
         private const ushort RangerMagazine = 123;
+        private const ushort Bluntforce = 112;
+        private const ushort TwelveGaugeShells = 113;
+        private const ushort Snayperskya = 129;
+        private const ushort SnayperskyaMagazine = 130;
+        private const ushort Grizzly = 297;
+        private const ushort GrizzlyMagazine = 298;
+        private const ushort FragmentationGrenade = 254;
         private const ushort MilitaryKnife = 121;
         private const ushort Dressing = 394;
         private const ushort Bandage = 95;
@@ -99,9 +106,43 @@ namespace SDG.Unturned
 
             // Fresh world-spawn only. Admin-origin state supplies an actual
             // compatible loaded magazine and full quality, not infinite ammo.
-            bool useRanger = Random.value < 0.5f;
-            ushort primary = useRanger ? Zubeknakov : Maplestrike;
-            ushort spareMagazine = useRanger ? RangerMagazine : MilitaryMagazine;
+            // Four gameplay roles; selected by weight only on FIRST spawn.
+            // Every pair below must be verified against the actual asset
+            // catalog and caliber before it is installed in a real item.
+            int roll = Random.Range(0, 100);
+            ushort primary;
+            ushort spareMagazine;
+            string combatRole;
+            if (roll < 30)
+            {
+                primary = Maplestrike;
+                spareMagazine = MilitaryMagazine;
+                combatRole = "assault-military";
+            }
+            else if (roll < 55)
+            {
+                primary = Zubeknakov;
+                spareMagazine = RangerMagazine;
+                combatRole = "assault-ranger";
+            }
+            else if (roll < 78)
+            {
+                primary = Bluntforce;
+                spareMagazine = TwelveGaugeShells;
+                combatRole = "shotgun";
+            }
+            else if (roll < 93)
+            {
+                primary = Snayperskya;
+                spareMagazine = SnayperskyaMagazine;
+                combatRole = "marksman";
+            }
+            else
+            {
+                primary = Grizzly;
+                spareMagazine = GrizzlyMagazine;
+                combatRole = "heavy-sniper";
+            }
             ItemGunAsset gunAsset = Assets.find(EAssetType.ITEM, primary) as ItemGunAsset;
             ItemMagazineAsset magazineAsset =
                 Assets.find(EAssetType.ITEM, spareMagazine) as ItemMagazineAsset;
@@ -119,7 +160,7 @@ namespace SDG.Unturned
                     Assets.find(EAssetType.ITEM, spareMagazine) as ItemMagazineAsset;
             }
             if (gunAsset != null && magazineAsset != null
-                && gunAsset.projectile == null
+                && gunAsset.projectile == null && gunAsset.ammoPerShot > 0
                 && gunAsset.magazineCalibers != null
                 && magazineAsset.CalibersContainAnyOfIds(gunAsset.magazineCalibers))
             {
@@ -160,6 +201,11 @@ namespace SDG.Unturned
                 }
                 for (int i = 0; i < 3; ++i)
                     GiveIfAvailable(inventory, spareMagazine, npc);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                Debug.Log("[MobileNPCCombatLoadout] role=" + combatRole
+                    + " gun=" + primary + " magazine=" + spareMagazine
+                    + " npc=" + npc.name, npc);
+#endif
             }
 
             // Real server inventory items, actually consumed on damage,
@@ -170,6 +216,22 @@ namespace SDG.Unturned
             GiveIfAvailable(inventory, Bandage, npc);
             GiveIfAvailable(inventory, Splint, npc);
             GiveIfAvailable(inventory, Medkit, npc);
+            // Real, finite, vanilla explosive: the existing thrower uses
+            // sight, arc, friendly-safety, inventory debit and cooldown.
+            // Most combatants carry one; some retain a second grenade.
+            if (Random.value < 0.70f)
+            {
+                ItemThrowableAsset grenade = Assets.find(EAssetType.ITEM,
+                    FragmentationGrenade) as ItemThrowableAsset;
+                if (grenade != null && grenade.isExplosive
+                    && grenade.throwable != null && !grenade.isSticky
+                    && !grenade.explodeOnImpact && grenade.fuseLength >= 1.5f)
+                {
+                    GiveIfAvailable(inventory, FragmentationGrenade, npc);
+                    if (Random.value < 0.20f)
+                        GiveIfAvailable(inventory, FragmentationGrenade, npc);
+                }
+            }
 
             // Physical NPC armor, not a skin-only override: the existing
             // MobileNPCEquipment scans these item categories from inventory,
