@@ -1,43 +1,56 @@
-# Hospedagem integrada para amigos — estágio LAN
+# Multiplayer integrado — Unturned Better
 
-## Implementado nesta branch
+## Objetivo e estado
 
-- Botão **Hospedar amigos (LAN)** no menu `Jogar`, sem mexer na `main`.
-- Configuração em tela: diretório U3DS, mapa, nome, senha, quantidade de jogadores e porta.
-- Inicialização explícita (botão do usuário) do executável **Unturned Dedicated Server (U3DS)** previamente instalado na máquina, com `-batchmode -nographics +LanServer/UnturnedBetterFriends`.
-- Escrita do `Servers/UnturnedBetterFriends/Server/Commands.dat` antes da inicialização.
-- Botão para consultar e conectar a `127.0.0.1:<porta>` pelo fluxo *nativo* de matchmaking do Unturned; não faz conexão antecipada automática enquanto o mapa carrega.
-- Modo LAN somente; sem GSLT, sem alegar conexão pela internet ou Steam relay.
+O menu **Jogar > Hospedar amigos (LAN)** controla um **segundo executável** compilado do mesmo projeto Unturned Better com o alvo `DEDICATED_SERVER`. Não é um processo embutido no mesmo Unity Player e não usa mais um U3DS vanilla. O servidor autoritativo utiliza o protocolo nativo de conexão do Unturned.
 
-## Condições reais
+**Estado:** código inicial implementado e enviado à branch `feature/integrated-friends-host`. NÃO compilado nem validado em Unity, Steam ou duas máquinas. A sincronização remota é um protótipo, não um multiplayer pronto.
 
-1. Instalar **Unturned Dedicated Server**, app Steam 1110390 (Steam > Biblioteca > Ferramentas). O Launcher não faz download nem instalação oculta.
-2. Indicar a pasta U3DS que contém `Unturned.exe` e `Unturned_Data`. O menu tenta localizar uma instalação irmã da pasta do jogo automaticamente.
-3. Executar a *mesma versão do conteúdo de servidor* (assembly de NPCs e suas dependências) no processo U3DS. **Este passo ainda NÃO foi implementado nem validado**: a branch contém apenas o início do fluxo de hospedagem local, e o U3DS vanilla não conhece as classes de MobileNPC.
-4. O cliente e o U3DS devem possuir mapa e arquivos necessários, e as versões de assets precisam coincidir.
-5. Clicar `Iniciar servidor LAN`; conferir console e carregar mapa. Depois clicar `Conectar ao meu servidor`.
-6. Para amigos na **mesma rede**, compartilhar endereço IP local da máquina e porta. Para amigos fora de casa a conectividade é uma etapa futura; NÃO prometer que uma sessão LAN estará acessível externamente.
+## Gerar as duas builds a partir da mesma branch
 
-## Limitações atuais (pendentes)
+1. Selecionar no Unity a branch `feature/integrated-friends-host` (ela foi criada a partir de `feature/npc-hybrid-integration`; incorporar futuras correções de NPC por merge antes da versão final).
+2. Compilar o cliente de desenvolvimento (Windows 64), normalmente em `Builds/Windows64/Unturned.exe`.
+3. Usar **Unturned Better > Build Matching Dedicated Server (Windows x64)** no menu do Unity. O BuildMethods existente usa `StandaloneBuildSubtarget.Server`, a define `DEDICATED_SERVER` e a saída `Builds/Windows64_Headless/Unturned.exe`.
+4. A compilação dedicada bem-sucedida grava `Builds/Windows64_Headless/UnturnedBetterDedicated.marker`. O menu recusa servidores sem essa marca; evita lançar um Unturned Steam padrão que não contém nossas classes MobileNPC.
+5. Certificar-se de que os dois builds têm **a mesma revisão do código**. A marca comprova somente origem pelo processo modificado, não igualdade de commit ou compatibilidade binária; o handshake real ainda precisa ser testado.
+6. Abrir o cliente, selecionar **Hospedar amigos (LAN)**, escolher mapa (padrão Washington), senha, nome, porta e capacidade. A pasta da build dedicada é detectada automaticamente quando as saídas são irmãs; caso contrário, selecionar manualmente.
+7. Clicar **Iniciar servidor LAN**. O cliente cria `Servers/UnturnedBetterFriends/Server/Commands.dat` no diretório da build dedicada e inicia o processo com `-batchmode -nographics +LanServer/UnturnedBetterFriends`. Esse ato não certifica que o mapa já está carregado.
+8. Depois da inicialização do mapa no console, clicar **Conectar ao meu servidor**, que consulta `127.0.0.1:<porta>` usando `MenuPlayConnectUI.connect`. Amigos na mesma LAN precisam usar o IP local da máquina e a porta, com firewall permitindo o tráfego.
+9. **Salvar e encerrar servidor** solicita, por um arquivo local de controle, os comandos nativos `save` e `shutdown 5` no processo dedicado. Não usa `Process.Kill`; conferir o log de salvamento dos NPCs no fechamento.
 
-- [ ] Compilar e testar o menu no Unity e verificar lançamento do U3DS real.
-- [ ] Testar conexão ao servidor dedicado em localhost e a partir de outro computador da LAN.
-- [ ] Empacotar e carregar os binários customizados compatíveis no servidor U3DS. Validar spawn, física, IA, persistência, tiros, granadas, rádio e estado dos NPCs com dois clientes.
-- [ ] Fazer shutdown gracioso com `save` + `shutdown` no console U3DS; hoje o processo tem console próprio, não há botão de forçar término ou encerramento do processo.
-- [ ] Distinguir erro/queda do processo e disponibilidade efetiva do servidor. `IsRunning` verifica somente processo vivo, não mapa carregado nem porta aberta.
-- [ ] Criar uma experiência de convite pela internet usando conexão oficial segura (Steam Networking / relay) ou opção documentada de roteador; testar NAT/firewall e GSLT se usar modo Internet.
-- [ ] UI para selecionar mapas publicados na Workshop já instalados, não aceitar dependências ausentes silenciosamente.
-- [ ] Considerar orçamento de memória/CPU: cliente Unity + U3DS + IA de NPCs na mesma máquina.
+## O que foi ligado ao servidor
 
-## Steam Workshop — pendência solicitada
+- `MobileNPCPopulationBootstrap` não descarta mais `Dedicator.IsDedicatedServer`: a IA e os sistemas de dano, motor, percepção e persistência podem rodar no host como autoridades únicas.
+- A verificação de visual da população aceita que uma build Unity headless não possua malhas renderizáveis. O esqueleto e as seis regiões físicas continuam obrigatórios; se as transformações ósseas faltarem, a inicialização falha com diagnóstico.
+- `MobileNPCNetworkReplica` envia snapshots periódicos (ID efêmero de instância, posição, ângulo horizontal e ID de arma) via `ClientStaticMethod<...>` com validação `ONLY_FROM_SERVER`, pela rede nativa.
+- Clientes remotos não instanciam um segundo cérebro de NPC. Criam *proxies visuais* baseados em `Resources/Characters/MobileNPC_Client`, com interpolação e seis caixas de raycast; objetos expirados e de mapas anteriores são destruídos.
+- `UseableGun` do cliente reconhece a caixa de acerto do proxy para apresentação do hitmarker; a lógica servidor `MobileNPCDamageBridge.TryResolvePhysicalServerHit` valida geometria/obstrução antes de aplicar qualquer dano. **O hitmarker local não é prova de dano confirmado.**
 
-A utilização de mapas, itens e dependências de terceiros ficará em **integração por Workshop**, sem copiar/modificar/publicar os arquivos dos autores no repositório. O uso privado entre amigos não torna automaticamente qualquer redistribuição de arquivos permitida.
+## Bloqueadores da validação completa
 
-- [ ] Criar gerenciador de IDs publicados da Steam Workshop (somente IDs numéricos válidos).
-- [ ] Escrever `Servers/<ServerId>/WorkshopDownloadConfig.json` usando o formato oficial `File_IDs` e preservar opções/valores já presentes.
-- [ ] Configurar o nome do mapa correspondente **depois** de o servidor baixar Workshop e dependências.
-- [ ] Garantir que o cliente faça download/validação do mesmo conteúdo via fluxo nativo, sem enviar bundles desconhecidos por rede própria.
-- [ ] Evitar colisões entre IDs dos nossos itens 59010/59011 e os IDs de itens da comunidade.
-- [ ] Confirmar compatibilidade dos NPCs com colisores e navegação dos mapas de terceiros, sem presumir portais ou NavMesh corretos.
+- [ ] Compilar ambos os executáveis e corrigir eventuais erros de Unity/assinaturas de RPC.
+- [ ] Iniciar sessão com anfitrião e segundo cliente real na mesma LAN; confirmar handshake, atualização remota e entrada tardia.
+- [ ] Confirmar que o prefab `NPC_Client` existe nas duas builds (headless precisa manter esqueleto) e que os bone hitboxes têm posição correta.
+- [ ] Atirar de dois clientes no mesmo NPC, verificar dano exclusivamente no servidor, acerto através de obstáculo bloqueado e sincronização de mortes.
+- [ ] Replicar **skin, nome, arma visível, animações de braços/cabeça, tiros, sons, granadas, ferimentos e ragdoll**; o primeiro snapshot transporta só dados suficientes para uma representação visual básica. O `GunId` é recebido, mas ainda não renderiza o equipamento.
+- [ ] Impedir fantasma de NPC em disconnect/reconnect, mudança de mapa e servidor desligado, sob perda de pacotes.
+- [ ] Definir persistência por save do dedicado e verificar Save/Shutdown com NPCs vivos, mortos e reabertura do mundo.
+- [ ] Controlar orçamento de rede (128 snapshots por rodada no máximo, atualizações a cada 0,35 s) por relevância/região e com compressão/agrupamento se necessário.
+- [ ] Diagnosticar sincronização de disparos/hitmarkers no modo Combate Total e no modo Normal, sem regressão do singleplayer.
+- [ ] Adicionar convite Steam/relay ou acesso externo com NAT/portas/firewall e autorização. **LAN não equivale a internet.**
+- [ ] Testar performance, pois hospedar cliente Unity e servidor dedicado na mesma máquina requer CPU/RAM adicionais.
 
-Referências: documentação Unturned Dedicated Server e instruções da Steam Workshop para servidores. A simples presença de arquivos neste repositório não valida operação multiplayer.
+## Workshop — pendência formal
+
+Integração planejada de mapas e itens da Steam Workshop por IDs de publicações, usando arquivos de dependência e download do próprio Unturned. O uso privado entre amigos não substitui as permissões dos autores para redistribuição.
+
+- [ ] UI de seleção de mapas instalados / Workshop IDs.
+- [ ] Criar e manter `Servers/<ServerId>/WorkshopDownloadConfig.json` com lista oficial `File_IDs`.
+- [ ] Validar download e dependências antes de aceitar o mapa e antes de conectar clientes.
+- [ ] Usar a distribuição legítima da Workshop, não embutir pacotes de terceiros no GitHub.
+- [ ] Identificar colisões de IDs com os itens customizados 59010/59011.
+- [ ] Reavaliar navegação, interiores e colisões nos mapas de terceiros antes de liberar NPCs.
+
+## Critério para build final
+
+Uma **build única para o jogador** pode agregar IA, armas e menu, mas hospedagem requer um **segundo executável headless compatível** distribuído junto à instalação. Todas as branches de funcionalidades deverão ser incorporadas e testadas na branch de integração final antes do build de release.
