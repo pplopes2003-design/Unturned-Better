@@ -109,14 +109,34 @@ namespace SDG.Unturned
                     return false;
                 if (workshopIds.Count > 0)
                 {
-                    var workshopConfig = new WorkshopDownloadConfig();
-                    workshopConfig.File_IDs.AddRange(workshopIds);
+                    // WorkshopDownloadConfig is a native POCO, not a Unity
+                    // [Serializable] object, so JsonUtility.ToJson can output
+                    // {}. Write the small native manifest explicitly; the
+                    // dedicated downloader constructs all other default fields.
+                    // Steam published file IDs must remain JSON integers.
+                    StringBuilder manifest = new StringBuilder();
+                    manifest.Append("{\\n  \\"File_IDs\\": [");
+                    for (int i = 0; i < workshopIds.Count; ++i)
+                    {
+                        if (i > 0) manifest.Append(", ");
+                        manifest.Append(workshopIds[i].ToString(
+                            System.Globalization.CultureInfo.InvariantCulture));
+                    }
+                    manifest.Append("],\\n  \\"Ignore_Children_File_IDs\\": []\\n}\\n");
                     string target = Path.Combine(saveDirectory, "WorkshopDownloadConfig.json");
                     string temp = target + ".tmp";
-                    File.WriteAllText(temp, JsonUtility.ToJson(workshopConfig, true),
-                        new UTF8Encoding(false));
-                    if (File.Exists(target)) File.Delete(target);
-                    File.Move(temp, target);
+                    File.WriteAllText(temp, manifest.ToString(), new UTF8Encoding(false));
+                    // Validate the content before replacing a known-good file.
+                    string staged = File.ReadAllText(temp);
+                    if (staged.IndexOf("\\"File_IDs\\"", StringComparison.Ordinal) < 0
+                        || staged.IndexOf(workshopIds[0].ToString(
+                            System.Globalization.CultureInfo.InvariantCulture),
+                            StringComparison.Ordinal) < 0)
+                        throw new InvalidDataException("Invalid staged Workshop manifest.");
+                    if (File.Exists(target))
+                        File.Replace(temp, target, target + ".bak");
+                    else
+                        File.Move(temp, target);
                     UnityEngine.Debug.Log("[MobileNPCFriendsHost] Workshop manifest configured: "
                         + workshopIds.Count + " top-level IDs, children resolved by native downloader.");
                 }
