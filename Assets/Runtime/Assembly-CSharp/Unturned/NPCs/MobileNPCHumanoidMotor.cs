@@ -1997,7 +1997,7 @@ namespace SDG.Unturned
 			}
 			RecordActualMovementAndJourneyOutcome(hasDestination, destination, isUnderwater);
 			UpdateStuckRecovery(!ladderMovingThisFrame
-				&& wantedToMove, deltaTime);
+				&& wantedToMove, deltaTime, isUnderwater);
 		}
 
 		/// <summary>
@@ -3093,7 +3093,7 @@ namespace SDG.Unturned
 			return penalty;
 		}
 
-		private void UpdateStuckRecovery(bool wantedToMove, float deltaTime)
+		private void UpdateStuckRecovery(bool wantedToMove, float deltaTime, bool isUnderwater)
 		{
 			if (Time.time < nextStuckCheckTime)
 			{
