@@ -167,8 +167,16 @@ namespace SDG.Unturned
 			// ordinary engagement distance whenever the selected weapon is
 			// loaded and the motor has current, verified visual contact.
 			// The upper bound still leaves room to close toward distant foes.
-			return distance >= (selectedOpticZoom >= 2.5f ? 9f : 3.5f)
-				&& distance <= range * 0.86f;
+			// Short-range buckshot should not freeze the shotgunner 35m
+			// away just because the underlying asset declares a longer
+			// maximum ballistic range. Marksmen keep real optic limits.
+			if (selectedGunID == 112)
+				range = Mathf.Min(range, 14f);
+			float minimum = selectedGunID == 112 ? 4.5f
+				: selectedGunID == 129 ? 13f
+				: selectedGunID == 297 ? 18f
+				: selectedOpticZoom >= 2.5f ? 9f : 3.5f;
+			return distance >= minimum && distance <= range * 0.92f;
 		}
 		/// <summary>Only an actually mounted sight is an optical advantage.</summary>
 		public float OpticZoom => Provider.isServer && selectedGunAsset != null
