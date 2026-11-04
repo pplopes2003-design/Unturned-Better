@@ -7,6 +7,7 @@ namespace SDG.Unturned
     {
         private static SleekFullscreenBox container;
         private static bool active;
+        internal static bool IsActive => active;
         private static ISleekField folderField;
         private static ISleekField mapField;
         private static ISleekField nameField;
