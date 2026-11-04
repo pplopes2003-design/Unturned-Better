@@ -4014,6 +4014,10 @@ namespace SDG.Unturned
 			Vector3 sideways = Vector3.Cross(Vector3.up, outward).normalized;
 			Vector3 wallFoot = new Vector3(wall.point.x,
 				transform.position.y, wall.point.z);
+			// Match the same real curb/threshold step capability already
+			// used by normal ground locomotion, without guessing door sizes.
+			float thresholdStep = Mathf.Clamp(characterController.stepOffset + 0.05f,
+				0.08f, 0.65f);
 			float bestScore = float.NegativeInfinity;
 			float secondScore = float.NegativeInfinity;
 			Vector3 bestNear = Vector3.zero, bestFar = Vector3.zero;
@@ -4040,8 +4044,9 @@ namespace SDG.Unturned
 						|| nearFloor == null || farFloor == null
 						|| IsFurnitureSurfaceCollider(nearFloor)
 						|| IsFurnitureSurfaceCollider(farFloor)
-						|| Mathf.Abs(near.y - transform.position.y) > 0.50f
-						|| Mathf.Abs(near.y - far.y) > 0.36f
+						|| Mathf.Abs(near.y - transform.position.y) >
+							Mathf.Max(0.50f, thresholdStep)
+						|| Mathf.Abs(near.y - far.y) > thresholdStep
 						// A local exact route can only approach nearby openings.
 						|| PlanarDistanceSquared(transform.position, near) > 144f
 						|| !Level.checkSafeIncludingClipVolumes(near)
@@ -4055,8 +4060,10 @@ namespace SDG.Unturned
 					crossing.y = 0f;
 					float length = crossing.magnitude;
 					if (length < 0.4f || length > 3.0f
-						|| !IsStandingCapsuleCorridorClearServer(
-							near, crossing / length, length, radius)
+						|| !(Mathf.Abs(near.y - far.y) <= 0.12f
+							? IsStandingCapsuleCorridorClearServer(
+								near, crossing / length, length, radius)
+							: IsActuallyWalkableStairConnection(near, far, radius))
 						|| !HasContinuousLocalFloor(near, far))
 						continue;
 					++capsuleClearPairs;
@@ -4072,7 +4079,8 @@ namespace SDG.Unturned
 							samplePoint, 0.55f, 0.65f, roamingGroundMask,
 							roamingMaximumSlope, out Vector3 floor, out Collider floorHit, out _)
 							|| floorHit == null || IsFurnitureSurfaceCollider(floorHit)
-							|| Mathf.Abs(floor.y - samplePoint.y) > 0.28f)
+							|| Mathf.Abs(floor.y - samplePoint.y) >
+								Mathf.Max(0.28f, thresholdStep * 0.55f))
 						{
 							floorConnected = false;
 							break;
