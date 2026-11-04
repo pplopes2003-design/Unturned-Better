@@ -1,8 +1,30 @@
-# Multiplayer integrado — Unturned Better
+# Multiplayer integrado — Unturned Better (Steam Server Code + LAN)
+
+## Hospedagem pela internet — implementação Steam Server Code
+
+- Menu `Jogar > Hospedar amigos`: alterna entre **Internet via Steam (com senha)** e **LAN para diagnóstico**. O padrão é Internet. A validação exige senha ao escolher internet.
+- Internet inicia **o build dedicado modificado** com `+InternetServer/UnturnedBetterFriends`, mantendo as flags `-batchmode -nographics`. LAN usa `+LanServer/UnturnedBetterFriends`. A Steam e o próprio Unturned são responsáveis por autenticação e transporte; não existe relay próprio do projeto.
+- **O código não é calculado pelo cliente:** após `Provider.isServer`, `Level.isLoaded` e `SteamGameServer.GetSteamID().BGameServerAccount()`, o processo dedicado salva o Server Code real em `Servers/UnturnedBetterFriends/Server/ServerCode.dat` (arquivo local, conteúdo somente número, escrita via arquivo temporário). Somente o modo Internet publica o código. A inicialização seguinte apaga o código anterior antes de executar o servidor.
+- O menu consulta o arquivo a cada segundo e valida que ele representa uma conta de game server da Steam antes de exibir. **Copiar Server Code** usa a área de transferência do sistema.
+- **Abrir amigos Steam** abre o overlay da lista de amigos quando o Server Code estiver pronto. O anfitrião envia o código e a senha pelo chat; isso **não é** um convite de lobby automático. O overlay pode não estar disponível em compilações de desenvolvimento.
+- **Conectar ao meu servidor** usa `Provider.connect(new ServerConnectParameters(new CSteamID(code), password), null, null)` em modo internet; o botão LAN mantém a conexão local pela porta configurada.
+- **Privacidade:** uma senha impede entradas sem credencial, mas um servidor do tipo Internet pode continuar visível para consultas Steam. Este projeto **não promete ocultação do navegador** nem que a build customizada será aceita pelos serviços Steam.
+- A existência de um Server Code válido indica uma identidade de servidor, **não** prova conectividade relay, jogo carregado para ingresso, autenticidade da build ou teste ponta-a-ponta. Não compartilhar senha em arquivos de log ou relatórios.
+
+### Como testar pela internet
+
+1. Gerar **cliente Windows64** e **servidor Windows64_Headless** da **mesma revisão** desta branch. O servidor recebe a marca `UnturnedBetterDedicated.marker` criada por `BuildMethods`.
+2. Abrir o cliente, escolher **Hospedar amigos**, selecionar **Internet via Steam**, preencher **senha** e demais configurações. Iniciar servidor.
+3. Aguardar o painel exibir o **Steam Server Code** de 17 dígitos, depois **Copiar Server Code**; caso não apareça, verificar a inicialização Steam e o log do dedicado. Não tentar adivinhar o código.
+4. O anfitrião usa **Conectar ao meu servidor**. O amigo abre a **mesma build modificada**, entra em `Jogar > Conectar`, digita o Server Code no campo de host e a senha fornecida.
+5. Validar duas sessões reais: handshake de Steam, visibilidade e combate dos NPCs, sincronização de morte e loot, scripts dos dois lados, entrada tardia, saída/reconexão.
+6. Salvar e encerrar pelo menu. Reiniciar o servidor e verificar se nenhum Server Code antigo aparece antes de uma nova autenticação.
+
+**IMPORTANTE:** revisão de código e commits não substituem a execução da build; a compatibilidade real do Steam Relay e a autenticação de servidor neste fork permanecem pendentes de teste.
 
 ## Objetivo e estado
 
-O menu **Jogar > Hospedar amigos (LAN)** controla um **segundo executável** compilado do mesmo projeto Unturned Better com o alvo `DEDICATED_SERVER`. Não é um processo embutido no mesmo Unity Player e não usa mais um U3DS vanilla. O servidor autoritativo utiliza o protocolo nativo de conexão do Unturned.
+O menu **Jogar > Hospedar amigos** controla um **segundo executável** compilado do mesmo projeto Unturned Better com o alvo `DEDICATED_SERVER`. Não é um processo embutido no mesmo Unity Player e não usa mais um U3DS vanilla. O servidor autoritativo utiliza o protocolo nativo de conexão do Unturned.
 
 **Estado:** código inicial implementado e enviado à branch `feature/integrated-friends-host`. NÃO compilado nem validado em Unity, Steam ou duas máquinas. A sincronização remota é um protótipo, não um multiplayer pronto.
 
