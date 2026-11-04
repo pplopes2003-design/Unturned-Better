@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using Steamworks;
 using UnityEngine;
 
 namespace SDG.Unturned
@@ -86,6 +87,10 @@ namespace SDG.Unturned
                 string commandDirectory = Path.Combine(saveDirectory, "Server");
                 Directory.CreateDirectory(commandDirectory);
                 string commands = Path.Combine(commandDirectory, "Commands.dat");
+                // A previous run's code must never be shown as the current
+                // Steam identity before the new server has authenticated.
+                string oldCode = Path.Combine(commandDirectory, "ServerCode.dat");
+                if (File.Exists(oldCode)) File.Delete(oldCode);
                 // The dedicated server is separate: explicitly provide all
                 // session options before starting, rather than mutating a
                 // running server's config and losing the chosen map.
@@ -107,7 +112,9 @@ namespace SDG.Unturned
                 {
                     FileName = executable,
                     WorkingDirectory = directory,
-                    Arguments = "-batchmode -nographics +LanServer/" + ServerId,
+                    Arguments = "-batchmode -nographics +"
+                        + (config.InternetFriends ? "InternetServer/" : "LanServer/")
+                        + ServerId,
                     UseShellExecute = false,
                     CreateNoWindow = false
                 };
@@ -118,7 +125,7 @@ namespace SDG.Unturned
                     return false;
                 }
                 ownedServerDirectory = directory;
-                UnityEngine.Debug.Log("[MobileNPCFriendsHost] Compatible modified dedicated LAN process launched. "
+                UnityEngine.Debug.Log("[MobileNPCFriendsHost] Compatible modified dedicated server process launched. "
                     + config.CopyWithoutPassword() + " PID=" + ownedServer.Id);
                 return true;
             }
@@ -163,6 +170,53 @@ namespace SDG.Unturned
                 error = "Falha ao solicitar parada segura: " + ex.GetType().Name;
                 return false;
             }
+        }
+
+        internal static bool TryGetSteamServerCode(out string code)
+        {
+            code = null;
+            if (!IsRunning || string.IsNullOrEmpty(ownedServerDirectory))
+                return false;
+            try
+            {
+                string file = Path.Combine(ownedServerDirectory, "Servers",
+                    ServerId, "Server", "ServerCode.dat");
+                if (!File.Exists(file))
+                    return false;
+                string candidate = File.ReadAllText(file).Trim();
+                if (candidate.Length < 15 || candidate.Length > 20
+                    || !ulong.TryParse(candidate, out ulong number))
+                    return false;
+                CSteamID steamId = new CSteamID(number);
+                if (!steamId.IsValid() || !steamId.BGameServerAccount())
+                    return false;
+                code = candidate;
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        internal static bool TryConnectBySteamCode(MobileNPCIntegratedHostConfig config,
+            out string error)
+        {
+            error = null;
+            if (Provider.isConnected)
+            {
+                error = "Saia da partida atual antes de conectar.";
+                return false;
+            }
+            if (!TryGetSteamServerCode(out string code))
+            {
+                error = "Steam Server Code ainda nao esta pronto; confira o console do servidor.";
+                return false;
+            }
+            ulong.TryParse(code, out ulong id);
+            Provider.connect(new ServerConnectParameters(
+                new CSteamID(id), config != null ? config.Password : ""), null, null);
+            return true;
         }
 
         internal static void TryConnectLocal(MobileNPCIntegratedHostConfig config)
