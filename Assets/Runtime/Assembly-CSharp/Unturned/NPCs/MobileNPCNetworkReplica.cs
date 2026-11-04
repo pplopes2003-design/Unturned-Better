@@ -412,6 +412,19 @@ namespace SDG.Unturned
             }
             for (int i = 0; i < staleMetadataClients.Count; ++i)
                 metadataByClient.Remove(staleMetadataClients[i]);
+
+            // Discard metadata for NPCs which no longer have a live driver.
+            // Otherwise long-lived dedicated sessions could retain one entry
+            // per NPC killed since startup, even with only a few active NPCs.
+            foreach (Dictionary<int, KnownMetadata> known in metadataByClient.Values)
+            {
+                staleMetadataNpcIds.Clear();
+                foreach (int id in known.Keys)
+                    if (!activeSnapshotIds.Contains(id))
+                        staleMetadataNpcIds.Add(id);
+                for (int i = 0; i < staleMetadataNpcIds.Count; ++i)
+                    known.Remove(staleMetadataNpcIds[i]);
+            }
         }
 
         private void BroadcastServerIdentities()
