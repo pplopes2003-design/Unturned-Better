@@ -77,8 +77,9 @@ namespace SDG.Unturned
                 lines.Append("Name ").AppendLine(config.ServerName);
                 lines.Append("Port ").AppendLine(config.Port.ToString());
                 lines.Append("MaxPlayers ").AppendLine(config.MaxPlayers.ToString());
-                lines.Append("Password ").AppendLine(config.Password);
-                File.WriteAllText(commands, lines.ToString(), Encoding.UTF8);
+                if (!string.IsNullOrEmpty(config.Password))
+                    lines.Append("Password ").AppendLine(config.Password);
+                File.WriteAllText(commands, lines.ToString(), new UTF8Encoding(false));
                 ProcessStartInfo start = new ProcessStartInfo
                 {
                     FileName = executable,
