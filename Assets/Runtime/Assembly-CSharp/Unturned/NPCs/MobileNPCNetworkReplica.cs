@@ -16,6 +16,8 @@ namespace SDG.Unturned
         private const float SnapshotInterval = 0.35f;
         private const float RemoteExpiry = 6f;
         private const int MaxSnapshotsPerTick = 128;
+        private const float ReplicationRadius = 165f;
+        private const float GunAudioRadius = 90f;
 
         private sealed class Replica
         {
@@ -154,7 +156,8 @@ namespace SDG.Unturned
                 // Unreliable updates are refreshed periodically; no hidden
                 // target coordinates or AI memory are sent to clients.
                 SendNpcSnapshot.Invoke(ENetReliability.Unreliable,
-                    Provider.GatherRemoteClientConnections(),
+                    Provider.GatherRemoteClientConnectionsWithinSphere(
+                        driver.transform.position, ReplicationRadius),
                     driver.GetInstanceID(), driver.transform.position,
                     QuantizeYaw(driver.transform.eulerAngles.y), gunId, motionFlags);
             }
@@ -371,7 +374,8 @@ namespace SDG.Unturned
                 || driver == null || gunId == 0)
                 return;
             SendNpcShot.Invoke(ENetReliability.Reliable,
-                Provider.GatherRemoteClientConnections(),
+                Provider.GatherRemoteClientConnectionsWithinSphere(
+                    driver.transform.position, GunAudioRadius),
                 driver.GetInstanceID(), driver.transform.position, gunId);
         }
 
@@ -404,7 +408,9 @@ namespace SDG.Unturned
             if (!Provider.isServer || !Dedicator.IsDedicatedServer
                 || driver == null || gunId == 0) return;
             SendNpcReload.Invoke(ENetReliability.Reliable,
-                Provider.GatherRemoteClientConnections(), driver.GetInstanceID(), gunId);
+                Provider.GatherRemoteClientConnectionsWithinSphere(
+                    driver.transform.position, GunAudioRadius),
+                driver.GetInstanceID(), gunId);
         }
 
         [SteamCall(ESteamCallValidation.ONLY_FROM_SERVER)]
@@ -431,7 +437,8 @@ namespace SDG.Unturned
                 || driver == null)
                 return;
             SendNpcDeath.Invoke(ENetReliability.Reliable,
-                Provider.GatherRemoteClientConnections(),
+                Provider.GatherRemoteClientConnectionsWithinSphere(
+                    driver.transform.position, ReplicationRadius),
                 driver.GetInstanceID(), driver.transform.position);
         }
 
