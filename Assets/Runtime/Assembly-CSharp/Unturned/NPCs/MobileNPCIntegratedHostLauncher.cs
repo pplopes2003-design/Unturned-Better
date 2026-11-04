@@ -16,6 +16,7 @@ namespace SDG.Unturned
     {
         internal const string ServerId = "UnturnedBetterFriends";
         private static Process ownedServer;
+        private static string ownedServerDirectory;
         internal static bool IsRunning
         {
             get
@@ -110,6 +111,7 @@ namespace SDG.Unturned
                     error = "O sistema operacional nao iniciou o U3DS.";
                     return false;
                 }
+                ownedServerDirectory = directory;
                 UnityEngine.Debug.Log("[MobileNPCFriendsHost] Compatible modified dedicated LAN process launched. "
                     + config.CopyWithoutPassword() + " PID=" + ownedServer.Id);
                 return true;
@@ -119,6 +121,40 @@ namespace SDG.Unturned
                 error = "Falha ao iniciar servidor local: " + ex.GetType().Name;
                 UnityEngine.Debug.LogWarning("[MobileNPCFriendsHost] Start failed: "
                     + ex.GetType().Name + ": " + ex.Message);
+                return false;
+            }
+        }
+
+        internal static bool TryStop(out string error)
+        {
+            error = null;
+            if (!IsRunning || string.IsNullOrEmpty(ownedServerDirectory))
+            {
+                error = "Nao existe uma instancia de servidor local ativa.";
+                return false;
+            }
+            try
+            {
+                string commandFolder = Path.Combine(ownedServerDirectory,
+                    "Servers", ServerId, "Server");
+                Directory.CreateDirectory(commandFolder);
+                string temporary = Path.Combine(commandFolder,
+                    "HostStopRequest.tmp");
+                string request = Path.Combine(commandFolder,
+                    "HostStopRequest.dat");
+                File.WriteAllText(temporary, "SAVE_AND_SHUTDOWN_V1",
+                    new UTF8Encoding(false));
+                if (File.Exists(request))
+                    File.Delete(request);
+                File.Move(temporary, request);
+                // Do not Kill(). The server performs native Save and
+                // Shutdown on its next main-thread polling tick.
+                UnityEngine.Debug.Log("[MobileNPCFriendsHost] Graceful local stop requested.");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = "Falha ao solicitar parada segura: " + ex.GetType().Name;
                 return false;
             }
         }
