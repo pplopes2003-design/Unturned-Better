@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 
 namespace SDG.Unturned
@@ -22,6 +23,8 @@ namespace SDG.Unturned
         internal bool InternetFriends = true;
         internal bool PublicListing; // Do not request public discovery
         internal string DedicatedServerDirectory = "";
+        // Comma, semicolon or whitespace-separated Steam Workshop published file IDs.
+        internal string WorkshopFileIds = "";
 
         internal bool TryValidate(out string error)
         {
@@ -43,9 +46,36 @@ namespace SDG.Unturned
                 error = "A porta deve estar entre 1024 e 65532.";
             else if ((int)NpcMode < 0 || (int)NpcMode > 2)
                 error = "Modo NPC invalido.";
+            else if (!TryParseWorkshopIds(out _, out error))
+                return false;
             else if (PublicListing)
                 error = "A hospedagem publica ainda nao esta habilitada; use LAN."; 
             return error == null;
+        }
+
+        internal bool TryParseWorkshopIds(out List<ulong> ids, out string error)
+        {
+            ids = new List<ulong>();
+            error = null;
+            if (string.IsNullOrWhiteSpace(WorkshopFileIds)) return true;
+            string[] parts = WorkshopFileIds.Split(new[] { ',', ';', ' ', '\\t', '\\r', '\\n' },
+                StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length > 64)
+            {
+                error = "Selecione no maximo 64 itens da Workshop.";
+                return false;
+            }
+            HashSet<ulong> seen = new HashSet<ulong>();
+            foreach (string part in parts)
+            {
+                if (!ulong.TryParse(part, out ulong id) || id == 0)
+                {
+                    error = "Workshop: informe apenas IDs numericos positivos separados por virgulas.";
+                    return false;
+                }
+                if (seen.Add(id)) ids.Add(id);
+            }
+            return true;
         }
 
         private static bool IsSafeIdentifier(string value)
@@ -72,7 +102,8 @@ namespace SDG.Unturned
                 Map = Map, ServerName = ServerName, Password = "",
                 MaxPlayers = MaxPlayers, Port = Port, PublicListing = PublicListing,
                 NpcMode = NpcMode, InternetFriends = InternetFriends,
-                DedicatedServerDirectory = DedicatedServerDirectory
+                DedicatedServerDirectory = DedicatedServerDirectory,
+                WorkshopFileIds = WorkshopFileIds
             };
         }
 
@@ -82,7 +113,8 @@ namespace SDG.Unturned
             return "Map=" + Map + ", ServerName=" + ServerName
                 + ", NPCMode=" + NpcMode + ", MaxPlayers=" + MaxPlayers + ", Port=" + Port
                 + ", InternetFriends=" + InternetFriends
-                + ", PublicListing=" + PublicListing;
+                + ", PublicListing=" + PublicListing
+                + ", WorkshopIDs=" + (string.IsNullOrWhiteSpace(WorkshopFileIds) ? 0 : WorkshopFileIds.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries).Length);
         }
     }
 }
