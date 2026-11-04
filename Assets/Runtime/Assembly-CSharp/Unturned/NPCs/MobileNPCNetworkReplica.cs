@@ -206,8 +206,10 @@ namespace SDG.Unturned
                 string label = disposition != null ? disposition.DisplayName : "Sobrevivente";
                 if (string.IsNullOrEmpty(label)) label = "Sobrevivente";
                 if (label.Length > 40) label = label.Substring(0, 40);
+                // Stable for the NPC lifetime. Its current position is NOT
+                // stable and would recolor the same NPC every four seconds.
                 int seed = unchecked(driver.GetInstanceID() * 397
-                    ^ driver.transform.position.GetHashCode());
+                    ^ 0x4B1D2A37);
                 SendNpcIdentity.Invoke(ENetReliability.Reliable,
                     Provider.GatherRemoteClientConnectionsWithinSphere(
                         driver.transform.position, ReplicationRadius),
