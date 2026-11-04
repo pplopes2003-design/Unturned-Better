@@ -41,6 +41,9 @@ namespace SDG.Unturned
 			public float rx, ry, rz, rw;
 			public int role;
 			public int faction;
+			// Optional in older snapshots. Save alongside the individual's
+			// inventory/experience so a new random name is not assigned after restart.
+			public string displayName;
 			// v8: optional separate occupation; v1-v7 default false.
 			public bool hasOccupation;
 			public int occupation;
@@ -178,6 +181,23 @@ namespace SDG.Unturned
 				nextSaveTime = Time.time + SaveInterval;
 				SaveServer(mapKey);
 			}
+		}
+
+		/// <summary>
+		/// Explicit flush before a menu-controlled dedicated shutdown.
+		/// Existing autosave/map-transition hooks remain unchanged.
+		/// In particular do not save an empty map before its initial restore.
+		/// </summary>
+		public static bool FlushBeforeDedicatedShutdownServer()
+		{
+			if (!Provider.isServer || !Level.isLoaded
+				|| !restoredForCurrentMap || string.IsNullOrEmpty(currentMapKey))
+				return false;
+			HybridNPCObservedPortalRegistry.FlushLearningServer();
+			if (preserveExistingSnapshot)
+				return false;
+			SaveServer(currentMapKey);
+			return true;
 		}
 
 		public static void SaveOnApplicationQuitServer()
@@ -336,6 +356,10 @@ namespace SDG.Unturned
 
 			try
 			{
+				MobileNPCHumanoidDisposition restoredName =
+					instance.GetComponent<MobileNPCHumanoidDisposition>();
+				if (restoredName != null)
+					restoredName.RestoreDisplayNameServer(record.displayName);
 				MobileNPCFaction faction = instance.GetComponent<MobileNPCFaction>();
 				if (faction != null && record.faction >= (int)MobileNPCFaction.Id.Unaffiliated
 					&& record.faction <= (int)MobileNPCFaction.Id.Traders
@@ -500,6 +524,7 @@ namespace SDG.Unturned
 					rz = driver.transform.rotation.z,
 					rw = driver.transform.rotation.w,
 					role = disposition != null ? (int)disposition.CurrentRole : (int)MobileNPCHumanoidDisposition.Role.Hostile,
+					displayName = disposition != null ? disposition.DisplayName : null,
 					faction = faction != null ? (int)faction.CurrentFaction : (int)MobileNPCFaction.Id.Unaffiliated,
 					hasOccupation = occupation != null && occupation.HasAssignedOccupation,
 					occupation = (int)MobileNPCArchetypePolicy.ForNPC(driver.gameObject),
