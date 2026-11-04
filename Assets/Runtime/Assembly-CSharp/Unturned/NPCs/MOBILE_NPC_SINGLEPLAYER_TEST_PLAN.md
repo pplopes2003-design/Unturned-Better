@@ -165,3 +165,23 @@ This checklist is for in-game validation of the mobile NPC foundation. It is not
 - Verify gunshots trigger nearby zombies promptly.
 - Verify investigation moves between reachable points instead of turning in place.
 - Verify a player with clear line of sight within 20 m takes priority over sound-point investigation.
+
+
+## 13. Washington physical navigation acceptance (not yet verified in Unity)
+
+**Build gate:** compile Unity 2022.3.62f3 project; run `HybridNPCPathFollowerTests` in EditMode before declaring these changes validated. This checklist is NOT a claim of passed tests.
+
+- [ ] Spawn one hostile and one neutral NPC separately in Washington (not in overlapping positions). Record the original spawn position and the building selected.
+- [ ] Exterior -> interior: direct an NPC to a ground-floor loot objective inside an accessible building. Confirm the physical character capsule crosses the actual opening and reaches the far-side point; discovery alone is insufficient.
+- [ ] Interior -> exterior: order the same NPC to a destination outdoors. Confirm it exits through a real threshold rather than pushing repeatedly into the facade.
+- [ ] Staircase: direct to a reachable destination upstairs, and then back downstairs. Verify each intermediate waypoint is reached at the correct Y coordinate. No success when NPC is merely beneath the upstairs goal.
+- [ ] Object jump: initiate a verified low-obstacle jump; confirm the normal walking-stall detector does not mark the character as stuck in mid-air and that the intended landing is checked after actual ground contact.
+- [ ] Route arbitration: with an active multi-corner route, let tactical perception/roaming update repeatedly without changing the objective. Verify the active waypoint sequence continues instead of restarting every frame.
+- [ ] Tactical preemption: while scavenging, introduce a visible hostile that forces retreat/cover. Verify the urgent task can replace routine movement immediately, with no resumed stale loot route.
+- [ ] Blocked corridor: obstruct the next waypoint with real static geometry and confirm the existing motor performs its bounded replan, rather than claiming successful traversal.
+- [ ] Temporary crowd: spawn two NPCs near the same doorway; confirm short-term actor collision does not permanently blacklist a real portal or teach a false map obstruction.
+- [ ] At least five distinct Washington buildings and two staircases; count full entry/exit successes and failures, not just number of planned paths.
+- [ ] Compare Player.log against `[MobileNPCThresholdTraverse]`, `[MobileNPCGeometryThreshold]`, `[MobileNPCGlobalRoute]`, and hybrid navigation telemetry for the exact NPC and coordinates.
+- [ ] Measure NPC count versus main-thread navigation time in singleplayer at low/high population; physical scans must remain throttled.
+
+**Acceptance rule:** do not mark indoor navigation fixed until complete physical crossings have been observed in the Unity Player build, without teleporting, false goal arrival or repeated route replacement.
