@@ -1128,6 +1128,10 @@ namespace SDG.Unturned
 
 			if (player == null)
 			{
+				if (mobileNPCTarget != null && !mobileNPCTarget.IsDead
+					&& (mobileNPCTarget.transform.position - transform.position).sqrMagnitude
+						<= (newPlayer.transform.position - transform.position).sqrMagnitude)
+					return;
 				if (!isHunting)
 				{
 					if (!isLeaving)
@@ -1276,7 +1280,7 @@ namespace SDG.Unturned
 		public void alert(MobileNPCHumanoidVitals newTarget)
 		{
 			if (!Provider.isServer || isDead || newTarget == null || newTarget.IsDead
-				|| !newTarget.gameObject.activeInHierarchy || player != null)
+				|| !newTarget.gameObject.activeInHierarchy)
 			{
 				return;
 			}
@@ -1287,12 +1291,16 @@ namespace SDG.Unturned
 				return;
 			}
 
-			if (mobileNPCTarget != null
-				&& (mobileNPCTarget.transform.position - transform.position).sqrMagnitude
-				<= (newTarget.transform.position - transform.position).sqrMagnitude)
-			{
+			float npcDistance = (newTarget.transform.position - transform.position).sqrMagnitude;
+			if (player != null && !player.life.isDead
+				&& (player.transform.position - transform.position).sqrMagnitude <= npcDistance)
 				return;
-			}
+			if (mobileNPCTarget != null && !mobileNPCTarget.IsDead
+				&& (mobileNPCTarget.transform.position - transform.position).sqrMagnitude <= npcDistance)
+				return;
+			// Switching from player to NPC must clear the previous
+			// player target, just as the native player alert clears NPC.
+			player = null;
 
 			if (!isHunting && !isLeaving)
 			{
@@ -1538,23 +1546,29 @@ namespace SDG.Unturned
 		/// <summary>Called by ZombieManager so even currently idle zombies can acquire mobile NPCs.</summary>
 		public void TryAcquireVisibleMobileNPCTarget()
 		{
-			if (!Provider.isServer || isDead || player != null)
-			{
+			if (!Provider.isServer || isDead)
 				return;
-			}
 
+			// Equal sight priority for player and mobile NPC. The closer
+			// VISIBLE living humanoid wins, regardless of entity type.
+			// An already engaged target is not replaced by a farther one.
 			Player visiblePlayer = FindPriorityVisiblePlayer();
-			if (visiblePlayer != null)
-			{
-				alert(visiblePlayer);
-				return;
-			}
-
 			MobileNPCHumanoidVitals visibleNPC = FindPriorityVisibleNPC();
-			if (visibleNPC != null && visibleNPC != mobileNPCTarget)
-			{
+			float playerDistance = visiblePlayer != null
+				? (visiblePlayer.transform.position - transform.position).sqrMagnitude
+				: float.PositiveInfinity;
+			float npcDistance = visibleNPC != null
+				? (visibleNPC.transform.position - transform.position).sqrMagnitude
+				: float.PositiveInfinity;
+			float currentDistance = player != null
+				? (player.transform.position - transform.position).sqrMagnitude
+				: mobileNPCTarget != null && !mobileNPCTarget.IsDead
+					? (mobileNPCTarget.transform.position - transform.position).sqrMagnitude
+					: float.PositiveInfinity;
+			if (playerDistance <= npcDistance && playerDistance < currentDistance)
+				alert(visiblePlayer);
+			else if (npcDistance < playerDistance && npcDistance < currentDistance)
 				alert(visibleNPC);
-			}
 		}
 
 		private Player FindPriorityVisiblePlayer()
