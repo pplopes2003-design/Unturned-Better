@@ -37,6 +37,7 @@ class App(tk.Tk):
         ttk.Button(buttons, text="Create profile / server export", command=self.profile_export).pack(side="left", padx=4)
         ttk.Button(buttons, text="Check conflicts", command=self.show_conflicts).pack(side="left", padx=4)
         ttk.Button(buttons, text="Apply profile", command=self.apply_profile).pack(side="left", padx=4)
+        ttk.Button(buttons, text="Install C# module", command=self.install_module).pack(side="left", padx=4)
         ttk.Label(self, textvariable=self.status_var, anchor="w", padding=9).pack(fill="x")
 
     def make_tab(self, title, help_text):
@@ -127,15 +128,47 @@ class App(tk.Tk):
             if not name: return
             local = [self.local_list.get(i) for i in self.local_list.curselection()]
             workshop = [self.workshop_list.get(i) for i in self.workshop_list.curselection()]
-            mgr.save_profile(name, local, workshop, activate=True)
+            existing = mgr.profile_state()["profiles"].get(name, {})
+            maps = [item for item in existing.get("local_maps", []) if item not in local]
+            modules = [item for item in existing.get("modules", []) if item not in local]
+            # When saving from the generic list, ask for per-mod type:
+            contents = []
+            for item in local:
+                kind = simpledialog.askstring("Local mod type: " + item,
+                    "Content, Maps or Modules:", initialvalue="Content")
+                if kind is None: return
+                kind = kind.strip().lower()
+                if kind == "content": contents.append(item)
+                elif kind == "maps": maps.append(item)
+                elif kind == "modules": modules.append(item)
+                else: raise ValueError("Unknown category: " + kind)
+            mgr.save_profile(name, contents, workshop, activate=False, local_maps=maps, modules=modules)
             if messagebox.askyesno("Server export", "Export selected Workshop IDs to WorkshopDownloadConfig.json?"):
                 destination = filedialog.asksaveasfilename(defaultextension=".json",
                     initialfile="WorkshopDownloadConfig.json", filetypes=[("JSON", "*.json")])
                 if destination:
                     mgr.export_server(name, Path(destination))
-            self.status_var.set("Profile saved. Steam subscriptions were not modified.")
+            self.status_var.set("Profile saved (not applied). Use Apply profile to deploy selected mods.")
         except Exception as exc:
             messagebox.showerror("Profile error", str(exc))
+
+    def install_module(self):
+        try:
+            from module_support import install_module
+            mgr = self.require_manager()
+            indexes = self.local_list.curselection()
+            if len(indexes) != 1:
+                raise ValueError("Select exactly one staging folder containing a .module file.")
+            name = self.local_list.get(indexes[0])
+            plan = install_module(mgr, name)
+            if plan["issues"]:
+                raise ValueError("Dependencies or duplicate modules: " + str(plan["issues"]))
+            if messagebox.askyesno("Install C# module", "Executable code can run inside Unturned. Only install trusted modules.\\n\\n" +
+                                   str(plan["module"]) + "\\n\\nInstall?"):
+                install_module(mgr, name, confirm=True)
+                self.refresh()
+        except Exception as exc:
+            messagebox.showerror("Module installation failed", str(exc))
 
     def show_conflicts(self):
         try:
