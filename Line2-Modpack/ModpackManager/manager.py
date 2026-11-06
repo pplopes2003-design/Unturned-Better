@@ -43,14 +43,13 @@ def detect_workshop(game_dir: Path) -> Path | None:
 
 
 def fingerprint(folder: Path) -> dict:
-    """Non-cryptographic snapshot for detecting source updates."""
+    """Canonical content snapshot, independent from filesystem timestamps."""
     files = 0
     total_size = 0
-    latest_ns = 0
     digest = hashlib.sha256()
     for base, dirs, names in os.walk(folder, followlinks=False):
-        dirs[:] = [d for d in dirs if not (Path(base) / d).is_symlink()]
-        for name in names:
+        dirs[:] = sorted(d for d in dirs if not (Path(base) / d).is_symlink())
+        for name in sorted(names):
             p = Path(base) / name
             if p.is_symlink():
                 continue
@@ -64,8 +63,7 @@ def fingerprint(folder: Path) -> dict:
                 for block in iter(lambda: inp.read(1024 * 256), b""):
                     digest.update(block)
             total_size += st.st_size
-            latest_ns = max(latest_ns, st.st_mtime_ns)
-    return {"files": files, "bytes": total_size, "latest_ns": latest_ns, "sha256": digest.hexdigest()}
+    return {"files": files, "bytes": total_size, "sha256": digest.hexdigest()}
 
 
 class Manager:
@@ -167,7 +165,9 @@ class Manager:
             raise ValueError("Refusing to remove symlink")
         if not expected.is_dir():
             raise FileNotFoundError(str(expected))
-        if fingerprint(expected) != entry["snapshot"]:
+        current = fingerprint(expected)
+        saved = entry["snapshot"]
+        if any(current[k] != saved.get(k) for k in ("files", "bytes", "sha256")):
             raise ValueError("Installed files changed since deploy; refusing automatic removal")
         plan = {"action": "remove", "destination": str(expected)}
         if not confirm:
