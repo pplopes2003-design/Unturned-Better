@@ -1,0 +1,12 @@
+{
+  "IsEnabled": true,
+  "Name": "Unturned2.Line2",
+  "Version": "0.1.0.0",
+  "Assemblies": [
+    {
+      "Path": "/Unturned2.Line2.Probe.dll",
+      "Role": "Client"
+    }
+  ],
+  "Dependencies": []
+}
