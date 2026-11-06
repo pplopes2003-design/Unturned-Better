@@ -11,7 +11,7 @@ import tempfile
 from datetime import datetime, timezone
 
 APP_ID = "304930"
-CATEGORIES = ("Contents", "Maps")
+CATEGORIES = ("Content", "Maps")
 SAFE_ID = re.compile(r"^[0-9]+$")
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,100}$")
 
@@ -117,7 +117,7 @@ class Manager:
 
     def deploy(self, name: str, category: str, *, confirm: bool = False):
         if category not in CATEGORIES:
-            raise ValueError("Choose Contents or Maps")
+            raise ValueError("Choose Content or Maps")
         source = safe_child(self.staging, name)
         target = safe_child(self.game_bundles / category, "U2M_" + name)
         if not source.is_dir():
