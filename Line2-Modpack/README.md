@@ -51,3 +51,15 @@ Arquivos produzidos no diretório de trabalho do jogo, subpasta `Unturned2-Line2
 ## Próximo marco
 
 Scanner semântico de objetos/portas/janelas (componentes SDG e estados da porta); validação das passagens por geometria; grafo interno/externo; cache e IPC com serviço de IA. 
+
+## v0.5 — AI service handshake
+
+The C# client now creates `LocalAiBridge` along with `WorldScanner`. Press **F9** inside a loaded map to make a manual, nonblocking loopback HTTP request to `http://127.0.0.1:8765/v1/decide`. The service currently returns `idle`. The bridge validates protocol, agent ID, tick, allowable response age and action before logging a result.
+
+To try it:
+1. Install Python 3.10+; in `Line2-Modpack/AIService`, execute `python -m unittest discover -s . -p "test_*.py"`, then `python server.py`.
+2. Build the client C# project against your Unturned Steam DLLs; copy the DLL and .module manifest to `Modules/Unturned2.Line2`.
+3. Start Unturned without BattlEye; join Washington, press **F9**, and inspect `Unturned2-Line2/probe.log`.
+4. F8 still exports collider observations to `scans.jsonl`.
+
+**Not yet validated in the actual Unturned client.** A successful F9 probe confirms only network transport, not NPC AI or navigation.
