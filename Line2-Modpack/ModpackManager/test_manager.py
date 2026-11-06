@@ -129,6 +129,27 @@ class ManagerTests(unittest.TestCase):
         self.mgr.apply_profile("maps-only", confirm=True)
         self.assertTrue((self.game / "Bundles" / "Workshop" / "Maps" / "U2M_CustomMap").exists())
 
+    def test_touching_deployed_file_does_not_block_safe_removal(self):
+        import os
+        self.mgr.import_local(self.source, "TouchTest")
+        self.mgr.deploy("TouchTest", "Content", confirm=True)
+        deployed = self.game / "Bundles" / "Workshop" / "Content" / "U2M_TouchTest" / "Test.dat"
+        original = deployed.stat().st_mtime
+        os.utime(deployed, (original + 15, original + 15))
+        self.mgr.remove("TouchTest", "Content", confirm=True)
+        self.assertFalse(deployed.exists())
+
+    def test_file_content_change_detected_even_when_size_same(self):
+        self.mgr.import_local(self.source, "HashTest")
+        self.mgr.deploy("HashTest", "Content", confirm=True)
+        deployed = self.game / "Bundles" / "Workshop" / "Content" / "U2M_HashTest" / "Test.dat"
+        original = deployed.read_text(encoding="utf-8")
+        modified = original.replace("9000", "9001")
+        self.assertEqual(len(modified), len(original))
+        deployed.write_text(modified, encoding="utf-8")
+        with self.assertRaises(ValueError):
+            self.mgr.remove("HashTest", "Content", confirm=True)
+
     def test_reject_unsafe_names(self):
         with self.assertRaises(ValueError):
             self.mgr.import_local(self.source, "../outside")
