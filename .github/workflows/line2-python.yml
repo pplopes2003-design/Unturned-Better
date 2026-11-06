@@ -1,4 +1,4 @@
-name: Line 2 Python checks
+name: Line 2 Windows Python checks
 
 on:
   push:
@@ -20,18 +20,16 @@ permissions:
   contents: read
 
 jobs:
-  python-tests:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        python-version: ['3.11']
-    runs-on: ${{ matrix.os }}
+  windows-python:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.11'
       - name: Compile Python files
         run: python -m compileall -q Line2-Modpack
       - name: Test AI Service
@@ -39,11 +37,11 @@ jobs:
       - name: Test Modpack Manager
         if: always()
         run: python Line2-Modpack/run_tests.py ModpackManager
-      - name: Upload test logs
+      - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: line2-test-logs-${{ matrix.os }}-py311
+          name: line2-windows-test-results
           path: Line2-Modpack/test-results/
           if-no-files-found: warn
           retention-days: 14
