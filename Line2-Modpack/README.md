@@ -63,3 +63,11 @@ To try it:
 4. F8 still exports collider observations to `scans.jsonl`.
 
 **Not yet validated in the actual Unturned client.** A successful F9 probe confirms only network transport, not NPC AI or navigation.
+
+## v0.6 — observations, not commands
+
+Press **F9** inside Washington with `python AIService/server.py` running. The client samples camera position, direction and a bounded collider count, sends a nonblocking HTTP request to the localhost AI Service, then logs the response. Press **F8** to run the independent world scanner.
+
+The service can additionally evaluate **synthetic NPC observations** for deterministic test actions (idle, investigate, seek_cover, engage, retreat). No external action affects the game yet. The bridge is **read-only** and is not evidence of functioning NPC AI.
+
+Next critical milestone: inspect the actual Unturned NPC/entity representations, implement an adapter under game/server authority, and test the module on Steam before allowing action execution.
