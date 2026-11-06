@@ -4,21 +4,41 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace Unturned2.Line2
 {
-    // Manual IPC diagnostic only. No NPC commands or game state mutations.
-    // F9 performs a nonblocking request to the local AI service.
+    // Read-only game observation via F9. Server suggestions are never executed.
     internal sealed class LocalAiBridge : MonoBehaviour
     {
         private const string Endpoint = "http://127.0.0.1:8765/v1/decide";
         private const int TimeoutMs = 700;
-        private const float MaxAgeSeconds = 2f;
+        private const int MaxResponseBytes = 2048;
+        private const float MaxAgeMs = 1000f;
         private Task<string> _pending;
         private float _sentRealtime;
         private int _nextTick;
         private int _pendingTick;
         private bool _closing;
+
+        [Serializable]
+        private sealed class Observation
+        {
+            public string kind = "camera";
+            public string scene;
+            public float[] position;
+            public float[] forward;
+            public int nearby_colliders;
+        }
+
+        [Serializable]
+        private sealed class DecisionRequest
+        {
+            public int protocol = 1;
+            public string agent_id = "bridge-probe";
+            public int tick;
+            public Observation observation;
+        }
 
         [Serializable]
         private sealed class DecisionResponse
@@ -27,44 +47,43 @@ namespace Unturned2.Line2
             public string agent_id;
             public int tick;
             public string action;
+            public string reason;
             public int valid_ms;
         }
+
+        private readonly Collider[] _nearby = new Collider[64];
 
         private void Update()
         {
             if (_closing) return;
-
-            // Only manual probes until the game integration is validated.
             if (Input.GetKeyDown(KeyCode.F9))
             {
                 if (_pending != null)
-                    ProbeLogger.Log("AI_BRIDGE_BUSY: previous probe in flight");
+                    ProbeLogger.Log("AI_BRIDGE_BUSY: pending request");
                 else
-                    SendProbe();
+                    SendObservation();
             }
 
-            var task = _pending;
+            Task<string> task = _pending;
             if (task == null || !task.IsCompleted) return;
             _pending = null;
             float elapsed = (Time.realtimeSinceStartup - _sentRealtime) * 1000f;
             try
             {
                 string raw = task.GetAwaiter().GetResult();
-                // Unity JSON deserialization and logging only on main thread.
                 DecisionResponse response = JsonUtility.FromJson<DecisionResponse>(raw);
                 if (response == null || response.protocol != 1 ||
-                    response.agent_id != "bridge-probe" ||
-                    response.tick != _pendingTick ||
-                    response.action != "idle" ||
+                    response.agent_id != "bridge-probe" || response.tick != _pendingTick ||
+                    response.action != "idle" || response.reason != "diagnostic_only" ||
                     response.valid_ms < 1 || response.valid_ms > 1000 ||
-                    elapsed > MaxAgeSeconds * 1000f)
+                    elapsed > MaxAgeMs || elapsed > response.valid_ms)
                 {
-                    ProbeLogger.Log("AI_BRIDGE_REJECTED: incompatible or stale response (elapsed_ms=" +
-                                    elapsed.ToString("F0") + ")");
+                    ProbeLogger.Log("AI_BRIDGE_REJECTED: unexpected or expired response, rtt_ms=" +
+                                    elapsed.ToString("F0"));
                     return;
                 }
-                ProbeLogger.Log("AI_BRIDGE_OK: agent=" + response.agent_id +
-                                " tick=" + response.tick + " action=" + response.action +
+                ProbeLogger.Log("AI_BRIDGE_OK: tick=" + response.tick + " action=" +
+                                response.action + " reason=" + response.reason +
                                 " rtt_ms=" + elapsed.ToString("F0"));
             }
             catch (Exception ex)
@@ -73,19 +92,43 @@ namespace Unturned2.Line2
             }
         }
 
-        private void SendProbe()
+        private void SendObservation()
         {
-            _pendingTick = ++_nextTick;
-            int tick = _pendingTick;
+            Camera cam = Camera.main;
+            if (cam == null)
+            {
+                ProbeLogger.Log("AI_BRIDGE_SKIPPED: Camera.main missing; enter a level");
+                return;
+            }
+
+            Vector3 pos = cam.transform.position;
+            Vector3 forward = cam.transform.forward;
+            int count = Physics.OverlapSphereNonAlloc(
+                pos, 12f, _nearby, ~0, QueryTriggerInteraction.Collide);
+            Array.Clear(_nearby, 0, _nearby.Length);
+            var request = new DecisionRequest
+            {
+                tick = ++_nextTick,
+                observation = new Observation
+                {
+                    scene = SceneManager.GetActiveScene().name,
+                    position = new float[] { pos.x, pos.y, pos.z },
+                    forward = new float[] { forward.x, forward.y, forward.z },
+                    nearby_colliders = count
+                }
+            };
+            // Serialize on Unity main thread. Background thread handles only bytes and HTTP.
+            string json = JsonUtility.ToJson(request);
+            _pendingTick = request.tick;
             _sentRealtime = Time.realtimeSinceStartup;
-            _pending = Task.Run(() => PostProbe(tick));
-            ProbeLogger.Log("AI_BRIDGE_SENT: tick=" + tick);
+            _pending = Task.Run(() => Post(json));
+            ProbeLogger.Log("AI_BRIDGE_SENT: tick=" + _pendingTick + " camera_scene=" +
+                            request.observation.scene + " colliders=" + count);
         }
 
-        private static string PostProbe(int tick)
+        private static string Post(string json)
         {
-            string body = "{\"protocol\":1,\"agent_id\":\"bridge-probe\",\"tick\":" + tick + "}";
-            byte[] bytes = Encoding.UTF8.GetBytes(body);
+            byte[] bytes = Encoding.UTF8.GetBytes(json);
             var req = (HttpWebRequest)WebRequest.Create(Endpoint);
             req.Method = "POST";
             req.ContentType = "application/json";
@@ -99,15 +142,19 @@ namespace Unturned2.Line2
             using (var response = (HttpWebResponse)req.GetResponse())
             {
                 if (response.StatusCode != HttpStatusCode.OK)
-                    throw new IOException("Unexpected HTTP code " + (int)response.StatusCode);
-                using (Stream stream = response.GetResponseStream())
-                using (var reader = new StreamReader(stream, Encoding.UTF8))
+                    throw new IOException("Unexpected HTTP status " + (int)response.StatusCode);
+                using (var stream = response.GetResponseStream())
+                using (var ms = new MemoryStream())
                 {
-                    char[] buffer = new char[2049];
-                    int n = reader.ReadBlock(buffer, 0, buffer.Length);
-                    if (n <= 0 || n > 2048)
-                        throw new IOException("Empty or oversized AI response");
-                    return new string(buffer, 0, n);
+                    byte[] buffer = new byte[512];
+                    int read;
+                    while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
+                    {
+                        if (ms.Length + read > MaxResponseBytes)
+                            throw new IOException("AI response too large");
+                        ms.Write(buffer, 0, read);
+                    }
+                    return Encoding.UTF8.GetString(ms.ToArray());
                 }
             }
         }
@@ -115,8 +162,7 @@ namespace Unturned2.Line2
         private void OnDestroy()
         {
             _closing = true;
-            // Never await network work on Unity's main thread.
-            _pending = null;
+            _pending = null; // Do not wait for background HTTP work.
         }
     }
 }
