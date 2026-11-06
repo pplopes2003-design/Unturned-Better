@@ -1,0 +1,38 @@
+name: Line 2 Python checks
+
+on:
+  push:
+    branches:
+      - line2/modpack-framework
+    paths:
+      - 'Line2-Modpack/AIService/**'
+      - 'Line2-Modpack/ModpackManager/**'
+      - '.github/workflows/line2-python.yml'
+  workflow_dispatch:
+
+jobs:
+  ai-service:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile and test AI service
+        working-directory: Line2-Modpack/AIService
+        run: |
+          python -m compileall -q .
+          python -m unittest discover -s . -p "test_*.py" -v
+
+  mod-manager:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile and test manager
+        working-directory: Line2-Modpack/ModpackManager
+        run: |
+          python -m compileall -q .
+          python -m unittest discover -s . -p "test_*.py" -v
