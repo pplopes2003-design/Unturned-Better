@@ -27,13 +27,13 @@ class ManagerTests(unittest.TestCase):
 
     def test_deploy_and_restore_without_touching_sources(self):
         self.mgr.import_local(self.source, "MyMod")
-        plan = self.mgr.deploy("MyMod", "Contents")
+        plan = self.mgr.deploy("MyMod", "Content")
         destination = Path(plan["destination"])
         self.assertFalse(destination.exists(), "dry run must not write to game")
-        self.mgr.deploy("MyMod", "Contents", confirm=True)
+        self.mgr.deploy("MyMod", "Content", confirm=True)
         self.assertTrue((destination / "Test.dat").exists())
         self.assertTrue((self.source / "Test.dat").exists())
-        removed = self.mgr.remove("MyMod", "Contents", confirm=True)
+        removed = self.mgr.remove("MyMod", "Content", confirm=True)
         self.assertFalse(destination.exists())
         self.assertTrue(Path(removed["recovery"]).exists())
 
