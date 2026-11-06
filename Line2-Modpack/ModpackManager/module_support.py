@@ -166,7 +166,9 @@ def remove_module(manager, staging_name: str, *, confirm: bool = False):
         raise ValueError("Unsafe/missing module target")
     if Path(record["destination"]).resolve() != target.resolve():
         raise ValueError("Module destination mismatch")
-    if fingerprint(target) != record["snapshot"]:
+    current = fingerprint(target)
+    saved = record["snapshot"]
+    if any(current[k] != saved.get(k) for k in ("files", "bytes", "sha256")):
         raise ValueError("Module files changed since install")
     # refuse removal when another enabled module explicitly needs it
     if record.get("module_name"):
