@@ -18,9 +18,10 @@ namespace Unturned2.Line2
             UnityEngine.Object.DontDestroyOnLoad(_host);
             _host.AddComponent<WorldScanner>();
             _host.AddComponent<LocalAiBridge>();
+            _host.AddComponent<NpcApiDiscovery>();
             Level.onLevelLoaded += OnLevelLoaded;
             _subscribed = true;
-            ProbeLogger.Log("Diagnostics ready: F8 exports scene colliders; F9 probes AI Service at 127.0.0.1:8765.");
+            ProbeLogger.Log("Diagnostics ready: F8 scans colliders, F9 probes AI Service, F10 inventories NPC APIs.");
         }
 
         private void OnLevelLoaded(int level)
