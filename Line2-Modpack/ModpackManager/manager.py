@@ -251,6 +251,8 @@ class Manager:
         new_modules = [k.split("/", 1)[1] for k in to_add if k.startswith("Modules/")]
         removed_modules = [k.split("/", 1)[1] for k in to_remove if k.startswith("Modules/")]
         dependency_plan = plan_modules(self, new_modules, removed_modules)
+        from profile_integrity import final_module_issues
+        dependency_plan["issues"].extend(final_module_issues(self, profile.get("modules", [])))
         to_add = [k for k in to_add if not k.startswith("Modules/")] + [
             "Modules/" + n for n in dependency_plan["install_order"]]
 
@@ -294,6 +296,14 @@ class Manager:
         problems = self.analyze_conflicts(name)
         if problems["conflicts"] or problems["invalid_guids"]:
             raise ValueError("Profile has conflicting/invalid asset identifiers; review conflict report first.")
+        # Validate source snapshots immediately before mutating game files.
+        # All source content must match the plan to guard against modification
+        # between an earlier dry run and execution.
+        for key in plan["add"]:
+            category, mod_name = key.split("/", 1)
+            source = safe_child(self.staging, mod_name)
+            if not source.is_dir() or source.is_symlink():
+                raise ValueError("Source changed during preflight: " + key)
         # Additions first. On failure, rollback additions; retain old profile.
         applied = []
         try:
