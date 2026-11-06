@@ -37,6 +37,17 @@ class AdapterTests(unittest.TestCase):
         forged = self.decide(req2)
         forged["agent_id"] = "other"
         self.assertEqual(self.world.accept(forged), "unknown_or_replayed_tick")
+        self.assertEqual(self.agent.intention, "idle")
+
+    def test_rejected_reply_preserves_prior_engage_intention(self):
+        self.agent.threat_visible = True
+        first = self.world.observe(self.agent.agent_id)
+        self.assertEqual(self.world.accept(self.decide(first)), "accepted")
+        self.assertEqual(self.agent.intention, "engage")
+        second = self.world.observe(self.agent.agent_id)
+        forged = self.decide(second)
+        forged["agent_id"] = "different-agent"
+        self.assertEqual(self.world.accept(forged), "unknown_or_replayed_tick")
         self.assertEqual(self.agent.intention, "engage")
 
     def test_despawn_ignores_pending(self):
