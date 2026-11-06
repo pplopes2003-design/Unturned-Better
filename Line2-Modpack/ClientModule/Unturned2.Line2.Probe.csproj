@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <AssemblyName>Unturned2.Line2.Probe</AssemblyName>
+    <RootNamespace>Unturned2.Line2</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <UnturnedDir Condition="'$(UnturnedDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Unturned</UnturnedDir>
+    <GameManaged>$(UnturnedDir)\Unturned_Data\Managed</GameManaged>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp"><HintPath>$(GameManaged)\Assembly-CSharp.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="SDG.Framework"><HintPath>$(GameManaged)\SDG.Framework.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameManaged)\UnityEngine.CoreModule.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(GameManaged)\UnityEngine.PhysicsModule.dll</HintPath><Private>False</Private></Reference>
+  </ItemGroup>
+</Project>
