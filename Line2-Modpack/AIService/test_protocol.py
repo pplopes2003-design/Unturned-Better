@@ -41,6 +41,48 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(response["action"], "idle")
         self.assertGreater(response["valid_ms"], 0)
 
+    def test_camera_observation(self):
+        response = self.request(payload={
+            "protocol": 1, "agent_id": "bridge-probe", "tick": 15,
+            "observation": {"kind": "camera", "scene": "Washington",
+                            "position": [0.0, 10.0, 15.0],
+                            "forward": [0.0, 0.0, 1.0], "nearby_colliders": 12}
+        })
+        self.assertEqual(response["action"], "idle")
+        self.assertEqual(response["reason"], "diagnostic_only")
+
+    def test_deterministic_npc_policy(self):
+        base = {"kind": "npc", "position": [1, 2, 3], "health": 0.2,
+                "threat_visible": True, "under_fire": True,
+                "has_cover": True, "last_known_threat": [10, 2, 3]}
+        def decide(observation):
+            return self.request(payload={
+                "protocol": 1, "agent_id": "npc-synthetic", "tick": 1,
+                "observation": observation
+            })["action"]
+        self.assertEqual(decide(base), "retreat")
+        self.assertEqual(decide(dict(base, health=0.9)), "seek_cover")
+        self.assertEqual(decide(dict(base, under_fire=False)), "engage")
+        self.assertEqual(decide(dict(base, under_fire=False, threat_visible=False)), "investigate")
+        self.assertEqual(decide(dict(base, under_fire=False, threat_visible=False,
+                                     last_known_threat=None)), "idle")
+
+    def test_reject_bad_observations(self):
+        invalid = [
+            {"kind": "camera", "scene": "Washington", "position": [1, 2],
+             "forward": [0, 0, 1], "nearby_colliders": 4},
+            {"kind": "camera", "scene": "Washington", "position": [0, 0, 0],
+             "forward": [0, 0, 1], "nearby_colliders": -1},
+            {"kind": "npc", "position": [0, 0, 0], "health": 5,
+             "threat_visible": False, "under_fire": False, "has_cover": False},
+        ]
+        for observation in invalid:
+            with self.subTest(observation=observation):
+                with self.assertRaises(HTTPError) as ctx:
+                    self.request(payload={"protocol": 1, "agent_id": "a", "tick": 1,
+                                          "observation": observation})
+                self.assertEqual(ctx.exception.code, 400)
+
     def test_reject_invalid_protocol(self):
         with self.assertRaises(HTTPError) as context:
             self.request(payload={"protocol": 99, "agent_id": "a", "tick": 1})
