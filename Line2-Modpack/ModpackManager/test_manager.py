@@ -53,6 +53,33 @@ class ManagerTests(unittest.TestCase):
         config = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(config["File_IDs"], [1234567890])
 
+    def test_conflicting_ids_block_activation(self):
+        other = self.source.parent / "another"
+        other.mkdir()
+        (other / "Second.dat").write_text("Type Item\\nID 9000\\nGUID abcdef0123456789abcdef0123456789", encoding="utf-8")
+        self.mgr.import_local(self.source, "One")
+        self.mgr.import_local(other, "Two")
+        self.mgr.save_profile("collision", ["One", "Two"], [])
+        report = self.mgr.analyze_conflicts("collision")
+        self.assertTrue(any(c["kind"] == "legacy_id" for c in report["conflicts"]))
+        with self.assertRaises(ValueError):
+            self.mgr.apply_profile("collision", confirm=True)
+        self.assertFalse((self.game / "Bundles" / "Workshop" / "Content" / "U2M_One").exists())
+
+    def test_switch_profiles_reversibly(self):
+        self.mgr.import_local(self.source, "One")
+        self.mgr.save_profile("with-mod", ["One"], [])
+        self.mgr.save_profile("without-mod", [], [])
+        plan = self.mgr.apply_profile("with-mod")
+        self.assertEqual(plan["add"], ["Content/One"])
+        self.mgr.apply_profile("with-mod", confirm=True)
+        deployed = self.game / "Bundles" / "Workshop" / "Content" / "U2M_One"
+        self.assertTrue(deployed.exists())
+        self.mgr.apply_profile("without-mod", confirm=True)
+        self.assertFalse(deployed.exists())
+        self.assertEqual(self.mgr.profile_state()["active"], "without-mod")
+        self.assertTrue(any((self.mgr.data / "recovery").iterdir()))
+
     def test_reject_unsafe_names(self):
         with self.assertRaises(ValueError):
             self.mgr.import_local(self.source, "../outside")
