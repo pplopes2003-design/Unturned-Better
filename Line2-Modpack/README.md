@@ -1,24 +1,20 @@
-# Unturned 2 — Linha 2 (Mod/Modpack)
+# Unturned 2 — Linha 2: módulo e scanner diagnóstico
 
-Projeto experimental separado da build Unity (Linha 1). **Não altera o jogo-base, não contém DLL pré-compilada e não contorna BattlEye.**
+Branch independente: `line2/modpack-framework`. Não é necessário alterar o jogo-base.
 
-## Marco 0: módulo de diagnóstico
+## Compilação
 
-Objetivo: comprovar que o Unturned Steam, iniciado pela opção **Play without BattlEye**, carrega uma DLL local e registra a inicialização / entrada em mapa.
-
-### Como compilar
-1. Instale Visual Studio com suporte a C# e targeting pack .NET Framework 4.7.2 (ajuste o TargetFramework se a instalação local exigir outra versão suportada).
-2. Descubra o diretório do jogo usando Steam > Unturned > Gerenciar > Explorar arquivos locais.
-3. No terminal Developer PowerShell:
+Requer Visual Studio/.NET Framework 4.7.2 targeting pack e a instalação Steam do Unturned.
 
 ```powershell
 dotnet build .\ClientModule\Unturned2.Line2.Probe.csproj -p:UnturnedDir="C:\Program Files (x86)\Steam\steamapps\common\Unturned"
 ```
 
-O projeto referencia as DLLs instaladas localmente com o Unturned. A compilação **depende** dessas referências e precisa ser validada na instalação real.
+A API do Unturned pode variar conforme a versão: **ainda não houve compilação ou teste de execução em uma instalação local real**.
 
-### Instalação
-Copie `ClientModule/Unturned2.Line2.module` e a DLL compilada `Unturned2.Line2.Probe.dll` para:
+## Instalação do módulo
+
+Copie o manifesto `ClientModule/Unturned2.Line2.module` e a DLL compilada para:
 
 ```text
 Unturned/
@@ -28,14 +24,30 @@ Unturned/
       Unturned2.Line2.Probe.dll
 ```
 
-Inicie **sem BattlEye** e entre no Washington. Verifique o console/log do Unturned e o arquivo `Unturned/Unturned2-Line2/probe.log`.
+Jogue **sem BattlEye**. Entre em Washington e pressione **F8** perto de uma construção. É um comando de diagnóstico local; não modifica o mapa, NPCs ou colisores.
 
-### Critérios de aceite
-- [ ] O jogo abre sem erro de carregamento de módulo.
-- [ ] `initialize()` aparece no log.
-- [ ] Ao entrar em Washington, o evento de carregamento escreve o nome da cena e a quantidade aproximada de colliders detectados na área central (até 64 no buffer).
-- [ ] `shutdown()` aparece ao fechar o jogo.
-- [ ] Sem efeitos sobre `main` ou a Linha 1.
+Arquivos produzidos no diretório de trabalho do jogo, subpasta `Unturned2-Line2`:
+- `probe.log`: inicialização e diagnóstico do scan.
+- `scans.jsonl`: um JSON por varredura. Contém posição da câmera, collider, bounds, layer, hierarquia e categoria provisória.
 
-### Limites e próximos passos
-O diagnóstico inicial NÃO identifica portas/janelas por categoria, NÃO cria NPCs, NÃO implementa rede ou serviço de IA. O próximo marco adicionará um scanner de construções com logs estruturados e filtragem por hierarquia/camadas, depois protocolo IPC. 
+## Limites
+
+- Usa `Camera.main` como centro da varredura, não a posição exata dos pés do jogador.
+- Apenas colliders ativos/carregados e próximos (22 m), com buffer máximo de 1024 resultados e exportação limitada a 400 transforms únicos. `bufferFull` e `truncated` indicam amostragem incompleta.
+- Candidatos são detectados por palavras na hierarquia do objeto; **não** equivalem a portas, janelas ou rotas utilizáveis.
+- Não examina objetos sem colliders, não calcula conectividade e não gera NavMesh.
+- Cada execução da tecla F8 escreve uma linha JSONL. IDs de instância só são válidos durante a sessão do Unity.
+- Se outra ferramenta ocupar F8, altere a tecla no método `WorldScanner.Update`.
+
+## Critérios de validação
+
+1. Compilar a DLL sem erros na instalação local.
+2. Iniciar o jogo sem BattlEye e confirmar `Module initialized`.
+3. Pressionar F8 ao lado de uma construção em Washington e confirmar `SCAN_OK`.
+4. Conferir que `scans.jsonl` contém hierarquia, bounds, layers e candidatos.
+5. Comparar visualmente candidatos com portas e janelas reais.
+6. Compartilhar `probe.log` e `scans.jsonl` para desenvolver o classificador de portais com evidência.
+
+## Próximo marco
+
+Scanner semântico de objetos/portas/janelas (componentes SDG e estados da porta); validação das passagens por geometria; grafo interno/externo; cache e IPC com serviço de IA. 
