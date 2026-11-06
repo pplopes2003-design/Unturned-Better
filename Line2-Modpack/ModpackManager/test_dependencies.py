@@ -44,6 +44,30 @@ class DependencyTests(unittest.TestCase):
         result = plan_modules(self.manager, ["A"])
         self.assertTrue(any(i["kind"] == "missing_dependency" for i in result["issues"]))
 
+    def test_prevent_removing_dependency_of_retained_module(self):
+        from module_support import install_module
+        self.add("Core", "Core")
+        self.add("Consumer", "Consumer", ("Core",))
+        # Install both in valid dependency order.
+        install_module(self.manager, "Core", confirm=True)
+        install_module(self.manager, "Consumer", confirm=True)
+        self.manager.save_profile("broken", [], [], modules=["Consumer"])
+        result = self.manager.plan_profile("broken")
+        self.assertTrue(any(i["kind"] == "broken_final_dependency"
+                            for i in result["dependency_issues"]))
+        with self.assertRaises(ValueError):
+            self.manager.apply_profile("broken", confirm=True)
+
+    def test_retain_both_modules(self):
+        from module_support import install_module
+        self.add("Core", "Core")
+        self.add("Consumer", "Consumer", ("Core",))
+        install_module(self.manager, "Core", confirm=True)
+        install_module(self.manager, "Consumer", confirm=True)
+        self.manager.save_profile("valid", [], [], modules=["Core", "Consumer"])
+        result = self.manager.plan_profile("valid")
+        self.assertEqual(result["dependency_issues"], [])
+
     def test_profile_preflight_blocks_cycle(self):
         self.add("A", "A", ("B",))
         self.add("B", "B", ("A",))
