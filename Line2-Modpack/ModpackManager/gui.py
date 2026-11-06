@@ -35,6 +35,8 @@ class App(tk.Tk):
         ttk.Button(buttons, text="Install selected local mod", command=self.install).pack(side="left", padx=4)
         ttk.Button(buttons, text="Remove selected managed mod", command=self.remove).pack(side="left", padx=4)
         ttk.Button(buttons, text="Create profile / server export", command=self.profile_export).pack(side="left", padx=4)
+        ttk.Button(buttons, text="Check conflicts", command=self.show_conflicts).pack(side="left", padx=4)
+        ttk.Button(buttons, text="Apply profile", command=self.apply_profile).pack(side="left", padx=4)
         ttk.Label(self, textvariable=self.status_var, anchor="w", padding=9).pack(fill="x")
 
     def make_tab(self, title, help_text):
@@ -134,6 +136,37 @@ class App(tk.Tk):
             self.status_var.set("Profile saved. Steam subscriptions were not modified.")
         except Exception as exc:
             messagebox.showerror("Profile error", str(exc))
+
+    def show_conflicts(self):
+        try:
+            mgr = self.require_manager()
+            name = simpledialog.askstring("Conflicts", "Profile name:", initialvalue=mgr.profile_state()["active"])
+            if not name: return
+            result = mgr.analyze_conflicts(name)
+            lines = ["Scanned assets: " + str(result["assets_scanned"]),
+                     "Conflicts: " + str(len(result["conflicts"])),
+                     "Invalid GUIDs: " + str(len(result["invalid_guids"]))]
+            for conflict in result["conflicts"][:12]:
+                lines.append(str(conflict["kind"]) + " " + str(conflict["value"]) + ": " +
+                             ", ".join(a["owner"] for a in conflict["assets"]))
+            messagebox.showinfo("Conflict report", "\\n".join(lines))
+        except Exception as exc:
+            messagebox.showerror("Conflict scan failed", str(exc))
+
+    def apply_profile(self):
+        try:
+            mgr = self.require_manager()
+            name = simpledialog.askstring("Apply profile", "Existing profile name:", initialvalue=mgr.profile_state()["active"])
+            if not name: return
+            plan = mgr.apply_profile(name)
+            summary = ("Profile: " + name + "\\nInstall: " + ", ".join(plan["add"]) +
+                       "\\nRemove to recovery: " + ", ".join(plan["remove"]) +
+                       "\\nSteam Workshop subscriptions are unchanged.\\n\\nApply changes?")
+            if messagebox.askyesno("Confirm profile deployment", summary):
+                mgr.apply_profile(name, confirm=True)
+                self.refresh()
+        except Exception as exc:
+            messagebox.showerror("Profile activation failed", str(exc))
 
 if __name__ == "__main__":
     App().mainloop()
