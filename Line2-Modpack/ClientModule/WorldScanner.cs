@@ -188,6 +188,18 @@ namespace Unturned2.Line2
             Debug.Log(line);
         }
 
+        public static void SaveDiagnostic(string fileName, string content)
+        {
+            // Only a single hardcoded diagnostic file is accepted.
+            if (fileName != "npc-api-discovery.txt")
+                throw new ArgumentException("Unexpected diagnostic filename");
+            lock (Sync)
+            {
+                Directory.CreateDirectory(DirectoryPath);
+                File.WriteAllText(Path.Combine(DirectoryPath, fileName), content, Encoding.UTF8);
+            }
+        }
+
         public static void SaveScan(string json)
         {
             lock (Sync)
