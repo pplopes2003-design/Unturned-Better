@@ -1,4 +1,4 @@
-# Unturned 2 Modpack Manager — Preview 0.1
+# Unturned 2 Modpack Manager — Preview 0.3
 
 A Vortex-inspired **prototype**, not a full mod loader. No Steam credentials, no Steam API or external download service required. Runs with Python 3.10+ on Windows (Tkinter included in typical installer).
 
@@ -44,15 +44,40 @@ python -m unittest discover -s . -p "test_*.py"
 
 `apply-profile` previews changes by default. `--apply` deploys selected **local Content** mods and moves previously managed nonselected mods into manager recovery. Modifications to existing installed assets block removal. Conflicts detected between selected profile sources block activation. Existing Steam Workshop subscriptions and contents remain untouched. Profile activation requires Unturned closed (not yet auto-detected). Local Maps profile activation, per-game Workshop filtering and client C# modules still require separate support.
 
+## Preview 0.3: C# modules, maps and safeguards
+
+- Import a **trusted, already compiled** C# module package whose root contains exactly one `.module` file and all referenced DLLs.
+- Validate `Name`, four-component `Version`, `Assemblies` paths, `Role`, and `Dependencies`. Reject traversal and symlinks.
+- Install only into `Unturned/Modules/U2M_<name>`, never overwrite existing modules or DLLs.
+- Check dependency versions against enabled modules already installed in the game. Does not automatically download/resolve dependencies, and does not yet topologically order multiple new modules.
+- Remove managed modules into recovery, refusing removal of modules needed by other enabled modules.
+- Apply profiles comprising **local Content, Maps, Modules**; Workshop IDs remain informational/exportable and Steam-controlled.
+- Content fingerprints now include SHA-256 to detect changes, although pre-v0.3 deployments may need manual migration (old registry snapshots have a different format).
+- Mod installations are **not** verified to be loadable by a specific Unturned build.
+- Keep Unturned **closed** during any install/remove/apply; the app does not detect running processes.
+- Avoid executing untrusted DLLs; code modules can access the game process and local user files.
+
+```powershell
+python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" import "D:\\Mods\\MyCompiledModule" MyCompiledModule
+python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" module inspect MyCompiledModule
+python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" module install MyCompiledModule
+python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" module install MyCompiledModule --apply
+python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" module remove MyCompiledModule --apply
+python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" profile survival --local MyAssetPack --maps MyMap --modules MyCompiledModule --workshop-ids 1234567890
+python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" apply-profile survival --apply
+```
+
+The CLI and GUI are still **prototype code**. Run `python -m unittest discover -s . -p "test_*.py"` from the ModpackManager folder. The tests use fake temporary game directories and dummy DLL files; this checks filesystem behavior **not** module execution.
+
 ## Important limitations
 
 - **Steam handles downloading/subscriptions**. The manager only discovers items already downloaded; selected profiles do not stop Steam from loading other subscribed Workshop content.
 - No dependency resolution, version compatibility, script execution, automatic downloads or updates yet.
-- No module DLL deployment yet. C# module installer needs a separate manifest, permission review and load validation.
-- Local mods must be provided as uncompressed folders and categorized manually as `Content` or `Maps`.
+- C# module DLL deployment exists with .module validation, but has no permission sandbox, actual code execution validation or trust verification.
+- Local mods must be uncompressed folders; manual categorization as `Content`, `Maps` or `Modules` is required.
 - Avoid importing executable content from unknown creators. Backup game saves before experimenting.
 - **Do not run mod deployment while Unturned is open**. Program does not yet detect running game.
-- Profile activation is implemented only for managed local Content mods; it is not live and does not control Steam subscriptions.
+- Profile activation covers managed local Content, Maps and Modules, but not live changes or per-profile Steam subscription control.
 - Actual loading and duplicate GUID/ID behavior requires game testing.
 - The GUI has not been executed on a Windows host in this session.
 
@@ -62,5 +87,5 @@ python -m unittest discover -s . -p "test_*.py"
 2. Dependency and GUID/ID conflict analyzer.
 3. Profiles with real enable/disable for supported *local* items.
 4. Detect Steam library folders and subscriptions robustly.
-5. Safe installer for C# modules and multiplayer/server support.
+5. Improve C# module dependency resolution and multiplayer/server support.
 6. Better Vortex-like UI: dependency graph, conflicts, deployment plan.
