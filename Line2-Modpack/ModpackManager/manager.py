@@ -245,8 +245,18 @@ class Manager:
         desired.update({"Modules/" + mod: mod for mod in profile.get("modules", [])})
         to_add = sorted(set(desired) - set(active))
         to_remove = sorted(set(active) - set(desired))
+        from dependency_planner import plan_modules
+        # Only new modules participate in ordering; retained modules remain
+        # discoverable on disk to satisfy dependencies.
+        new_modules = [k.split("/", 1)[1] for k in to_add if k.startswith("Modules/")]
+        removed_modules = [k.split("/", 1)[1] for k in to_remove if k.startswith("Modules/")]
+        dependency_plan = plan_modules(self, new_modules, removed_modules)
+        to_add = [k for k in to_add if not k.startswith("Modules/")] + [
+            "Modules/" + n for n in dependency_plan["install_order"]]
+
         return {
             "profile": name, "add": to_add, "remove": to_remove,
+            "dependency_issues": dependency_plan["issues"],
             "unchanged": sorted(set(active) & set(desired)),
             "workshop_ids": list(profile["workshop"]),
             "note": "Local Content, Maps and Modules are managed; Steam Workshop subscriptions are not changed."
@@ -256,6 +266,8 @@ class Manager:
         plan = self.plan_profile(name)
         if not confirm:
             return plan
+        if plan["dependency_issues"]:
+            raise ValueError("Dependency plan errors: " + str(plan["dependency_issues"]))
         # Preflight before any mutation: don't start if an existing deployment
         # is changed, missing or not owned by the manager.
         state = self.state()
@@ -270,10 +282,12 @@ class Manager:
             category, mod_name = key.split("/", 1)
             if category == "Modules":
                 validation = install_module(self, mod_name, confirm=False)
-                # Dependencies that are installed during this profile switch are not
-                # yet present. Block rather than silently install an invalid module.
-                if validation["issues"]:
-                    raise ValueError("Module dependency/identity problems: " + str(validation["issues"]))
+                # Offline planner verifies same-profile dependencies and order.
+                # The per-module check may report a missing dependency that will
+                # be installed earlier in this transaction; preserve duplicate checks.
+                for issue in validation["issues"]:
+                    if issue["kind"] == "duplicate_module":
+                        raise ValueError("Module identity already installed: " + str(issue))
             else:
                 self.deploy(mod_name, category, confirm=False)
         # Conflict reports are advisory but must be inspected before deployment.
