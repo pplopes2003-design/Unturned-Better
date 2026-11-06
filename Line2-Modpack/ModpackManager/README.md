@@ -6,7 +6,7 @@ A Vortex-inspired **prototype**, not a full mod loader. No Steam credentials, no
 
 - Finds already-downloaded Unturned Workshop items by numeric ID from Steam library `steamapps/workshop/content/304930`.
 - Imports local mod folders into isolated staging.
-- Dry-run install into `Unturned/Bundles/Workshop/Contents/U2M_<name>` or `.../Maps/U2M_<name>`; explicit confirmation is required to copy.
+- Dry-run install into `Unturned/Bundles/Workshop/Content/U2M_<name>` or `.../Maps/U2M_<name>`; explicit confirmation is required to copy.
 - Safe managed removal: verifies installed snapshot, moves to a recovery directory and never deletes original Workshop files.
 - Profile saving (local item names and selected Workshop IDs) for later use.
 - Exports `WorkshopDownloadConfig.json` for dedicated servers. Export does **not** update a running server.
@@ -25,8 +25,8 @@ CLI:
 ```powershell
 python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" scan
 python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" import "D:\\Mods\\MyMod" MyMod
-python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" deploy MyMod --category Contents
-python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" deploy MyMod --category Contents --apply
+python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" deploy MyMod --category Content
+python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" deploy MyMod --category Content --apply
 python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" profile friends --local MyMod --workshop-ids 1753134636 --activate
 python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" export-server friends "D:\\WorkshopDownloadConfig.json"
 ```
@@ -36,7 +36,7 @@ python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" export-
 - **Steam handles downloading/subscriptions**. The manager only discovers items already downloaded; selected profiles do not stop Steam from loading other subscribed Workshop content.
 - No dependency resolution, version compatibility, script execution, automatic downloads or updates yet.
 - No module DLL deployment yet. C# module installer needs a separate manifest, permission review and load validation.
-- Local mods must be provided as uncompressed folders and categorized manually as `Contents` or `Maps`.
+- Local mods must be provided as uncompressed folders and categorized manually as `Content` or `Maps`.
 - Avoid importing executable content from unknown creators. Backup game saves before experimenting.
 - **Do not run mod deployment while Unturned is open**. Program does not yet detect running game.
 - Profile switching is metadata only, not live activation/deactivation.
