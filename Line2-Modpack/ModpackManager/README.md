@@ -1,4 +1,4 @@
-# Unturned 2 Modpack Manager — Preview 0.3
+# Unturned 2 Modpack Manager — Preview 0.4
 
 A Vortex-inspired **prototype**, not a full mod loader. No Steam credentials, no Steam API or external download service required. Runs with Python 3.10+ on Windows (Tkinter included in typical installer).
 
@@ -43,6 +43,16 @@ python -m unittest discover -s . -p "test_*.py"
 ```
 
 `apply-profile` previews changes by default. `--apply` deploys selected **local Content** mods and moves previously managed nonselected mods into manager recovery. Modifications to existing installed assets block removal. Conflicts detected between selected profile sources block activation. Existing Steam Workshop subscriptions and contents remain untouched. Profile activation requires Unturned closed (not yet auto-detected). Local Maps profile activation, per-game Workshop filtering and client C# modules still require separate support.
+
+## Preview 0.4: dependency graph and AI bridge preparation
+
+- `dependency_planner.py` builds a directed graph from module `Dependencies`, checks versions in selected and already installed modules, detects cycles and calculates install order.
+- Profile plans expose `dependency_issues`; application is blocked on missing dependency, duplicate module name or cycle. The planner does not download libraries or modify Steam.
+- `test_dependencies.py` covers ordering, missing dependencies, cycles and preflight.
+- `../AIService/server.py` is a local-only HTTP protocol prototype: `GET /health`, `POST /v1/decide`. It responds `idle` and **does not control NPCs**.
+- No C# communication bridge or service lifecycle controls have been added yet.
+- Important: profile application is not fully transactional across multiple removals; use a backup and close the game before applying.
+- Test commands: `python -m unittest discover -s . -p "test_*.py"` from this folder. These tests **have not been run against an actual Windows/Unturned installation** in this development session.
 
 ## Preview 0.3: C# modules, maps and safeguards
 
