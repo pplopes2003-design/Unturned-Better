@@ -573,6 +573,11 @@ namespace SDG.Unturned
 		private void Awake()
 		{
 			characterController = GetComponent<CharacterController>();
+			// Navmesh graph geometry and Logic door slots are not solid walls.
+			// Sanitize persisted prefab mask overrides at runtime.
+			int nonPhysicalLayers = RayMasks.NAVMESH | RayMasks.LOGIC;
+			obstacleMask = (int)obstacleMask & ~nonPhysicalLayers;
+			roamingGroundMask = (int)roamingGroundMask & ~nonPhysicalLayers;
 			brainDriver = GetComponent<MobileNPCBrainDriver>();
 			rangedCombat = GetComponent<MobileNPCHumanoidRangedCombat>();
 			meleeCombat = GetComponent<MobileNPCHumanoidCombat>();
