@@ -71,3 +71,26 @@ Press **F9** inside Washington with `python AIService/server.py` running. The cl
 The service can additionally evaluate **synthetic NPC observations** for deterministic test actions (idle, investigate, seek_cover, engage, retreat). No external action affects the game yet. The bridge is **read-only** and is not evidence of functioning NPC AI.
 
 Next critical milestone: inspect the actual Unturned NPC/entity representations, implement an adapter under game/server authority, and test the module on Steam before allowing action execution.
+
+## v0.7 — NPC adapter boundaries and simulated round-trip
+
+Added `AIService/simulated_npc_adapter.py` which maintains synthetic agents with stable unique identifiers and records read-only observations. The local AI service determines an *intention* (idle/investigate/seek_cover/engage/retreat); the simulator validates protocol version, agent identity, tick freshness, replay protection, and decision TTL before recording that intention. It never changes an NPC's position, damage, or actual game state.
+
+Try in separate terminals:
+
+```powershell
+cd AIService
+python server.py
+```
+
+```powershell
+cd AIService
+python smoke_simulation.py
+python -m unittest discover -s . -p "test_*.py" -v
+```
+
+`ClientModule/NpcBridgeContracts.cs` defines `IGameNpcAdapter` and an opt-in intention gate. **The actual execution switch is deliberately hardcoded off**, and the interface has no implementation that accesses Unturned entities yet. `LocalAiBridge` is still triggered manually by F9 and observes the camera, not an actual NPC.
+
+The new GitHub Actions workflow `.github/workflows/line2-python.yml` is scoped to the Line 2 branch to validate the Python components. This is not a C# build or an integration test against a Steam installation.
+
+Next: inspect Unturned's real entity APIs and prefab ownership model, implement `IGameNpcAdapter` with an authoritative host, test NPC selection and navigation in-game, then consider activating permitted intentions behind an explicit test-only setting.
