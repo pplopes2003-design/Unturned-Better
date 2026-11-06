@@ -80,6 +80,55 @@ class ManagerTests(unittest.TestCase):
         self.assertEqual(self.mgr.profile_state()["active"], "without-mod")
         self.assertTrue(any((self.mgr.data / "recovery").iterdir()))
 
+    def make_module(self, folder, name="U2Test", deps=None):
+        import json
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "Test.dll").write_bytes(b"MZ dummy for filesystem unit test")
+        cfg = {"Name": name, "Version": "1.0.0.0", "IsEnabled": True,
+               "Assemblies": [{"Path": "/Test.dll", "Role": "Client"}],
+               "Dependencies": deps or []}
+        (folder / "Test.module").write_text(json.dumps(cfg), encoding="utf-8")
+
+    def test_module_installer_and_safe_removal(self):
+        from module_support import install_module, remove_module
+        folder = self.source.parent / "fake-module"
+        self.make_module(folder)
+        self.mgr.import_local(folder, "MyModule")
+        plan = install_module(self.mgr, "MyModule")
+        self.assertEqual(plan["issues"], [])
+        self.assertFalse(Path(plan["destination"]).exists())
+        install_module(self.mgr, "MyModule", confirm=True)
+        target = self.game / "Modules" / "U2M_MyModule"
+        self.assertTrue((target / "Test.module").is_file())
+        removed = remove_module(self.mgr, "MyModule", confirm=True)
+        self.assertFalse(target.exists())
+        self.assertTrue(Path(removed["recovery"]).is_dir())
+
+    def test_module_rejects_path_traversal_and_dependencies(self):
+        import json
+        from module_support import validate_package, install_module
+        folder = self.source.parent / "invalid-module"
+        self.make_module(folder, deps=[{"Name":"MissingLibrary", "Version":"1.0.0.0"}])
+        file = folder / "Test.module"
+        cfg = json.loads(file.read_text())
+        cfg["Assemblies"][0]["Path"] = "../Unturned_Data/Managed/Assembly-CSharp.dll"
+        file.write_text(json.dumps(cfg))
+        with self.assertRaises(ValueError):
+            validate_package(folder)
+        cfg["Assemblies"][0]["Path"] = "/Test.dll"
+        file.write_text(json.dumps(cfg))
+        self.mgr.import_local(folder, "MissingDependency")
+        with self.assertRaises(ValueError):
+            install_module(self.mgr, "MissingDependency", confirm=True)
+
+    def test_local_maps_profile(self):
+        self.mgr.import_local(self.source, "CustomMap")
+        self.mgr.save_profile("maps-only", [], [], local_maps=["CustomMap"])
+        plan = self.mgr.apply_profile("maps-only")
+        self.assertEqual(plan["add"], ["Maps/CustomMap"])
+        self.mgr.apply_profile("maps-only", confirm=True)
+        self.assertTrue((self.game / "Bundles" / "Workshop" / "Maps" / "U2M_CustomMap").exists())
+
     def test_reject_unsafe_names(self):
         with self.assertRaises(ValueError):
             self.mgr.import_local(self.source, "../outside")
