@@ -2,16 +2,17 @@ name: Line 2 Python checks
 
 on:
   push:
-    branches:
-      - line2/modpack-framework
+    branches: [line2/modpack-framework]
     paths:
       - 'Line2-Modpack/AIService/**'
       - 'Line2-Modpack/ModpackManager/**'
+      - 'Line2-Modpack/run_tests.py'
       - '.github/workflows/line2-python.yml'
   pull_request:
     paths:
       - 'Line2-Modpack/AIService/**'
       - 'Line2-Modpack/ModpackManager/**'
+      - 'Line2-Modpack/run_tests.py'
       - '.github/workflows/line2-python.yml'
   workflow_dispatch:
 
@@ -31,15 +32,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Compile AI service
-        working-directory: Line2-Modpack/AIService
-        run: python -m compileall -q .
-      - name: Test AI service
-        working-directory: Line2-Modpack/AIService
-        run: python -m unittest discover -s . -p "test_*.py" -v
-      - name: Compile manager
-        working-directory: Line2-Modpack/ModpackManager
-        run: python -m compileall -q .
-      - name: Test manager
-        working-directory: Line2-Modpack/ModpackManager
-        run: python -m unittest discover -s . -p "test_*.py" -v
+      - name: Compile Python files
+        run: python -m compileall -q Line2-Modpack
+      - name: Test AI Service
+        run: python Line2-Modpack/run_tests.py AIService
+      - name: Test Modpack Manager
+        if: always()
+        run: python Line2-Modpack/run_tests.py ModpackManager
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: line2-test-logs-${{ matrix.os }}-py311
+          path: Line2-Modpack/test-results/
+          if-no-files-found: warn
+          retention-days: 14
