@@ -1,6 +1,7 @@
 """Unturned 2 Modpack Manager - local-only, standard-library CLI and GUI backend."""
 from __future__ import annotations
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -46,6 +47,7 @@ def fingerprint(folder: Path) -> dict:
     files = 0
     total_size = 0
     latest_ns = 0
+    digest = hashlib.sha256()
     for base, dirs, names in os.walk(folder, followlinks=False):
         dirs[:] = [d for d in dirs if not (Path(base) / d).is_symlink()]
         for name in names:
@@ -57,9 +59,13 @@ def fingerprint(folder: Path) -> dict:
             except OSError:
                 continue
             files += 1
+            digest.update(str(p.relative_to(folder)).replace(os.sep, "/").encode("utf-8"))
+            with p.open("rb") as inp:
+                for block in iter(lambda: inp.read(1024 * 256), b""):
+                    digest.update(block)
             total_size += st.st_size
             latest_ns = max(latest_ns, st.st_mtime_ns)
-    return {"files": files, "bytes": total_size, "latest_ns": latest_ns}
+    return {"files": files, "bytes": total_size, "latest_ns": latest_ns, "sha256": digest.hexdigest()}
 
 
 class Manager:
@@ -79,7 +85,7 @@ class Manager:
 
     def profile_state(self):
         if not self.profiles.exists():
-            return {"schema": 1, "active": "default", "profiles": {"default": {"local": [], "workshop": []}}}
+            return {"schema": 2, "active": "default", "profiles": {"default": {"local": [], "local_maps": [], "modules": [], "workshop": []}}}
         return json.loads(self.profiles.read_text(encoding="utf-8"))
 
     def workshop_items(self):
@@ -100,11 +106,13 @@ class Manager:
         return result
 
     def import_local(self, source: Path, name: str):
+        if source.is_symlink():
+            raise ValueError("Symlink source not supported")
         source = source.resolve()
-        if not source.is_dir() or source.is_symlink():
+        if not source.is_dir():
             raise ValueError("Local mod source must be a regular directory")
         dest = safe_child(self.staging, name)
-        if dest.exists():
+        if dest.exists() or dest.is_symlink():
             raise FileExistsError("Staging item exists: " + str(dest))
         # Reject symlinks and special file paths to avoid importing outside the selected tree.
         for base, dirs, files in os.walk(source, followlinks=False):
@@ -179,7 +187,7 @@ class Manager:
         key = name or state["active"]
         return state["profiles"][key]
 
-    def save_profile(self, name: str, local: list[str], workshop: list[str], *, activate=False):
+    def save_profile(self, name: str, local: list[str], workshop: list[str], *, activate=False, local_maps=None, modules=None):
         if not SAFE_NAME.fullmatch(name):
             raise ValueError("Unsafe profile name")
         known = {item["id"] for item in self.workshop_items()}
@@ -190,8 +198,13 @@ class Manager:
         known_local = {item["name"] for item in self.local_items()}
         if any(x not in known_local for x in local):
             raise ValueError("Local item absent from staging")
+        local_maps = local_maps or []
+        modules = modules or []
+        if any(x not in known_local for x in local_maps + modules):
+            raise ValueError("Selected map/module absent from staging")
         state = self.profile_state()
-        state["profiles"][name] = {"local": sorted(set(local)), "workshop": sorted(set(workshop))}
+        state["profiles"][name] = {"local": sorted(set(local)), "local_maps": sorted(set(local_maps)),
+                                   "modules": sorted(set(modules)), "workshop": sorted(set(workshop))}
         if activate:
             state["active"] = name
         atomic_json(self.profiles, state)
@@ -216,7 +229,7 @@ class Manager:
         from conflicts import analyze_sources
         profile = self.profile(profile_name)
         sources = {}
-        for name in profile["local"]:
+        for name in profile.get("local", []) + profile.get("local_maps", []):
             sources["local:" + name] = safe_child(self.staging, name)
         workshop_by_id = {p["id"]: Path(p["path"]) for p in self.workshop_items()}
         for item_id in profile["workshop"]:
@@ -227,14 +240,16 @@ class Manager:
     def plan_profile(self, name: str):
         profile = self.profile(name)
         active = self.state()["installed"]
-        desired = {"Content/" + mod: mod for mod in profile["local"]}
+        desired = {"Content/" + mod: mod for mod in profile.get("local", [])}
+        desired.update({"Maps/" + mod: mod for mod in profile.get("local_maps", [])})
+        desired.update({"Modules/" + mod: mod for mod in profile.get("modules", [])})
         to_add = sorted(set(desired) - set(active))
         to_remove = sorted(set(active) - set(desired))
         return {
             "profile": name, "add": to_add, "remove": to_remove,
             "unchanged": sorted(set(active) & set(desired)),
             "workshop_ids": list(profile["workshop"]),
-            "note": "Only local Content mods are deployed. Steam Workshop remains controlled by Steam."
+            "note": "Local Content, Maps and Modules are managed; Steam Workshop subscriptions are not changed."
         }
 
     def apply_profile(self, name: str, *, confirm: bool = False):
@@ -244,12 +259,23 @@ class Manager:
         # Preflight before any mutation: don't start if an existing deployment
         # is changed, missing or not owned by the manager.
         state = self.state()
+        from module_support import install_module, remove_module
         for key in plan["remove"]:
             category, mod_name = key.split("/", 1)
-            self.remove(mod_name, category, confirm=False)
+            if category == "Modules":
+                remove_module(self, mod_name, confirm=False)
+            else:
+                self.remove(mod_name, category, confirm=False)
         for key in plan["add"]:
             category, mod_name = key.split("/", 1)
-            self.deploy(mod_name, category, confirm=False)
+            if category == "Modules":
+                validation = install_module(self, mod_name, confirm=False)
+                # Dependencies that are installed during this profile switch are not
+                # yet present. Block rather than silently install an invalid module.
+                if validation["issues"]:
+                    raise ValueError("Module dependency/identity problems: " + str(validation["issues"]))
+            else:
+                self.deploy(mod_name, category, confirm=False)
         # Conflict reports are advisory but must be inspected before deployment.
         problems = self.analyze_conflicts(name)
         if problems["conflicts"] or problems["invalid_guids"]:
@@ -259,12 +285,18 @@ class Manager:
         try:
             for key in plan["add"]:
                 category, mod_name = key.split("/", 1)
-                self.deploy(mod_name, category, confirm=True)
+                if category == "Modules":
+                    install_module(self, mod_name, confirm=True)
+                else:
+                    self.deploy(mod_name, category, confirm=True)
                 applied.append((category, mod_name))
         except Exception:
             for category, mod_name in reversed(applied):
                 try:
-                    self.remove(mod_name, category, confirm=True)
+                    if category == "Modules":
+                        remove_module(self, mod_name, confirm=True)
+                    else:
+                        self.remove(mod_name, category, confirm=True)
                 except Exception:
                     pass
             raise
@@ -272,7 +304,10 @@ class Manager:
         # If a filesystem error occurs here, old items may remain installed.
         for key in plan["remove"]:
             category, mod_name = key.split("/", 1)
-            self.remove(mod_name, category, confirm=True)
+            if category == "Modules":
+                remove_module(self, mod_name, confirm=True)
+            else:
+                self.remove(mod_name, category, confirm=True)
         ps = self.profile_state()
         ps["active"] = name
         atomic_json(self.profiles, ps)
@@ -301,12 +336,18 @@ def main():
     prof.add_argument("name")
     prof.add_argument("--local", nargs="*", default=[])
     prof.add_argument("--workshop-ids", nargs="*", default=[])
+    prof.add_argument("--maps", nargs="*", default=[])
+    prof.add_argument("--modules", nargs="*", default=[])
     prof.add_argument("--activate", action="store_true")
     check = sub.add_parser("conflicts")
     check.add_argument("--profile")
     plan = sub.add_parser("apply-profile")
     plan.add_argument("name")
     plan.add_argument("--apply", action="store_true")
+    module_cmd = sub.add_parser("module")
+    module_cmd.add_argument("action", choices=("inspect", "install", "remove"))
+    module_cmd.add_argument("name")
+    module_cmd.add_argument("--apply", action="store_true")
     ex = sub.add_parser("export-server")
     ex.add_argument("profile")
     ex.add_argument("destination", type=Path)
@@ -322,11 +363,22 @@ def main():
         elif args.command == "remove":
             result = mgr.remove(args.name, args.category, confirm=args.apply)
         elif args.command == "profile":
-            result = mgr.save_profile(args.name, args.local, args.workshop_ids, activate=args.activate)
+            result = mgr.save_profile(args.name, args.local, args.workshop_ids,
+                                      activate=args.activate, local_maps=args.maps, modules=args.modules)
         elif args.command == "conflicts":
             result = mgr.analyze_conflicts(args.profile)
         elif args.command == "apply-profile":
             result = mgr.apply_profile(args.name, confirm=args.apply)
+        elif args.command == "module":
+            from module_support import install_module, remove_module
+            if args.action == "inspect":
+                from module_support import validate_package, dependency_check
+                info = validate_package(mgr.staging / args.name)
+                result = {"module": info, "issues": dependency_check(info, mgr.game / "Modules")}
+            elif args.action == "install":
+                result = install_module(mgr, args.name, confirm=args.apply)
+            else:
+                result = remove_module(mgr, args.name, confirm=args.apply)
         elif args.command == "export-server":
             result = mgr.export_server(args.profile, args.destination)
         print(json.dumps(result, indent=2, ensure_ascii=False))
