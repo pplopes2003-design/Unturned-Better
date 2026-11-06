@@ -94,3 +94,18 @@ python -m unittest discover -s . -p "test_*.py" -v
 The new GitHub Actions workflow `.github/workflows/line2-python.yml` is scoped to the Line 2 branch to validate the Python components. This is not a C# build or an integration test against a Steam installation.
 
 Next: inspect Unturned's real entity APIs and prefab ownership model, implement `IGameNpcAdapter` with an authoritative host, test NPC selection and navigation in-game, then consider activating permitted intentions behind an explicit test-only setting.
+
+## Windows-only validation and NPC API inventory (2026-11-06)
+
+The GitHub Actions Python workflow now uses **windows-latest** only, matching the supported Windows 11 development target. Prior Ubuntu failures were CI cross-platform checks, not a Linux requirement for Unturned.
+
+For the real Steam game:
+1. Build `ClientModule/Unturned2.Line2.Probe.csproj` against the installed Windows Unturned managed assemblies.
+2. Copy `Unturned2.Line2.Probe.dll` and `Unturned2.Line2.module` into the module's local game directory as described above.
+3. Start Unturned without BattlEye and load Washington.
+4. Press **F8** for the collider scanner, **F9** for the localhost AI Service health/decision request, and **F10** for a read-only NPC API inventory.
+5. Check the game working directory in `Unturned2-Line2`: `scans.jsonl`, `probe.log`, and the new `npc-api-discovery.txt`.
+
+F10 lists candidate NPC, zombie, object, door, barricade and navigation types in loaded game assemblies, capped by number of types/methods and output size. It also lists a bounded sample of active matching MonoBehaviours. This is **diagnostic only** and does not prove mobile NPC functionality. Avoid sharing logs if scene object names include private information.
+
+The GitHub Actions workflow tests only **Python files**. It cannot validate the actual Unity/Unturned C# module without compatible managed assemblies or a local Steam installation. No game build was run in this development environment.
