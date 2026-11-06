@@ -56,7 +56,7 @@ class ManagerTests(unittest.TestCase):
     def test_conflicting_ids_block_activation(self):
         other = self.source.parent / "another"
         other.mkdir()
-        (other / "Second.dat").write_text("Type Item\\nID 9000\\nGUID abcdef0123456789abcdef0123456789", encoding="utf-8")
+        (other / "Second.dat").write_text("Type Item\nID 9000\nGUID abcdef0123456789abcdef0123456789", encoding="utf-8")
         self.mgr.import_local(self.source, "One")
         self.mgr.import_local(other, "Two")
         self.mgr.save_profile("collision", ["One", "Two"], [])
