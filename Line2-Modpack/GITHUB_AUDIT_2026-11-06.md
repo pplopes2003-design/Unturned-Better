@@ -43,3 +43,9 @@ Corrections committed to the Line 2 branch:
 - To inspect a failure: open the latest run under Actions > Line 2 Python checks > failed OS job > failing step, or download its test-log artifact.
 
 Continue avoiding `--apply` on valuable installations until these checks are green and the local filesystem behavior has been smoke-tested.
+
+### Correction of the earlier NPC test diagnosis
+
+The assertion in `test_replay_and_wrong_agent` should remain `idle`: each unittest method runs a new `setUp()`, with a fresh agent whose `threat_visible` starts false. The earlier change from idle to engage was incorrect and could itself break AI Service CI. Restored idle and introduced a **separate** test that first accepts engage and then verifies a forged response cannot override the prior intention. Commit: `4e23f6c`.
+
+**Do not interpret pre-fix all-red email notifications as evidence that the newest commit failed.** Inspect the commit SHA and job timestamps in Actions.
