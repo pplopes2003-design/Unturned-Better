@@ -14,12 +14,13 @@ namespace Unturned2.Line2
         public void initialize()
         {
             ProbeLogger.Log("Module initialized. Active scene=" + SceneManager.GetActiveScene().name);
-            _host = new GameObject("Unturned2.Line2.WorldScanner");
+            _host = new GameObject("Unturned2.Line2.Diagnostics");
             UnityEngine.Object.DontDestroyOnLoad(_host);
             _host.AddComponent<WorldScanner>();
+            _host.AddComponent<LocalAiBridge>();
             Level.onLevelLoaded += OnLevelLoaded;
             _subscribed = true;
-            ProbeLogger.Log("WorldScanner ready: press F8 while playing to export a read-only scan.");
+            ProbeLogger.Log("Diagnostics ready: F8 exports scene colliders; F9 probes AI Service at 127.0.0.1:8765.");
         }
 
         private void OnLevelLoaded(int level)
