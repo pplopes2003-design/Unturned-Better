@@ -31,6 +31,19 @@ python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" profile
 python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" export-server friends "D:\\WorkshopDownloadConfig.json"
 ```
 
+## Preview 0.2: conflicts and profiles
+
+The manager now scans common `.dat` assets in a **selected profile** for duplicate GUIDs and duplicate legacy IDs *within the same type family*. This is a heuristic check: missing/auto-generated GUIDs, `.asset` files, vanilla assets and runtime assets are NOT covered. A clean scan is not a guarantee of compatibility.
+
+```powershell
+python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" conflicts --profile friends
+python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" apply-profile friends
+python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" apply-profile friends --apply
+python -m unittest discover -s . -p "test_*.py"
+```
+
+`apply-profile` previews changes by default. `--apply` deploys selected **local Content** mods and moves previously managed nonselected mods into manager recovery. Modifications to existing installed assets block removal. Conflicts detected between selected profile sources block activation. Existing Steam Workshop subscriptions and contents remain untouched. Profile activation requires Unturned closed (not yet auto-detected). Local Maps profile activation, per-game Workshop filtering and client C# modules still require separate support.
+
 ## Important limitations
 
 - **Steam handles downloading/subscriptions**. The manager only discovers items already downloaded; selected profiles do not stop Steam from loading other subscribed Workshop content.
@@ -39,7 +52,7 @@ python manager.py --game "D:\\SteamLibrary\\steamapps\\common\\Unturned" export-
 - Local mods must be provided as uncompressed folders and categorized manually as `Content` or `Maps`.
 - Avoid importing executable content from unknown creators. Backup game saves before experimenting.
 - **Do not run mod deployment while Unturned is open**. Program does not yet detect running game.
-- Profile switching is metadata only, not live activation/deactivation.
+- Profile activation is implemented only for managed local Content mods; it is not live and does not control Steam subscriptions.
 - Actual loading and duplicate GUID/ID behavior requires game testing.
 - The GUI has not been executed on a Windows host in this session.
 
