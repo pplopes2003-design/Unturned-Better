@@ -573,6 +573,13 @@ namespace SDG.Unturned
 		private void Awake()
 		{
 			characterController = GetComponent<CharacterController>();
+			// World objects in Washington carry separate Nav mesh and
+			// Logic slot colliders. Neither is physical obstruction or ground.
+			// Serialized legacy prefab masks can be ~0, so sanitize them here
+			// rather than trusting the authored inspector values.
+			int nonPhysicalLayers = RayMasks.NAVMESH | RayMasks.LOGIC;
+			obstacleMask = (int)obstacleMask & ~nonPhysicalLayers;
+			roamingGroundMask = (int)roamingGroundMask & ~nonPhysicalLayers;
 			brainDriver = GetComponent<MobileNPCBrainDriver>();
 			rangedCombat = GetComponent<MobileNPCHumanoidRangedCombat>();
 			meleeCombat = GetComponent<MobileNPCHumanoidCombat>();
