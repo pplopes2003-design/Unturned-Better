@@ -13,6 +13,7 @@
     <Reference Include="SDG.Framework"><HintPath>$(GameManaged)\SDG.Framework.dll</HintPath><Private>False</Private></Reference>
     <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameManaged)\UnityEngine.CoreModule.dll</HintPath><Private>False</Private></Reference>
     <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(GameManaged)\UnityEngine.PhysicsModule.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule"><HintPath>$(GameManaged)\UnityEngine.JSONSerializeModule.dll</HintPath><Private>False</Private></Reference>
     <Reference Include="UnityEngine.InputLegacyModule"><HintPath>$(GameManaged)\UnityEngine.InputLegacyModule.dll</HintPath><Private>False</Private></Reference>
   </ItemGroup>
 </Project>
