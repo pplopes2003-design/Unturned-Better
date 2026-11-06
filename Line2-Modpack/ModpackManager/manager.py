@@ -212,6 +212,73 @@ class Manager:
                 "installed": self.state()["installed"], "profiles": self.profile_state()}
 
 
+    def analyze_conflicts(self, profile_name: str | None = None):
+        from conflicts import analyze_sources
+        profile = self.profile(profile_name)
+        sources = {}
+        for name in profile["local"]:
+            sources["local:" + name] = safe_child(self.staging, name)
+        workshop_by_id = {p["id"]: Path(p["path"]) for p in self.workshop_items()}
+        for item_id in profile["workshop"]:
+            if item_id in workshop_by_id:
+                sources["workshop:" + item_id] = workshop_by_id[item_id]
+        return analyze_sources(sources)
+
+    def plan_profile(self, name: str):
+        profile = self.profile(name)
+        active = self.state()["installed"]
+        desired = {"Content/" + mod: mod for mod in profile["local"]}
+        to_add = sorted(set(desired) - set(active))
+        to_remove = sorted(set(active) - set(desired))
+        return {
+            "profile": name, "add": to_add, "remove": to_remove,
+            "unchanged": sorted(set(active) & set(desired)),
+            "workshop_ids": list(profile["workshop"]),
+            "note": "Only local Content mods are deployed. Steam Workshop remains controlled by Steam."
+        }
+
+    def apply_profile(self, name: str, *, confirm: bool = False):
+        plan = self.plan_profile(name)
+        if not confirm:
+            return plan
+        # Preflight before any mutation: don't start if an existing deployment
+        # is changed, missing or not owned by the manager.
+        state = self.state()
+        for key in plan["remove"]:
+            category, mod_name = key.split("/", 1)
+            self.remove(mod_name, category, confirm=False)
+        for key in plan["add"]:
+            category, mod_name = key.split("/", 1)
+            self.deploy(mod_name, category, confirm=False)
+        # Conflict reports are advisory but must be inspected before deployment.
+        problems = self.analyze_conflicts(name)
+        if problems["conflicts"] or problems["invalid_guids"]:
+            raise ValueError("Profile has conflicting/invalid asset identifiers; review conflict report first.")
+        # Additions first. On failure, rollback additions; retain old profile.
+        applied = []
+        try:
+            for key in plan["add"]:
+                category, mod_name = key.split("/", 1)
+                self.deploy(mod_name, category, confirm=True)
+                applied.append((category, mod_name))
+        except Exception:
+            for category, mod_name in reversed(applied):
+                try:
+                    self.remove(mod_name, category, confirm=True)
+                except Exception:
+                    pass
+            raise
+        # Removals only after successful additions; each goes to recovery.
+        # If a filesystem error occurs here, old items may remain installed.
+        for key in plan["remove"]:
+            category, mod_name = key.split("/", 1)
+            self.remove(mod_name, category, confirm=True)
+        ps = self.profile_state()
+        ps["active"] = name
+        atomic_json(self.profiles, ps)
+        return plan
+
+
 def main():
     p = argparse.ArgumentParser(description="Unturned 2 Modpack Manager (preview)")
     p.add_argument("--game", type=Path, required=True, help="Unturned Steam root directory")
@@ -235,6 +302,11 @@ def main():
     prof.add_argument("--local", nargs="*", default=[])
     prof.add_argument("--workshop-ids", nargs="*", default=[])
     prof.add_argument("--activate", action="store_true")
+    check = sub.add_parser("conflicts")
+    check.add_argument("--profile")
+    plan = sub.add_parser("apply-profile")
+    plan.add_argument("name")
+    plan.add_argument("--apply", action="store_true")
     ex = sub.add_parser("export-server")
     ex.add_argument("profile")
     ex.add_argument("destination", type=Path)
@@ -251,6 +323,10 @@ def main():
             result = mgr.remove(args.name, args.category, confirm=args.apply)
         elif args.command == "profile":
             result = mgr.save_profile(args.name, args.local, args.workshop_ids, activate=args.activate)
+        elif args.command == "conflicts":
+            result = mgr.analyze_conflicts(args.profile)
+        elif args.command == "apply-profile":
+            result = mgr.apply_profile(args.name, confirm=args.apply)
         elif args.command == "export-server":
             result = mgr.export_server(args.profile, args.destination)
         print(json.dumps(result, indent=2, ensure_ascii=False))
