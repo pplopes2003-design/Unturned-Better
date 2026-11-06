@@ -33,6 +33,9 @@ namespace SDG.Unturned
         private void Awake()
         {
             controller = GetComponent<CharacterController>();
+            // Do not treat authored pathfinding and door marker volumes
+            // as blocking physical geometry during scans or route search.
+            navigationMask = (int)navigationMask & ~(RayMasks.NAVMESH | RayMasks.LOGIC);
             spatialMemory = GetComponent<MobileNPCSpatialMemory>();
             if (spatialMemory == null)
                 spatialMemory = gameObject.AddComponent<MobileNPCSpatialMemory>();
