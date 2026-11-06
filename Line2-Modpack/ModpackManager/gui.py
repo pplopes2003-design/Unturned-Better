@@ -95,7 +95,7 @@ class App(tk.Tk):
             if len(indexes) != 1:
                 raise ValueError("Select one local staging mod.")
             name = self.local_list.get(indexes[0])
-            category = simpledialog.askstring("Category", "Choose Contents or Maps:", initialvalue="Contents")
+            category = simpledialog.askstring("Category", "Choose Content or Maps:", initialvalue="Content")
             if category is None: return
             plan = mgr.deploy(name, category)
             if messagebox.askyesno("Confirm install", "Copy into game?\n" + plan["destination"]):
