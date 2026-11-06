@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using SDG.Framework.Modules;
 using SDG.Unturned;
 using UnityEngine;
@@ -7,37 +6,26 @@ using UnityEngine.SceneManagement;
 
 namespace Unturned2.Line2
 {
-    // Diagnostic bootstrap only; intentionally does not modify world state.
     public sealed class Nexus : IModuleNexus
     {
-        private static readonly object LogLock = new object();
-        private static readonly Collider[] ProbeResults = new Collider[64];
+        private GameObject _host;
         private bool _subscribed;
 
         public void initialize()
         {
-            WriteLog("Module initialized. Active scene: " + SceneManager.GetActiveScene().name);
+            ProbeLogger.Log("Module initialized. Active scene=" + SceneManager.GetActiveScene().name);
+            _host = new GameObject("Unturned2.Line2.WorldScanner");
+            UnityEngine.Object.DontDestroyOnLoad(_host);
+            _host.AddComponent<WorldScanner>();
             Level.onLevelLoaded += OnLevelLoaded;
             _subscribed = true;
+            ProbeLogger.Log("WorldScanner ready: press F8 while playing to export a read-only scan.");
         }
 
         private void OnLevelLoaded(int level)
         {
-            try
-            {
-                // First-pass diagnostic, not a navigation mesh. Query runs on Unity's main thread.
-                string sceneName = SceneManager.GetActiveScene().name;
-                int nearbyColliders = Physics.OverlapSphereNonAlloc(
-                    Vector3.zero, 8f, ProbeResults);
-                WriteLog("Level event=" + level + "; scene=" + sceneName +
-                         "; sample_colliders_origin=" + nearbyColliders +
-                         (nearbyColliders == ProbeResults.Length ? " (buffer full)" : ""));
-                Array.Clear(ProbeResults, 0, ProbeResults.Length);
-            }
-            catch (Exception ex)
-            {
-                WriteLog("Level probe failed: " + ex);
-            }
+            ProbeLogger.Log("Level event=" + level + "; activeScene=" +
+                            SceneManager.GetActiveScene().name + "; scanner waits for F8.");
         }
 
         public void shutdown()
@@ -47,26 +35,12 @@ namespace Unturned2.Line2
                 Level.onLevelLoaded -= OnLevelLoaded;
                 _subscribed = false;
             }
-            WriteLog("Module shutdown.");
-        }
-
-        private static void WriteLog(string message)
-        {
-            string line = DateTime.UtcNow.ToString("o") + " [Unturned2.Line2] " + message;
-            try
+            if (_host != null)
             {
-                string dir = Path.Combine(Environment.CurrentDirectory, "Unturned2-Line2");
-                Directory.CreateDirectory(dir);
-                lock (LogLock)
-                {
-                    File.AppendAllText(Path.Combine(dir, "probe.log"), line + Environment.NewLine);
-                }
+                UnityEngine.Object.Destroy(_host);
+                _host = null;
             }
-            catch (Exception)
-            {
-                // Logging failures must not prevent normal game startup.
-            }
-            Debug.Log(line);
+            ProbeLogger.Log("Module shutdown.");
         }
     }
 }
