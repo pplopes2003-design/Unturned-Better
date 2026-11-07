@@ -471,9 +471,14 @@ namespace Unturned2.Line2
                     _spawnAnchor = formerMember.transform.position;
                     _useSpawnAnchor = true;
                 }
-                string reason;
-                bool spawned;
+                string reason = "spawn not attempted";
+                bool spawned = false;
                 try { spawned = TrySpawn(ticket.role, 1, out reason); }
+                catch (Exception error)
+                {
+                    reason = "spawn exception: " + error.GetType().Name;
+                    ProbeLogger.Log("NPC_REPLACEMENT_SPAWN_FAILED: " + error);
+                }
                 finally { _useSpawnAnchor = false; }
                 if (!spawned)
                 {
