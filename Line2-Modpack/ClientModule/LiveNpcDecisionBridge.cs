@@ -86,9 +86,12 @@ namespace Unturned2.Line2
         private float _nextLogAt;
         private bool _closing;
         private SteamNpcPrototypeRuntime _runtime;
+        internal static string Status { get; private set; } = "not started";
 
         private void OnEnable()
         {
+            _closing = false;
+            Status = "ready; waiting for prototype NPCs";
             Level.onLevelLoaded += OnLevelLoaded;
         }
 
@@ -96,6 +99,7 @@ namespace Unturned2.Line2
         {
             Level.onLevelLoaded -= OnLevelLoaded;
             _closing = true;
+            Status = "stopped";
             ResetPending();
         }
 
@@ -257,6 +261,7 @@ namespace Unturned2.Line2
                           Time.realtimeSinceStartup + decision.valid_ms / 1000f))
                         applied++;
                 }
+                Status = "online; applied " + applied + "/" + response.decisions.Length + " movement decisions";
                 if (Time.realtimeSinceStartup >= _nextLogAt)
                 {
                     ProbeLogger.Log("NPC_AI_LIVE_BATCH_OK: applied=" + applied +
@@ -278,6 +283,7 @@ namespace Unturned2.Line2
 
         private void LogThrottled(string line)
         {
+            Status = line;
             if (Time.realtimeSinceStartup < _nextLogAt) return;
             ProbeLogger.Log(line);
             _nextLogAt = Time.realtimeSinceStartup + 10f;
