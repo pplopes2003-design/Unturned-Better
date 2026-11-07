@@ -221,17 +221,13 @@ namespace Unturned2.Line2
                 _pendingRestore.Clear();
                 _pendingReplacements.Clear();
             }
-            else
+            else if (ActiveCount > _cap)
             {
-                // A lower configured cap must be enforced immediately.
-                _actors.RemoveAll(a => a == null);
-                while (_actors.Count > _cap)
-                {
-                    int last = _actors.Count - 1;
-                    PrototypeActor actor = _actors[last];
-                    _actors.RemoveAt(last);
-                    if (actor != null) UnityEngine.Object.Destroy(actor.gameObject);
-                }
+                // Never destroy saved survivors just because a menu setting
+                // was reduced. New natural/manual spawns remain blocked until
+                // the living count drops under the new ceiling.
+                ProbeLogger.Log("NPC_CAP_REDUCED: surviving=" + ActiveCount +
+                    " newCap=" + _cap + " (existing survivors preserved)");
             }
         }
 
