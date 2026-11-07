@@ -200,3 +200,16 @@ Settings are written to `Unturned2-Line2/admin-settings.json`. `Line2NpcRuntimeR
 The AI Service now supports `POST /v1/decide_batch` with 1–32 synthetic NPC observations per call and duplicate-agent rejection. This does not imply that any game NPC is controlled.
 
 **No actual mobile NPCs, natural NPC spawns, dialogue, faction simulation or modified zombie pursuit are included in this commit.** For migration dependencies and the user's request for a consolidated test release, see [NPC_LINE1_MIGRATION.md](NPC_LINE1_MIGRATION.md) and [NPC_INTEGRATED_ACCEPTANCE.md](NPC_INTEGRATED_ACCEPTANCE.md). Do not instruct users to validate NPC playability before these Steam adapters exist.
+
+## Legendary weapon pack progress — 2026-11-06
+
+Two new Python generators were added and the Modpack Manager now has a dedicated weapons row. See [LEGENDARY_PACK.md](LEGENDARY_PACK.md) for full use/test/rollback instructions.
+
+- Existing Auto32 mod upgraded to **Legendary Auto24** (24-round gun and magazine, IDs 32610/32611 retained). Staging-only migration command `upgrade_auto24.py` preserves GUIDs. Close Unturned, remove the managed Auto32 first, upgrade staging, then reinstall.
+- New **Eaglefire Automática** (ID 32612) with `Semi`, `Bursts 3` and `Auto`, and balanced recoil.
+- New **Legendary 12 Gauge Incendiária** (ID 32613), based on vanilla 12G caliber, with one small-area explosive hit per shot to limit particle/CPU cost; it does not yet cause persistent burning or true Burner zombie spread.
+- New `LegendaryLootPool` Spawn asset (ID 32614). When a locally installed `Washington_Special_America` Spawn table (ID 346) can be positively identified, a non-overriding Root with weight 1 attaches the pool. If not verified, no natural loot hook is added. Natural drops must be checked in-game.
+
+**Not yet validated in Unturned Steam:** Eaglefire model/auto mode, incendiary effect, loot root and Auto24 rebalance. Python tests were added for generated asset metadata and collision safeguards; execution results should be read from Windows test output/Actions, not assumed green.
+
+The earlier NPC admin menu and AI Service work remain separate. No actual Steam-side mobile NPC spawning, combat, true Burner ignition or cross-region zombie chasing is shipped as functional yet.
