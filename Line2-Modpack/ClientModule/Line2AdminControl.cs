@@ -98,7 +98,7 @@ namespace Unturned2.Line2
                 " | Max: " + _settings.maxNPCs);
             GUI.Label(new Rect(12, 47, 475, 25),
                 "Combate: " + _settings.combatMode + " | Hordas: " + _settings.hordesEnabled);
-            GUI.Label(new Rect(12, 279, 470, 20),
+            GUI.Label(new Rect(12, 166, 470, 20),
                 "AI: " + LiveNpcDecisionBridge.Status);
             GUI.Label(new Rect(12, 73, 475, 25),
                 "Comandos: help, status, max 8, combat normal, natural on, spawn hostile");
@@ -120,7 +120,7 @@ namespace Unturned2.Line2
                 _show = false;
                 RestoreCursor();
             }
-            GUI.TextArea(new Rect(12, 173, 460, 122), _feedback);
+            GUI.TextArea(new Rect(12, 190, 460, 105), _feedback);
             GUI.DragWindow(new Rect(0, 0, 500, 23));
         }
 
