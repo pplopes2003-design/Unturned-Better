@@ -26,6 +26,7 @@ namespace Unturned2.Line2
         internal bool PlayerNearby;
         internal bool ThreatVisible;
         internal bool HasRecentMemory;
+        internal bool HeardThreat;
         internal bool UnderFire;
         internal bool HasVerifiedCover;
         internal bool HasRealHealth;
@@ -41,7 +42,7 @@ namespace Unturned2.Line2
         private const float EngageForgetSeconds = 8.0f;
         private NpcIntent _intent = NpcIntent.Idle;
         private float _changedAt = -1000f;
-        private float _lastVerifiedSightAt = -1000f;
+        private float _lastVerifiedEvidenceAt = -1000f;
 
         internal NpcIntent Intent { get { return _intent; } }
 
@@ -49,7 +50,7 @@ namespace Unturned2.Line2
         {
             _intent = NpcIntent.Idle;
             _changedAt = -1000f;
-            _lastVerifiedSightAt = -1000f;
+            _lastVerifiedEvidenceAt = -1000f;
         }
 
         internal NpcIntent Evaluate(float now, NpcDecisionInput input)
@@ -62,10 +63,10 @@ namespace Unturned2.Line2
 
             // A remote AI cannot create a target that is not visible or
             // remembered by THIS actor's own gameplay perception.
-            if (input.ThreatVisible)
-                _lastVerifiedSightAt = now;
+            if (input.ThreatVisible || input.HeardThreat)
+                _lastVerifiedEvidenceAt = now;
             bool hasMemory = input.HasRecentMemory &&
-                now - _lastVerifiedSightAt <= EngageForgetSeconds;
+                now - _lastVerifiedEvidenceAt <= EngageForgetSeconds;
 
             NpcIntent desired;
             bool urgent = false;
@@ -150,9 +151,16 @@ namespace Unturned2.Line2
                     ThreatVisible = true, UnderFire = true, HasRealHealth = true,
                     HealthFraction = 0.1f };
                 Expect(brain.Evaluate(10f, input), NpcIntent.Patrol, "passive mode");
+                brain.Reset();
+                input = new NpcDecisionInput { IsHostile = true, HeardThreat = true,
+                    HasRecentMemory = true };
+                Expect(brain.Evaluate(20f, input), NpcIntent.Investigate, "gunshot memory");
+                input.HeardThreat = false;
+                input.HasRecentMemory = false;
+                Expect(brain.Evaluate(29f, input), NpcIntent.Patrol, "gunshot memory expires");
                 input = new NpcDecisionInput { IsFriendly = true, PlayerNearby = true };
                 Expect(brain.Evaluate(11f, input), NpcIntent.Follow, "friendly follow");
-                ProbeLogger.Log("NPC_BRAIN_SELFTEST_OK: vision, memory, state hysteresis, cover, retreat, passive and friendly");
+                ProbeLogger.Log("NPC_BRAIN_SELFTEST_OK: vision, memory, state hysteresis, gunshot hearing, cover, retreat, passive and friendly");
             }
             catch (Exception ex)
             {
