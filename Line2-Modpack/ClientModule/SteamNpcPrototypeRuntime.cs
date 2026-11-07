@@ -90,6 +90,8 @@ namespace Unturned2.Line2
             _mode = combatMode == "passive" || combatMode == "total"
                 ? combatMode : "normal";
             _nextNaturalAt = Time.time + 18f;
+            foreach (PrototypeActor actor in _actors)
+                if (actor != null) actor.SetCombatMode(_mode);
             // Setting NPCs off removes runtime-only prototype entities.
             if (!enabled) ClearActors();
             else
@@ -204,6 +206,7 @@ namespace Unturned2.Line2
                     navigation.Initialize();
                     var actor = instance.AddComponent<PrototypeActor>();
                     actor.Initialize(disposition, movement, instance.name);
+                    actor.SetCombatMode(_mode);
                     created.Add(actor);
                 }
                 catch (Exception ex)
@@ -310,6 +313,8 @@ namespace Unturned2.Line2
     {
         private CharacterController _controller;
         private string _disposition;
+        private string _combatMode = "normal";
+        private const float ThreatRadius = 20f;
         private string _identity;
         internal string Identity { get { return _identity; } }
         private string _aiAction;
@@ -346,13 +351,25 @@ namespace Unturned2.Line2
             _blockedSince = Time.time;
         }
 
+        internal void SetCombatMode(string mode)
+        {
+            _combatMode = mode == "passive" || mode == "total" ? mode : "normal";
+            if (_combatMode == "passive")
+            {
+                _aiAction = null;
+                _threatVisible = false;
+                _lastKnownThreat = null;
+                _goal = _home;
+            }
+        }
+
         internal void ObserveThreat(Player player, out bool visible, out Vector3? lastKnown)
         {
             visible = false;
             lastKnown = null;
-            if (_disposition != "hostile") return;
+            if (_disposition != "hostile" || _combatMode == "passive") return;
             if (player != null &&
-                (player.transform.position - transform.position).sqrMagnitude <= 24f * 24f &&
+                (player.transform.position - transform.position).sqrMagnitude <= ThreatRadius * ThreatRadius &&
                 CanSeePlayer(player))
             {
                 visible = true;
@@ -372,7 +389,7 @@ namespace Unturned2.Line2
 
         internal bool TryApplyAiAction(string action, float expiresRealtime)
         {
-            if (_disposition != "hostile") return false;
+            if (_disposition != "hostile" || _combatMode == "passive") return false;
             if (action != "idle" && action != "engage" && action != "investigate")
                 return false; // Cover and retreat need an actual health/damage system.
             if (expiresRealtime <= Time.realtimeSinceStartup ||
@@ -384,6 +401,9 @@ namespace Unturned2.Line2
                 return false;
             _aiAction = action;
             _aiValidUntil = expiresRealtime;
+            if (action == "idle") _goal = _home;
+            else if (action == "investigate" && _lastKnownThreat.HasValue)
+                _goal = _lastKnownThreat.Value;
             return true;
         }
 
@@ -400,7 +420,7 @@ namespace Unturned2.Line2
                     Vector3 target = player.transform.position;
                     _goal = target - player.transform.forward * 3f;
                 }
-                else if (_disposition == "hostile" && _aiAction != null &&
+                else if (_disposition == "hostile" && _combatMode != "passive" && _aiAction != null &&
                          Time.realtimeSinceStartup <= _aiValidUntil)
                 {
                     // Only trust movement requests based on LOCAL, verified
@@ -414,8 +434,8 @@ namespace Unturned2.Line2
                              (_goal - transform.position).sqrMagnitude < 2f)
                         _goal = _home;
                 }
-                else if (_disposition == "hostile" && player != null &&
-                         (player.transform.position - transform.position).sqrMagnitude < 24f * 24f &&
+                else if (_disposition == "hostile" && _combatMode != "passive" && player != null &&
+                         (player.transform.position - transform.position).sqrMagnitude < ThreatRadius * ThreatRadius &&
                          CanSeePlayer(player))
                 {
                     _goal = player.transform.position;
