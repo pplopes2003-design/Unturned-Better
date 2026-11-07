@@ -324,6 +324,11 @@ internal static class Program
             Console.Error.WriteLine("NPC_SETTLEMENT_LEDGER_FAILED: invalid native base accounting.");
             return 26;
         }
+        if (!TacticalJourneyTests.Run())
+        {
+            Console.Error.WriteLine("NPC_TACTICAL_JOURNEY_FAILED: path progress / stuck-route safety.");
+            return 27;
+        }
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
