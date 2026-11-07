@@ -175,15 +175,172 @@ namespace Unturned2.Line2
 			return TryPickupWorldItemServer(instanceID, npcPosition, maximumDistance, out _);
 		}
 
-		/// <summary>For the Dev Build log: expose rejection reason without changing the transactional storage contract.</summary>
+        /// <summary>
+        /// Singleplayer authoritative, item-ID-specific ownership transfer.
+        /// This mirrors the native server take path in ItemManager but never
+        /// impersonates a Player or asks the client to remove an item.
+        ///
+        /// Invariant: on return, an item exists in exactly ONE place: native
+        /// region (on rejection) or NPC owned inventory (on success). Never
+        /// use the method in multiplayer until authoritative network changes
+        /// are implemented and verified for spectators/concurrent players.
+        /// </summary>
         public bool TryPickupWorldItemServer(uint instanceID, Vector3 npcPosition,
             float maximumDistance, out string failureReason)
         {
-            // The modified Line 1 engine had an atomic NPC world-transfer
-            // function absent from vanilla Steam. No item duplication:
-            // fail until a native server-side take-item transaction exists.
-            failureReason = "NPC world-item ownership transfer unavailable in original Steam API";
-            return false;
+            failureReason = "not-authorized";
+            if (!Provider.isServer || Dedicator.IsDedicatedServer ||
+                (Provider.clients != null && Provider.clients.Count > 1) ||
+                !Level.isLoaded || ItemManager.instance == null ||
+                ItemManager.regions == null || instanceID == 0 ||
+                float.IsNaN(maximumDistance) || float.IsInfinity(maximumDistance) ||
+                maximumDistance < 0.3f || maximumDistance > 3.5f ||
+                (npcPosition - transform.position).sqrMagnitude > 0.4f ||
+                !Level.checkSafeIncludingClipVolumes(npcPosition))
+                return false;
+            failureReason = "no-capacity";
+            if (!HasSpace || reservedSlots != 0) return false;
+
+            var nearby = new List<RegionCoordinate>(4);
+            Regions.getRegionsInRadius(npcPosition, maximumDistance + 1f, nearby);
+            ItemRegion owner = null;
+            ItemData source = null;
+            int sourceIndex = -1;
+            ItemDrop nativeDrop = null;
+            byte ownerX = 0, ownerY = 0;
+            int occurrences = 0;
+            for (int r = 0; r < nearby.Count && occurrences <= 1; r++)
+            {
+                RegionCoordinate coord = nearby[r];
+                if (coord.x >= ItemManager.regions.GetLength(0) ||
+                    coord.y >= ItemManager.regions.GetLength(1))
+                    continue;
+                ItemRegion region = ItemManager.regions[coord.x, coord.y];
+                if (region == null || region.items == null || region.drops == null)
+                    continue;
+                for (int i = 0; i < region.items.Count; ++i)
+                {
+                    ItemData candidate = region.items[i];
+                    if (candidate == null || candidate.instanceID != instanceID)
+                        continue;
+                    occurrences++;
+                    if (occurrences > 1) break;
+                    owner = region;
+                    source = candidate;
+                    sourceIndex = i;
+                    ownerX = coord.x;
+                    ownerY = coord.y;
+                }
+            }
+            failureReason = occurrences == 0
+                ? "missing-authoritative-item" : "duplicate-world-instance-id";
+            if (occurrences != 1 || owner == null || source == null ||
+                source.item == null || source.item.id == 0 || sourceIndex < 0)
+                return false;
+            ItemAsset asset = Assets.find(EAssetType.ITEM, source.item.id)
+                as ItemAsset;
+            failureReason = "unsupported-item";
+            if (asset == null || asset.isPro || source.item.state == null ||
+                source.item.state.Length > 2048 ||
+                source.item.amount == 0 ||
+                (source.point - npcPosition).sqrMagnitude >
+                    maximumDistance * maximumDistance)
+                return false;
+            for (int i = 0; i < owner.drops.Count; ++i)
+            {
+                ItemDrop drop = owner.drops[i];
+                if (drop == null || drop.instanceID != instanceID) continue;
+                if (nativeDrop != null)
+                {
+                    failureReason = "duplicate-physical-drop";
+                    return false;
+                }
+                nativeDrop = drop;
+            }
+            failureReason = "no-instantiated-native-drop";
+            if (nativeDrop == null || nativeDrop.model == null ||
+                nativeDrop.interactableItem == null ||
+                nativeDrop.interactableItem.item == null ||
+                nativeDrop.interactableItem.item.id != source.item.id ||
+                (nativeDrop.model.position - source.point).sqrMagnitude > 9f)
+                return false;
+            // Check LOS to the actual world prop, not to a guessed map point.
+            // The NPC's capsule is excluded; blocking walls/doors/windows are
+            // not automatically ignored.
+            Vector3 eye = npcPosition + Vector3.up * 1.35f;
+            Vector3 aim = nativeDrop.model.position + Vector3.up * 0.22f;
+            Vector3 ray = aim - eye;
+            failureReason = "world-item-occluded";
+            if (ray.sqrMagnitude > 0.01f)
+            {
+                RaycastHit[] hits = new RaycastHit[16];
+                int count = Physics.RaycastNonAlloc(eye, ray.normalized, hits,
+                    ray.magnitude, RayMasks.BLOCK_COLLISION,
+                    QueryTriggerInteraction.Ignore);
+                if (count >= hits.Length) return false;
+                for (int i = 0; i < count; i++)
+                {
+                    Transform block = hits[i].transform;
+                    if (block == null || block == transform ||
+                        block.IsChildOf(transform) ||
+                        block == nativeDrop.model ||
+                        block.IsChildOf(nativeDrop.model))
+                        continue;
+                    return false;
+                }
+            }
+
+            // The reserve cannot invoke a callback. Commit the same cloned
+            // Item into NPC custody, then synchronously remove the matching
+            // source index from the authoritative server region, and finally
+            // run Unturned's original drop-removal path.
+            Item copy = new Item(source.item.id, source.item.amount,
+                source.item.quality, (byte[])source.item.state.Clone());
+            if (!TryReserveSlotServer()) return false;
+            int npcSlot = slots.Count;
+            if (!TryStoreReservedItemServer(copy))
+            {
+                ReleaseReservedSlotServer();
+                failureReason = "npc-custody-rejected";
+                return false;
+            }
+            bool removedFromWorld = false;
+            bool nativeNotified = false;
+            try
+            {
+                if (owner.items[sourceIndex] != source ||
+                    owner.drops == null || !owner.drops.Contains(nativeDrop))
+                    throw new InvalidOperationException("world item changed before commit");
+                owner.items.RemoveAt(sourceIndex);
+                removedFromWorld = true;
+                // Invokes the original remove-object, event and pending-spawn
+                // cancellation code. Only valid while NO remote clients exist.
+                ItemManager.ReceiveDestroyItem(ownerX, ownerY, instanceID, false);
+                nativeNotified = true;
+                for (int i = 0; i < owner.drops.Count; ++i)
+                    if (owner.drops[i] != null &&
+                        owner.drops[i].instanceID == instanceID)
+                        throw new InvalidOperationException("world drop still active");
+                failureReason = "transferred";
+                return true;
+            }
+            catch (Exception error)
+            {
+                // Rollback in reverse order, preserving exact item state.
+                // Only a completed native removal can make the drop disappear.
+                // Never re-create it by ItemManager.dropItem (new ID).
+                if (removedFromWorld)
+                    owner.items.Insert(Mathf.Min(sourceIndex, owner.items.Count), source);
+                Item rolledBack;
+                if (!TryTakeItemServer(npcSlot, out rolledBack))
+                    UnturnedLog.error("[Line2Inventory] PICKUP ROLLBACK FAILED: " +
+                        "manual restore required, instance=" + instanceID);
+                failureReason = "failed-closed:" + error.GetType().Name +
+                    (nativeNotified ? ":native-drop-removed" : "");
+                UnturnedLog.warn("[Line2Inventory] Pickup aborted: " +
+                    failureReason + " instance=" + instanceID);
+                return false;
+            }
         }
 
 		/// <summary>Counts stored items by vanilla item category.</summary>
