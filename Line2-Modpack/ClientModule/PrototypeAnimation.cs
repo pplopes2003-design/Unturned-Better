@@ -12,6 +12,8 @@ namespace Unturned2.Line2
         private Animation _legacy;
         private string _idle;
         private string _walk;
+        private string _melee;
+        private float _meleeUntil;
         private string _current;
 
         internal void Initialize(GameObject visual)
@@ -33,14 +35,31 @@ namespace Unturned2.Line2
                     (name.IndexOf("walk", StringComparison.OrdinalIgnoreCase) >= 0 ||
                      name.IndexOf("move", StringComparison.OrdinalIgnoreCase) >= 0))
                     _walk = name;
+                if (_melee == null &&
+                    (name.IndexOf("punch", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     name.IndexOf("melee", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     name.IndexOf("attack", StringComparison.OrdinalIgnoreCase) >= 0))
+                    _melee = name;
             }
             _legacy.enabled = true;
             SetMoving(false);
         }
 
+        internal void PlayMeleeSwing()
+        {
+            if (_legacy == null || !_legacy.enabled || _melee == null) return;
+            AnimationState attack = _legacy[_melee];
+            if (attack == null) return;
+            attack.wrapMode = WrapMode.Once;
+            _legacy.CrossFade(_melee, 0.07f);
+            _current = _melee;
+            _meleeUntil = Time.time + Mathf.Clamp(attack.length, 0.15f, 1.2f);
+        }
+
         internal void SetMoving(bool moving)
         {
             if (_legacy == null || !_legacy.enabled) return;
+            if (Time.time < _meleeUntil) return;
             string requested = moving ? (_walk ?? _idle) : (_idle ?? _walk);
             if (requested == null || requested == _current) return;
             AnimationState state = _legacy[requested];
