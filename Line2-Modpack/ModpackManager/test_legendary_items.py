@@ -68,6 +68,15 @@ class LegendaryItemTests(unittest.TestCase):
         self.assertEqual(loot["root_0_weight"],"1")
         self.assertNotIn("root_0_override",loot)
 
+    def test_detect_local_burner_visual_effect(self):
+        folder=self.game/"Bundles"/"Effects"/"Zombie_Burner_Explosion"
+        folder.mkdir(parents=True)
+        (folder/"Asset.dat").write_text("Type Effect\\nID 991\\n")
+        result=build_legendaries(self.game,self.output)
+        ammo=parse_dat(self.output/"Items/Ammo/Legendary_Incendiary_12Gauge/Asset.dat")
+        self.assertEqual(result["effect_id"],991)
+        self.assertEqual(ammo["explosion"],"991")
+
     def test_id_collision_rejected(self):
         conflict=self.game.parent/"workshop"/"bad"
         conflict.mkdir(parents=True)
