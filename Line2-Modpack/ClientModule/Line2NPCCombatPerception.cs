@@ -72,10 +72,11 @@ namespace Unturned2.Line2
             // obstruction for the local player. Never replace this with
             // the player's unconstrained Transform.
             Player player = Player.player;
-            if (_owner.Disposition == "hostile" && player != null &&
-                player.life != null && !player.life.isDead &&
-                _owner.PlayerVisible &&
-                (player.transform.position - transform.position).sqrMagnitude <= 400f)
+            if (player != null && player.life != null &&
+                !player.life.isDead &&
+                Line2NPCCombatRules.CanEngagePlayer(
+                    _owner.Disposition, _owner.CombatMode, _owner.PlayerVisible,
+                    (player.transform.position - transform.position).sqrMagnitude))
             {
                 SetTarget(TargetKind.Player, player.transform);
                 return;
@@ -108,6 +109,12 @@ namespace Unturned2.Line2
                 return;
             }
 
+            if (!Line2NPCCombatRules.CanEngageZombie(
+                    _owner.Disposition, _owner.CombatMode))
+            {
+                Clear();
+                return;
+            }
             _zombies.Clear();
             // One native navigation region, with the original zombie list
             // supplied by the game. No FindObjectsOfType scans per actor.
@@ -141,11 +148,8 @@ namespace Unturned2.Line2
 
         private bool CanEngageNPC(PrototypeActor candidate)
         {
-            if (_owner.Disposition == "hostile")
-                return candidate.Disposition == "friendly";
-            if (_owner.Disposition == "friendly")
-                return candidate.Disposition == "hostile";
-            return false;
+            return Line2NPCCombatRules.AreOpposed(
+                _owner.Disposition, candidate.Disposition, _owner.CombatMode);
         }
 
         private void SetTarget(TargetKind kind, Transform target)
@@ -215,14 +219,18 @@ namespace Unturned2.Line2
             switch (kind)
             {
                 case TargetKind.Player:
-                    return first.GetComponentInParent<Player>() ==
-                           target.GetComponentInParent<Player>();
+                    Player expectedPlayer = target.GetComponentInParent<Player>();
+                    return expectedPlayer != null &&
+                           first.GetComponentInParent<Player>() == expectedPlayer;
                 case TargetKind.Zombie:
-                    return first.GetComponentInParent<Zombie>() ==
-                           target.GetComponentInParent<Zombie>();
+                    Zombie expectedZombie = target.GetComponentInParent<Zombie>();
+                    return expectedZombie != null &&
+                           first.GetComponentInParent<Zombie>() == expectedZombie;
                 case TargetKind.Npc:
-                    return first.GetComponentInParent<PrototypeActor>() ==
-                           target.GetComponentInParent<PrototypeActor>();
+                    PrototypeActor expectedNpc =
+                        target.GetComponentInParent<PrototypeActor>();
+                    return expectedNpc != null &&
+                           first.GetComponentInParent<PrototypeActor>() == expectedNpc;
                 default:
                     return false;
             }
@@ -246,7 +254,9 @@ namespace Unturned2.Line2
                 return false;
 
             if (kind == TargetKind.Player &&
-                (_owner.Disposition != "hostile" || !_owner.PlayerVisible))
+                !Line2NPCCombatRules.CanEngagePlayer(_owner.Disposition,
+                    _owner.CombatMode, _owner.PlayerVisible,
+                    (target.position - transform.position).sqrMagnitude))
                 return false;
             if (kind == TargetKind.Npc)
             {
