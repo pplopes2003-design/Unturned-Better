@@ -15,24 +15,25 @@ EAGLEFIRE_ID = 4
 SHOTGUN_MAG_ID = 113
 DEFAULT_EAGLE_ID = 32612
 DEFAULT_INCENDIARY_ID = 32613
+DEFAULT_LOOT_TABLE_ID = 32614
 
 def build_legendaries(game: Path, staging: Path, *, eagle_id=DEFAULT_EAGLE_ID,
                       fire_id=DEFAULT_INCENDIARY_ID, extra_roots=(),
-                      impact_effect_id=None):
+                      impact_effect_id=None, loot_table_id=DEFAULT_LOOT_TABLE_ID,\n                      auto24_id=32610):
     game = Path(game).resolve()
     root = game / "Bundles"
     items = root / "Items"
     if not (game / "Unturned.exe").is_file() or not items.is_dir():
         raise ValueError("Invalid Unturned Steam directory with Bundles/Items")
     if any(type(x) is not int or x < 1 or x > 65535
-           for x in (eagle_id, fire_id)) or eagle_id == fire_id:
+           for x in (eagle_id, fire_id, loot_table_id, auto24_id)) or\n           len({eagle_id, fire_id, loot_table_id, auto24_id}) != 4:
         raise ValueError("Unique numeric IDs 1..65535 required")
     original_eagle = find_asset(items, str(EAGLEFIRE_ID), "Gun")
     original_shells = find_asset(items, str(SHOTGUN_MAG_ID), "Magazine")
     # Reserved sibling IDs are checked even if the Auto24 has not yet been installed.
     ids = other_item_ids((items, *map(Path,extra_roots)))
-    for number in (eagle_id, fire_id):
-        if number in (32610,32611):
+    for number in (eagle_id, fire_id, loot_table_id):
+        if number in (32610,32611) and number != auto24_id:
             raise ValueError("ID is reserved by Auto24: " + str(number))
         if str(number) in ids:
             raise ValueError("ID collision " + str(number) + ": " + "; ".join(ids[str(number)][:3]))
@@ -90,6 +91,15 @@ def build_legendaries(game: Path, staging: Path, *, eagle_id=DEFAULT_EAGLE_ID,
     (m / "English.dat").write_text(
         "Name 12 Gauge Incendiaria (Legendary)\nDescription Experimental small-area impact ammunition.\n",
         encoding="utf-8")
+    spawn_folder = staging / "Spawns" / "LegendaryLootPool"
+    spawn_folder.mkdir(parents=True)
+    spawn_guid = uuid.uuid5(NAMESPACE,"legendary-loot-pool-"+str(loot_table_id)).hex
+    loot = ("Type Spawn\\nID " + str(loot_table_id) + "\\nGUID " +
+            spawn_guid + "\\nTables 3\\n"
+            "Table_0_Asset_ID " + str(auto24_id) + "\\nTable_0_Weight 1\\n"
+            "Table_1_Asset_ID " + str(eagle_id) + "\\nTable_1_Weight 1\\n"
+            "Table_2_Asset_ID " + str(fire_id) + "\\nTable_2_Weight 1\\n")
+    (spawn_folder / "Asset.dat").write_text(loot,encoding="utf-8")
     (staging / "README_TESTING.txt").write_text(
         "EXPERIMENTAL Legendary pack, requires Unturned Steam validation.\n"
         "Eaglefire ID: "+str(eagle_id)+"\nIncendiary 12 Gauge ID: "+str(fire_id)+"\n"
@@ -99,7 +109,7 @@ def build_legendaries(game: Path, staging: Path, *, eagle_id=DEFAULT_EAGLE_ID,
         "Loot: Rarity Legendary changes item UI rarity; natural loot requires a map spawn-table link.\n"
         "Do not deploy until conflicts and C# runtime tests pass.\n",
         encoding="utf-8")
-    return {"eaglefire":eagle_id,"incendiary":fire_id,"path":str(staging),
+    return {"eaglefire":eagle_id,"incendiary":fire_id,"loot_table":loot_table_id,"path":str(staging),
             "effect_configured":impact_effect_id is not None}
 
 def main():
@@ -109,12 +119,12 @@ def main():
     p.add_argument("--eagle-id",type=int,default=DEFAULT_EAGLE_ID)
     p.add_argument("--incendiary-id",type=int,default=DEFAULT_INCENDIARY_ID)
     p.add_argument("--scan-root",type=Path,action="append",default=[])
-    p.add_argument("--impact-effect-id",type=int)
+    p.add_argument("--impact-effect-id",type=int)\n    p.add_argument("--loot-table-id",type=int,default=DEFAULT_LOOT_TABLE_ID)\n    p.add_argument("--auto24-id",type=int,default=32610)
     args=p.parse_args()
     import json
     print(json.dumps(build_legendaries(args.game,args.output,eagle_id=args.eagle_id,
           fire_id=args.incendiary_id,extra_roots=args.scan_root,
-          impact_effect_id=args.impact_effect_id),indent=2))
+          impact_effect_id=args.impact_effect_id,loot_table_id=args.loot_table_id,\n          auto24_id=args.auto24_id),indent=2))
 
 if __name__=="__main__":
     main()
