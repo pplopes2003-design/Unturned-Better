@@ -20,6 +20,9 @@
     <Compile Include="../ClientModule/Line2NPCCombatRules.cs"
              Link="Line2NPCCombatRules.cs" />
     <Compile Include="UnityValueStubs.cs" />
+    <Compile Include="GlobalRouteTests.cs" />
+    <Compile Include="../ClientModule/Line2MobileNPCGlobalRoutePlanner.cs"
+             Link="Line2MobileNPCGlobalRoutePlanner.cs" />
     <Compile Include="PersistenceStubs.cs" />
     <Compile Include="PersistenceTests.cs" />
     <Compile Include="../ClientModule/Line2NpcPersistence.cs"
