@@ -14,6 +14,7 @@ namespace Unturned2.Line2
         public void initialize()
         {
             ProbeLogger.Log("Module initialized. Active scene=" + SceneManager.GetActiveScene().name);
+            RepeatingBurstSelfTest.Run();
             _host = new GameObject("Unturned2.Line2.Diagnostics");
             UnityEngine.Object.DontDestroyOnLoad(_host);
             _host.AddComponent<WorldScanner>();
