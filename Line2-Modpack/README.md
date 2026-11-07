@@ -126,3 +126,13 @@ python -m unittest discover -s . -p "test_*.py" -v
 You may alternatively choose `Generate Auto 32` from the manager's Windows GUI after setting its game and Workshop directories. Read [AUTO32.md](ModpackManager/AUTO32.md) before deploying.
 
 **Limitations:** no compiled item model and no runtime proof of the vanilla `core.masterbundle` pointer, no validated local content install path for this particular Steam build, and no reload-by-four mechanism. A successful staging build does **not** prove the item appears in-game. The next in-game evidence needed is the game's `Logs/Client` error output and numeric item-give test.
+
+## One-command Windows preparation (no game changes)
+
+Open **PowerShell** in `Line2-Modpack/scripts` and run:
+
+```powershell
+.\prepare_windows.ps1 -GameDir "D:\SteamLibrary\steamapps\common\Unturned"
+```
+
+The script requires Python 3.10+ on PATH and a Windows Unturned installation. It runs Python AIService and ModpackManager tests, discovers the Workshop directory in the same Steam library if present, and generates the experimental Auto32 package to your manager staging area. It will NOT overwrite a preexisting Auto32 staging directory or deploy anything into Unturned. It saves a log under `%USERPROFILE%\Unturned2-ModpackManager\logs`. If your PowerShell policy blocks local scripts, use the command-line Python steps in `ModpackManager/AUTO32.md` rather than changing system-wide policy.
