@@ -209,6 +209,7 @@ namespace Unturned2.Line2
                     var nativePath = instance.AddComponent<Line2NativeAStarRouteProvider>();
                     var follower = instance.AddComponent<PrototypeAStarFollower>();
                     follower.Initialize(nativePath, navigation);
+                    instance.AddComponent<PrototypeCoverPlanner>();
                     // DamageTool.explode discovers IExplosionDamageable
                     // through the root Agent CharacterController collider.
                     instance.AddComponent<PrototypeNpcVitals>();
@@ -337,6 +338,10 @@ namespace Unturned2.Line2
         private PrototypeObstacleNavigator _navigation;
         private PrototypeAStarFollower _astarFollower;
         private PrototypeNpcVitals _vitals;
+        private PrototypeCoverPlanner _coverPlanner;
+        private Vector3 _coverGoal;
+        private Vector3 _retreatGoal;
+        private bool _hasRetreat;
         internal bool IsDead { get { return _vitals != null && _vitals.IsDead; } }
         internal float HealthFraction { get { return _vitals != null ? _vitals.HealthFraction : 1f; } }
         internal bool RecentlyDamaged { get { return _vitals != null && Time.time - _vitals.LastDamageAt < 5f; } }
@@ -357,6 +362,7 @@ namespace Unturned2.Line2
             _navigation = GetComponent<PrototypeObstacleNavigator>();
             _astarFollower = GetComponent<PrototypeAStarFollower>();
             _vitals = GetComponent<PrototypeNpcVitals>();
+            _coverPlanner = GetComponent<PrototypeCoverPlanner>();
             _identity = identity;
             _aiAction = null;
             _lastKnownThreat = null;
@@ -470,6 +476,16 @@ namespace Unturned2.Line2
                     (player.transform.position - transform.position).sqrMagnitude < 32f * 32f;
                 string validSuggestion = _aiAction != null &&
                     Time.realtimeSinceStartup <= _aiValidUntil ? _aiAction : null;
+                bool hasCover = false;
+                _hasRetreat = false;
+                if (RecentlyDamaged && _vitals != null &&
+                    _vitals.HasExplosionOrigin && _coverPlanner != null)
+                {
+                    _coverPlanner.TryGetDefense(_vitals.LastDamageOrigin,
+                        out _coverGoal, out _retreatGoal);
+                    hasCover = _coverPlanner.HasCover;
+                    _hasRetreat = _coverPlanner.HasRetreat;
+                }
                 var facts = new NpcDecisionInput
                 {
                     IsHostile = _disposition == "hostile",
@@ -479,12 +495,13 @@ namespace Unturned2.Line2
                     ThreatVisible = visible,
                     HasRecentMemory = lastKnown.HasValue,
                     HeardThreat = Time.time - _lastGunshotAt <= 7f,
-                    // No health, damage, firearm, verified cover or hearing
-                    // adapters exist for this prototype: do not fabricate.
+                    // Only real explosion hits currently update HP and
+                    // the threat point. The cover planner checks real solid
+                    // geometry, while A* separately owns route feasibility.
                     HasRealHealth = _vitals != null,
                     HealthFraction = HealthFraction,
                     UnderFire = RecentlyDamaged,
-                    HasVerifiedCover = false,
+                    HasVerifiedCover = hasCover,
                     RemoteSuggestion = validSuggestion
                 };
                 NpcIntent intent = _brain.Evaluate(Time.time, facts);
@@ -503,10 +520,12 @@ namespace Unturned2.Line2
                             _goal = lastKnown.Value;
                         break;
                     case NpcIntent.Retreat:
+                        // Emergency withdrawal only to a locally verified
+                        // ground candidate; A* must still find the route.
+                        _goal = _hasRetreat ? _retreatGoal : transform.position;
+                        break;
                     case NpcIntent.SeekCover:
-                        // These states are impossible without real damage
-                        // and cover sensors; never guess a safe location.
-                        _goal = _home;
+                        _goal = hasCover ? _coverGoal : transform.position;
                         break;
                     case NpcIntent.Patrol:
                         if ((_goal - transform.position).sqrMagnitude < 2.5f ||
