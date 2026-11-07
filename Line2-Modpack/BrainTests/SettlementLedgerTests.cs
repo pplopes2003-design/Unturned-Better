@@ -23,9 +23,6 @@ internal static class SettlementLedgerTests
             if (Line2NpcSettlementLedger.TryClaim(13, "hostile",
                 new Vector3(58f, 3f, -12f)))
                 return false; // A rival's camp must not overlap this site.
-            if (!Line2NpcSettlementLedger.TryClaim(13, "hostile",
-                new Vector3(90f, 3f, -12f)))
-                return false; // A sufficiently separated faction can settle.
             Vector3 actual;
             int pieces;
             if (!Line2NpcSettlementLedger.TryGet(12, "friendly",
@@ -69,6 +66,9 @@ internal static class SettlementLedgerTests
                 363, new Vector3(44f, 3f, -8f), 0f))
                 return false; // Four-piece cap, no unbounded construction.
 
+            if (!Line2NpcSettlementLedger.TryClaim(13, "hostile",
+                new Vector3(90f, 3f, -12f)))
+                return false; // Separate factions may settle outside buffer.
             Level.info.name = "some-other-map";
             if (Line2NpcSettlementLedger.TryClaim(50, "hostile", site))
                 return false; // No cross-map base ownership leak.
