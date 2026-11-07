@@ -59,7 +59,11 @@ namespace Unturned2.Line2
                 kind != Line2NPCCombatPerception.TargetKind.Zombie)
                 return;
 
-            if (!_perception.ValidateStrike(kind, target, AttackReach))
+            bool witnessedContact =
+                _perception.ValidateStrike(kind, target, AttackReach);
+            if (!Line2NPCCombatRules.MayCommitHit(
+                    _actor.Disposition, _actor.CombatMode,
+                    !_actor.IsDead, IsLocalAuthorized(), witnessedContact))
                 return;
             Vector3 direction = target.position - transform.position;
             direction.y = 0f;
@@ -110,7 +114,8 @@ namespace Unturned2.Line2
                     PrototypeNpcVitals victim =
                         rival != null ? rival.GetComponent<PrototypeNpcVitals>() : null;
                     if (rival == null || victim == null || victim.IsDead ||
-                        !RolesOpposed(_actor.Disposition, rival.Disposition))
+                        !Line2NPCCombatRules.AreOpposed(
+                            _actor.Disposition, rival.Disposition, _actor.CombatMode))
                         return;
                     // No guessed headshots on melee: a validated torso
                     // strike may cause damage/condition loss once.
@@ -135,10 +140,5 @@ namespace Unturned2.Line2
             }
         }
 
-        private static bool RolesOpposed(string left, string right)
-        {
-            return left == "hostile" && right == "friendly" ||
-                   left == "friendly" && right == "hostile";
-        }
     }
 }
