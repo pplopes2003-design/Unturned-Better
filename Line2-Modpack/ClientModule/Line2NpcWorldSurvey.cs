@@ -15,7 +15,7 @@ namespace Unturned2.Line2
     [DisallowMultipleComponent]
     internal sealed class Line2NpcWorldSurvey : MonoBehaviour
     {
-        internal enum Job { Patrol, ExploreAuthoredSite, GuardGroup, Recover }
+        internal enum Job { Patrol, ExploreAuthoredSite, GuardGroup, Recover, BuildSettlement }
         private const int MaxSiteChecks = 80;
         private const int RecentCapacity = 6;
         private const float MinimumDestinationSq = 7f * 7f;
@@ -26,6 +26,7 @@ namespace Unturned2.Line2
         private PrototypeActor _actor;
         private Line2NPCGroupMember _group;
         private Line2NpcNeeds _needs;
+        private Line2NpcSettlementBuilder _builder;
         private Vector3 _destination;
         private Job _job;
         private bool _hasDestination;
@@ -136,6 +137,14 @@ namespace Unturned2.Line2
             }
             if (Time.time < _nextSelectionAt) return false;
             _nextSelectionAt = Time.time + 9f;
+            if (_builder == null)
+                _builder = GetComponent<Line2NpcSettlementBuilder>();
+            if (_builder != null &&
+                _builder.TryGetConstructionGoalServer(out goal))
+            {
+                _job = Job.BuildSettlement;
+                return true;
+            }
             if (_actor.CombatMode != "total" && _group != null &&
                 _group.Joined && Time.time - _lastGuardAt > 140f)
             {
