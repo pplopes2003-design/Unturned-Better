@@ -26,6 +26,8 @@ namespace Unturned2.Line2
         internal float Health { get { return _health; } }
         internal bool IsDead { get { return _dead; } }
         internal float LastDamageAt { get { return _lastDamageAt; } }
+        internal Vector3 LastDamageOrigin { get; private set; }
+        internal bool HasExplosionOrigin { get; private set; }
         internal event Action<float, Vector3> Damaged;
         internal event Action Died;
 
@@ -98,6 +100,8 @@ namespace Unturned2.Line2
             float damage = NpcExplosionMath.Calculate(
                 amount, parameters.damageRadius, range);
             if (damage < 0.05f) return;
+            LastDamageOrigin = parameters.point;
+            HasExplosionOrigin = true;
             ApplyServerDamage(damage, delta.sqrMagnitude > 0.001f
                 ? delta.normalized : Vector3.up);
         }
