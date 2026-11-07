@@ -52,3 +52,9 @@ Para a Linha 2, `PrototypeNpcVitals` agora implementa a interface com `IsEligibl
 **Referências oficiais:**
 - https://docs.smartlydressedgames.com/en/stable/u3-sdk/faq.html
 - https://www.arongranberg.com/astar/docs/callingpathfinding.html
+
+## Atualização da migração direta (2026-11-07, rodada posterior)
+
+O estado da tabela acima é histórico do início desta auditoria. Depois dela, as seguintes classes da Linha 1 foram copiadas **com adaptação estritamente de nomes, namespace e tipo de vitals** e conectadas a `PrototypeActor`: `Line2MobileNPCBrain` (busca em espiral e retorno após chegar fisicamente), `Line2MobileNPCPlayerKnowledge` (evidência sensorial individual), `Line2MobileNPCLocomotionPolicy` (passos/velocidades) e `Line2MobileNPCAdaptiveMemory` (êxitos reais em cobertura). A equivalência exata das quatro transformações textuais foi conferida com os arquivos da branch `feature/steam-modpack-local-ai-prototype-2026-11-04`.
+
+Ver [LINE1_DIRECT_PORTS.md](LINE1_DIRECT_PORTS.md) para quais componentes efetivamente executam e os que ainda dependem de outros executores. **O grande `MobileNPCBrainDriver` e as armas/hitboxes/portas/radio/saves não foram automaticamente migrados.**
