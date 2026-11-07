@@ -523,6 +523,8 @@ namespace Unturned2.Line2
                 if (actor == null || actor.IsDead) continue;
                 Line2MobileNPCInventory inventory = actor.Inventory;
                 Line2NpcNeeds needs = actor.GetComponent<Line2NpcNeeds>();
+                Line2MobileNPCInjurySystem injuries =
+                    actor.GetComponent<Line2MobileNPCInjurySystem>();
                 if (inventory == null)
                 {
                     ProbeLogger.Log("NPC_SAVE_ABORTED: actor missing inventory");
@@ -548,6 +550,7 @@ namespace Unturned2.Line2
                     hasNeeds = needs != null,
                     hunger = needs != null ? needs.Hunger : 100f,
                     thirst = needs != null ? needs.Thirst : 100f,
+                    injuries = injuries != null ? injuries.ExportSnapshotServer() : null,
                     x = p.x, y = p.y, z = p.z,
                     homeX = h.x, homeY = h.y, homeZ = h.z,
                     items = items
@@ -618,11 +621,14 @@ namespace Unturned2.Line2
                 Line2MobileNPCInventory inventory = actor.Inventory;
                 Line2NPCGroupMember group = actor.GetComponent<Line2NPCGroupMember>();
                 Line2NpcNeeds needs = actor.GetComponent<Line2NpcNeeds>();
+                Line2MobileNPCInjurySystem injuries =
+                    actor.GetComponent<Line2MobileNPCInjurySystem>();
                 bool valid = controller != null && inventory != null && group != null &&
                     needs != null &&
                     inventory.TryRestoreItemsServer(saved.items) &&
                     actor.TryRestoreIdentity(saved) &&
                     (!saved.hasNeeds || needs.TryRestore(saved.hunger, saved.thirst)) &&
+                    injuries != null &&
                     (saved.groupId == 0 || group.TryRestoreMembership(actor, saved.groupId));
                 if (!valid)
                 {
@@ -632,6 +638,8 @@ namespace Unturned2.Line2
                     reason = "saved actor state/group/inventory rejected";
                     return false;
                 }
+                if (saved.injuries != null)
+                    injuries.RestoreSnapshotServer(saved.injuries);
                 controller.enabled = false;
                 actor.transform.position = destination;
                 controller.enabled = true;
