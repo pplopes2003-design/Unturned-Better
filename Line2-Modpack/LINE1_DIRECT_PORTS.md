@@ -36,3 +36,18 @@ Esta separação preserva a fonte original sem criar novos controladores que mov
 `MobileNPCBrainDriver.cs` (coordenação total, ~75 mil caracteres), `MobileNPCTacticalCombatBehavior.cs`, `MobileNPCHumanoidRangedCombat.cs`, `MobileNPCBodyHitbox.cs`, `MobileNPCHumanoidPerception.cs`, `MobileNPCDoorNavigation.cs`, `HybridNPCObservedPortalRegistry.cs`, `MobileNPCRadioOutbox.cs`, `MobileNPCGroupMember.cs`, `MobileNPCPersistence.cs` e demais serviços identificados em [LINE1_BRANCH_AUDIT.md](LINE1_BRANCH_AUDIT.md).
 
 Não classificar a Linha 2 como concluída antes dos executores de combate e danos, portas/edificações, facções e rádio, persistência, multiplayer e dos testes no Unturned Steam.
+
+## Portes adicionais na mesma rodada
+
+| Origem antiga | Classe nova | Integração e limites |
+|---|---|---|
+| `MobileNPCPlayerFootstepSensor.cs` | `Line2MobileNPCPlayerFootstepSensor.cs` | Adaptado para `Player.player` na partida local; amostra deslocamento real para diferenciar passos/corrida e informa apenas pistas auditivas quantizadas aos NPCs próximos. Não cria falsos sons por teleporte nem acompanha players de outros servidores. |
+| `MobileNPCTravelMemory.cs` | `Line2MobileNPCTravelMemory.cs` | Portado integralmente após troca de namespace/tipo de vitals. `PrototypeAStarFollower` registra exclusivamente passos **fisicamente percorridos pelo CharacterController**, aprende apenas trajetos realmente concluídos e apaga conhecimento na morte. A função de reutilizar uma rota aprendida **não está habilitada** sem validação de colisão e A* atual, pois portas e construções podem mudar. |
+
+A Linha 2 também reforçou a autoridade singleplayer (`Provider.clients.Count <= 1` quando disponível). Se uma sessão com amigos começar, o runtime remove os protótipos locais para evitar NPCs não replicados. Isso **não** implementa multiplayer.
+
+### Precisão da migração
+
+As classes `Line2MobileNPCBrain`, `Line2MobileNPCPlayerKnowledge`, `Line2MobileNPCLocomotionPolicy`, `Line2MobileNPCAdaptiveMemory` e `Line2MobileNPCTravelMemory` preservam o código-fonte funcional da Linha 1, com apenas nomes/namespace e associação à saúde do protótipo alterados. O sensor de passos exigiu uma mudança adicional deliberada: os eventos deixam de ir para a antiga registry e entram no runtime Steam atual. `BrainTests` valida parte desses comportamentos de forma isolada, **não o funcionamento in-game**.
+
+**Ainda pendentes:** comportamento completo de combate com armas e dano, integração de portas/janelas indoor com o grafo A* existente, facções, rádio, NPCs contra zumbis, persistência no mundo e multiplayer. A fonte original do `MobileNPCBrainDriver` continua significativamente maior que o pequeno árbitro da Linha 2.
