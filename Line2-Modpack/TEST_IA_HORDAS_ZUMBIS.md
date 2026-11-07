@@ -79,3 +79,21 @@ This distinguishes two independent facts:
 **Important:** do not spawn hundreds of NPCs or raise zombie counts to "stress test" the unvalidated integration. The F12 scan is bounded to 80 output records and triggered only by the hotkey, but it still enumerates active behaviours once per request; avoid repeatedly pressing it on a slow PC.
 
 After the user returns the F10 report, F12 NPC snapshots and module build result, we can identify the real entity components and build a test-only authoritative mobile NPC adapter rather than claiming the simulated policy is live AI.
+
+## Atualização técnica — integração de novembro de 2026 (não pronta para bateria final)
+
+**NPCs reais no Steam (protótipo)**
+
+O `SteamNpcPrototypeRuntime` está agora conectado a `LiveNpcDecisionBridge`, que envia observações **verdadeiras de objetos do jogo** a `POST /v1/decide_batch`, em lotes de até 32, aproximadamente a cada 500 ms. A comunicação HTTP ocorre fora da thread Unity. A resposta é validada integralmente (identidade, tick, valores permitidos, TTL de até 600 ms) antes de orientar movimento.
+
+A observação mede posição do NPC e, para hostis, linha de visão real do jogador e último local visto durante até oito segundos. As ações atualmente aceitas **somente para movimentação** são `idle`, `investigate` e `engage`. `seek_cover` e `retreat` são recusadas porque não há saúde/dano nem cobertura verificável implementados; não são fingidas. Os NPCs continuam com comportamento local quando o AI Service está indisponível. O status fica visível em F7 ou `!u2 status` e no log `NPC_AI_LIVE_BATCH_OK`.
+
+A movimentação experimental usa `PrototypeObstacleNavigator`, um desvio limitado em duas direções e sondagens físicas cadenciadas, **não um pathfinding indoor/portas/janelas completo**.
+
+**Zumbis reais da Steam**
+
+`!u2 zombies on` habilita **somente** prioridade por visão limpa do jogador em raio de até 20 m nos zumbis vanilla já instanciados. Usa `Zombie.checkAlert(player)` e `Zombie.alert(player)` no servidor local, com máximo de 24 zumbis distintos avaliados a cada segundo. `!u2 zombies off` desliga e conserva comportamentos originais. Configuração default `off`. Não gera zumbis, não altera cap/região, não transforma zumbis em hordas e **ainda não atravessa regiões descarregadas**.
+
+**F11 corrigido:** enumera somente componentes `SDG.Unturned.Zombie` já ativos (máximo 128 registros) e usa `Regions.tryGetCoordinate(Vector3, out byte x, out byte y)` para identificar a **região espacial real**. O campo `spawnBound` é separado: não deve ser interpretado como coordenada de região. Inclui `hunting`, `dead`, `regionX/regionY`, `regionChanged` e `vanishedSincePrevious`, tornando possível distinguir deslocamento, desaparecimento e fronteiras. Um zumbi que some não é prova automática de despawn por região: podem existir outras causas.
+
+**Importante:** todas essas alterações precisam de compilação C# no Windows e validação dentro do Unturned Steam antes de serem classificadas como recursos funcionais. O usuário solicitou uma bateria de gameplay **única e completa**, portanto não transformar estes passos internos em solicitações fragmentadas de teste.
