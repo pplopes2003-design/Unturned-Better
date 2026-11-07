@@ -9,6 +9,7 @@
 - O `SteamNpcPrototypeRuntime` só autoriza protótipos no singleplayer local com cheats, sem BattlEye. Não há replicação multiplayer.
 - O `LiveNpcDecisionBridge` agora envia a fração real de saúde, dano recente e cobertura validada pelo runtime. Sugestões defensivas são recusadas sem dano/cobertura/rota local apropriados.
 - A transferência de loot do chão continua bloqueada quando não há remoção atômica do item de origem no Steam.
+- Nesta rodada foram adicionados adaptadores experimentais de persistência de sobreviventes por mapa, necessidades, interação/comércio por XP, reposição atrasada, ataque de zumbis a NPCs, rally de hordas existentes e múltiplos pellets por tiro. Todos ainda exigem compilação contra os assemblies Steam e teste de gameplay.
 - A aprovação da pipeline não comprova navegação indoor, dano de zumbis em NPCs, A-Life, bases, comércio ou persistência.
 
 ## Preparação
@@ -31,10 +32,10 @@
 | Combate completo | Armas gastam munição real e respeitam recarga, cadência, precisão e LOS | Pendente de teste Steam |
 | Explosões | Granada nativa causa dano verificado aos NPCs na camada Agent | Pendente de teste Steam |
 | Portas e janelas | Entrada/saída por portal real sem atravessar paredes | Pendente de teste Steam |
-| Zumbis contra NPCs | Zumbi percebe, persegue e causa dano no NPC | Não integrado/validado |
-| Hordas/regiões | População vanilla respeitada e transição regional | Não integrado/validado |
+| Zumbis contra NPCs | Zumbi percebe, persegue e causa dano no NPC | Adaptador local experimental integrado; teste Steam pendente |
+| Hordas/regiões | População vanilla respeitada e transição regional | Rally local no mesmo nav bound; perseguição entre regiões NÃO implementada |
 | Loot do chão | Transferência atômica sem duplicação/perda após reinício | Bloqueado até API segura |
-| Comércio/bases/A-Life | Ciclo de interação, tarefas, materiais e mundo persistido | Não integrado/validado |
-| Multiplayer | Host autoritativo, replicação, entrada/saída, reconexão | Não integrado/validado |
+| Comércio/bases/A-Life | Ciclo de interação, tarefas, materiais e mundo persistido | Diálogo/comércio básico e necessidades implementados; bases e A-Life completo NÃO implementados |
+| Multiplayer | Host autoritativo, replicação, entrada/saída, reconexão | Não integrado; runtime local suspende NPCs se entrar outro jogador |
 
 **Regra de liberação:** só anunciar uma build integrada de gameplay após passar os testes automatizados, compilar contra assemblies Steam reais e observar os cenários acima sem regressões. Não criar implementação de loot com remoção otimista do drop, nem liberar NPCs locais não replicados em multiplayer.
