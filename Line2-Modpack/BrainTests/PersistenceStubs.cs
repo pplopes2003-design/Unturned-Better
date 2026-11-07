@@ -26,6 +26,17 @@ namespace SDG.Unturned
 // Test-only DTO shape matching the original Line1 injury snapshot.
 namespace Unturned2.Line2
 {
+    // Runtime group roster is not linked into the isolated DTO policy test.
+    internal static class Line2NPCGroupMember
+    {
+        internal static int LargestHistoricalGroupId;
+        internal static void ReserveHistoricalGroupId(int groupId)
+        {
+            if (groupId > LargestHistoricalGroupId)
+                LargestHistoricalGroupId = groupId;
+        }
+    }
+
     internal sealed class Line2MobileNPCInjurySystem
     {
         [System.Serializable]
