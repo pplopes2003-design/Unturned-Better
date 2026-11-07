@@ -85,3 +85,11 @@ Referências:
 - https://docs.smartlydressedgames.com/en/latest/items/gun-asset.html
 - https://docs.smartlydressedgames.com/en/latest/items/magazine-asset.html
 - https://docs.smartlydressedgames.com/en/latest/assets/spawn-asset.html
+
+## Visual Burner effect detection
+
+The Legendary pack builder additionally scans `Unturned/Bundles/Effects` for an unambiguous existing effect whose folder/path contains `Burner` and `Explosion` (or `Explode`). If exactly one effect ID is found, it is referenced by the incendiary magazine's `Explosion` field. Otherwise no effect ID is guessed, and the manager reports `Visual burner effect: not found`.
+
+The effect lookup does **not** create the gameplay-specific Burner effect of converting a zombie or applying a persistent fire debuff. The small `Range 1.25` blast and `Pellets 1` reduce the area and effect frequency. Visuals and damage must be verified in-game; the `effect_configured` output indicates only a reference was written, not that it rendered.
+
+The Legendary Eaglefire also uses the `balanced` recoil preset to avoid uncontrolled automatic recoil.
