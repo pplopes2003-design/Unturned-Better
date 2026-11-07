@@ -245,3 +245,11 @@ It also ports the `MobileNPCTactics` tactical goals into `Line2MobileNPCTactics`
 As classes originais de memória de perseguição e busca (`MobileNPCBrain`), conhecimento sensorial (`MobileNPCPlayerKnowledge`), seleção de marcha (`MobileNPCLocomotionPolicy`) e experiência pessoal (`MobileNPCAdaptiveMemory`) foram portadas e **ligadas ao runtime de NPCs**, não apenas acrescentadas como arquivos inativos. A implementação faz um objetivo de busca avançar ao **chegar fisicamente** na posição, em vez de ficar girando diante de um obstáculo. A memória registra experiência de cobertura apenas após chegada real. Ver [LINE1_DIRECT_PORTS.md](LINE1_DIRECT_PORTS.md) para verificação dos arquivos, funções executadas e lacunas.
 
 **Ainda faltam** os executores de combate/dano por arma, interação com portas, rádio/grupos e persistência da Linha 1. O código novo **não foi compilado nem testado em Unturned Steam** nesta rodada. Não tratar como versão final.
+
+### Additional legacy adapters: footsteps and personally learned A* routes
+
+The original Line 1 displacement-based `MobileNPCPlayerFootstepSensor` now runs as `Line2MobileNPCPlayerFootstepSensor` using the local `Player.player` in authorized solo gameplay. Real steps are converted to bounded, approximate acoustic clues for nearby hostile NPCs; teleport/vehicle-like motion is filtered by the original speed gates.
+
+`MobileNPCTravelMemory` was ported as `Line2MobileNPCTravelMemory` and attached to the native `PrototypeAStarFollower`. It records only observed CharacterController footsteps and considers a route learned only after the NPC physically reaches the destination. Route reuse remains disabled until current-world collision/path verification exists. Both per-actor memories are erased when the NPC dies.
+
+These bridges are gated to one-client local sessions; if other players join, local-only NPC prototypes are removed rather than pretending to replicate. **No Steam runtime compilation success is confirmed.** See [LINE1_DIRECT_PORTS.md](LINE1_DIRECT_PORTS.md).
