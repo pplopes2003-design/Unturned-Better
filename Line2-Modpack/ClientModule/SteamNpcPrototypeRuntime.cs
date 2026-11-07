@@ -423,6 +423,8 @@ namespace Unturned2.Line2
                     actor.AttachRangedExecutor(ranged);
                     var grenades = instance.AddComponent<Line2NpcGrenadeThrower>();
                     grenades.Initialize(this, actor, combatSight, ownedInventory);
+                    var breacher = instance.AddComponent<Line2NpcRaidBreacher>();
+                    breacher.Initialize(actor, combatSight);
                     var raid = instance.AddComponent<Line2NpcRaidObserver>();
                     raid.Initialize(actor);
                     var radio = instance.AddComponent<Line2NPCRadioOutbox>();
