@@ -200,6 +200,15 @@ namespace Unturned2.Line2
             }
         }
 
+        public static void SaveNpcSnapshot(string json)
+        {
+            lock (Sync)
+            {
+                Directory.CreateDirectory(DirectoryPath);
+                File.AppendAllText(Path.Combine(DirectoryPath, "npc-snapshots.jsonl"), json + Environment.NewLine);
+            }
+        }
+
         public static void SaveZombieSnapshot(string json)
         {
             lock (Sync)
