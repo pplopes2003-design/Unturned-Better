@@ -7,6 +7,7 @@ on:
       - 'Line2-Modpack/AIService/**'
       - 'Line2-Modpack/ModpackManager/**'
       - 'Line2-Modpack/ClientModule/**'
+      - 'Line2-Modpack/BrainTests/**'
       - 'Line2-Modpack/check_sdk_api_surface.py'
       - 'Line2-Modpack/run_tests.py'
       - '.github/workflows/line2-python.yml'
@@ -38,6 +39,11 @@ jobs:
         run: python -m compileall -q Line2-Modpack
       - name: Verify checked-in U3 SDK symbols (not a C# build)
         run: python Line2-Modpack/check_sdk_api_surface.py
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Test native C# NPC decision brain (standalone)
+        run: dotnet run --project Line2-Modpack/BrainTests/BrainTests.csproj --configuration Release
       - name: Test AI Service
         run: python Line2-Modpack/run_tests.py AIService
       - name: Test Modpack Manager
