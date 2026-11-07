@@ -129,3 +129,9 @@ Depois da auditoria, a Linha 2 recebeu o código original (adaptado) de `MobileN
 `PrototypeActor` agora informa a antiga máquina de estados sobre visão e ruído, deixa a máquina da Linha 1 conduzir a investigação física (até três pontos de busca e retorno), usa a locomoção antiga para `Sneak/Walk/Sprint/Hold` e registra conclusões reais de deslocamento até cobertura em sua memória individual. A prioridade de combate/recuo continua com `NpcDecisionBrain` + `Line2MobileNPCTactics`, e o caminho continua exclusivamente no A* nativo com `CharacterController`.
 
 O `BrainTests` standalone passou a compilar as classes legadas adaptadas e testar perseguição sem telepatia, busca física, retorno, memória e marcha, mas **não há resultado confirmado de Actions verde nem teste em Steam neste momento**.
+
+## 2026-11-07 — Porta nativa e ferimentos de seis regiões
+
+Foram portados os arquivos antigos `MobileNPCInjurySystem`, `MobileNPCBodyHitbox` e `MobileNPCDamageBridge`; foram ligados a `PrototypeNpcVitals`, a partir de um só dono da vida. O prefab original `NPC_Client` já traz 6 BoxColliders anatômicos, agora reativados como gatilhos seguros por `Line2NPCBodyAnatomy`. A classe `Line2NpcNativeGunHitBridge` inspeciona o evento servidor `onBulletHit`, revalida o primeiro colisor físico e usa o dano da arma real com multiplicador de região/magazine e falloff; a integração **não foi compilada nem testada no Steam**.
+
+A navegação por portas foi adaptada do `MobileNPCDoorNavigation` original. As APIs da engine modificada não poderiam ser copiadas literalmente: `IsLockedForMobileNPCNavigation` não existe no Steam base, e `FindBarricadeByRootFast` é interno. O módulo atual usa verificação privada fail-closed do lock e método público de barricada; abertura nativa do Steam apenas para portas registradas e destrancadas. Continuam faltando pontes de grafo/portal do A* para conectividade entre salas, e os sistemas completos de combate e interação.
