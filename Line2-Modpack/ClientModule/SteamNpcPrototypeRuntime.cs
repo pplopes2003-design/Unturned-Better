@@ -321,6 +321,8 @@ namespace Unturned2.Line2
         private float _aiValidUntil;
         private Vector3? _lastKnownThreat;
         private float _lastSeenAt;
+        private float _lastGunshotAt;
+        private Vector3 _lastHeardPoint; 
         private bool _threatVisible;
         private string _displayName;
         private PrototypeAnimation _animation;
@@ -344,6 +346,7 @@ namespace Unturned2.Line2
             _aiAction = null;
             _lastKnownThreat = null;
             _lastSeenAt = -100f;
+            _lastGunshotAt = -100f;
             _brain.Reset();
             string[] names = { "Alex", "Morgan", "Sam", "Casey", "Jordan", "Riley", "Taylor", "Robin" };
             _displayName = names[UnityEngine.Random.Range(0, names.Length)] +
@@ -363,8 +366,24 @@ namespace Unturned2.Line2
                 _aiAction = null;
                 _threatVisible = false;
                 _lastKnownThreat = null;
+                _lastGunshotAt = -100f;
                 _goal = _home;
             }
+        }
+
+        internal void HearVerifiedGunshot(Vector3 position, float heardAt)
+        {
+            if (_disposition != "hostile" || _combatMode == "passive") return;
+            if (heardAt < 0 || float.IsNaN(heardAt) || float.IsInfinity(heardAt))
+                return;
+            // A sound provides only coarse direction, NEVER exact live aim.
+            // The acoustic bridge has already verified that a native shot
+            // occurred nearby. No line-of-sight is implied by hearing.
+            _lastHeardPoint = new Vector3(
+                Mathf.Floor(position.x / 12f) * 12f + 6f,
+                position.y,
+                Mathf.Floor(position.z / 12f) * 12f + 6f);
+            _lastGunshotAt = heardAt;
         }
 
         internal void ObserveThreat(Player player, out bool visible, out Vector3? lastKnown)
@@ -389,6 +408,8 @@ namespace Unturned2.Line2
             }
             if (_lastKnownThreat.HasValue && Time.time - _lastSeenAt <= 8f)
                 lastKnown = _lastKnownThreat;
+            else if (Time.time - _lastGunshotAt <= 7f)
+                lastKnown = _lastHeardPoint;
         }
 
         internal bool TryApplyAiAction(string action, float expiresRealtime)
@@ -401,13 +422,19 @@ namespace Unturned2.Line2
                 return false;
             if (action == "engage" && !_threatVisible)
                 return false;
-            if (action == "investigate" && !_lastKnownThreat.HasValue)
+            if (action == "investigate" && !_lastKnownThreat.HasValue &&
+                Time.time - _lastGunshotAt > 7f)
                 return false;
             _aiAction = action;
             _aiValidUntil = expiresRealtime;
             if (action == "idle") _goal = _home;
-            else if (action == "investigate" && _lastKnownThreat.HasValue)
-                _goal = _lastKnownThreat.Value;
+            else if (action == "investigate")
+            {
+                if (_lastKnownThreat.HasValue)
+                    _goal = _lastKnownThreat.Value;
+                else if (Time.time - _lastGunshotAt <= 7f)
+                    _goal = _lastHeardPoint;
+            }
             return true;
         }
 
@@ -436,6 +463,7 @@ namespace Unturned2.Line2
                     PlayerNearby = nearPlayer,
                     ThreatVisible = visible,
                     HasRecentMemory = lastKnown.HasValue,
+                    HeardThreat = Time.time - _lastGunshotAt <= 7f,
                     // No health, damage, firearm, verified cover or hearing
                     // adapters exist for this prototype: do not fabricate.
                     HasRealHealth = false,
