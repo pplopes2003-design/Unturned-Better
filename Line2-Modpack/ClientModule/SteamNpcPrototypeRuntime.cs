@@ -22,6 +22,16 @@ namespace Unturned2.Line2
         private string _mode = "normal";
         private float _nextNaturalAt;
         private bool _missingPrefabLogged;
+        private readonly List<Line2NpcPersistence.ActorRecord> _pendingRestore =
+            new List<Line2NpcPersistence.ActorRecord>(32);
+        private string _saveMap;
+        private bool _restoreLoaded;
+        private bool _saveAllowed;
+        private bool _restoringActor;
+        private float _nextSaveAt;
+        private float _nextRestoreAt;
+        private const float SaveIntervalSeconds = 30f;
+
 
         internal int SceneActorCount { get { return ActiveCount; } }
         public int ActiveCount
@@ -73,6 +83,7 @@ namespace Unturned2.Line2
 
         private void OnDisable()
         {
+            SaveCheckpoint();
             Line2NpcRuntimeRegistry.Unregister(this);
             ClearActors();
         }
@@ -81,22 +92,86 @@ namespace Unturned2.Line2
         {
             if (!IsAuthorized())
             {
-                // If a friend joins, immediately remove the local-only
-                // prototypes. They are not network-replicated actors.
                 if (_actors.Count > 0)
                 {
+                    SaveCheckpoint();
                     ClearActors();
-                    ProbeLogger.Log("NPC_PROTOTYPE_SUSPENDED: local singleplayer authority no longer valid");
+                    ProbeLogger.Log("NPC_PROTOTYPE_SUSPENDED: no singleplayer authority");
                 }
+                _restoreLoaded = false;
+                _saveAllowed = false;
+                _pendingRestore.Clear();
                 return;
             }
-            if (!_enabled || !_natural || Time.time < _nextNaturalAt)
-                return;
+
+            string map = Line2NpcPersistence.CurrentMapKey;
+            if (string.IsNullOrEmpty(map)) return;
+            if (!string.Equals(_saveMap, map, StringComparison.Ordinal))
+            {
+                SaveCheckpoint(); // Old map snapshot before teardown.
+                ClearActors();
+                _saveMap = map;
+                _restoreLoaded = false;
+                _saveAllowed = false;
+                _pendingRestore.Clear();
+            }
+
+            if (!_enabled) return;
+            if (!_restoreLoaded)
+            {
+                List<Line2NpcPersistence.ActorRecord> records;
+                string detail;
+                bool ok = Line2NpcPersistence.TryRead(_saveMap, out records, out detail);
+                _restoreLoaded = true;
+                if (!ok)
+                {
+                    ProbeLogger.Log("NPC_SAVE_LOAD_REJECTED: " + detail +
+                        " (automatic overwrites disabled)");
+                    return;
+                }
+                _pendingRestore.AddRange(records);
+                _saveAllowed = _pendingRestore.Count == 0;
+                _nextRestoreAt = Time.time + 0.5f;
+                _nextSaveAt = Time.time + SaveIntervalSeconds;
+                ProbeLogger.Log("NPC_SAVE_READ: " + detail);
+            }
+
+            if (_pendingRestore.Count > 0 && Time.time >= _nextRestoreAt)
+            {
+                _nextRestoreAt = Time.time + 2f;
+                string reason;
+                if (TryRestoreOne(_pendingRestore[0], out reason))
+                {
+                    _pendingRestore.RemoveAt(0);
+                    ProbeLogger.Log("NPC_RESTORE_OK: remaining=" + _pendingRestore.Count);
+                    if (_pendingRestore.Count == 0)
+                    {
+                        _saveAllowed = true;
+                        _nextSaveAt = Time.time + SaveIntervalSeconds;
+                    }
+                }
+                else if (Time.time >= _nextRestoreLogAt)
+                {
+                    _nextRestoreLogAt = Time.time + 20f;
+                    ProbeLogger.Log("NPC_RESTORE_DEFERRED: " + reason);
+                }
+            }
+
+            // A partial restore must never overwrite unloaded survivors.
+            if (_pendingRestore.Count > 0 || !_saveAllowed) return;
+            if (Time.time >= _nextSaveAt)
+            {
+                _nextSaveAt = Time.time + SaveIntervalSeconds;
+                SaveCheckpoint();
+            }
+            if (!_natural || Time.time < _nextNaturalAt) return;
             _nextNaturalAt = Time.time + 18f;
             if (ActiveCount >= _cap) return;
             string ignored;
             TrySpawn(ChooseNaturalRole(), 1, out ignored);
         }
+
+        private float _nextRestoreLogAt;
 
         private string ChooseNaturalRole()
         {
@@ -118,8 +193,15 @@ namespace Unturned2.Line2
             _nextNaturalAt = Time.time + 18f;
             foreach (PrototypeActor actor in _actors)
                 if (actor != null) actor.SetCombatMode(_mode);
-            // Setting NPCs off removes runtime-only prototype entities.
-            if (!enabled) ClearActors();
+            // Disable only after saving all restored survivors, avoiding stale snapshots.
+            if (!enabled)
+            {
+                SaveCheckpoint();
+                ClearActors();
+                _restoreLoaded = false;
+                _saveAllowed = false;
+                _pendingRestore.Clear();
+            }
             else
             {
                 // A lower configured cap must be enforced immediately.
@@ -145,6 +227,11 @@ namespace Unturned2.Line2
             if (!_enabled)
             {
                 reason = "Enable NPCs first: !u2 npc on";
+                return false;
+            }
+            if (!_restoringActor && _pendingRestore.Count > 0)
+            {
+                reason = "Pending NPC restoration; manual spawn temporarily blocked";
                 return false;
             }
             if (disposition != "hostile" && disposition != "neutral" &&
