@@ -109,3 +109,20 @@ For the real Steam game:
 F10 lists candidate NPC, zombie, object, door, barricade and navigation types in loaded game assemblies, capped by number of types/methods and output size. It also lists a bounded sample of active matching MonoBehaviours. This is **diagnostic only** and does not prove mobile NPC functionality. Avoid sharing logs if scene object names include private information.
 
 The GitHub Actions workflow tests only **Python files**. It cannot validate the actual Unity/Unturned C# module without compatible managed assemblies or a local Steam installation. No game build was run in this development environment.
+
+## Milestone: Steam-native Auto 32 prototype
+
+The standalone Line 1 Unity build is **paused**. The working target is now Windows Unturned Steam without BattlEye.
+
+`ModpackManager/build_auto32.py` creates an **experimental** Auto 32 weapon and 32-round magazine in the manager's *staging* directory using the locally installed vanilla Bluntforce/12 Gauge source definitions. No original vanilla files are modified and no vanilla bundles are committed. IDs 32610 and 32611 are only candidate IDs and must pass scans.
+
+From `ModpackManager`:
+
+```powershell
+python build_auto32.py --game "D:\SteamLibrary\steamapps\common\Unturned" --output "$env:USERPROFILE\Unturned2-ModpackManager\staging\Auto32" --scan-root "D:\SteamLibrary\steamapps\workshop\content\304930"
+python -m unittest discover -s . -p "test_*.py" -v
+```
+
+You may alternatively choose `Generate Auto 32` from the manager's Windows GUI after setting its game and Workshop directories. Read [AUTO32.md](ModpackManager/AUTO32.md) before deploying.
+
+**Limitations:** no compiled item model and no runtime proof of the vanilla `core.masterbundle` pointer, no validated local content install path for this particular Steam build, and no reload-by-four mechanism. A successful staging build does **not** prove the item appears in-game. The next in-game evidence needed is the game's `Logs/Client` error output and numeric item-give test.
