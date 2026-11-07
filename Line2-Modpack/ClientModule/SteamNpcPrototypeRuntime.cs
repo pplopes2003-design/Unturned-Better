@@ -132,9 +132,10 @@ namespace Unturned2.Line2
             {
                 List<Line2NpcPersistence.ActorRecord> records;
                 List<Line2NpcPersistence.ReplacementRecord> tickets;
+                List<Line2NpcPersistence.SettlementRecord> settlements;
                 string detail;
                 bool ok = Line2NpcPersistence.TryRead(_saveMap, out records,
-                    out tickets, out detail);
+                    out tickets, out settlements, out detail);
                 _restoreLoaded = true;
                 if (!ok)
                 {
@@ -142,6 +143,7 @@ namespace Unturned2.Line2
                         " (automatic overwrites disabled)");
                     return;
                 }
+                Line2NpcSettlementLedger.Restore(_saveMap, settlements);
                 _restoreCapacity = Mathf.Min(32, Mathf.Max(_cap, records.Count));
                 _saveSourceVerified = true;
                 _pendingRestore.AddRange(records);
@@ -533,6 +535,14 @@ namespace Unturned2.Line2
 
         /// <summary>Checkpoints only fully loaded, living actors on the
         /// authoritative local map. Never replaces a partially restored save.</summary>
+        internal void RequestPriorityCheckpoint()
+        {
+            // Called only after an authoritative native world-item transfer or
+            // placed barricade. Never overwrite unverified/corrupt saves.
+            if (_enabled && _saveSourceVerified && IsAuthorized())
+                SaveCheckpoint();
+        }
+
         private void SaveCheckpoint()
         {
             if (!_enabled || !_saveSourceVerified ||
@@ -585,7 +595,8 @@ namespace Unturned2.Line2
             }
             string detail;
             if (Line2NpcPersistence.TryWrite(_saveMap, records,
-                _pendingReplacements, out detail))
+                _pendingReplacements, Line2NpcSettlementLedger.Capture(),
+                out detail))
                 ProbeLogger.Log("NPC_SAVE_OK: " + detail);
             else
                 ProbeLogger.Log("NPC_SAVE_FAILED: " + detail);
@@ -736,6 +747,7 @@ namespace Unturned2.Line2
                 if (a != null) UnityEngine.Object.Destroy(a.gameObject);
             _actors.Clear();
             Line2NPCGroupMember.ResetSession();
+            Line2NpcSettlementLedger.ResetSession();
             Line2NPCRadioOutbox.ResetSession();
             _pendingReplacements.Clear();
         }
