@@ -121,3 +121,11 @@ Foi portado o seletor de decisões `Line2MobileNPCTactics` (a partir de `MobileN
 **Bug histórico de explosões:** o `DamageTool.explode` vanilla usa `RayMasks.AGENT` ao selecionar zumbis/animais e procura `IExplosionDamageable` na hierarquia do colisor. Sem ambos, uma granada pode ignorar um NPC. `PrototypeNpcVitals` agora implementa a interface, o spawn exige a camada física Agent, o dano respeita raio, queda e parede, registra HP e mata a entidade (despawn do corpo após intervalo); `NpcExplosionMath` tem testes determinísticos. Essa correção ainda exige **teste in-game** com explosivos do Steam e não implementa dano de bala nem saque de corpo.
 
 **Riscos e gates:** backend A* pode não ter grafo em ambientes indoor e ainda precisa de lógica de portas; custom explosives que só geram dano a Player mas não consultam Agent não necessariamente encontram NPC; falta a integração das hitboxes e da autoridade de dano completo. Nenhuma compilação Steam validada; o protocolo GitHub Actions está em atualização, não presumir sucesso.
+
+## 2026-11-07 — Migração verificada dos módulos originais de percepção e movimento
+
+Depois da auditoria, a Linha 2 recebeu o código original (adaptado) de `MobileNPCBrain`, `MobileNPCPlayerKnowledge`, `MobileNPCLocomotionPolicy` e `MobileNPCAdaptiveMemory` da branch `feature/steam-modpack-local-ai-prototype-2026-11-04`. A equivalência dos arquivos foi comparada diretamente; consulte [LINE1_DIRECT_PORTS.md](LINE1_DIRECT_PORTS.md).
+
+`PrototypeActor` agora informa a antiga máquina de estados sobre visão e ruído, deixa a máquina da Linha 1 conduzir a investigação física (até três pontos de busca e retorno), usa a locomoção antiga para `Sneak/Walk/Sprint/Hold` e registra conclusões reais de deslocamento até cobertura em sua memória individual. A prioridade de combate/recuo continua com `NpcDecisionBrain` + `Line2MobileNPCTactics`, e o caminho continua exclusivamente no A* nativo com `CharacterController`.
+
+O `BrainTests` standalone passou a compilar as classes legadas adaptadas e testar perseguição sem telepatia, busca física, retorno, memória e marcha, mas **não há resultado confirmado de Actions verde nem teste em Steam neste momento**.
