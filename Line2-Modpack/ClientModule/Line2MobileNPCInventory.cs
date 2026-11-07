@@ -779,6 +779,91 @@ namespace Unturned2.Line2
 		/// discrete item slots; recipes requiring tools, skills, workstations, target items,
 		/// NPC quest conditions, or special operations are left untouched.
 		/// </summary>
+        private static float nextSharedCampCraftAt;
+        private float nextPersonalCampCraftAt;
+        /// <summary>
+        /// Create only authentic modest camp barricades from native blueprints.
+        /// Consumed ingredients must each occupy an exact one-unit slot: never
+        /// lose extra stacked resources or invent a free material. Nonconsumed
+        /// tool requirements remain present, as authorized by the blueprint.
+        /// </summary>
+        internal bool TryCraftNativeCampBarricadeServer()
+        {
+            if (!Provider.isServer || Dedicator.IsDedicatedServer ||
+                !Level.isLoaded || Time.time < nextSharedCampCraftAt ||
+                Time.time < nextPersonalCampCraftAt)
+                return false;
+            nextSharedCampCraftAt = Time.time + 13f;
+            nextPersonalCampCraftAt = Time.time + 80f;
+            List<ItemAsset> catalog = new List<ItemAsset>();
+            Assets.find(catalog);
+            for (int i = 0; i < catalog.Count; ++i)
+            {
+                ItemAsset source = catalog[i];
+                if (source == null || source.blueprints == null) continue;
+                foreach (Blueprint recipe in source.blueprints)
+                {
+                    if (!IsSimpleSettlementBlueprint(recipe) ||
+                        recipe.outputs[0] == null || recipe.outputs[0].amount < 1 ||
+                        recipe.outputs[0].amount > byte.MaxValue)
+                        continue;
+                    ItemBarricadeAsset output =
+                        recipe.outputs[0].FindItemAsset() as ItemBarricadeAsset;
+                    if (output == null || output.id == 0 ||
+                        !output.isSaveable || output.barricade == null ||
+                        (output.build != EBuild.BARRICADE &&
+                         output.build != EBuild.FORTIFICATION &&
+                         output.build != EBuild.CAMPFIRE))
+                        continue;
+                    var indexes = new List<int>();
+                    if (!TryReserveBlueprintInputs(recipe, indexes) ||
+                        indexes.Count == 0) continue;
+                    bool exactUnits = true;
+                    foreach (int slot in indexes)
+                    {
+                        Item held = slot >= 0 && slot < slots.Count
+                            ? slots[slot] : null;
+                        if (held == null || held.amount != 1)
+                        {
+                            exactUnits = false;
+                            break;
+                        }
+                    }
+                    if (!exactUnits ||
+                        indexes.Count != new HashSet<int>(indexes).Count ||
+                        slots.Count - indexes.Count >= Capacity)
+                        continue;
+                    Line2NpcPersistence.ItemRecord[] before = CaptureItemsServer();
+                    if (before == null) return false;
+                    indexes.Sort();
+                    try
+                    {
+                        for (int j = indexes.Count - 1; j >= 0; --j)
+                        {
+                            slots.RemoveAt(indexes[j]);
+                            slotInstanceIDs.RemoveAt(indexes[j]);
+                        }
+                        Item crafted = new Item(output.id,
+                            (byte)recipe.outputs[0].amount, 100, output.getState());
+                        if (TryStoreTransferredItem(crafted))
+                        {
+                            ProbeLogger.Log("NPC_CAMP_CRAFT_OK: item=" + output.id);
+                            return true;
+                        }
+                    }
+                    catch (System.Exception error)
+                    {
+                        UnturnedLog.warn("[Line2Inventory] Native camp craft failed: " +
+                            error.GetType().Name);
+                    }
+                    if (!TryRestoreItemsServer(before))
+                        UnturnedLog.error("[Line2Inventory] CAMP_CRAFT_ROLLBACK_FAILED");
+                    return false;
+                }
+            }
+            return false;
+        }
+
 		public bool TryCraftBuildableForSettlementServer(Items sharedStorage = null, bool storageOnly = false)
 		{
 			if (!Provider.isServer || !Level.isLoaded)
