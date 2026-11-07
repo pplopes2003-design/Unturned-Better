@@ -77,3 +77,18 @@ As regras encontradas em `MOBILE_NPC_RADIO_SYSTEM_DESIGN.md` da Linha 1 e em `Mo
 **Estado real:** isso é lógica Python com contrato de entrada e testes, ainda **não está conectado a `PlayerVoice`, aos itens físicos de NPCs Steam, ao rádio do veículo, à rede de áudio ou ao HUD do jogador**. O interceptador na Linha 1 era texto local condicionado a equipamento/frequência, não transmissão nativa de voz de NPC. Não classificar essa migração como concluída enquanto não existir o adaptador de entidades, rádio equipado e sincronização em jogo.
 
 Outros sistemas ainda necessários: comportamento de zumbis cross-region, spawn/população real, controle de armas e navegação 3D, facções/settlements, bases/loot, interface/dialogo, save/load de mundo e testes de performance.
+
+## 2026-11-07 — Primeira ponte de observações/decisões de NPCs do Steam + prioridade zumbis
+
+**Alterações aplicadas ao código da Linha 2 nesta rodada:**
+
+- `LiveNpcDecisionBridge.cs` foi registrado em `Nexus.cs` e consulta `http://127.0.0.1:8765/v1/decide_batch` a ~2 Hz, somente com até 32 `PrototypeActor` reais. Serializa observações do Unity na thread principal e executa HTTP no worker, com timeout, payload máximo, validade, tick e identidade verificados antes de aplicar decisões.
+- `SteamNpcPrototypeRuntime.cs` expõe `CopyLiveActors`, e `PrototypeActor` mede visibilidade real a 20 m e registra por até 8 segundos o último local do jogador. As ações `idle`, `engage` e `investigate` influenciam exclusivamente a movimentação dos **protótipos hostis**, com modo `passive` respeitado. Em caso de perda do servidor Python, mantém-se fallback local. Sem dano/combate real, `seek_cover` e `retreat` são recusadas.
+- `PrototypeObstacleNavigator.cs` substitui o bloqueio frontal total por desvio lateral de curto horizonte, consultas físicas limitadas e lado de manobra estável. Isso **não** é uma malha navegável de edificações nem interação com portas.
+- `ZombiePriorityVisionBridge.cs` usa `Zombie.checkAlert` e `Zombie.alert` para dar prioridade ao jogador visível a 20 m entre zumbis **já presentes**, máximo de 24 avaliações distintas por segundo, em singleplayer/cheats; ativação opcional `!u2 zombies on`, desligada por padrão, sem alterar limite vanilla.
+- `ZombieTrackingProbe.cs` F11 agora usa `Regions.tryGetCoordinate` e dados tipados de `Zombie` para diferenciar corretamente **região espacial x/y** de **spawnBound**. Registra perseguição, movimento, desaparecimento e passagem entre regiões.
+- `Line2AdminControl.cs` mostra o status da IA ao vivo, população de protótipos e comandos de zumbis. `WorldScanner.cs` passou a permitir relatório F6 de armas. `AIService/server.py` emite TTL de 600 ms nos lotes NPC. O check de SDK fonte e os testes de protocolo foram ampliados.
+
+**Não implementado nesta rodada**: NPCs com vida/dano e morte, animações de combate e armas, rádio físico, diálogos, comércio, fome/sede, grupos/bases vivos no Unity, IA de fuga/cobertura, controle real dos zumbis por região descarregada, hordas vanilla reagrupadas, persistência no save, multiplayer LAN/Internet. Esses componentes da Linha 1 ainda requerem adaptação, mesmo que modelos Python auxiliares existam.
+
+**Status de execução:** commits enviados; C# **não compilado nem executado contra a instalação Steam local**, e resultado da pipeline Actions ainda não verificado como verde. Não declarar entrega final ou recomendar bateria de gameplay antes desses gates.
