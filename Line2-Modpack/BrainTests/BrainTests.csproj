@@ -18,6 +18,10 @@
     <Compile Include="../ClientModule/Line2NPCCombatRules.cs"
              Link="Line2NPCCombatRules.cs" />
     <Compile Include="UnityValueStubs.cs" />
+    <Compile Include="PersistenceStubs.cs" />
+    <Compile Include="PersistenceTests.cs" />
+    <Compile Include="../ClientModule/Line2NpcPersistence.cs"
+             Link="Line2NpcPersistence.cs" />
     <Compile Include="../ClientModule/Line2MobileNPCTactics.cs"
              Link="Line2MobileNPCTactics.cs" />
     <Compile Include="../ClientModule/Line2MobileNPCBrain.cs"
