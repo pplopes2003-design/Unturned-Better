@@ -99,3 +99,16 @@ The CLI and GUI are still **prototype code**. Run `python -m unittest discover -
 4. Detect Steam library folders and subscriptions robustly.
 5. Improve C# module dependency resolution and multiplayer/server support.
 6. Better Vortex-like UI: dependency graph, conflicts, deployment plan.
+
+## Auto 32 — asset not found in game
+
+`asset_diagnostics.py` searches `.dat` metadata by folder/name and optional legacy ID, flags missing/invalid GUID, ID duplicates in searched roots, unusual .dat filename, and a default magazine ID not found in those roots. It is **read-only** and cannot verify whether an asset bundle actually contains a valid gun prefab.
+
+Example (adjust Windows paths; repeat --root for other locations):
+
+```powershell
+python asset_diagnostics.py --root "C:\\SteamLibrary\\steamapps\\common\\Unturned\\Bundles" --root "C:\\SteamLibrary\\steamapps\\workshop\\content\\304930" --name "Auto 32"
+python -m unittest discover -s . -p "test_*.py" -v
+```
+
+A zero match is not proof of global absence; this scan does not check arbitrary Steam libraries or packaged Unity bundle internals. The Line 2 branch currently has no custom Auto 32 asset package. Build the gun and its magazine using validated `.dat`, localization, prefab/bundle and registered IDs/GUIDs, then install and test in Unturned Steam **without** BattlEye. Do not assign a new item ID based on guesswork; reserve IDs after inventory of installed mods.
