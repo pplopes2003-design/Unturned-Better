@@ -19,6 +19,7 @@ namespace Unturned2.Line2
         private readonly List<RegionCoordinate> _regions =
             new List<RegionCoordinate>(9);
         private PrototypeActor _actor;
+        private SteamNpcPrototypeRuntime _runtime;
         private Line2MobileNPCInventory _inventory;
         private Line2NpcNeeds _needs;
         private Line2MobileNPCInjurySystem _injuries;
@@ -28,9 +29,10 @@ namespace Unturned2.Line2
         private uint _lastDeniedID;
         private float _lastDeniedUntil;
 
-        internal void Initialize(PrototypeActor actor,
-            Line2NPCCombatPerception perception)
+        internal void Initialize(SteamNpcPrototypeRuntime runtime,
+            PrototypeActor actor, Line2NPCCombatPerception perception)
         {
+            _runtime = runtime;
             _actor = actor;
             _inventory = GetComponent<Line2MobileNPCInventory>();
             _needs = GetComponent<Line2NpcNeeds>();
@@ -164,6 +166,7 @@ namespace Unturned2.Line2
                 Radius + 0.35f, out reason))
             {
                 if (_survey != null) _survey.RecordVerifiedWorldPickup();
+                if (_runtime != null) _runtime.RequestPriorityCheckpoint();
                 ProbeLogger.Log("NPC_WORLD_PICKUP_COMMITTED: actor=" +
                     _actor.Identity + " instance=" + bestID +
                     " importance=" + bestScore.ToString("F1"));
