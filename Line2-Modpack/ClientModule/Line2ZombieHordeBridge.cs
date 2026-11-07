@@ -18,12 +18,14 @@ namespace Unturned2.Line2
         private const int MaximumHorde = 18;
         private const int MaxLeaderInspections = 96;
         private const int MaxCandidatesInspected = 64;
+        private const int MaxBorderCandidatesScanned = 96;
         private const float RallyRadius = 25f;
         private const float TickInterval = 2.25f;
         private static readonly FieldInfo PlayerField = typeof(Zombie).GetField(
             "player", BindingFlags.NonPublic | BindingFlags.Instance);
         private readonly List<Zombie> _candidates = new List<Zombie>(64);
         private readonly List<Zombie> _eligible = new List<Zombie>(MaximumHorde);
+        private readonly HashSet<int> _candidateIds = new HashSet<int>();
         private readonly Dictionary<int, float> _lastAlertAt = new Dictionary<int, float>(128);
         private float _nextAt;
         private float _nextDiagnosticAt;
@@ -36,6 +38,7 @@ namespace Unturned2.Line2
             _lastAlertAt.Clear();
             _candidates.Clear();
             _eligible.Clear();
+            _candidateIds.Clear();
         }
 
         private static bool LocalAuthority()
@@ -84,6 +87,35 @@ namespace Unturned2.Line2
             _eligible.Clear();
             ZombieManager.getZombiesInRadius(
                 leader.transform.position, RallyRadius * RallyRadius, _candidates);
+            // The native radial lookup is restricted to the current zombie
+            // navigation bound. A small existing group across a map-region
+            // boundary should not be ignored merely because its members
+            // belong to the neighboring vanilla region. Observe a bounded
+            // rolling window of the ORIGINAL loaded zombie roster, never
+            // spawn/teleport one or claim unreachable native A* connectivity.
+            _candidateIds.Clear();
+            for (int i = 0; i < _candidates.Count; ++i)
+                if (_candidates[i] != null)
+                    _candidateIds.Add(_candidates[i].GetInstanceID());
+            if (_candidates.Count < MinimumHorde && all.Count > 0)
+            {
+                int inspectedBorder = Mathf.Min(MaxBorderCandidatesScanned,
+                    all.Count);
+                for (int i = 0; i < inspectedBorder; ++i)
+                {
+                    Zombie neighbor = all[(_cursor + i) % all.Count];
+                    if (neighbor == null || neighbor.isDead ||
+                        !neighbor.gameObject.activeInHierarchy ||
+                        (neighbor.transform.position - leader.transform.position)
+                            .sqrMagnitude > RallyRadius * RallyRadius ||
+                        !_candidateIds.Add(neighbor.GetInstanceID()))
+                        continue;
+                    _candidates.Add(neighbor);
+                    if (_candidates.Count >= MaxCandidatesInspected)
+                        break;
+                }
+                _cursor = (_cursor + inspectedBorder) % all.Count;
+            }
             if (_candidates.Count < MinimumHorde) return;
             int checkedCount = Mathf.Min(MaxCandidatesInspected, _candidates.Count);
             for (int i = 0; i < checkedCount &&
