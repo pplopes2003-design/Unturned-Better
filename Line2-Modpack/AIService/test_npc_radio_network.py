@@ -58,6 +58,16 @@ class RadioTests(unittest.TestCase):
         self.net.update_identity("a", faction_id=4, group_id=10)
         self.assertEqual(self.net.transmit("a", 23), [])
 
+    def test_spoofed_truthy_verification_rejected(self):
+        self.assertIsNone(self.net.report("a", "enemy_contact", (0, 0, 0), 1,
+                                           verified="yes"))
+        self.assertEqual(self.net.transmit("a", 1), [])
+
+    def test_future_dated_radio_report_not_delivered(self):
+        self.net.report("a", "airdrop", (1, 0, 1), 20, verified=True)
+        self.assertEqual(self.net.transmit("a", 10), [])
+        self.assertEqual(len(self.net.transmit("a", 20)), 1)
+
     def test_global_airtime_and_cooldowns(self):
         self.net.report("a", "enemy_contact", (1, 0, 1), 0, verified=True)
         self.assertEqual(len(self.net.transmit("a", 0)), 1)
