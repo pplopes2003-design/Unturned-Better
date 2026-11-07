@@ -58,3 +58,32 @@ Documentation:
 - [Unturned Gun Asset](https://docs.smartlydressedgames.com/en/latest/items/gun-asset.html)
 - [Asset bundle reuse](https://docs.smartlydressedgames.com/en/stable/assets/asset-bundles.html)
 - [Assets v1 format](https://unturned.info/Modding/AssetTypes/AssetsV1/)
+
+## Recoil presets (new)
+
+The user's Steam test confirms Auto 32 **spawns and shoots**, but the recoil was excessive. The default generator now writes the `balanced` recoil preset explicitly, replacing inherited Bluntforce `Recoil_Min/Max_X/Y` rather than carrying over pump-shotgun recoil.
+
+Presets in `auto32_recoil.py`:
+
+| Preset | Horizontal X min/max | Vertical Y min/max | Recover X/Y | ADS multiplier |
+|---|---|---|---|---|
+| soft | -0.35 / 0.35 | 0.7 / 1.1 | 0.65 / 0.65 | 0.75 |
+| balanced | -0.7 / 0.7 | 1.25 / 1.8 | 0.5 / 0.55 | 0.8 |
+| strong | -1.2 / 1.2 | 2.2 / 3.1 | 0.35 / 0.4 | 0.9 |
+
+**Updating an already installed Auto 32 safely:**
+1. Close Unturned.
+2. In manager > **Managed Installs**, select `Content/Auto32` and press **Remove managed mod**. This copies it to recovery and preserves registry integrity.
+3. Update/re-download Line 2 branch, open manager, click **Tune Auto 32 recoil**, select `balanced` (or `soft`).
+4. Select `Auto32` in Local Staging > **Install local mod** > `Content`.
+5. Restart Unturned, use `/give 32610`, test hip fire and ADS in a safe singleplayer area.
+
+CLI equivalent from `Line2-Modpack/ModpackManager` after removal:
+
+```powershell
+python auto32_recoil.py --staging "$env:USERPROFILE\Unturned2-ModpackManager\staging\Auto32" --preset balanced
+```
+
+**Do not edit `U2M_Auto32` in game folders before manager removal:** deployed file hashes would differ from the registry, intentionally preventing automatic removal. If you have already edited the deployed files, restore original bytes from a backup first or retain them for manual recovery. The preset tool edits *staging only*. New preset values still require gameplay validation.
+
+Docs: https://docs.smartlydressedgames.com/en/latest/items/gun-asset.html#recoil
