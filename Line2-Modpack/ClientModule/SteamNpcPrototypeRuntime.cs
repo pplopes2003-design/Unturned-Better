@@ -453,6 +453,7 @@ namespace Unturned2.Line2
                     identity = actor.Identity,
                     role = actor.Disposition,
                     displayName = actor.DisplayName,
+                    recruited = actor.IsRecruited,
                     groupId = group != null ? group.GroupId : 0,
                     health = actor.HealthFraction * 100f,
                     x = p.x, y = p.y, z = p.z,
@@ -629,6 +630,7 @@ namespace Unturned2.Line2
                 saved.displayName == null || saved.displayName.Length > 80 ||
                 !_vitals.TryRestoreHealthServer(saved.health)) return false;
             _identity = saved.identity;
+            _recruited = saved.recruited;
             gameObject.name = saved.identity;
             _displayName = saved.displayName;
             _home = saved.Home;
@@ -641,6 +643,16 @@ namespace Unturned2.Line2
         }
 
         internal string Disposition { get { return _disposition; } }
+        private bool _recruited;
+        internal bool IsRecruited { get { return _recruited; } }
+        internal bool TrySetRecruitedServer(bool follow)
+        {
+            if (!Provider.isServer || Dedicator.IsDedicatedServer ||
+                IsDead || _disposition == "hostile") return false;
+            _recruited = follow;
+            if (!follow) _goal = _home;
+            return true;
+        }
         internal string CombatMode { get { return _combatMode; } }
         internal bool PlayerVisible { get { return _threatVisible; } }
         internal bool IsCombatEnabled
@@ -1095,6 +1107,16 @@ namespace Unturned2.Line2
                 {
                     _goal = _tactics.TacticalDestination;
                     // Cover/retreat movement wins over renewed aggression.
+                }
+                else if (_recruited && player != null &&
+                    (player.transform.position - transform.position).sqrMagnitude < 80f * 80f &&
+                    (_combatPerception == null ||
+                     _combatPerception.Kind == Line2NPCCombatPerception.TargetKind.None))
+                {
+                    // Persistent alliance follows the player, but never
+                    // overrides an actual visible enemy or defensive escape.
+                    _goal = player.transform.position -
+                        player.transform.forward * 3.5f;
                 }
             }
 
