@@ -49,3 +49,19 @@ A lógica de população/grupos agora possui implementação Python isolada `AIS
 A investigação de arma também foi ampliada com **F6**: `ClientModule/GunApiDiscovery.cs` escreve `gun-api-discovery.txt` com APIs/assinaturas de `UseableGun`, `PlayerEquipment`, `PlayerInput` e `ItemGunAsset`, sem executar métodos. O agendador `RepeatingBurstScheduler` permanece somente como política de cadência; ainda não dispara a Eaglefire no jogo. O objetivo é integrar o disparo **original**, com munição, dano e validação de autoridade corretos.
 
 Fases internas restantes antes da bateria única solicitada: compilar módulo e capturar APIs Steam; criar/empacotar prefab compatível, implementar `ILine2NpcRuntime` e `IGameNpcAdapter`; conectar navegação, combate, persistência e facções; teste de integração com Unturned Steam e desempenho.
+
+## Rádio NPC (migração de modelo de dados, 2026-11-07)
+
+As regras encontradas em `MOBILE_NPC_RADIO_SYSTEM_DESIGN.md` da Linha 1 e em `MobileNPCRadioOutbox.cs` foram transpostas para `AIService/npc_radio_network.py` com testes `AIService/test_npc_radio_network.py`.
+
+- Walkie Talkie vanilla 1445 exigido para transmitir; escuta por walkie 1445 ou earpiece 1446 **efetivamente equipado**.
+- Frequência base 460327; facções organizadas compartilham canal determinado pela facção, enquanto grupos sem facção usam um canal distinto por grupo.
+- Transmissões somente para NPCs vivos com rádio/receptor e frequência/facção compatíveis. O plano usa só observações locais **verificadas**, sem visão telepática nem disparos por posição recebida.
+- Setores aproximados de 100 m, TTL limitado, 4 mensagens pendentes por emissor, intervalo de 20 s para observações, 8 s por emissor e 1,25 s entre transmissões globais.
+- Mensagens cobrem `enemy_contact`, `reinforcements`, `useful_loot`, `airdrop` e `unknown_base`. Aviso de reforços **não cria NPCs** nem altera orçamento populacional.
+- Morte, remoção de walkie, troca de grupo/facção ou validade expirada bloqueiam transmissões indevidas.
+- Testes também rejeitam `verified="yes"` (string verdadeira enganosa) e mensagens com data futura.
+
+**Estado real:** isso é lógica Python com contrato de entrada e testes, ainda **não está conectado a `PlayerVoice`, aos itens físicos de NPCs Steam, ao rádio do veículo, à rede de áudio ou ao HUD do jogador**. O interceptador na Linha 1 era texto local condicionado a equipamento/frequência, não transmissão nativa de voz de NPC. Não classificar essa migração como concluída enquanto não existir o adaptador de entidades, rádio equipado e sincronização em jogo.
+
+Outros sistemas ainda necessários: comportamento de zumbis cross-region, spawn/população real, controle de armas e navegação 3D, facções/settlements, bases/loot, interface/dialogo, save/load de mundo e testes de performance.
