@@ -31,6 +31,8 @@ namespace Unturned2.Line2
             public bool recruited;
             public int groupId;
             public float health;
+            public bool hasNeeds;
+            public float hunger, thirst;
             public float x, y, z, homeX, homeY, homeZ;
             public ItemRecord[] items;
             internal Vector3 Position { get { return new Vector3(x, y, z); } }
@@ -110,7 +112,10 @@ namespace Unturned2.Line2
                     !Finite(a.health) || a.health <= 0f || a.health > 100f ||
                     !Finite(a.x) || !Finite(a.y) || !Finite(a.z) ||
                     !Finite(a.homeX) || !Finite(a.homeY) || !Finite(a.homeZ) ||
-                    a.items == null || a.items.Length > 18)
+                    a.items == null || a.items.Length > 18 ||
+                    (a.hasNeeds && (!Finite(a.hunger) || !Finite(a.thirst) ||
+                        a.hunger < 0f || a.hunger > 100f ||
+                        a.thirst < 0f || a.thirst > 100f)))
                     throw new InvalidDataException("invalid actor");
                 if (a.groupId != 0)
                 {
