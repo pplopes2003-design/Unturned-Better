@@ -98,6 +98,35 @@ namespace Unturned2.Line2
             return true;
         }
 
+        internal static bool TryGetLivingMember(int groupId, out PrototypeActor member)
+        {
+            member = null;
+            List<Line2NPCGroupMember> group;
+            if (groupId <= 0 || !Groups.TryGetValue(groupId, out group)) return false;
+            foreach (Line2NPCGroupMember candidate in group)
+            {
+                if (candidate == null) continue;
+                PrototypeActor actor = candidate.GetComponent<PrototypeActor>();
+                if (actor == null || actor.IsDead) continue;
+                member = actor;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Only fresh replacements with living former teammates
+        /// can rejoin an existing group. Extinct groups cannot be revived.</summary>
+        internal bool TryJoinLivingGroup(PrototypeActor actor, int previousGroupId)
+        {
+            PrototypeActor living;
+            if (actor == null || actor.IsDead ||
+                !TryGetLivingMember(previousGroupId, out living) ||
+                (living.transform.position - actor.transform.position).sqrMagnitude >
+                    JoinRangeSquared)
+                return false;
+            return TryRestoreMembership(actor, previousGroupId);
+        }
+
         internal void Leave()
         {
             if (!Joined) return;
