@@ -403,6 +403,8 @@ namespace Unturned2.Line2
                     var combatSight = instance.AddComponent<Line2NPCCombatPerception>();
                     combatSight.Initialize(this, actor);
                     actor.AttachCombatPerception(combatSight);
+                    var looting = instance.AddComponent<Line2NpcWorldLootCollector>();
+                    looting.Initialize(actor, combatSight);
                     var medicalCare = instance.AddComponent<Line2NpcMedicalCare>();
                     medicalCare.Initialize(actor, combatSight);
                     var melee = instance.AddComponent<Line2NPCMeleeExecutor>();
