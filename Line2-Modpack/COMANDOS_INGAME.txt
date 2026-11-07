@@ -1,0 +1,46 @@
+UN turned 2 — Linha 2 / Comandos locais (protótipo)
+====================================================
+Status: CONFIGURACAO LOCAL FUNCIONANDO NO CODIGO-FONTE, ainda nao compilada/validada no Steam.
+ATENCAO: nao sao comandos / ou @ nativos! Usar prefixo !u2 no chat.
+F7 abre menu de administracao local (em Windows, após instalar DLL compilada).
+Usar apenas em singleplayer / sessao com autoridade local.
+
+!u2 help                   Mostra ajuda
+!u2 status                 Configuracoes e status do adaptador NPC
+!u2 server                 Status da autoridade local; nao inicia servidor
+!u2 population             Configuracao de populacao
+
+!u2 npc on                 Habilita configuracao de NPCs
+!u2 npc off                Desabilita configuracao de NPCs
+!u2 natural on             Solicita spawn natural (ainda nao ativo no jogo)
+!u2 natural off            Desabilita solicitacao de spawn natural
+!u2 max 8                  Define limite previsto de NPCs (1..32)
+!u2 combat passive         Modo de combate passivo (configuracao)
+!u2 combat normal          Modo normal (configuracao)
+!u2 combat total           Modo combate total (configuracao)
+!u2 hordes on              Solicita hordas, SEM aumentar limite vanilla
+!u2 hordes off             Desabilita solicitacao de hordas
+!u2 save                   Salva configuracao administrativa
+
+!u2 spawn friendly         Solicita 1 NPC amigavel
+!u2 spawn neutral          Solicita 1 NPC neutro
+!u2 spawn hostile          Solicita 1 NPC hostil
+!u2 spawn hostile 3        Solicita 3 NPCs hostis (maximo 5 por pedido)
+
+IMPORTANTE:
+Os comandos de spawn, no estado atual, retornam SPAWN_UNAVAILABLE.
+O GameNpcRuntime ainda precisa ser implementado com prefab humanoide valido,
+movimentacao, hitboxes, percepcao, IA, combate e persistencia.
+NAO HA NPCS MOVEIS NEM SPAWN NATURAL JOGAVEL NESTA VERSAO.
+Nao aumentamos a populacao de zumbis nem ativamos hordas reais.
+
+Interface e configuracao:
+  ClientModule/Line2AdminControl.cs
+  ClientModule/Line2NpcRuntimeRegistry.cs
+  Unturned2-Line2/admin-settings.json (diretorio de trabalho do jogo)
+
+Para compilar:
+  dotnet build .\ClientModule\Unturned2.Line2.Probe.csproj -c Release -p:UnturnedDir="C:\Program Files (x86)\Steam\steamapps\common\Unturned"
+
+Nao testar ate compilar/carregar o modulo. A entrega final de NPCs foi acordada
+como uma unica bateria de testes jogaveis, nao em subcomponentes.
