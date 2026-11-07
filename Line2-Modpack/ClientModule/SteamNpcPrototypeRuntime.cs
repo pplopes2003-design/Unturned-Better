@@ -480,17 +480,29 @@ namespace Unturned2.Line2
 
         private void OnActorDied(PrototypeActor actor, int formerGroup)
         {
-            if (!_enabled || !_natural || !IsAuthorized() ||
-                actor == null || _pendingReplacements.Count >= 32)
+            if (!_enabled || !IsAuthorized() || actor == null)
                 return;
-            _pendingReplacements.Add(new Line2NpcPersistence.ReplacementRecord
+            // Natural replacement is optional, but death is NEVER optional
+            // persistence. The previous path returned without saving when
+            // natural spawn was disabled and resurrected a dead survivor
+            // (potentially duplicating its native dropped inventory) on
+            // the next load. Preserve the group ticket in the same checkpoint.
+            if (_natural && _pendingReplacements.Count < 32)
             {
-                role = actor.Disposition,
-                formerGroupId = formerGroup,
-                readyAtUtcTicks = DateTime.UtcNow.AddSeconds(60).Ticks
-            });
-            ProbeLogger.Log("NPC_REPLACEMENT_SCHEDULED: role=" + actor.Disposition +
-                " formerGroup=" + formerGroup + " delay=60s");
+                _pendingReplacements.Add(new Line2NpcPersistence.ReplacementRecord
+                {
+                    role = actor.Disposition,
+                    formerGroupId = formerGroup,
+                    readyAtUtcTicks = DateTime.UtcNow.AddSeconds(60).Ticks
+                });
+                ProbeLogger.Log("NPC_REPLACEMENT_SCHEDULED: role=" +
+                    actor.Disposition + " formerGroup=" + formerGroup +
+                    " delay=60s");
+            }
+            // Actor has already been marked dead by native vitals.
+            // SaveCheckpoint skips it while retaining other loaded and
+            // still-pending survivors, so reloading cannot resurrect it.
+            RequestPriorityCheckpoint();
         }
 
         private void TryProcessReplacement()
