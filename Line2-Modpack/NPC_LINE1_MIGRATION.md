@@ -92,3 +92,20 @@ Outros sistemas ainda necessários: comportamento de zumbis cross-region, spawn/
 **Não implementado nesta rodada**: NPCs com vida/dano e morte, animações de combate e armas, rádio físico, diálogos, comércio, fome/sede, grupos/bases vivos no Unity, IA de fuga/cobertura, controle real dos zumbis por região descarregada, hordas vanilla reagrupadas, persistência no save, multiplayer LAN/Internet. Esses componentes da Linha 1 ainda requerem adaptação, mesmo que modelos Python auxiliares existam.
 
 **Status de execução:** commits enviados; C# **não compilado nem executado contra a instalação Steam local**, e resultado da pipeline Actions ainda não verificado como verde. Não declarar entrega final ou recomendar bateria de gameplay antes desses gates.
+
+## 2026-11-07 — Cérebro C# de decisões e audição de tiros nativos
+
+Para evitar que o AI Service seja a única fonte de comportamento, adicionei `ClientModule/NpcDecisionBrain.cs`: máquina de estados **local, determinística e independente do Unity**, com intenções `Patrol`, `Follow`, `Investigate`, `Pursue`, `SeekCover` e `Retreat`. A máquina possui histerese curta (mínimo de 0,45 s entre mudanças não urgentes), memória limitada a evidências observadas, prioridade de ameaças visíveis e regras de modo passivo. Recebe apenas fatos de sensores autorizados, não alvos arbitrários de respostas HTTP. Foi integrada ao `PrototypeActor` para selecionar deslocamento por perseguição, última posição, patrulha e seguimento.
+
+O novo `NpcAcousticSensorBridge.cs` escuta `UseableGun.onBulletSpawned` do Unturned e encaminha até 32 NPCs próximos, a no máximo 80 metros, um setor aproximado de 12 metros como pista auditiva com validade de até 7 segundos. Conta apenas `pellet == 0` e limita a frequência dos eventos para não multiplicar trabalho por rajada/escopeta. O NPC não recebe a localização exata do jogador, não vê através de paredes e não inventa disparos quando o serviço Python está desligado.
+
+O núcleo tem autoteste `NpcDecisionBrainSelfTest`, iniciado em `Nexus.initialize()`, e projeto de compilação/teste separado em `BrainTests/BrainTests.csproj` para GitHub Actions Windows. Esse teste valida as regras do cérebro C# **sem depender do jogo**, mas **não valida a DLL Steam**, o spawn, a física, as animações ou o combate.
+
+**Limites intencionais:**
+- `SeekCover` e `Retreat` são decisões disponíveis na máquina, **não comportamentos jogáveis**: o protótipo não possui saúde real, reação a balas recebidas nem seleção de cobertura verificável.
+- `Pursue` significa que o personagem se move em direção ao inimigo visível, não que saiba disparar, causar dano ou abrir uma porta.
+- A navegação ainda usa steering local, não rotas indoor com análise de prefab/portal e collider.
+- Rádio/facções, inventário e comércio, persistência, zumbis entre regiões, hordas e servidor integrado ainda não estão conectados ao runtime dos personagens.
+- Nenhuma compilação da DLL contra Unturned Steam ou validação de gameplay foi confirmada nesta rodada. Não considerar a migração total da Linha 1 concluída.
+
+**Próxima integração prioritária dentro do mesmo pacote de NPCs:** adaptador de vida/dano e morte, armas e animações reais, detecção/uso de portas e cobertura, navegação indoor/outdoor com rotas, facções e rádio físico, persistência e orçamento de desempenho. A bateria de gameplay do usuário será **uma só**, quando esses recursos estiverem integrados e validados.
