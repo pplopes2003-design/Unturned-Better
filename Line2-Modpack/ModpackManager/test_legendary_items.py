@@ -59,7 +59,7 @@ class LegendaryItemTests(unittest.TestCase):
     def test_washington_root_attaches_with_low_weight(self):
         folder=self.game/"Bundles"/"Spawns"/"Washington_Special_America"
         folder.mkdir(parents=True)
-        (folder/"Asset.dat").write_text("Type Spawn\\nID 346\\nGUID aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\n")
+        (folder/"Asset.dat").write_text("Type Spawn\nID 346\nGUID aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n")
         result=build_legendaries(self.game,self.output)
         loot=parse_dat(self.output/"Spawns/LegendaryLootPool/Asset.dat")
         self.assertTrue(result["washington_root_attached"])
@@ -71,7 +71,7 @@ class LegendaryItemTests(unittest.TestCase):
     def test_detect_local_burner_visual_effect(self):
         folder=self.game/"Bundles"/"Effects"/"Zombie_Burner_Explosion"
         folder.mkdir(parents=True)
-        (folder/"Asset.dat").write_text("Type Effect\\nID 991\\n")
+        (folder/"Asset.dat").write_text("Type Effect\nID 991\n")
         result=build_legendaries(self.game,self.output)
         ammo=parse_dat(self.output/"Items/Ammo/Legendary_Incendiary_12Gauge/Asset.dat")
         self.assertEqual(result["effect_id"],991)
