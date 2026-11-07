@@ -9,6 +9,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="../ClientModule/Line2NPCCombatRules.cs"
+             Link="Line2NPCCombatRules.cs" />
     <Compile Include="UnityValueStubs.cs" />
     <Compile Include="../ClientModule/Line2MobileNPCTactics.cs"
              Link="Line2MobileNPCTactics.cs" />
