@@ -28,6 +28,7 @@ namespace Unturned2.Line2
             public string identity;
             public string role;
             public string displayName;
+            public bool recruited;
             public int groupId;
             public float health;
             public float x, y, z, homeX, homeY, homeZ;
