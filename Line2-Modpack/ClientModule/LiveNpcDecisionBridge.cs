@@ -120,6 +120,7 @@ namespace Unturned2.Line2
         private static bool IsLocalAuthority()
         {
             return Provider.isServer && !Dedicator.IsDedicatedServer &&
+                   (Provider.clients == null || Provider.clients.Count <= 1) &&
                    Provider.hasCheats && Level.isLoaded && Player.player != null;
         }
 
