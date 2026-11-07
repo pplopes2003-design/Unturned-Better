@@ -352,6 +352,9 @@ namespace Unturned2.Line2
                     var ownedInventory = instance.AddComponent<Line2MobileNPCInventory>();
                     instance.AddComponent<Line2MobileNPCInjurySystem>();
                     instance.AddComponent<Line2MobileNPCDoorNavigation>();
+                    var coarseNav = instance.AddComponent<Line2CoarseRouteBridge>();
+                    coarseNav.Initialize();
+                    follower.AttachCoarseFallback(coarseNav);
                     instance.AddComponent<Line2MobileNPCAdaptiveMemory>();
                     instance.AddComponent<Line2MobileNPCTravelMemory>();
                     string anatomyError;
