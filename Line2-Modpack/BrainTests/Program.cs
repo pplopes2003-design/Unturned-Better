@@ -56,6 +56,42 @@ internal static class Program
             return 3;
         }
         Console.WriteLine("EXPLOSION_MATH_OK: center, half-radius, edge, out of range and invalid numbers.");
+        var tactical = new Line2MobileNPCTactics();
+        tactical.ReportDamage(20f, 100f, 1f);
+        bool defensive = tactical.TryChooseDefensiveGoal(
+            new UnityEngine.Vector3(0f, 0f, 0f),
+            null, new UnityEngine.Vector3(-5f, 0f, 0f), 1.1f, false);
+        if (!defensive ||
+            tactical.CurrentGoal != Line2MobileNPCTactics.Goal.Retreat ||
+            tactical.HasTacticalDestination ||
+            !tactical.ReportValidatedRetreatPoint(
+                new UnityEngine.Vector3(12f, 0f, 0f), 1.2f) ||
+            !tactical.HasTacticalDestination)
+        {
+            Console.Error.WriteLine("Imported Line 1 tactical retreat policy FAILED.");
+            return 4;
+        }
+        tactical.ReportGoalReached();
+        if (tactical.CurrentGoal != Line2MobileNPCTactics.Goal.None ||
+            tactical.HasTacticalDestination)
+        {
+            Console.Error.WriteLine("Committed tactical goal cleanup FAILED.");
+            return 5;
+        }
+        tactical.ReportHealth(100f, 100f);
+        tactical.ReportIncomingFire(6f);
+        bool requestedCover = tactical.TryChooseDefensiveGoal(
+            new UnityEngine.Vector3(0f, 0f, 0f),
+            new UnityEngine.Vector3(2f, 0f, 5f),
+            new UnityEngine.Vector3(-5f, 0f, 0f), 6.1f, false);
+        if (!requestedCover ||
+            tactical.CurrentGoal != Line2MobileNPCTactics.Goal.SeekCover ||
+            !tactical.HasTacticalDestination)
+        {
+            Console.Error.WriteLine("Imported Line 1 tactical cover policy FAILED.");
+            return 6;
+        }
+        Console.WriteLine("NPC_TACTICS_SELFTEST_OK: real wound withdrawal and verified-cover commitment.");
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
