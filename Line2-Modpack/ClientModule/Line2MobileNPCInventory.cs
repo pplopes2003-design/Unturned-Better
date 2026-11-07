@@ -304,6 +304,15 @@ namespace Unturned2.Line2
                 failureReason = "npc-custody-rejected";
                 return false;
             }
+            uint committedSlotID = npcSlot < slotInstanceIDs.Count
+                ? slotInstanceIDs[npcSlot] : 0u;
+            if (committedSlotID == 0)
+            {
+                Item invalid;
+                TryTakeItemServer(npcSlot, out invalid);
+                failureReason = "invalid-npc-ownership-slot";
+                return false;
+            }
             bool removedFromWorld = false;
             bool nativeNotified = false;
             try
@@ -332,7 +341,12 @@ namespace Unturned2.Line2
                 if (removedFromWorld)
                     owner.items.Insert(Mathf.Min(sourceIndex, owner.items.Count), source);
                 Item rolledBack;
-                if (!TryTakeItemServer(npcSlot, out rolledBack))
+                // The native destroy callback can notify other mods. Find
+                // our precise reserved inventory instance again rather than
+                // assuming callbacks left all slot indices unchanged.
+                int rollbackSlot = FindSlotByInstanceID(committedSlotID);
+                if (rollbackSlot < 0 ||
+                    !TryTakeItemServer(rollbackSlot, out rolledBack))
                     UnturnedLog.error("[Line2Inventory] PICKUP ROLLBACK FAILED: " +
                         "manual restore required, instance=" + instanceID);
                 failureReason = "failed-closed:" + error.GetType().Name +
