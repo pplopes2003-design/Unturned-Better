@@ -166,3 +166,15 @@ Windows users can build and deploy the **diagnostic-only** C# module with:
 This requires the .NET SDK and .NET Framework 4.7.2 reference assemblies; it fails safely if compilation fails, and backs up any existing `Unturned2.Line2` module before copying. Windows PowerShell execution policy may block local scripts; use `dotnet build` and manually copy the DLL + manifest in that case. Close the game before updating the module. The C# module has **not yet been compiled and executed against the user's Unturned Steam build**.
 
 Do not mistake `F12` NPC-like matches, `F9` camera-to-service connectivity, or synthetic `smoke_simulation.py` intentions for real moving/attacking NPCs. The true Steam-side NPC adapter remains pending.
+
+## NPC delivery: integrated milestone, not a drip-feed of game tests
+
+The user requested **one comprehensive NPC playtest** rather than repeated testing of unfinished NPC subsystems. Scope, performance budget, release gates and the eventual single acceptance battery are documented in [NPC_INTEGRATED_ACCEPTANCE.md](NPC_INTEGRATED_ACCEPTANCE.md).
+
+The prerequisite **C# compilation check** remains: the user's Windows environment previously reported `No .NET SDKs were found`. To avoid PowerShell execution-policy errors, use the new `scripts/build_diagnostics_windows.cmd`, from Windows CMD or PowerShell:
+
+```powershell
+.\scripts\build_diagnostics_windows.cmd "C:\Program Files (x86)\Steam\steamapps\common\Unturned"
+```
+
+This command checks the SDK, compiles the **read-only** F8–F12 diagnostic module and installs it **only if an existing same-name module is absent**, refusing unsafe overwrites. It does not add game NPCs. For subsequent rebuilds, back up/remove the old diagnostic module folder before rerunning. Compiling with `dotnet build` manually is also supported.
