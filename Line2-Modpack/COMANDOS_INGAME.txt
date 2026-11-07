@@ -44,3 +44,22 @@ Para compilar:
 
 Nao testar ate compilar/carregar o modulo. A entrega final de NPCs foi acordada
 como uma unica bateria de testes jogaveis, nao em subcomponentes.
+
+==========================================================
+ITENS LENDARIOS — primeiro teste após atualizar o Modpack Manager
+==========================================================
+/give 32610      Auto 24 (24 cartuchos; antigo ID da Auto 32)
+/give 32611      Carregador Auto 24 (24 cartuchos)
+/give 32612      Eaglefire Automatica (Semi / Burst 3 / Auto)
+/give 32613      12 Gauge Incendiaria experimental
+                Area de impacto pequena; efeito Burner real ainda pendente
+
+32614           ID da tabela de loot LegendaryLootPool, nao e um item
+                Nao usar /give 32614.
+
+Para instalar: com jogo fechado, Remover Content/Auto32 pelo manager,
+Upgrade Auto32 to 24 no staging, reinstalar Content/Auto32. Depois
+Generate Legendary Pack, instalar Content/LegendaryPack.
+O Spawn natural com peso baixo so esta conectado a Washington se
+a tabela vanilla Washington_Special_America ID 346 for identificada
+no diretorio Bundles/Spawns da instalacao.
