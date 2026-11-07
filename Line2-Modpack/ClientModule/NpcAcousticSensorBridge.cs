@@ -37,6 +37,7 @@ namespace Unturned2.Line2
         {
             if (gun == null || bullet == null || bullet.pellet != 0 ||
                 !Provider.isServer || Dedicator.IsDedicatedServer ||
+                (Provider.clients != null && Provider.clients.Count > 1) ||
                 !Provider.hasCheats || !Level.isLoaded ||
                 Player.player == null)
                 return;
