@@ -239,3 +239,9 @@ This iteration ports the native Steam ASPFP `Seeker` route provider from Line 1 
 It also ports the `MobileNPCTactics` tactical goals into `Line2MobileNPCTactics` (with explicit combat-mode setting), adds `PrototypeCoverPlanner`, and connects these to the prototype's **native explosion** health receiver `PrototypeNpcVitals : IExplosionDamageable`. Existing grenade damage uses the original `DamageTool`/Agent-layer overlap, radial falloff and world obstruction. The new `NpcExplosionMath` and tactical policy are covered by separate C# Windows tests. The prior Line 1 humanoid did not implement this explosion interface and might have been excluded from vanilla blast candidate selection.
 
 **Still not confirmed:** compiled Steam module, actual grenade/fall damage in Washington, real shooting damage/hitboxes, full NPC combat, door-aware A*, radio/faction simulation in Unity, save/load, and all Line 1 features. Treat the integration as an experimental NPC prototype until a complete in-game test passes.
+
+## Portes literais adicionais da Linha 1 (2026-11-07)
+
+As classes originais de memória de perseguição e busca (`MobileNPCBrain`), conhecimento sensorial (`MobileNPCPlayerKnowledge`), seleção de marcha (`MobileNPCLocomotionPolicy`) e experiência pessoal (`MobileNPCAdaptiveMemory`) foram portadas e **ligadas ao runtime de NPCs**, não apenas acrescentadas como arquivos inativos. A implementação faz um objetivo de busca avançar ao **chegar fisicamente** na posição, em vez de ficar girando diante de um obstáculo. A memória registra experiência de cobertura apenas após chegada real. Ver [LINE1_DIRECT_PORTS.md](LINE1_DIRECT_PORTS.md) para verificação dos arquivos, funções executadas e lacunas.
+
+**Ainda faltam** os executores de combate/dano por arma, interação com portas, rádio/grupos e persistência da Linha 1. O código novo **não foi compilado nem testado em Unturned Steam** nesta rodada. Não tratar como versão final.
