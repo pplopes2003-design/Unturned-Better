@@ -242,7 +242,8 @@ class App(tk.Tk):
             messagebox.showinfo("Legendary pack generated",
                 "Staging: " + result["path"] + "\\nEaglefire ID " + str(eagle_id) +
                 "\\nIncendiary 12G ID " + str(fire_id) +
-                "\\nReview the README_TESTING.txt before deployment.")
+                "\\nWashington loot root: " + ("attached" if result["washington_root_attached"] else "not found") +
+                "\\nReview README_TESTING.txt before deployment.")
         except Exception as exc:
             messagebox.showerror("Legendary pack failed", str(exc))
 
