@@ -9,7 +9,9 @@
 - O `SteamNpcPrototypeRuntime` só autoriza protótipos no singleplayer local com cheats, sem BattlEye. Não há replicação multiplayer.
 - O `LiveNpcDecisionBridge` agora envia a fração real de saúde, dano recente e cobertura validada pelo runtime. Sugestões defensivas são recusadas sem dano/cobertura/rota local apropriados.
 - A transferência de loot do chão continua bloqueada quando não há remoção atômica do item de origem no Steam.
-- Nesta rodada foram adicionados adaptadores experimentais de persistência de sobreviventes por mapa, necessidades, interação/comércio por XP, reposição atrasada, ataque de zumbis a NPCs, rally de hordas existentes e múltiplos pellets por tiro. Todos ainda exigem compilação contra os assemblies Steam e teste de gameplay.
+- Foram integrados adaptadores experimentais para: persistência por mapa (incluindo ferimentos e NPCs de regiões ainda não carregadas), necessidades, cura com itens nativos, diálogos/comércio por XP, reposição atrasada, ataque de zumbis a NPCs, rally local de hordas, múltiplos pellets e trajetória de projétil, lançamento físico de granadas nativas e loot do inventário do NPC morto. Todos exigem compilação contra os assemblies Steam e validação in-game.
+- Da Linha 1 foram migrados o planejador A* incremental de horizonte (61m), a validação física de arestas/pisos/portas, a pré-validação de salto por peitoril/obstáculo baixo e uma rotina A-Life de exploração de locais de spawn authored, guarda e recuperação. Isso **não** equivale a portar o BrainDriver completo nem a construir bases.
+- `Line2NpcObstacleAudit` registra apenas colisões realmente observadas com objeto nativo, tipo de colisor, camada e destino; serve para localizar os assets que continuam bloqueando a IA, sem desativar fisicamente paredes ou vidros.
 - A aprovação da pipeline não comprova navegação indoor, dano de zumbis em NPCs, A-Life, bases, comércio ou persistência.
 
 ## Preparação
@@ -31,11 +33,27 @@
 | Saúde real e recuo | Dano validado reduz HP; sob pressão NPC procura cobertura/recuo | Pendente de teste Steam |
 | Combate completo | Armas gastam munição real e respeitam recarga, cadência, precisão e LOS | Pendente de teste Steam |
 | Explosões | Granada nativa causa dano verificado aos NPCs na camada Agent | Pendente de teste Steam |
-| Portas e janelas | Entrada/saída por portal real sem atravessar paredes | Pendente de teste Steam |
+| Portas e janelas | Entrada/saída por portal real sem atravessar paredes | Portas nativas + fallback incremental + salto físico baixo implementados; escadas, vidros e janelas exigem validação no Steam |
 | Zumbis contra NPCs | Zumbi percebe, persegue e causa dano no NPC | Adaptador local experimental integrado; teste Steam pendente |
 | Hordas/regiões | População vanilla respeitada e transição regional | Rally local no mesmo nav bound; perseguição entre regiões NÃO implementada |
-| Loot do chão | Transferência atômica sem duplicação/perda após reinício | Bloqueado até API segura |
-| Comércio/bases/A-Life | Ciclo de interação, tarefas, materiais e mundo persistido | Diálogo/comércio básico e necessidades implementados; bases e A-Life completo NÃO implementados |
+| Loot do chão | Transferência atômica sem duplicação/perda após reinício | **Ainda bloqueado:** drop do equipamento após a morte usa ItemManager nativo; coleta exata de itens existentes no chão não foi liberada |
+| Comércio/bases/A-Life | Ciclo de interação, tarefas, materiais e mundo persistido | Diálogo/comércio básico, saúde/necessidades, exploração e guarda integrados; coleta/raids, construção e assentamentos completos NÃO implementados |
 | Multiplayer | Host autoritativo, replicação, entrada/saída, reconexão | Não integrado; runtime local suspende NPCs se entrar outro jogador |
+
+## Componentes e prioridades que ainda impedem o teste único final
+
+1. **Compatibilidade real:** compilar toda `ClientModule` com a versão instalada do Unturned Steam e resolver eventuais APIs Unity/Assembly-CSharp divergentes. O Windows CI testa políticas C# isoladas, Python e superfícies textuais de SDK, não o módulo real.
+2. **Cérebro completo:** portar os estados restantes de `MobileNPCBrainDriver` e operadores táticos, incluindo objetivos de facção, formação de grupos, invasões, recuo em combate prolongado e reação avançada a zumbis. Hoje há subconjuntos funcionais integrados e prioridade local de combate; **não** uma porta 1:1 completa.
+3. **A-Life e bases:** transferência atômica real do loot do chão, construção de bases com os recursos autênticos, ocupação de estruturas, raid de bases, rotina logística, monitoramento de recursos e bases entre sessões.
+4. **Navegação avançada:** comprovar conexão do ASPFP original e do grafo alternativo com portas, janelas quebradas, baixa travessia física, escadas, andares e obstáculos móveis em mapas reais sem clip ou teletransporte.
+5. **Zumbis:** validar dano mútuo, perseguição em regiões/níveis e o comportamento de investigação/hordas ao perder o alvo; o rally atual reutiliza zumbis já existentes, não altera o limite vanilla nem garante travessia de regiões.
+6. **Multiplayer integrado:** host Steam, sincronização autoritativa de NPCs/danos/itens/radio e entrada/reconexão de convidados. A Linha 2 permanece intencionalmente singleplayer local enquanto isso não existir.
+7. **Auto 32 e distribuição:** preservar IDs, carregadores 24/12, rajada automática, material de modpack/Workshop e assinatura/instalação, testando possíveis conflitos de mods no cliente Steam.
+
+### Evidência de testes desta rodada
+- `BrainTests` do código original portado: sucesso na rota incremental por qualquer lado da parede e recusa de caminhos desconectados.
+- Persistência isolada: ida e volta de inventário, grupos, ferimentos, identidades e tickets de reposição, com rejeição de registros corrompidos.
+- A auditoria `check_sdk_api_surface.py` inclui os símbolos originais de granadas, objetos de mapa, portas e as conexões dos componentes novos.
+- **Nenhuma dessas evidências substitui uma build real ou demonstra o gameplay completo.**
 
 **Regra de liberação:** só anunciar uma build integrada de gameplay após passar os testes automatizados, compilar contra assemblies Steam reais e observar os cenários acima sem regressões. Não criar implementação de loot com remoção otimista do drop, nem liberar NPCs locais não replicados em multiplayer.
