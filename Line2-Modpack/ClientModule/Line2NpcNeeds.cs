@@ -78,7 +78,7 @@ namespace Unturned2.Line2
             {
                 Item snapshot;
                 if (!_inventory.TryGetItemSnapshot(index, out snapshot) ||
-                    snapshot.amount != 1) continue;
+                    snapshot.amount == 0) continue;
                 ItemConsumeableAsset consumable =
                     Assets.find(EAssetType.ITEM, snapshot.id) as ItemConsumeableAsset;
                 if (consumable == null ||
@@ -87,7 +87,10 @@ namespace Unturned2.Line2
                 float value = food ? consumable.food : consumable.water;
                 if (value <= 0f) continue;
                 Item consumed;
-                if (!_inventory.TryTakeItemServer(index, out consumed)) return false;
+                // Consume exactly one actual unit, preserving the other
+                // contents of stacked food/water and their native item state.
+                if (!_inventory.TryConsumeOneItemByIdServer(
+                    snapshot.id, out consumed)) return false;
                 if (food) Hunger = Mathf.Min(100f, Hunger + value);
                 else Thirst = Mathf.Min(100f, Thirst + value);
                 ProbeLogger.Log("NPC_SURVIVAL_CONSUMED: npc=" + _actor.Identity +
