@@ -24,6 +24,18 @@ namespace Unturned2.Line2
         private Line2MobileNPCInjurySystem _injuries;
 
         internal float HealthFraction { get { return Mathf.Clamp01(_health / MaximumHealth); } }
+        /// <summary>Restores prior surviving health once during actor construction.
+        /// This is not healing, damage, or a resurrection API.</summary>
+        internal bool TryRestoreHealthServer(float health)
+        {
+            if (!Provider.isServer || Dedicator.IsDedicatedServer || _dead ||
+                float.IsNaN(health) || float.IsInfinity(health) ||
+                health <= 0f || health > MaximumHealth) return false;
+            _health = health;
+            _lastDamageAt = -1000f;
+            HasExplosionOrigin = false;
+            return true;
+        }
         internal float Health { get { return _health; } }
         internal bool IsDead { get { return _dead; } }
         internal float LastDamageAt { get { return _lastDamageAt; } }
