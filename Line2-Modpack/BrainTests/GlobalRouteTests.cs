@@ -49,7 +49,8 @@ internal static class GlobalRouteTests
         {
             if (FlatDistance(previous, node) > 3.1f || !Edge(previous, node))
                 return false;
-            if (node.z >= 8.5f) detoured = true;
+            // Either side of the barrier is a valid detour.
+            if (Math.Abs(node.z) >= 8.5f) detoured = true;
             previous = node;
         }
         if (!detoured) return false;
