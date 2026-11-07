@@ -103,6 +103,12 @@ namespace Unturned2.Line2
             if (_sites.TryGetValue(groupId, out current))
                 return current.role == role;
             if (_sites.Count >= MaxGroups) return false;
+            // Preserve separate faction camps and avoid NPC construction
+            // inside an established rival's physical footprint.
+            foreach (Line2NpcPersistence.SettlementRecord other in
+                _sites.Values)
+                if ((other.Anchor - site).sqrMagnitude < 25f * 25f)
+                    return false;
             _sites.Add(groupId, new Line2NpcPersistence.SettlementRecord
             {
                 groupId = groupId, role = role,
