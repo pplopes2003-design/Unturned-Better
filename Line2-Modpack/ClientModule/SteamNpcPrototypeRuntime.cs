@@ -903,6 +903,12 @@ namespace Unturned2.Line2
             new Line2MobileNPCLocomotionPolicy();
         private float _nextLegacyArrivalCheckAt;
         private readonly Line2MobileNPCTactics _tactics = new Line2MobileNPCTactics();
+        private readonly Line2NpcTacticalJourneyWatchdog _tacticalJourney =
+            new Line2NpcTacticalJourneyWatchdog();
+        private Vector3 _lastFailedTacticalPoint;
+        private Line2MobileNPCTactics.Goal _lastFailedTacticalKind;
+        private float _tacticalRetryAfter;
+        private float _nextTacticalBlockedLog;
         internal NpcIntent CurrentIntent { get { return _brain.Intent; } }
         internal Vector3 CurrentDestination { get { return _goal; } }
 
@@ -976,6 +982,7 @@ namespace Unturned2.Line2
             _legacyBrain.Reset();
             _knowledge.Clear();
             _tactics.ClearGoal();
+            _tacticalJourney.Reset();
             _locomotion.Reset();
             _vaultActive = false;
         }
@@ -1002,6 +1009,7 @@ namespace Unturned2.Line2
                 _knowledge.Clear();
                 _locomotion.Reset();
                 _tactics.ClearGoal();
+                _tacticalJourney.Reset();
                 _aiAction = null;
                 _threatVisible = false;
                 _lastKnownThreat = null;
@@ -1197,6 +1205,20 @@ namespace Unturned2.Line2
                     _vitals.HasExplosionOrigin && _combatMode != "passive" &&
                     (_disposition == "hostile" || _disposition == "friendly"))
                 {
+                    // A physically blocked point cannot immediately become
+                    // a valid cover request again on the next think tick.
+                    if (hasCover &&
+                        _lastFailedTacticalKind ==
+                            Line2MobileNPCTactics.Goal.SeekCover &&
+                        Time.time < _tacticalRetryAfter &&
+                        (_coverGoal - _lastFailedTacticalPoint).sqrMagnitude < 5f)
+                        hasCover = false;
+                    if (_hasRetreat &&
+                        _lastFailedTacticalKind ==
+                            Line2MobileNPCTactics.Goal.Retreat &&
+                        Time.time < _tacticalRetryAfter &&
+                        (_retreatGoal - _lastFailedTacticalPoint).sqrMagnitude < 5f)
+                        _hasRetreat = false;
                     Vector3? coverPoint = hasCover ? (Vector3?)_coverGoal : null;
                     _tactics.TryChooseDefensiveGoal(transform.position,
                         coverPoint, _vitals.LastDamageOrigin, Time.time, false);
@@ -1338,6 +1360,18 @@ namespace Unturned2.Line2
                     _goal = _tactics.TacticalDestination;
                     // Cover/retreat movement wins over renewed aggression.
                 }
+                else if ((_tactics.CurrentGoal ==
+                            Line2MobileNPCTactics.Goal.Retreat ||
+                          _tactics.CurrentGoal ==
+                            Line2MobileNPCTactics.Goal.SeekCover) &&
+                         !_tactics.HasTacticalDestination)
+                {
+                    // Exact original Line 1 BrainDriver defensive pending
+                    // semantics: without a verified escape path, hold ground
+                    // and return fire only when gun/LOS safety allows it.
+                    // Never fall through to player pursuit at this stage.
+                    _goal = transform.position;
+                }
                 else if (!_recruited && GetComponent<Line2NpcNeeds>() != null &&
                     GetComponent<Line2NpcNeeds>().IsUrgent &&
                     (_combatPerception == null ||
@@ -1468,6 +1502,65 @@ namespace Unturned2.Line2
             if (_animation != null) _animation.SetMoving(IsMoving);
             _controller.Move((direction * speed +
                               Vector3.up * _verticalVelocity) * Time.deltaTime);
+            MonitorTacticalProgress();
+        }
+
+        private void MonitorTacticalProgress()
+        {
+            bool hasTactical = _tactics.HasTacticalDestination &&
+                _tactics.CurrentGoal != Line2MobileNPCTactics.Goal.None;
+            if (!hasTactical)
+            {
+                _tacticalJourney.Reset();
+                return;
+            }
+            Line2MobileNPCTactics.Goal current = _tactics.CurrentGoal;
+            Vector3 destination = _tactics.TacticalDestination;
+            string pathStatus = _astarFollower != null ?
+                _astarFollower.Status : "";
+            bool pathPending = pathStatus.IndexOf("waiting",
+                StringComparison.OrdinalIgnoreCase) >= 0 ||
+                pathStatus.IndexOf("search",
+                StringComparison.OrdinalIgnoreCase) >= 0 ||
+                pathStatus.IndexOf("pending",
+                StringComparison.OrdinalIgnoreCase) >= 0;
+            Line2NpcTacticalJourneyWatchdog.Outcome progress =
+                _tacticalJourney.Observe(current, destination,
+                    transform.position, Time.time, pathPending);
+            if (progress == Line2NpcTacticalJourneyWatchdog.Outcome.Reached)
+            {
+                if (_experience != null &&
+                    current == Line2MobileNPCTactics.Goal.SeekCover)
+                    _experience.RecordOwnOutcomeServer(
+                        Line2MobileNPCAdaptiveMemory.ExperienceKind.CoverAccess,
+                        destination, true);
+                _tactics.ReportGoalReached();
+                return;
+            }
+            if (progress != Line2NpcTacticalJourneyWatchdog.Outcome.Blocked)
+                return;
+            // The native CharacterController never made progress for this
+            // committed tactical journey. Register failure for next candidate
+            // ranking; no snap, warp, collider disabling or free retreat.
+            _lastFailedTacticalPoint = destination;
+            _lastFailedTacticalKind = current;
+            _tacticalRetryAfter = Time.time + 16f;
+            if (_experience != null &&
+                current == Line2MobileNPCTactics.Goal.SeekCover)
+                _experience.RecordOwnOutcomeServer(
+                    Line2MobileNPCAdaptiveMemory.ExperienceKind.CoverAccess,
+                    destination, false);
+            _tactics.ClearGoal();
+            _nextFlankAt = Mathf.Max(_nextFlankAt, Time.time + 6f);
+            _goal = transform.position; // prevent stale pursuit on this frame
+            if (Time.time >= _nextTacticalBlockedLog)
+            {
+                _nextTacticalBlockedLog = Time.time + 12f;
+                ProbeLogger.Log("NPC_TACTICAL_ROUTE_BLOCKED: actor=" + _identity +
+                    " task=" + current + " blockedGoal=" +
+                    destination.ToString("F1") + " nativeRoute=" +
+                    pathStatus + " (physical progress failure)");
+            }
         }
 
         private void OnGUI()
