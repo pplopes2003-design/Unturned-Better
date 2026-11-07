@@ -48,8 +48,9 @@ namespace Unturned2.Line2
             if (_runtime == null || _runtime.ActiveCount == 0)
                 return;
             Vector3 origin = bullet.origin;
-            if (!float.IsFinite(origin.x) || !float.IsFinite(origin.y) ||
-                !float.IsFinite(origin.z))
+            if (float.IsNaN(origin.x) || float.IsInfinity(origin.x) ||
+                float.IsNaN(origin.y) || float.IsInfinity(origin.y) ||
+                float.IsNaN(origin.z) || float.IsInfinity(origin.z))
                 return;
             _lastDispatchAt = now;
             _runtime.CopyLiveActors(_buffer, ActorCap);
