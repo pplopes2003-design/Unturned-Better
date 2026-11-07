@@ -92,6 +92,105 @@ internal static class Program
             return 6;
         }
         Console.WriteLine("NPC_TACTICS_SELFTEST_OK: real wound withdrawal and verified-cover commitment.");
+        // Exact original Line 1 pursuit/search code, not a reimplementation:
+        // vision loss must NOT track an invisible live Transform.
+        var search = new Line2MobileNPCBrain();
+        search.SetSpawnPosition(new UnityEngine.Vector3(0f, 0f, 0f));
+        search.Reset();
+        var target = new UnityEngine.Transform
+        {
+            position = new UnityEngine.Vector3(12f, 0f, 3f)
+        };
+        search.ReportVisibleTarget(target, 1f);
+        if (search.CurrentState != Line2MobileNPCBrain.State.Pursuing ||
+            !search.HasDestination)
+        {
+            Console.Error.WriteLine("Legacy brain did not pursue observed target.");
+            return 7;
+        }
+        target.position = new UnityEngine.Vector3(90f, 0f, 90f);
+        search.Tick(2f, false);
+        if (Math.Abs(search.Destination.x - 12f) > 0.01f ||
+            Math.Abs(search.Destination.z - 3f) > 0.01f)
+        {
+            Console.Error.WriteLine("Legacy brain tracked concealed live player.");
+            return 8;
+        }
+        search.Tick(10f, false);
+        if (search.CurrentState != Line2MobileNPCBrain.State.Investigating)
+        {
+            Console.Error.WriteLine("Legacy brain failed transition to physical search.");
+            return 9;
+        }
+        for (int i = 0; i < 3; ++i)
+        {
+            search.ReportDestinationReached();
+            if (search.CurrentState != Line2MobileNPCBrain.State.Investigating ||
+                !search.HasDestination)
+            {
+                Console.Error.WriteLine("Legacy brain did not visit search waypoint " + i);
+                return 10;
+            }
+        }
+        search.ReportDestinationReached();
+        if (search.CurrentState != Line2MobileNPCBrain.State.Returning)
+        {
+            Console.Error.WriteLine("Legacy brain failed return after three search points.");
+            return 11;
+        }
+        search.ReportDestinationReached();
+        if (search.CurrentState != Line2MobileNPCBrain.State.Idle || search.HasDestination)
+        {
+            Console.Error.WriteLine("Legacy brain failed physical return completion.");
+            return 12;
+        }
+
+        var memory = new Line2MobileNPCPlayerKnowledge();
+        memory.ObserveSight(new UnityEngine.Vector3(6f, 0f, 8f), 1f);
+        UnityEngine.Vector3 observed;
+        float confidence, uncertainty;
+        Line2MobileNPCPlayerKnowledge.Sense sense;
+        if (!memory.TryGetEvidence(2f, out observed, out confidence,
+                                   out uncertainty, out sense) ||
+            sense != Line2MobileNPCPlayerKnowledge.Sense.Sight ||
+            confidence <= 0f)
+        {
+            Console.Error.WriteLine("Legacy sensory memory rejected verified sight.");
+            return 13;
+        }
+        if (memory.TryGetEvidence(90f, out observed, out confidence,
+                                  out uncertainty, out sense))
+        {
+            Console.Error.WriteLine("Legacy sensory memory never expired.");
+            return 14;
+        }
+        memory.Clear();
+        if (memory.HasEvidence)
+        {
+            Console.Error.WriteLine("Legacy sensory memory failed reset.");
+            return 15;
+        }
+
+        var gait = new Line2MobileNPCLocomotionPolicy();
+        var running = new Line2MobileNPCLocomotionPolicy.Situation
+        {
+            HasDestination = true, Pursuing = true, NearTarget = false,
+            DestinationDistance = 12f
+        };
+        if (gait.Decide(running, 2f) != Line2MobileNPCLocomotionPolicy.Gait.Sprint)
+        {
+            Console.Error.WriteLine("Legacy locomotion did not sprint on pursuit.");
+            return 16;
+        }
+        running.HasDestination = false;
+        if (gait.Decide(running, 2.2f) != Line2MobileNPCLocomotionPolicy.Gait.Hold)
+        {
+            Console.Error.WriteLine("Legacy locomotion did not stop without destination.");
+            return 17;
+        }
+        Console.WriteLine("LINE1_PORT_REGRESSION_OK: lost-LOS memory, physical search spiral,");
+        Console.WriteLine("return to spawn, evidence expiry, pursuit sprint and no-destination hold.");
+
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
