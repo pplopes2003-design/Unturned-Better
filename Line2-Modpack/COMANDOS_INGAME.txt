@@ -28,10 +28,13 @@ Usar apenas em singleplayer / sessao com autoridade local.
 !u2 spawn hostile 3        Solicita 3 NPCs hostis (maximo 5 por pedido)
 
 IMPORTANTE:
-Os comandos de spawn, no estado atual, retornam SPAWN_UNAVAILABLE.
-O GameNpcRuntime ainda precisa ser implementado com prefab humanoide valido,
-movimentacao, hitboxes, percepcao, IA, combate e persistencia.
-NAO HA NPCS MOVEIS NEM SPAWN NATURAL JOGAVEL NESTA VERSAO.
+Os comandos de spawn agora tentam instanciar um PROTOTIPO de NPC local
+usando o NPC_Client nativo, apos !u2 npc on, cheats e mapa carregado.
+Se o prefab nao estiver disponivel, retornam SPAWN_UNAVAILABLE.
+Quando criado, o resultado e PROTOTYPE_SPAWN_OK.
+Ha movimento e animacao basicos, mas NAO ha combate/dano, dialogo,
+radio, faccoes persistentes, navegacao indoor nem saves reais.
+Natural on cria prototipos limitados, NAO NPCs finais completos.
 Nao aumentamos a populacao de zumbis nem ativamos hordas reais.
 
 Interface e configuracao:
@@ -73,3 +76,19 @@ F6               Registra APIs de UseableGun e itens na instalacao Steam
 
 O agendador de sequencias 3 + pausa + 3 foi criado, mas NAO executa
 disparos no Steam. A Eaglefire 32612 ainda usa os modos nativos.
+
+==========================================================
+NPC STEAM — PROTOTIPO ISOLADO (NAO VERSAO FINAL)
+==========================================================
+!u2 npc on             Ativa runtime experimental local
+!u2 max 8              Limite de 8 prototipos (ate 32)
+!u2 spawn friendly     Tenta instanciar humanoide nativo amigavel
+!u2 spawn neutral      Tenta instanciar humanoide nativo neutro
+!u2 spawn hostile      Tenta instanciar humanoide nativo hostil
+!u2 natural on         Gera prototipos lentamente ate limite
+!u2 npc off            Elimina prototipos instanciados
+!u2 status             Exibe quantidade de prototipos no mapa
+
+Requer cheats, singleplayer e DLL recompilada.
+Nao e recomendada a validacao final antes do adaptador de dano,
+comercio, portas, IA completa, radio e persistencia.
