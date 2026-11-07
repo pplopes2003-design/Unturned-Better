@@ -143,14 +143,16 @@ def build_legendaries(game: Path, staging: Path, *, eagle_id=DEFAULT_EAGLE_ID,
         "Eaglefire ID: "+str(eagle_id)+"\nIncendiary 12 Gauge ID: "+str(fire_id)+"\n"
         "Munitions copy original 12G caliber fields for compatibility.\n"
         "Explosive/Range is a small damage area, NOT the actual Burner zombie ignite effect.\n"
-        "Burner visual effect ID: "+str(impact_effect_id or "NONE FOUND")+"\n"\n        "The effect is visual only; NO persistent burning or status effects.\n"
+        "Burner visual effect ID: "+str(impact_effect_id or "NONE FOUND")+"\n"
+        "The effect is visual only; NO persistent burning or status effects.\n"
         "Washington loot root: " + (washington_root or "NOT FOUND/NOT ATTACHED") + "\n"
         "Natural loot requires valid map use of this root. Relative spawn weight=1; actual odds vary.\n"
         "Do not deploy until conflicts and C# runtime tests pass.\n",
         encoding="utf-8")
     return {"eaglefire":eagle_id,"incendiary":fire_id,"loot_table":loot_table_id,
             "washington_root_attached": washington_root is not None, "path":str(staging),
-            "effect_configured":impact_effect_id is not None,\n            "effect_id":impact_effect_id}
+            "effect_configured":impact_effect_id is not None,
+            "effect_id":impact_effect_id}
 
 def main():
     p=argparse.ArgumentParser(description="Generate standalone Legendary Eaglefire and 12G ammo")
