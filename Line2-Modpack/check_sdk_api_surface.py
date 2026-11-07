@@ -23,6 +23,8 @@ REQUIREMENTS = (
       "public ushort itemID =>",
       "public byte[] state",
       "public bool IsEquipAnimationFinished")),
+    ("Assets/Runtime/Assembly-CSharp/Unturned/Settings/ControlsSettings.cs",
+     ("public static KeyCode primary =>",)),
     ("Assets/Resources/Characters/NPC_Client.prefab",
      ("m_Name: NPC_Client", "SkinnedMeshRenderer")),
     ("Line2-Modpack/ClientModule/Nexus.cs",
