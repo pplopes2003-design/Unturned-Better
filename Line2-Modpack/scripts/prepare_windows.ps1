@@ -38,7 +38,7 @@ Write-Result "Line 2 Windows preflight started: $(Get-Date -Format o)"
 if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
   throw "Python 3.10+ not on PATH. Install supported Python for Windows."
 }
-Invoke-Python @("--version")
+Invoke-Python -arguments @("--version")
 if (-not (Test-Path (Join-Path $GameDir "Unturned.exe") -PathType Leaf)) {
   throw "Invalid Unturned installation: Unturned.exe not found."
 }
@@ -54,8 +54,8 @@ Write-Result "Game: $GameDir"
 Write-Result "Workshop: $WorkshopDir"
 Write-Result "Python test suites: AIService, ModpackManager"
 
-Invoke-Python @((Join-Path $root "run_tests.py"), "AIService")
-Invoke-Python @((Join-Path $root "run_tests.py"), "ModpackManager")
+Invoke-Python -arguments @((Join-Path $root "run_tests.py"), "AIService")
+Invoke-Python -arguments @((Join-Path $root "run_tests.py"), "ModpackManager")
 
 if (-not $SkipBuild) {
   $target = Join-Path $ManagerData "staging\Auto32"
@@ -68,7 +68,7 @@ if (-not $SkipBuild) {
     if (-not [string]::IsNullOrWhiteSpace($WorkshopDir)) {
       $arguments += @("--scan-root", $WorkshopDir)
     }
-    Invoke-Python $arguments
+    Invoke-Python -arguments $arguments
     Write-Result "Auto32 generated to staging: $target"
   }
 }
