@@ -1119,7 +1119,7 @@ namespace Unturned2.Line2
                 }
                 if (RecentlyDamaged && _vitals != null &&
                     _vitals.HasExplosionOrigin && _combatMode != "passive" &&
-                    _disposition == "hostile")
+                    (_disposition == "hostile" || _disposition == "friendly"))
                 {
                     Vector3? coverPoint = hasCover ? (Vector3?)_coverGoal : null;
                     _tactics.TryChooseDefensiveGoal(transform.position,
