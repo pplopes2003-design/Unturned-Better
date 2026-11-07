@@ -250,6 +250,10 @@ namespace Unturned2.Line2
                     instance.AddComponent<Line2MobileNPCDoorNavigation>();
                     instance.AddComponent<Line2MobileNPCAdaptiveMemory>();
                     instance.AddComponent<Line2MobileNPCTravelMemory>();
+                    string anatomyError;
+                    if (!Line2NPCBodyAnatomy.TryBind(visual, out anatomyError))
+                        throw new InvalidOperationException(
+                            "Original NPC_Client anatomy invalid: " + anatomyError);
                     var actor = instance.AddComponent<PrototypeActor>();
                     actor.Initialize(disposition, movement, instance.name);
                     actor.SetCombatMode(_mode);
