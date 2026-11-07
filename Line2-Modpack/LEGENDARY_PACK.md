@@ -119,6 +119,8 @@ Critério de aceitação no jogo: 2 s de gatilho mantido devem produzir várias 
 4. Soltar o gatilho, fechar a gameplay, trocar de arma, mudar o modo, zerar munição ou perder autoridade **cancela** a sequência. Um disparo nativo que não ocorrer em 1,5 s aborta a continuidade.
 5. A rotina não altera dados de armas de outros jogadores nem é ativada em servidores dedicados/online.
 
-Os símbolos foram conferidos no código-fonte U3 SDK do repositório: `UseableGun.startPrimary()`, `onBulletSpawned`, `GunStateIndices.FIREMODE`, `PlayerEquipment.useable` e `EFiremode.BURST` existem na fonte. **Isso não substitui compilação contra os assemblies da instalação Steam nem teste de gameplay.** A entrada do gatilho nesta primeira implementação utiliza o clique esquerdo padrão; remapeamento de controles ainda precisa de adaptação. Os logs úteis são `BURST_BRIDGE_READY`, `BURST_NATIVE_RETRIGGER_OK` e `BURST_RETRIGGER_FAILED`.
+Os símbolos foram conferidos no código-fonte U3 SDK do repositório: `UseableGun.startPrimary()`, `onBulletSpawned`, `GunStateIndices.FIREMODE`, `PlayerEquipment.useable` e `EFiremode.BURST` existem na fonte. **Isso não substitui compilação contra os assemblies da instalação Steam nem teste de gameplay.** A entrada do gatilho usa `ControlsSettings.primary` do jogo e respeita o mapeamento do disparo principal, incluindo remapeamentos suportados pelo controle nativo. Os logs úteis são `BURST_BRIDGE_READY`, `BURST_NATIVE_RETRIGGER_OK` e `BURST_RETRIGGER_FAILED`.
 
 O agendador lógico `RepeatingBurstScheduler` continua como teste de cadência; a nova classe é a ponte com a API nativa. Caso o comportamento de arma não seja coerente no teste, desative o módulo C# completo em vez de modificar `UseableGun` da Steam.
+
+Atualização de integração: a verificação `check_sdk_api_surface.py` valida também a existência de `ControlsSettings.primary` no SDK base.
