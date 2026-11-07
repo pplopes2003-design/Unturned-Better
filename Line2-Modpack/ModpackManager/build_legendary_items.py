@@ -18,6 +18,23 @@ DEFAULT_INCENDIARY_ID = 32613
 DEFAULT_LOOT_TABLE_ID = 32614
 WASHINGTON_SPECIAL_SPAWN_ID = "346"  # Verify in installed game; do not blindly attach
 
+def discover_burner_effect(bundle_root: Path):
+    """Only use an unmistakable locally installed Burner explosion effect."""
+    effects = bundle_root / "Effects"
+    if not effects.is_dir():
+        return None
+    matches = []
+    for p in enumerate_dat(effects):
+        parts = "/".join(x.lower() for x in p.parts[-4:])
+        if "burner" not in parts or not any(k in parts for k in ("explosion", "explode")):
+            continue
+        meta = parse_dat(p)
+        value = meta.get("id", "")
+        if value.isdigit() and 1 <= int(value) <= 65535:
+            matches.append(int(value))
+    return matches[0] if len(matches) == 1 else None
+
+
 def build_legendaries(game: Path, staging: Path, *, eagle_id=DEFAULT_EAGLE_ID,
                       fire_id=DEFAULT_INCENDIARY_ID, extra_roots=(),
                       impact_effect_id=None, loot_table_id=DEFAULT_LOOT_TABLE_ID,
@@ -40,6 +57,8 @@ def build_legendaries(game: Path, staging: Path, *, eagle_id=DEFAULT_EAGLE_ID,
             raise ValueError("ID is reserved by Auto24: " + str(number))
         if str(number) in ids:
             raise ValueError("ID collision " + str(number) + ": " + "; ".join(ids[str(number)][:3]))
+    if impact_effect_id is None:
+        impact_effect_id = discover_burner_effect(root)
     if impact_effect_id is not None and (
         type(impact_effect_id) is not int or impact_effect_id < 0 or impact_effect_id > 65535
     ):
@@ -124,14 +143,14 @@ def build_legendaries(game: Path, staging: Path, *, eagle_id=DEFAULT_EAGLE_ID,
         "Eaglefire ID: "+str(eagle_id)+"\nIncendiary 12 Gauge ID: "+str(fire_id)+"\n"
         "Munitions copy original 12G caliber fields for compatibility.\n"
         "Explosive/Range is a small damage area, NOT the actual Burner zombie ignite effect.\n"
-        "Explosion effect must be an existing, verified Unturned effect ID.\n"
+        "Burner visual effect ID: "+str(impact_effect_id or "NONE FOUND")+"\n"\n        "The effect is visual only; NO persistent burning or status effects.\n"
         "Washington loot root: " + (washington_root or "NOT FOUND/NOT ATTACHED") + "\n"
         "Natural loot requires valid map use of this root. Relative spawn weight=1; actual odds vary.\n"
         "Do not deploy until conflicts and C# runtime tests pass.\n",
         encoding="utf-8")
     return {"eaglefire":eagle_id,"incendiary":fire_id,"loot_table":loot_table_id,
             "washington_root_attached": washington_root is not None, "path":str(staging),
-            "effect_configured":impact_effect_id is not None}
+            "effect_configured":impact_effect_id is not None,\n            "effect_id":impact_effect_id}
 
 def main():
     p=argparse.ArgumentParser(description="Generate standalone Legendary Eaglefire and 12G ammo")
