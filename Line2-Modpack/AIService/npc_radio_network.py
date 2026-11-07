@@ -40,8 +40,7 @@ class RadioActor:
 
     @property
     def can_receive(self) -> bool:
-        return self.alive and (WALKIE_ID in self.inventory_ids or
-                               (self.earpiece_worn and EARPIECE_ID in self.inventory_ids))
+        return self.alive and (WALKIE_ID in self.inventory_ids or self.earpiece_worn)
 
 
 @dataclass(frozen=True)
