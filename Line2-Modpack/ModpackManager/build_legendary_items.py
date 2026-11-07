@@ -117,7 +117,7 @@ def build_legendaries(game: Path, staging: Path, *, eagle_id=DEFAULT_EAGLE_ID,
             "Table_1_Asset_ID " + str(eagle_id) + "\nTable_1_Weight 1\n"
             "Table_2_Asset_ID " + str(fire_id) + "\nTable_2_Weight 1\n")
     if washington_root is not None:
-        loot += "Roots 1\\nRoot_0_Spawn_ID " + washington_root + "\\nRoot_0_Weight 1\\n"
+        loot += "Roots 1\nRoot_0_Spawn_ID " + washington_root + "\nRoot_0_Weight 1\n"
     (spawn_folder / "Asset.dat").write_text(loot,encoding="utf-8")
     (staging / "README_TESTING.txt").write_text(
         "EXPERIMENTAL Legendary pack, requires Unturned Steam validation.\n"
@@ -125,11 +125,12 @@ def build_legendaries(game: Path, staging: Path, *, eagle_id=DEFAULT_EAGLE_ID,
         "Munitions copy original 12G caliber fields for compatibility.\n"
         "Explosive/Range is a small damage area, NOT the actual Burner zombie ignite effect.\n"
         "Explosion effect must be an existing, verified Unturned effect ID.\n"
-        "Washington loot root: " + (washington_root or "NOT FOUND/NOT ATTACHED") + "\\n"
-        "Natural loot requires valid map use of this root. Relative spawn weight=1; actual odds vary.\\n"
+        "Washington loot root: " + (washington_root or "NOT FOUND/NOT ATTACHED") + "\n"
+        "Natural loot requires valid map use of this root. Relative spawn weight=1; actual odds vary.\n"
         "Do not deploy until conflicts and C# runtime tests pass.\n",
         encoding="utf-8")
-    return {"eaglefire":eagle_id,"incendiary":fire_id,"loot_table":loot_table_id,\n            "washington_root_attached": washington_root is not None, "path":str(staging),
+    return {"eaglefire":eagle_id,"incendiary":fire_id,"loot_table":loot_table_id,
+            "washington_root_attached": washington_root is not None, "path":str(staging),
             "effect_configured":impact_effect_id is not None}
 
 def main():
