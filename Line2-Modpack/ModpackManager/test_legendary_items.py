@@ -51,6 +51,23 @@ class LegendaryItemTests(unittest.TestCase):
         self.assertEqual(loot["table_1_asset_id"],"32612")
         self.assertEqual(loot["table_2_asset_id"],"32613")
 
+    def test_washington_root_only_if_verified(self):
+        build_legendaries(self.game,self.output)
+        base=parse_dat(self.output/"Spawns/LegendaryLootPool/Asset.dat")
+        self.assertNotIn("roots",base)
+
+    def test_washington_root_attaches_with_low_weight(self):
+        folder=self.game/"Bundles"/"Spawns"/"Washington_Special_America"
+        folder.mkdir(parents=True)
+        (folder/"Asset.dat").write_text("Type Spawn\\nID 346\\nGUID aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\n")
+        result=build_legendaries(self.game,self.output)
+        loot=parse_dat(self.output/"Spawns/LegendaryLootPool/Asset.dat")
+        self.assertTrue(result["washington_root_attached"])
+        self.assertEqual(loot["roots"],"1")
+        self.assertEqual(loot["root_0_spawn_id"],"346")
+        self.assertEqual(loot["root_0_weight"],"1")
+        self.assertNotIn("root_0_override",loot)
+
     def test_id_collision_rejected(self):
         conflict=self.game.parent/"workshop"/"bad"
         conflict.mkdir(parents=True)
