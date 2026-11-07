@@ -20,6 +20,7 @@
     <Compile Include="../ClientModule/Line2NPCCombatRules.cs"
              Link="Line2NPCCombatRules.cs" />
     <Compile Include="UnityValueStubs.cs" />
+    <Compile Include="../ClientModule/Line2NpcSquadRegroupPolicy.cs" Link="Line2NpcSquadRegroupPolicy.cs" />
     <Compile Include="TacticalJourneyTests.cs" />
     <Compile Include="../ClientModule/Line2NpcTacticalJourneyWatchdog.cs" Link="Line2NpcTacticalJourneyWatchdog.cs" />
     <Compile Include="SettlementLedgerTests.cs" />
