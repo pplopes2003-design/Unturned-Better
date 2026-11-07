@@ -192,6 +192,7 @@ namespace Unturned2.Line2
                         position = new[] { position.x, position.y, position.z },
                         health = actor.HealthFraction,
                         under_fire = actor.RecentlyDamaged,
+                        has_cover = actor.HasVerifiedCover,
                         threat_visible = visible,
                         last_known_threat = lastKnown.HasValue
                             ? new[] { lastKnown.Value.x, lastKnown.Value.y, lastKnown.Value.z }
