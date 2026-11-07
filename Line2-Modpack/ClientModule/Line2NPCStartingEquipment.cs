@@ -135,6 +135,26 @@ namespace Unturned2.Line2
             return true;
         }
 
+        internal static bool GiveAuthenticRadioServer(
+            Line2MobileNPCInventory inventory, string role, string mode)
+        {
+            if (!Provider.isServer || Dedicator.IsDedicatedServer ||
+                inventory == null || role == "neutral")
+                return false;
+
+            // A physical loaded native item is required, not an invented
+            // radio flag. There is no player voice or fake equipment socket:
+            // currently this is carried NPC-to-NPC text/intelligence only.
+            if (mode != "total" && UnityEngine.Random.value > 0.70f)
+                return false;
+            ItemAsset walkie = Assets.find(EAssetType.ITEM,
+                Line2NPCRadioOutbox.NativeWalkieId) as ItemAsset;
+            if (walkie == null || walkie.isPro)
+                return false;
+            return inventory.TryStoreTransferredItem(new Item(
+                Line2NPCRadioOutbox.NativeWalkieId, EItemOrigin.ADMIN));
+        }
+
         private static void GiveIfLoaded(Line2MobileNPCInventory inventory, ushort id)
         {
             ItemAsset asset = Assets.find(EAssetType.ITEM, id) as ItemAsset;
