@@ -33,6 +33,7 @@ namespace Unturned2.Line2
             public float health;
             public bool hasNeeds;
             public float hunger, thirst;
+            public Line2MobileNPCInjurySystem.InjurySnapshot injuries;
             public float x, y, z, homeX, homeY, homeZ;
             public ItemRecord[] items;
             internal Vector3 Position { get { return new Vector3(x, y, z); } }
@@ -134,7 +135,14 @@ namespace Unturned2.Line2
                     a.items == null || a.items.Length > 18 ||
                     (a.hasNeeds && (!Finite(a.hunger) || !Finite(a.thirst) ||
                         a.hunger < 0f || a.hunger > 100f ||
-                        a.thirst < 0f || a.thirst > 100f)))
+                        a.thirst < 0f || a.thirst > 100f)) ||
+                    (a.injuries != null &&
+                     (a.injuries.condition == null ||
+                      a.injuries.condition.Length != 6 ||
+                      a.injuries.bleedingSeverity < 0 ||
+                      a.injuries.bleedingSeverity > 2 ||
+                      a.injuries.bleedingPart < 0 ||
+                      a.injuries.bleedingPart > 5)))
                     throw new InvalidDataException("invalid actor");
                 if (a.groupId != 0)
                 {
@@ -149,6 +157,11 @@ namespace Unturned2.Line2
                         throw new InvalidDataException("mixed-faction group");
                     groupRole[a.groupId] = faction;
                 }
+                if (a.injuries != null)
+                    foreach (float partCondition in a.injuries.condition)
+                        if (!Finite(partCondition) || partCondition < 0f ||
+                            partCondition > 100f)
+                            throw new InvalidDataException("invalid injury");
                 foreach (ItemRecord item in a.items)
                     if (item == null || item.id < 1 || item.id > ushort.MaxValue ||
                         item.amount < 0 || item.amount > byte.MaxValue ||
