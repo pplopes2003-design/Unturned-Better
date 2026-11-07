@@ -35,7 +35,10 @@ namespace Unturned2.Line2
             foreach (Line2NpcPersistence.SettlementRecord record in snapshots)
                 if (record != null && record.groupId > 0 &&
                     record.placed != null && _sites.Count < MaxGroups)
+                {
+                    Line2NPCGroupMember.ReserveHistoricalGroupId(record.groupId);
                     _sites[record.groupId] = Clone(record);
+                }
         }
 
         private static bool Authorized()
