@@ -41,6 +41,7 @@ namespace Unturned2.Line2
         private static bool InLocalGameplay()
         {
             return Provider.isServer && !Dedicator.IsDedicatedServer &&
+                   (Provider.clients == null || Provider.clients.Count <= 1) &&
                    Level.isLoaded && Player.player != null &&
                    Provider.hasCheats && Cursor.lockState == CursorLockMode.Locked;
         }
