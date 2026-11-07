@@ -9,6 +9,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="../ClientModule/NpcExplosionMath.cs"
+             Link="NpcExplosionMath.cs" />
     <Compile Include="../ClientModule/NpcDecisionBrain.cs"
              Link="NpcDecisionBrain.cs" />
   </ItemGroup>
