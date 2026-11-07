@@ -395,6 +395,8 @@ namespace Unturned2.Line2
                     var ranged = instance.AddComponent<Line2NPCRangedExecutor>();
                     ranged.Initialize(actor, combatSight, ownedInventory);
                     actor.AttachRangedExecutor(ranged);
+                    var grenades = instance.AddComponent<Line2NpcGrenadeThrower>();
+                    grenades.Initialize(this, actor, combatSight, ownedInventory);
                     var radio = instance.AddComponent<Line2NPCRadioOutbox>();
                     radio.Initialize(this, actor, combatSight, ownedInventory);
                     actor.Died += OnActorDied;
