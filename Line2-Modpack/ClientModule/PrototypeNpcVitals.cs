@@ -29,6 +29,9 @@ namespace Unturned2.Line2
         internal float LastDamageAt { get { return _lastDamageAt; } }
         internal Vector3 LastDamageOrigin { get; private set; }
         internal bool HasExplosionOrigin { get; private set; }
+        // Backwards-compatible alias: either an observed blast center OR
+        // server-validated gun attacker can now provide a defense direction.
+        internal bool HasVerifiedDamageOrigin { get { return HasExplosionOrigin; } }
         internal event Action<float, Vector3> Damaged;
         internal event Action Died;
 
@@ -146,6 +149,11 @@ namespace Unturned2.Line2
             Line2MobileNPCInjurySystem.BleedingSeverity severity,
             Vector3 impulse, Transform attacker)
         {
+            if (attacker != null)
+            {
+                LastDamageOrigin = attacker.position;
+                HasExplosionOrigin = true;
+            }
             return ApplyDamageToPart(damage, part, causeBleeding, causeFracture,
                                     severity, impulse);
         }
