@@ -246,6 +246,7 @@ namespace Unturned2.Line2
                     // DamageTool.explode discovers IExplosionDamageable
                     // through the root Agent CharacterController collider.
                     instance.AddComponent<PrototypeNpcVitals>();
+                    var ownedInventory = instance.AddComponent<Line2MobileNPCInventory>();
                     instance.AddComponent<Line2MobileNPCInjurySystem>();
                     instance.AddComponent<Line2MobileNPCDoorNavigation>();
                     instance.AddComponent<Line2MobileNPCAdaptiveMemory>();
@@ -257,6 +258,10 @@ namespace Unturned2.Line2
                     var actor = instance.AddComponent<PrototypeActor>();
                     actor.Initialize(disposition, movement, instance.name);
                     actor.SetCombatMode(_mode);
+                    string kitStatus;
+                    if (Line2NPCStartingEquipment.GiveFreshKitServer(
+                        ownedInventory, disposition, _mode, out kitStatus))
+                        ProbeLogger.Log("NPC_STARTING_EQUIPMENT: " + kitStatus);
                     var combatSight = instance.AddComponent<Line2NPCCombatPerception>();
                     combatSight.Initialize(this, actor);
                     actor.AttachCombatPerception(combatSight);
@@ -412,6 +417,8 @@ namespace Unturned2.Line2
         private PrototypeAStarFollower _astarFollower;
         private PrototypeNpcVitals _vitals;
         private Line2MobileNPCInjurySystem _injuries;
+        private Line2MobileNPCInventory _inventory;
+        internal Line2MobileNPCInventory Inventory { get { return _inventory; } }
         private Line2MobileNPCDoorNavigation _doors;
         private Line2MobileNPCAdaptiveMemory _experience;
         private Line2MobileNPCTravelMemory _travelMemory;
@@ -451,6 +458,7 @@ namespace Unturned2.Line2
             _astarFollower = GetComponent<PrototypeAStarFollower>();
             _vitals = GetComponent<PrototypeNpcVitals>();
             _injuries = GetComponent<Line2MobileNPCInjurySystem>();
+            _inventory = GetComponent<Line2MobileNPCInventory>();
             _doors = GetComponent<Line2MobileNPCDoorNavigation>();
             _experience = GetComponent<Line2MobileNPCAdaptiveMemory>();
             _travelMemory = GetComponent<Line2MobileNPCTravelMemory>();
@@ -516,6 +524,8 @@ namespace Unturned2.Line2
         {
             _combatMode = mode == "passive" || mode == "total" ? mode : "normal";
             _tactics.CombatOnlyMode = _combatMode == "total";
+            if (_inventory != null)
+                _inventory.SetModeServer(_combatMode == "total");
             if (_combatMode == "passive")
             {
                 _brain.Reset();
