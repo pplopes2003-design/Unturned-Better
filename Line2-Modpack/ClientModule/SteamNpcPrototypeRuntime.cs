@@ -835,6 +835,7 @@ namespace Unturned2.Line2
         private Vector3 _goal;
         private Vector3 _home;
         private float _nextThink;
+        private float _nextFlankAt;
         private float _blockedSince;
         private float _verticalVelocity;
         private readonly NpcDecisionBrain _brain = new NpcDecisionBrain();
@@ -1129,6 +1130,29 @@ namespace Unturned2.Line2
                 }
                 else if (_tactics.IsGoalExpired(Time.time))
                     _tactics.ClearGoal();
+                // Line 1 tactical flank is optional and never allowed to
+                // override emergency cover or a committed retreat.
+                if (_tactics.CurrentGoal == Line2MobileNPCTactics.Goal.None &&
+                    Time.time >= _nextFlankAt && !RecentlyDamaged &&
+                    _combatMode != "passive" && HasUsableGun &&
+                    _combatPerception != null &&
+                    _combatPerception.Kind !=
+                        Line2NPCCombatPerception.TargetKind.None &&
+                    _combatPerception.VisibleTarget != null)
+                {
+                    Transform opponent = _combatPerception.VisibleTarget;
+                    Vector3 flank;
+                    if (_combatPerception.HasVerifiedSight(opponent,
+                        _combatPerception.Kind, 45f) &&
+                        TryFindVerifiedFlank(opponent.position, out flank) &&
+                        _tactics.TryStartFlank(flank, Time.time))
+                    {
+                        _nextFlankAt = Time.time + 32f;
+                        ProbeLogger.Log("NPC_TACTICAL_FLANK: actor=" + _identity +
+                            " destination=" + flank.ToString("F1"));
+                    }
+                    else _nextFlankAt = Time.time + 8f;
+                }
                 var facts = new NpcDecisionInput
                 {
                     IsHostile = _disposition == "hostile",
@@ -1226,7 +1250,8 @@ namespace Unturned2.Line2
                     _goal = _combatPerception.LastVisiblePosition;
 
                 if ((_tactics.CurrentGoal == Line2MobileNPCTactics.Goal.SeekCover ||
-                     _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Retreat) &&
+                     _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Retreat ||
+                     _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Flank) &&
                     _tactics.HasTacticalDestination &&
                     !(_tactics.IsGoalExpired(Time.time)) &&
                     _combatMode != "passive")
@@ -1377,6 +1402,51 @@ namespace Unturned2.Line2
                                    200f, 22f);
             GUI.Label(bounds, _displayName + (_vitals != null
                 ? " HP " + Mathf.CeilToInt(_vitals.Health) : ""));
+        }
+
+        private bool TryFindVerifiedFlank(Vector3 enemy, out Vector3 result)
+        {
+            result = Vector3.zero;
+            Vector3 toward = enemy - transform.position;
+            toward.y = 0f;
+            float distance = toward.magnitude;
+            if (distance < 8f || distance > 33f) return false;
+            toward /= distance;
+            Vector3 lateral = Vector3.Cross(Vector3.up, toward).normalized;
+            for (int sideIndex = 0; sideIndex < 2; ++sideIndex)
+            {
+                float side = sideIndex == 0 ? 1f : -1f;
+                Vector3 estimate = transform.position +
+                    lateral * side * 7f + toward * 2.5f;
+                RaycastHit floor;
+                if (!Physics.Raycast(estimate + Vector3.up * 1.8f,
+                    Vector3.down, out floor, 4.5f, RayMasks.GROUND2,
+                    QueryTriggerInteraction.Ignore) ||
+                    floor.normal.y < 0.72f ||
+                    Mathf.Abs(floor.point.y - transform.position.y) > 1.15f)
+                    continue;
+                Vector3 candidate = floor.point + Vector3.up * 0.08f;
+                if (!Level.checkSafeIncludingClipVolumes(candidate) ||
+                    Physics.CheckCapsule(candidate + Vector3.up * 0.5f,
+                        candidate + Vector3.up * 1.6f, 0.32f,
+                        RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore))
+                    continue;
+                // A flank needs a firing line verified from the proposed
+                // destination, not the enemy's hidden live location after
+                // contact is lost. A* remains responsible for route access.
+                Vector3 start = candidate + Vector3.up * 1.45f;
+                Vector3 aim = enemy + Vector3.up * 1.1f;
+                Vector3 ray = aim - start;
+                if (ray.sqrMagnitude < 1f) continue;
+                RaycastHit blocking;
+                if (Physics.Raycast(start, ray.normalized, out blocking,
+                    ray.magnitude - 0.08f,
+                    RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore))
+                    continue;
+                result = candidate;
+                return true;
+            }
+            return false;
         }
 
         private bool CanSeePlayer(Player player)
