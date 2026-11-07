@@ -46,7 +46,20 @@ internal static class TacticalJourneyTests
             Observe(pending, flank, 0f, 9.1f, false, 25f) !=
                 Line2NpcTacticalJourneyWatchdog.Outcome.Moving ||
             Observe(pending, flank, 24.8f, 10f, false, 25f) !=
-                Line2NpcTacticalJourneyWatchdog.Outcome.Reached)
+                Line2NpcTacticalJourneyWatchdog.Outcome.Holding ||
+            Observe(pending, flank, 24.8f, 10.8f, false, 25f) !=
+                Line2NpcTacticalJourneyWatchdog.Outcome.Holding)
+            return false;
+
+        // A successfully reached defensive refuge must stay committed until
+        // the real tactics deadline expires; don't immediately charge back.
+        var retreat = new Line2NpcTacticalJourneyWatchdog();
+        if (Observe(retreat, Line2MobileNPCTactics.Goal.Retreat,
+                10.9f, 1f) != Line2NpcTacticalJourneyWatchdog.Outcome.Holding ||
+            Observe(retreat, Line2MobileNPCTactics.Goal.Retreat,
+                10.9f, 2f) != Line2NpcTacticalJourneyWatchdog.Outcome.Holding ||
+            Observe(retreat, Line2MobileNPCTactics.Goal.SeekCover,
+                10.9f, 3f) != Line2NpcTacticalJourneyWatchdog.Outcome.Reached)
             return false;
 
         // Never "reach" a destination on another floor just because x/z
