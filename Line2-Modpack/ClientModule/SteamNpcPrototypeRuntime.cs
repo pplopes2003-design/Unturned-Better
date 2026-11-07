@@ -33,6 +33,21 @@ namespace Unturned2.Line2
             }
         }
 
+        internal void NotifyPlayerFootstep(Vector3 heardPosition, float radius,
+                                           float confidence)
+        {
+            if (!_enabled || !IsAuthorized() || radius <= 0f) return;
+            float rangeSquared = radius * radius;
+            float now = Time.time;
+            foreach (PrototypeActor actor in _actors)
+            {
+                if (actor == null || actor.IsDead || !actor.isActiveAndEnabled)
+                    continue;
+                if ((actor.transform.position - heardPosition).sqrMagnitude <= rangeSquared)
+                    actor.HearVerifiedFootstep(heardPosition, confidence, now);
+            }
+        }
+
         internal void CopyLiveActors(List<PrototypeActor> output, int limit)
         {
             if (output == null) throw new ArgumentNullException("output");
@@ -339,6 +354,8 @@ namespace Unturned2.Line2
         private Vector3? _lastKnownThreat;
         private float _lastSeenAt;
         private float _lastGunshotAt;
+        private float _lastFootstepAt;
+        private Vector3 _lastHeardFootstepPoint;
         private Vector3 _lastHeardPoint; 
         private bool _threatVisible;
         private string _displayName;
@@ -395,6 +412,7 @@ namespace Unturned2.Line2
             _lastKnownThreat = null;
             _lastSeenAt = -100f;
             _lastGunshotAt = -100f;
+            _lastFootstepAt = -100f;
             _brain.Reset();
             _legacyBrain.SetSpawnPosition(transform.position);
             _legacyBrain.Reset();
@@ -450,6 +468,7 @@ namespace Unturned2.Line2
                 _threatVisible = false;
                 _lastKnownThreat = null;
                 _lastGunshotAt = -100f;
+                _lastFootstepAt = -100f;
                 _goal = _home;
             }
         }
@@ -472,6 +491,21 @@ namespace Unturned2.Line2
             _knowledge.ObserveSound(_lastHeardPoint, 0.64f, heardAt);
             _legacyBrain.ReportNoise(_lastHeardPoint, heardAt, 17f);
             _tactics.ReportIncomingFire(heardAt);
+        }
+
+        internal void HearVerifiedFootstep(Vector3 position, float confidence, float at)
+        {
+            if (_disposition != "hostile" || _combatMode == "passive" ||
+                at - _lastFootstepAt < 0.85f)
+                return;
+            // Player displacement was observed by the migrated footstep
+            // sensor: approximate the acoustic area at 6m resolution.
+            _lastHeardFootstepPoint = new Vector3(
+                Mathf.Floor(position.x / 6f) * 6f + 3f, position.y,
+                Mathf.Floor(position.z / 6f) * 6f + 3f);
+            _lastFootstepAt = at;
+            _knowledge.ObserveSound(_lastHeardFootstepPoint, confidence, at);
+            _legacyBrain.ReportNoise(_lastHeardFootstepPoint, at, 8f);
         }
 
         internal void ObserveThreat(Player player, out bool visible, out Vector3? lastKnown)
@@ -500,6 +534,8 @@ namespace Unturned2.Line2
                 lastKnown = _lastKnownThreat;
             else if (Time.time - _lastGunshotAt <= 7f)
                 lastKnown = _lastHeardPoint;
+            else if (Time.time - _lastFootstepAt <= 4f)
+                lastKnown = _lastHeardFootstepPoint;
             else if (_legacyBrain.CurrentState ==
                          Line2MobileNPCBrain.State.Investigating)
             {
@@ -528,6 +564,7 @@ namespace Unturned2.Line2
                 return false;
             if (action == "investigate" && !_lastKnownThreat.HasValue &&
                 Time.time - _lastGunshotAt > 7f &&
+                Time.time - _lastFootstepAt > 4f &&
                 !(_legacyBrain.HasDestination &&
                   _legacyBrain.CurrentState ==
                       Line2MobileNPCBrain.State.Investigating))
@@ -541,6 +578,8 @@ namespace Unturned2.Line2
                     _goal = _lastKnownThreat.Value;
                 else if (Time.time - _lastGunshotAt <= 7f)
                     _goal = _lastHeardPoint;
+                else if (Time.time - _lastFootstepAt <= 4f)
+                    _goal = _lastHeardFootstepPoint;
                 else if (_legacyBrain.HasDestination &&
                     _legacyBrain.CurrentState ==
                         Line2MobileNPCBrain.State.Investigating)
@@ -598,7 +637,8 @@ namespace Unturned2.Line2
                     PlayerNearby = nearPlayer,
                     ThreatVisible = visible,
                     HasRecentMemory = lastKnown.HasValue,
-                    HeardThreat = Time.time - _lastGunshotAt <= 7f,
+                    HeardThreat = Time.time - _lastGunshotAt <= 7f ||
+                                  Time.time - _lastFootstepAt <= 4f,
                     // Only real explosion hits currently update HP and
                     // the threat point. The cover planner checks real solid
                     // geometry, while A* separately owns route feasibility.
