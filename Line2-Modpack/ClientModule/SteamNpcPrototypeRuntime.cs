@@ -374,6 +374,8 @@ namespace Unturned2.Line2
             foreach (PrototypeActor a in _actors)
                 if (a != null) UnityEngine.Object.Destroy(a.gameObject);
             _actors.Clear();
+            Line2NPCGroupMember.ResetSession();
+            Line2NPCRadioOutbox.ResetSession();
         }
     }
 
