@@ -191,6 +191,43 @@ internal static class Program
         Console.WriteLine("LINE1_PORT_REGRESSION_OK: lost-LOS memory, physical search spiral,");
         Console.WriteLine("return to spawn, evidence expiry, pursuit sprint and no-destination hold.");
 
+        // Line 1 combat prioritizes a verified player inside 20 metres;
+        // a radio hint or player position alone must not authorize attack.
+        if (Line2NPCCombatRules.CanEngagePlayer("hostile", "normal", false, 4f) ||
+            Line2NPCCombatRules.CanEngagePlayer("friendly", "total", true, 4f) ||
+            Line2NPCCombatRules.CanEngagePlayer("hostile", "passive", true, 4f) ||
+            Line2NPCCombatRules.CanEngagePlayer("hostile", "normal", true, 401f) ||
+            !Line2NPCCombatRules.CanEngagePlayer("hostile", "normal", true, 400f))
+        {
+            Console.Error.WriteLine("COMBAT_POLICY_FAILED: player vision / 20m / passive.");
+            return 18;
+        }
+
+        if (!Line2NPCCombatRules.AreOpposed("hostile", "friendly", "normal") ||
+            !Line2NPCCombatRules.AreOpposed("friendly", "hostile", "total") ||
+            Line2NPCCombatRules.AreOpposed("neutral", "hostile", "normal") ||
+            Line2NPCCombatRules.AreOpposed("hostile", "hostile", "normal") ||
+            Line2NPCCombatRules.AreOpposed("hostile", "friendly", "passive") ||
+            !Line2NPCCombatRules.CanEngageZombie("neutral", "normal") ||
+            Line2NPCCombatRules.CanEngageZombie("hostile", "passive"))
+        {
+            Console.Error.WriteLine("COMBAT_POLICY_FAILED: faction safety / zombies.");
+            return 19;
+        }
+
+        if (Line2NPCCombatRules.MayCommitHit("hostile", "normal", false, true, true) ||
+            Line2NPCCombatRules.MayCommitHit("hostile", "normal", true, false, true) ||
+            Line2NPCCombatRules.MayCommitHit("hostile", "normal", true, true, false) ||
+            Line2NPCCombatRules.MayCommitHit("hostile", "passive", true, true, true) ||
+            !Line2NPCCombatRules.MayCommitHit("hostile", "total", true, true, true))
+        {
+            Console.Error.WriteLine("COMBAT_POLICY_FAILED: server/health/LOS attack gate.");
+            return 20;
+        }
+
+        Console.WriteLine("NPC_COMBAT_POLICY_OK: player priority, confirmed sight, " +
+            "neutral immunity, faction hostility and passive-mode safety.");
+
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
