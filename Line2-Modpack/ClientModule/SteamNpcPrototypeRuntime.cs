@@ -32,6 +32,7 @@ namespace Unturned2.Line2
         private string _saveMap;
         private bool _restoreLoaded;
         private bool _saveAllowed;
+        private bool _saveSourceVerified;
         private bool _restoringActor;
         private int _restoreCapacity;
         private float _nextSaveAt;
@@ -106,6 +107,7 @@ namespace Unturned2.Line2
                 }
                 _restoreLoaded = false;
                 _saveAllowed = false;
+                _saveSourceVerified = false;
                 _pendingRestore.Clear();
                 _pendingReplacements.Clear();
                 return;
@@ -120,6 +122,7 @@ namespace Unturned2.Line2
                 _saveMap = map;
                 _restoreLoaded = false;
                 _saveAllowed = false;
+                _saveSourceVerified = false;
                 _pendingRestore.Clear();
                 _pendingReplacements.Clear();
             }
@@ -140,6 +143,7 @@ namespace Unturned2.Line2
                     return;
                 }
                 _restoreCapacity = Mathf.Min(32, Mathf.Max(_cap, records.Count));
+                _saveSourceVerified = true;
                 _pendingRestore.AddRange(records);
                 _pendingReplacements.AddRange(tickets);
                 _saveAllowed = _pendingRestore.Count == 0;
@@ -173,8 +177,18 @@ namespace Unturned2.Line2
                 }
             }
 
-            // A partial restore must never overwrite unloaded survivors.
-            if (_pendingRestore.Count > 0 || !_saveAllowed) return;
+            // Merged snapshots retain still-unloaded survivors by exact
+            // identity, while recording deaths and changed live actors.
+            if (_pendingRestore.Count > 0)
+            {
+                if (Time.time >= _nextSaveAt)
+                {
+                    _nextSaveAt = Time.time + SaveIntervalSeconds;
+                    SaveCheckpoint();
+                }
+                return;
+            }
+            if (!_saveAllowed) return;
             if (_natural && _pendingReplacements.Count > 0 &&
                 Time.time >= _nextReplacementAttemptAt)
                 TryProcessReplacement();
@@ -518,10 +532,16 @@ namespace Unturned2.Line2
         /// authoritative local map. Never replaces a partially restored save.</summary>
         private void SaveCheckpoint()
         {
-            if (!_enabled || !_saveAllowed || _pendingRestore.Count != 0 ||
+            if (!_enabled || !_saveSourceVerified ||
                 !Provider.isServer || Dedicator.IsDedicatedServer ||
                 !Level.isLoaded || string.IsNullOrEmpty(_saveMap)) return;
-            var records = new List<Line2NpcPersistence.ActorRecord>(_actors.Count);
+            var records = new List<Line2NpcPersistence.ActorRecord>(
+                _actors.Count + _pendingRestore.Count);
+            // The pending actors still belong to the world even when their
+            // regions are not loaded. Keep their ORIGINAL snapshots, rather
+            // than silently resurrecting dead loaded NPCs or deleting distant
+            // survivors during an autosave.
+            records.AddRange(_pendingRestore);
             foreach (PrototypeActor actor in _actors)
             {
                 if (actor == null || actor.IsDead) continue;
