@@ -23,6 +23,7 @@ namespace Unturned2.Line2
             _host.AddComponent<NpcApiDiscovery>();
             _host.AddComponent<ZombieTrackingProbe>();
             _host.AddComponent<ZombiePriorityVisionBridge>();
+            _host.AddComponent<Line2ZombieNpcCombatBridge>();
             _host.AddComponent<NpcInstanceProbe>();
             _host.AddComponent<Line2AdminControl>();
             _host.AddComponent<GunApiDiscovery>();
