@@ -15,7 +15,7 @@ namespace Unturned2.Line2
     /// </summary>
     internal sealed class Line2NpcTacticalJourneyWatchdog
     {
-        internal enum Outcome { None, Moving, Reached, Blocked }
+        internal enum Outcome { None, Moving, Reached, Holding, Blocked }
 
         private const float ReachedDistance = 1.50f;
         private const float MinimumProgress = 0.70f;
@@ -30,10 +30,12 @@ namespace Unturned2.Line2
         private float _lastProgressAt;
         private float _bestDistance = float.PositiveInfinity;
         private bool _initialized;
+        private bool _arrived;
 
         internal void Reset()
         {
             _initialized = false;
+            _arrived = false;
             _goal = Line2MobileNPCTactics.Goal.None;
             _bestDistance = float.PositiveInfinity;
         }
@@ -63,22 +65,54 @@ namespace Unturned2.Line2
             Vector3 diff = target - actualPosition;
             float flatDistance = (float)Math.Sqrt(
                 diff.x * diff.x + diff.z * diff.z);
-            if (flatDistance <= ReachedDistance &&
-                Math.Abs(diff.y) <= VerticalTolerance)
+            bool sameGoal = _initialized && _goal == goal &&
+                (target - _target).sqrMagnitude <= 0.9f * 0.9f;
+            bool atDestination = flatDistance <= ReachedDistance &&
+                Math.Abs(diff.y) <= VerticalTolerance;
+            // Port the Line 1 BrainDriver rule: a reached RETREAT is a
+            // temporary safe position, not permission to rush the attacker
+            // again. A reached FLANK is a firing vantage, not the end of
+            // the tactical assignment. The existing goal's finite deadline
+            // still expires it; no new timeout is granted here.
+            bool hold = goal == Line2MobileNPCTactics.Goal.Retreat ||
+                goal == Line2MobileNPCTactics.Goal.Flank;
+            if (sameGoal && _arrived && atDestination)
+                return Outcome.Holding;
+            if (atDestination)
             {
-                Reset();
-                return Outcome.Reached;
+                if (!hold)
+                {
+                    Reset();
+                    return Outcome.Reached;
+                }
+                _initialized = true;
+                _goal = goal;
+                _target = target;
+                if (!sameGoal) _startedAt = now;
+                _lastProgressAt = now;
+                _bestDistance = flatDistance;
+                _arrived = true;
+                return Outcome.Holding;
             }
-            if (!_initialized || _goal != goal ||
-                (target - _target).sqrMagnitude > 0.9f * 0.9f)
+            if (!sameGoal)
             {
                 _initialized = true;
+                _arrived = false;
                 _goal = goal;
                 _target = target;
                 _startedAt = now;
                 _lastProgressAt = now;
                 _bestDistance = flatDistance;
                 return Outcome.Moving;
+            }
+            if (_arrived)
+            {
+                // Physical displacement from a reached vantage starts a
+                // fresh bounded return. Reaching once cannot give eternal
+                // immunity from the stuck-route monitor.
+                _arrived = false;
+                _bestDistance = flatDistance;
+                _lastProgressAt = now;
             }
             // A new best *physical* position proves progress. A proposal to
             // walk closer or an A* response is not a movement observation.
