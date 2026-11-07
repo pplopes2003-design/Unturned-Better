@@ -391,6 +391,27 @@ namespace Unturned2.Line2
         private const float ThreatRadius = 20f;
         private string _identity;
         internal string Identity { get { return _identity; } }
+        internal string DisplayName { get { return _displayName; } }
+        internal Vector3 HomePosition { get { return _home; } }
+        /// <summary>Sets saved survivor identity, not a new identity for a replacement.</summary>
+        internal bool TryRestoreIdentity(Line2NpcPersistence.ActorRecord saved)
+        {
+            if (saved == null || IsDead || _vitals == null ||
+                string.IsNullOrEmpty(saved.identity) ||
+                saved.displayName == null || saved.displayName.Length > 80 ||
+                !_vitals.TryRestoreHealthServer(saved.health)) return false;
+            _identity = saved.identity;
+            gameObject.name = saved.identity;
+            _displayName = saved.displayName;
+            _home = saved.Home;
+            _goal = _home;
+            _legacyBrain.SetSpawnPosition(_home);
+            _legacyBrain.Reset();
+            _brain.Reset();
+            _tactics.ReportHealth(_vitals.Health, 100f);
+            return true;
+        }
+
         internal string Disposition { get { return _disposition; } }
         internal string CombatMode { get { return _combatMode; } }
         internal bool PlayerVisible { get { return _threatVisible; } }
