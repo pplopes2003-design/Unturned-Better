@@ -62,6 +62,7 @@ namespace Unturned2.Line2
         private static bool IsAuthorized()
         {
             return Provider.isServer && !Dedicator.IsDedicatedServer &&
+                   (Provider.clients == null || Provider.clients.Count <= 1) &&
                    Provider.hasCheats && Level.isLoaded && Player.player != null;
         }
 
@@ -78,8 +79,18 @@ namespace Unturned2.Line2
 
         private void Update()
         {
-            if (!IsAuthorized() || !_enabled || !_natural ||
-                Time.time < _nextNaturalAt)
+            if (!IsAuthorized())
+            {
+                // If a friend joins, immediately remove the local-only
+                // prototypes. They are not network-replicated actors.
+                if (_actors.Count > 0)
+                {
+                    ClearActors();
+                    ProbeLogger.Log("NPC_PROTOTYPE_SUSPENDED: local singleplayer authority no longer valid");
+                }
+                return;
+            }
+            if (!_enabled || !_natural || Time.time < _nextNaturalAt)
                 return;
             _nextNaturalAt = Time.time + 18f;
             if (ActiveCount >= _cap) return;
