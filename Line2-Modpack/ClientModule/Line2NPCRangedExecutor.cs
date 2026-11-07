@@ -100,6 +100,11 @@ namespace Unturned2.Line2
                 StartReload(gunId, gun);
                 return;
             }
+            // Never accept corrupt gun state with more rounds than an
+            // authentic native magazine could hold.
+            if (!Line2NPCAmmoRules.CanFire(
+                    rounds, gun.ammoPerShot, loadedMagazine.MaxAmountAsByte))
+                return;
             HasUsableGun = true;
 
             Line2NPCCombatPerception.TargetKind kind = _perception.Kind;
@@ -146,7 +151,10 @@ namespace Unturned2.Line2
             // Commit consumed ammunition BEFORE damage. If a duplicate gun
             // instance disappears, the shot fails closed rather than firing
             // for free. Rifle reload uses the original inventory transaction.
-            byte left = (byte)(rounds - gun.ammoPerShot);
+            int remaining = Line2NPCAmmoRules.RemainingAfterShot(
+                rounds, gun.ammoPerShot, loadedMagazine.MaxAmountAsByte);
+            if (remaining < 0) return;
+            byte left = (byte)remaining;
             if (!_inventory.TryUpdateGunAmmoServer(gunId, left))
                 return;
             _shotsThisFrame++;
@@ -326,6 +334,15 @@ namespace Unturned2.Line2
             Item replacement;
             if (!_inventory.TryTakeItemServer(magazineSlot, out replacement) ||
                 replacement == null) return;
+
+            if (!Line2NPCAmmoRules.CanLoadReplacement(
+                    replacement.amount, spare.MaxAmountAsByte))
+            {
+                if (!_inventory.TryStoreTransferredItem(replacement))
+                    ProbeLogger.Log("NPC_RELOAD_INVALID_MAG_ROLLBACK_FAILED: actor=" +
+                                    _actor.Identity);
+                return;
+            }
 
             ushort oldMagazineId =
                 BitConverter.ToUInt16(original.state, GunStateIndices.MAGAZINE_ID);
