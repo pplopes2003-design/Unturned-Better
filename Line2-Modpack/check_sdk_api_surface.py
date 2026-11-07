@@ -290,7 +290,7 @@ REQUIREMENTS = (
     ("Line2-Modpack/ClientModule/Line2MobileNPCInventory.cs",
      ("TryPickupWorldItemServer(uint instanceID", "ItemManager.ReceiveDestroyItem",
       "TryStoreReservedItemServer(copy)", "owner.items.RemoveAt(sourceIndex)",
-      "TryTakeItemServer(npcSlot, out rolledBack)")),
+      "FindSlotByInstanceID(committedSlotID)")),
     ("Line2-Modpack/ClientModule/Line2NpcWorldLootCollector.cs",
      ("ItemManager.regions", "Score(ItemAsset asset)",
       "TryPickupWorldItemServer(bestID", "RecordVerifiedWorldPickup",
