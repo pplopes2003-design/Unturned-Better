@@ -469,8 +469,6 @@ namespace Unturned2.Line2
                     HasRealHealth = false,
                     UnderFire = false,
                     HasVerifiedCover = false,
-                    CanShoot = false,
-                    CombatAdapterReady = false,
                     RemoteSuggestion = validSuggestion
                 };
                 NpcIntent intent = _brain.Evaluate(Time.time, facts);
