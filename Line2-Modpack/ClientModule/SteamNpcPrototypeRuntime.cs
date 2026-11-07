@@ -246,6 +246,7 @@ namespace Unturned2.Line2
                     // DamageTool.explode discovers IExplosionDamageable
                     // through the root Agent CharacterController collider.
                     instance.AddComponent<PrototypeNpcVitals>();
+                    instance.AddComponent<Line2MobileNPCInjurySystem>();
                     instance.AddComponent<Line2MobileNPCAdaptiveMemory>();
                     instance.AddComponent<Line2MobileNPCTravelMemory>();
                     var actor = instance.AddComponent<PrototypeActor>();
@@ -375,6 +376,7 @@ namespace Unturned2.Line2
         private PrototypeObstacleNavigator _navigation;
         private PrototypeAStarFollower _astarFollower;
         private PrototypeNpcVitals _vitals;
+        private Line2MobileNPCInjurySystem _injuries;
         private Line2MobileNPCAdaptiveMemory _experience;
         private Line2MobileNPCTravelMemory _travelMemory;
         private PrototypeCoverPlanner _coverPlanner;
@@ -411,6 +413,7 @@ namespace Unturned2.Line2
             _navigation = GetComponent<PrototypeObstacleNavigator>();
             _astarFollower = GetComponent<PrototypeAStarFollower>();
             _vitals = GetComponent<PrototypeNpcVitals>();
+            _injuries = GetComponent<Line2MobileNPCInjurySystem>();
             _experience = GetComponent<Line2MobileNPCAdaptiveMemory>();
             _travelMemory = GetComponent<Line2MobileNPCTravelMemory>();
             if (_astarFollower != null)
@@ -755,6 +758,8 @@ namespace Unturned2.Line2
             float speed = gait == Line2MobileNPCLocomotionPolicy.Gait.Sprint ? 3.0f
                 : gait == Line2MobileNPCLocomotionPolicy.Gait.Sneak ? 1.15f
                 : gait == Line2MobileNPCLocomotionPolicy.Gait.Hold ? 0f : 1.8f;
+            if (_injuries != null)
+                speed *= Mathf.Clamp(_injuries.MovementMultiplier, 0.1f, 1f);
             Vector3 direction = delta.sqrMagnitude > 1.5f && speed > 0f
                 ? delta.normalized : Vector3.zero;
             // Use bounded side-steering instead of repeatedly stopping in
