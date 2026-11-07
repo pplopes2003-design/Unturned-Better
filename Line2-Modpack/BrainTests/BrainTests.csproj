@@ -9,6 +9,9 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="UnityValueStubs.cs" />
+    <Compile Include="../ClientModule/Line2MobileNPCTactics.cs"
+             Link="Line2MobileNPCTactics.cs" />
     <Compile Include="../ClientModule/NpcExplosionMath.cs"
              Link="NpcExplosionMath.cs" />
     <Compile Include="../ClientModule/NpcDecisionBrain.cs"
