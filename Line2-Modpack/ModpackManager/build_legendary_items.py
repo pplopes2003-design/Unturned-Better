@@ -63,7 +63,7 @@ def build_legendaries(game: Path, staging: Path, *, eagle_id=DEFAULT_EAGLE_ID,
         "Bundle_Override_Path":shell_path,
         # Small area hit effect is NOT a literal Burner infection/DoT.
         "Explosive":None,
-        "Range":1.25,
+        "Pellets":1,  # One small effect per shot; avoids shotgun pellet explosion spam.\n        "Range":1.25,
         "Player_Damage":3,
         "Zombie_Damage":9,
         "Animal_Damage":3,
