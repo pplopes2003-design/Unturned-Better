@@ -113,7 +113,7 @@ class RadioNetwork:
     def report(self, sender_id, kind, position, now, *, verified, confidence=0.75, ttl=24.0):
         """Only firsthand verified evidence is eligible for transmission."""
         actor = self.actors.get(sender_id)
-        if actor is None or not actor.can_transmit or not verified:
+        if actor is None or not actor.can_transmit or verified is not True:
             return None
         if kind not in TYPES or type(now) not in (float, int) or not math.isfinite(now) or now < 0:
             raise ValueError("invalid radio report")
@@ -147,7 +147,7 @@ class RadioNetwork:
         if type(now) not in (int, float) or not math.isfinite(now) or now < 0:
             raise ValueError("invalid time")
         queue = self.pending.get(sender_id, [])
-        queue[:] = [m for m in queue if m.expires_at > now and
+        queue[:] = [m for m in queue if m.observed_at <= now < m.expires_at and
                     m.group_id == actor.group_id and m.faction_id == actor.faction_id
                     and m.frequency == actor.channel]
         if (not queue or now < self.next_global or
