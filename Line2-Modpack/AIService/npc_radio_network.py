@@ -147,13 +147,20 @@ class RadioNetwork:
         if type(now) not in (int, float) or not math.isfinite(now) or now < 0:
             raise ValueError("invalid time")
         queue = self.pending.get(sender_id, [])
-        queue[:] = [m for m in queue if m.observed_at <= now < m.expires_at and
+        # A future-dated packet must not be delivered early, but neither
+        # should a premature poll destroy it before its observation time.
+        # Discard only expired or unauthorized messages.
+        queue[:] = [m for m in queue if now < m.expires_at and
                     m.group_id == actor.group_id and m.faction_id == actor.faction_id
                     and m.frequency == actor.channel]
         if (not queue or now < self.next_global or
                 now < self.personal_next.get(sender_id, 0.0)):
             return []
-        msg = queue.pop(0)
+        eligible_index = next((i for i, m in enumerate(queue)
+                               if m.observed_at <= now), None)
+        if eligible_index is None:
+            return []
+        msg = queue.pop(eligible_index)
         self.next_global = float(now + AIRTIME)
         self.personal_next[sender_id] = float(now + PERSONAL_COOLDOWN)
         received = []
