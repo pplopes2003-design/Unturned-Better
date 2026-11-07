@@ -95,9 +95,8 @@ namespace Unturned2.Line2
                     return;
             }
 
-            float falloff = Mathf.Clamp01(1f - range / parameters.damageRadius);
-            if (falloff <= 0f) return;
-            float damage = amount * falloff;
+            float damage = NpcExplosionMath.Calculate(
+                amount, parameters.damageRadius, range);
             if (damage < 0.05f) return;
             ApplyServerDamage(damage, delta.sqrMagnitude > 0.001f
                 ? delta.normalized : Vector3.up);
