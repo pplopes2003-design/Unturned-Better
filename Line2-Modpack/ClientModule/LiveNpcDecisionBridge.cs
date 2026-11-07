@@ -139,7 +139,15 @@ namespace Unturned2.Line2
             if (_runtime == null)
                 _runtime = GetComponent<SteamNpcPrototypeRuntime>();
             if (_runtime == null || _runtime.ActiveCount == 0)
+            {
+                if (_pending != null)
+                {
+                    _epoch++;
+                    ResetPending();
+                }
+                Status = "waiting for active NPC prototypes";
                 return;
+            }
 
             if (_pending != null)
             {
