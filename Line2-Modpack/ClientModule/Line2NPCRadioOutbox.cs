@@ -13,7 +13,7 @@ namespace Unturned2.Line2
     /// </summary>
     internal sealed class Line2NPCRadioOutbox : MonoBehaviour
     {
-        internal const ushort NativeWalkieId = 1445;
+        internal const ushort NativeWalkieId = Line2NPCRadioRules.NativeWalkieId;
         private const float CommunicationRange = 90f;
         private const float SendCooldown = 20f;
         private const float AirTime = 1.25f;
@@ -71,8 +71,10 @@ namespace Unturned2.Line2
             // an approximate 20m sector from one confirmed observation.
             Vector3 seen = _sight.LastVisiblePosition;
             Vector3 sector = new Vector3(
-                Mathf.Floor(seen.x / 20f) * 20f + 10f, seen.y,
-                Mathf.Floor(seen.z / 20f) * 20f + 10f);
+                Line2NPCRadioRules.QuantizeSector(seen.x), seen.y,
+                Line2NPCRadioRules.QuantizeSector(seen.z));
+            if (float.IsNaN(sector.x) || float.IsNaN(sector.z))
+                return;
             float now = Time.time;
             _runtime.CopyLiveActors(_candidates, MaxRecipients);
             int recipients = 0;
@@ -83,13 +85,15 @@ namespace Unturned2.Line2
                 Line2NPCGroupMember otherGroup =
                     other.GetComponent<Line2NPCGroupMember>();
                 Line2MobileNPCInventory otherInventory = other.Inventory;
-                if (otherGroup == null || !otherGroup.Joined ||
-                    otherGroup.GroupId != _membership.GroupId ||
-                    otherGroup.Faction != _membership.Faction ||
-                    otherInventory == null ||
-                    !otherInventory.ContainsItemID(NativeWalkieId) ||
-                    (other.transform.position - transform.position).sqrMagnitude >
-                       CommunicationRange * CommunicationRange)
+                if (otherGroup == null || otherInventory == null ||
+                    !Line2NPCRadioRules.MayRelay(
+                        _membership.GroupId, otherGroup.GroupId,
+                        _membership.Faction, otherGroup.Faction,
+                        !_actor.IsDead, !other.IsDead,
+                        _inventory.ContainsItemID(NativeWalkieId),
+                        otherInventory.ContainsItemID(NativeWalkieId),
+                        Vector3.Distance(other.transform.position,
+                            transform.position)))
                     continue;
 
                 other.ReceiveVerifiedRadioReport(sector, now);
