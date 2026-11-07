@@ -41,6 +41,7 @@ namespace Unturned2.Line2
         {
             if (!Provider.isServer || Dedicator.IsDedicatedServer ||
                 !Provider.hasCheats || !Level.isLoaded ||
+                (Provider.clients != null && Provider.clients.Count > 1) ||
                 Provider.clients == null || runtime == null ||
                 Time.time < nextSampleAt)
                 return;
