@@ -139,11 +139,12 @@ namespace Unturned2.Line2
                 new[] { ' ', '/' }, StringSplitOptions.RemoveEmptyEntries);
             if (args.Length == 0) return;
             string action = args[0].ToLowerInvariant();
+            for (int i = 1; i < args.Length; i++) args[i] = args[i].ToLowerInvariant();
             switch (action)
             {
                 case "help":
                     _feedback = "status | npc on/off | natural on/off | max 1..32 | " +
-                        "combat passive/normal/total | hordes on/off | spawn friendly/neutral/hostile [1..5] | save. " +
+                        "combat passive/normal/total | hordes on/off | server | population | spawn friendly/neutral/hostile [1..5] | save. " +
                         "Spawn is NOT available until NPC adapter is installed.";
                     break;
                 case "status":
@@ -151,6 +152,15 @@ namespace Unturned2.Line2
                         ", natural=" + _settings.naturalSpawn + ", max=" + _settings.maxNPCs +
                         ", combat=" + _settings.combatMode + ", hordes=" + _settings.hordesEnabled +
                         ". ACTIVE NPCs=0 (adapter not installed).";
+                    break;
+                case "population":
+                    _feedback = "Population config max=" + _settings.maxNPCs +
+                        ", natural=" + _settings.naturalSpawn +
+                        ", no NPCs spawned until verified game adapter is installed.";
+                    break;
+                case "server":
+                    _feedback = "Local host=" + IsLocalHost() +
+                        ". Dedicated and multiplayer server administration is not implemented in Line 2.";
                     break;
                 case "npc":
                 case "natural":
