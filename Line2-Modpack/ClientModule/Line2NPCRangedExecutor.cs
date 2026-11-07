@@ -167,11 +167,20 @@ namespace Unturned2.Line2
                 (HasMovement() ? 2.4f : 0f) +
                 (5 - Mathf.Clamp(_burstRemaining, 1, 5)) * 0.70f,
                 2f, MaximumSpreadDegrees);
-            Vector2 scatter = UnityEngine.Random.insideUnitCircle * spread;
-            Quaternion deviation = Quaternion.Euler(scatter.y, scatter.x, 0f);
-            Vector3 direction = deviation * offset.normalized;
-            bool hit = TryApplyNativeImpact(kind, target, origin, direction,
-                gunRange, gun, length);
+            // Vanilla magazines may fire multiple pellets per spent shell.
+            // Consume ammunition ONCE, then independently trace each pellet.
+            // Cap untrusted custom asset data to a bounded hit budget.
+            int pellets = Mathf.Clamp((int)loadedMagazine.pellets, 1, 16);
+            int pelletHits = 0;
+            for (int pellet = 0; pellet < pellets; pellet++)
+            {
+                Vector2 scatter = UnityEngine.Random.insideUnitCircle * spread;
+                Quaternion deviation = Quaternion.Euler(scatter.y, scatter.x, 0f);
+                Vector3 direction = deviation * offset.normalized;
+                if (TryApplyNativeImpact(kind, target, origin, direction,
+                    gunRange, gun, length))
+                    pelletHits++;
+            }
             if (_burstRemaining <= 1)
             {
                 _burstRemaining = UnityEngine.Random.Range(2, 6);
@@ -191,7 +200,8 @@ namespace Unturned2.Line2
             {
                 ProbeLogger.Log("NPC_RANGED_SHOT: actor=" + _actor.Identity +
                     " nativeGun=" + gun.id + " ammo=" + left +
-                    " hit=" + hit + " spreadDeg=" + spread.ToString("F1"));
+                    " pelletHits=" + pelletHits + "/" + pellets +
+                    " spreadDeg=" + spread.ToString("F1"));
                 _nextLogAt = Time.time + 12f;
             }
         }
