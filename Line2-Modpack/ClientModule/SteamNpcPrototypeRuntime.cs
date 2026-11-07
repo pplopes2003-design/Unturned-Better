@@ -24,6 +24,11 @@ namespace Unturned2.Line2
         private bool _missingPrefabLogged;
         private readonly List<Line2NpcPersistence.ActorRecord> _pendingRestore =
             new List<Line2NpcPersistence.ActorRecord>(32);
+        private readonly List<Line2NpcPersistence.ReplacementRecord> _pendingReplacements =
+            new List<Line2NpcPersistence.ReplacementRecord>(32);
+        private bool _useSpawnAnchor;
+        private Vector3 _spawnAnchor;
+        private float _nextReplacementAttemptAt;
         private string _saveMap;
         private bool _restoreLoaded;
         private bool _saveAllowed;
@@ -101,6 +106,7 @@ namespace Unturned2.Line2
                 _restoreLoaded = false;
                 _saveAllowed = false;
                 _pendingRestore.Clear();
+                _pendingReplacements.Clear();
                 return;
             }
 
@@ -114,14 +120,17 @@ namespace Unturned2.Line2
                 _restoreLoaded = false;
                 _saveAllowed = false;
                 _pendingRestore.Clear();
+                _pendingReplacements.Clear();
             }
 
             if (!_enabled) return;
             if (!_restoreLoaded)
             {
                 List<Line2NpcPersistence.ActorRecord> records;
+                List<Line2NpcPersistence.ReplacementRecord> tickets;
                 string detail;
-                bool ok = Line2NpcPersistence.TryRead(_saveMap, out records, out detail);
+                bool ok = Line2NpcPersistence.TryRead(_saveMap, out records,
+                    out tickets, out detail);
                 _restoreLoaded = true;
                 if (!ok)
                 {
@@ -130,6 +139,7 @@ namespace Unturned2.Line2
                     return;
                 }
                 _pendingRestore.AddRange(records);
+                _pendingReplacements.AddRange(tickets);
                 _saveAllowed = _pendingRestore.Count == 0;
                 _nextRestoreAt = Time.time + 0.5f;
                 _nextSaveAt = Time.time + SaveIntervalSeconds;
@@ -163,6 +173,9 @@ namespace Unturned2.Line2
 
             // A partial restore must never overwrite unloaded survivors.
             if (_pendingRestore.Count > 0 || !_saveAllowed) return;
+            if (_natural && _pendingReplacements.Count > 0 &&
+                Time.time >= _nextReplacementAttemptAt)
+                TryProcessReplacement();
             if (Time.time >= _nextSaveAt)
             {
                 _nextSaveAt = Time.time + SaveIntervalSeconds;
@@ -170,7 +183,7 @@ namespace Unturned2.Line2
             }
             if (!_natural || Time.time < _nextNaturalAt) return;
             _nextNaturalAt = Time.time + 18f;
-            if (ActiveCount >= _cap) return;
+            if (ActiveCount + _pendingReplacements.Count >= _cap) return;
             string ignored;
             TrySpawn(ChooseNaturalRole(), 1, out ignored);
         }
@@ -206,6 +219,7 @@ namespace Unturned2.Line2
                 _restoreLoaded = false;
                 _saveAllowed = false;
                 _pendingRestore.Clear();
+                _pendingReplacements.Clear();
             }
             else
             {
@@ -372,6 +386,7 @@ namespace Unturned2.Line2
                     actor.AttachRangedExecutor(ranged);
                     var radio = instance.AddComponent<Line2NPCRadioOutbox>();
                     radio.Initialize(this, actor, combatSight, ownedInventory);
+                    actor.Died += OnActorDied;
                     created.Add(actor);
                 }
                 catch (Exception ex)
@@ -424,6 +439,63 @@ namespace Unturned2.Line2
             actors.Clear();
         }
 
+        private void OnActorDied(PrototypeActor actor, int formerGroup)
+        {
+            if (!_enabled || !_natural || !IsAuthorized() ||
+                actor == null || _pendingReplacements.Count >= 32)
+                return;
+            _pendingReplacements.Add(new Line2NpcPersistence.ReplacementRecord
+            {
+                role = actor.Disposition,
+                formerGroupId = formerGroup,
+                readyAtUtcTicks = DateTime.UtcNow.AddSeconds(60).Ticks
+            });
+            ProbeLogger.Log("NPC_REPLACEMENT_SCHEDULED: role=" + actor.Disposition +
+                " formerGroup=" + formerGroup + " delay=60s");
+        }
+
+        private void TryProcessReplacement()
+        {
+            _nextReplacementAttemptAt = Time.time + 3f;
+            if (!IsAuthorized() || _pendingReplacements.Count == 0 ||
+                ActiveCount >= _cap) return;
+            for (int i = 0; i < _pendingReplacements.Count; i++)
+            {
+                Line2NpcPersistence.ReplacementRecord ticket = _pendingReplacements[i];
+                if (ticket.readyAtUtcTicks > DateTime.UtcNow.Ticks) continue;
+                PrototypeActor formerMember;
+                bool stillAlive = Line2NPCGroupMember.TryGetLivingMember(
+                    ticket.formerGroupId, out formerMember);
+                if (stillAlive)
+                {
+                    _spawnAnchor = formerMember.transform.position;
+                    _useSpawnAnchor = true;
+                }
+                string reason;
+                bool spawned;
+                try { spawned = TrySpawn(ticket.role, 1, out reason); }
+                finally { _useSpawnAnchor = false; }
+                if (!spawned)
+                {
+                    if (Time.time >= _nextRestoreLogAt)
+                    {
+                        _nextRestoreLogAt = Time.time + 20f;
+                        ProbeLogger.Log("NPC_REPLACEMENT_DEFERRED: " + reason);
+                    }
+                    continue;
+                }
+                PrototypeActor next = _actors[_actors.Count - 1];
+                Line2NPCGroupMember group =
+                    next.GetComponent<Line2NPCGroupMember>();
+                if (stillAlive && group != null)
+                    group.TryJoinLivingGroup(next, ticket.formerGroupId);
+                _pendingReplacements.RemoveAt(i);
+                ProbeLogger.Log("NPC_REPLACEMENT_CREATED: newIdentity=" +
+                    next.Identity + " group=" + (group != null ? group.GroupId : 0));
+                break;
+            }
+        }
+
         /// <summary>Checkpoints only fully loaded, living actors on the
         /// authoritative local map. Never replaces a partially restored save.</summary>
         private void SaveCheckpoint()
@@ -468,7 +540,8 @@ namespace Unturned2.Line2
                 });
             }
             string detail;
-            if (Line2NpcPersistence.TryWrite(_saveMap, records, out detail))
+            if (Line2NpcPersistence.TryWrite(_saveMap, records,
+                _pendingReplacements, out detail))
                 ProbeLogger.Log("NPC_SAVE_OK: " + detail);
             else
                 ProbeLogger.Log("NPC_SAVE_FAILED: " + detail);
@@ -573,7 +646,7 @@ namespace Unturned2.Line2
             location = Vector3.zero;
             Player local = Player.player;
             if (local == null) return false;
-            Vector3 origin = local.transform.position;
+            Vector3 origin = _useSpawnAnchor ? _spawnAnchor : local.transform.position;
             for (int trial = 0; trial < 12; trial++)
             {
                 float angle = (index * 97f + trial * 43f) * Mathf.Deg2Rad;
@@ -614,6 +687,7 @@ namespace Unturned2.Line2
             _actors.Clear();
             Line2NPCGroupMember.ResetSession();
             Line2NPCRadioOutbox.ResetSession();
+            _pendingReplacements.Clear();
         }
     }
 
@@ -628,6 +702,7 @@ namespace Unturned2.Line2
         private string _combatMode = "normal";
         private const float ThreatRadius = 20f;
         private string _identity;
+        internal event Action<PrototypeActor, int> Died;
         internal string Identity { get { return _identity; } }
         internal string DisplayName { get { return _displayName; } }
         internal Vector3 HomePosition { get { return _home; } }
@@ -800,7 +875,9 @@ namespace Unturned2.Line2
             // Dead members vacate their group immediately, not after corpse
             // cleanup. Remaining living members retain their saved group ID.
             Line2NPCGroupMember membership = GetComponent<Line2NPCGroupMember>();
+            int oldGroup = membership != null ? membership.GroupId : 0;
             if (membership != null) membership.Leave();
+            Died?.Invoke(this, oldGroup);
             if (_experience != null)
                 _experience.ForgetOnDeathServer();
             if (_travelMemory != null)
