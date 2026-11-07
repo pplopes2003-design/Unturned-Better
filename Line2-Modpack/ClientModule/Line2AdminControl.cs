@@ -162,7 +162,8 @@ namespace Unturned2.Line2
                 case "help":
                     _feedback = "status | npc on/off | natural on/off | max 1..32 | " +
                         "combat passive/normal/total | hordes on/off | zombies on/off | server | population | spawn friendly/neutral/hostile [1..5] | save. " +
-                        "Spawn uses EXPERIMENTAL NPC prototype. Blast HP/death only; gun/melee, dialogue, radio, saves and multiplayer are NOT integrated.";
+                        "Steam NPC combat, radio, dialogue and local saves are EXPERIMENTAL; " +
+                        "multiplayer NPC replication and safe ground-loot transfer remain unavailable.";
                     break;
                 case "status":
                     _feedback = "NPC enabled=" + _settings.npcEnabled +
