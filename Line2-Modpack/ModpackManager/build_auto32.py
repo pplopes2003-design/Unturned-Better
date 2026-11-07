@@ -93,10 +93,10 @@ def create_auto32(game: Path, target: Path, *, gun_id=DEFAULT_GUN_ID,
     gun_source = original_gun.read_text(encoding="utf-8-sig")
     mag_source = original_mag.read_text(encoding="utf-8-sig")
     gun = replace_metadata(gun_source, {
-        "Type": "Gun", "ID": gun_id, "GUID": gun_guid,
+        "Type": "Gun", "ID": gun_id, "GUID": gun_guid, "Rarity": "Legendary",
         "Action": "Trigger", "Auto": None, "Semi": None, "Safety": None,
         "Firerate": 8, "Magazine": magazine_id,
-        "Ammo_Min": 32, "Ammo_Max": 32,
+        "Ammo_Min": 24, "Ammo_Max": 24,
         "Master_Bundle_Override": "core.masterbundle",
         "Bundle_Override_Path": gun_bundle_path,
     }, {"Exclude_From_Master_Bundle", "Bundle_Path_Include_Filename",
@@ -105,8 +105,8 @@ def create_auto32(game: Path, target: Path, *, gun_id=DEFAULT_GUN_ID,
         "RechamberAfterShotCount"})
     gun = tune_text(gun, "balanced")
     mag = replace_metadata(mag_source, {
-        "Type": "Magazine", "ID": magazine_id, "GUID": mag_guid,
-        "Amount": 32,
+        "Type": "Magazine", "ID": magazine_id, "GUID": mag_guid, "Rarity": "Legendary",
+        "Amount": 24,
         "Master_Bundle_Override": "core.masterbundle",
         "Bundle_Override_Path": mag_bundle_path,
     }, {"Exclude_From_Master_Bundle", "Bundle_Path_Include_Filename",
@@ -120,17 +120,17 @@ def create_auto32(game: Path, target: Path, *, gun_id=DEFAULT_GUN_ID,
     (gun_folder / "Asset.dat").write_text(gun, encoding="utf-8")
     (mag_folder / "Asset.dat").write_text(mag, encoding="utf-8")
     (gun_folder / "English.dat").write_text(
-        "Name Auto 32 (Experimental)\nDescription Automatic Bluntforce conversion; 32-round test magazine.\n",
+        "Name Auto 24 (Legendary)\nDescription Automatic Bluntforce conversion; 24-round test magazine.\n",
         encoding="utf-8")
     (mag_folder / "English.dat").write_text(
-        "Name Auto 32 Magazine\nDescription Experimental 32-round 12 gauge magazine.\n",
+        "Name Auto 24 Magazine\nDescription Experimental 24-round 12 gauge magazine.\n",
         encoding="utf-8")
     (target / "BUILD_NOTES.txt").write_text(
         "EXPERIMENTAL - NOT TESTED IN UNTURNED.\n"
         "Gun ID: " + str(gun_id) + "\nMagazine ID: " + str(magazine_id) + "\n"
         "Uses existing game core.masterbundle prefabs, no game assets included.\n"
         "Neither bundle existence nor item spawning is yet verified.\n"
-        "Balanced recoil preset applied. Adjust staging using auto32_recoil.py.\n"
+        "24-round legendary variant; balanced recoil preset applied. Adjust staging using auto32_recoil.py.\n"
         "Reloading four rounds at a time requires a validated C# gameplay adapter.\n"
         "Do not distribute copied vanilla source files; this package reuses runtime resources.\n",
         encoding="utf-8")
