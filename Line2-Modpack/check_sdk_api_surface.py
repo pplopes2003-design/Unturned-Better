@@ -331,7 +331,7 @@ REQUIREMENTS = (
     ("Line2-Modpack/ClientModule/Line2NpcTacticalJourneyWatchdog.cs",
      ("enum Outcome { None, Moving, Reached, Holding, Blocked }",
       "AbsoluteTimeoutSeconds", "MinimumProgress",
-      "nativePathPending", "currentGoal")),
+      "nativePathPending", "_lastProgressAt")),
     ("Line2-Modpack/ClientModule/PrototypeAStarFollower.cs",
      ("line1-no-connected-route", "_coarseFallback.Status ==")),
     ("Line2-Modpack/ClientModule/Line2NpcSquadRegroup.cs",
