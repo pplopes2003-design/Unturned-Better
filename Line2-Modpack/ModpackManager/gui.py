@@ -39,6 +39,7 @@ class App(tk.Tk):
         ttk.Button(basic, text="Install local mod", command=self.install).pack(side="left", padx=4)
         ttk.Button(basic, text="Remove managed mod", command=self.remove).pack(side="left", padx=4)
         ttk.Button(basic, text="Generate Auto 24", command=self.generate_auto32).pack(side="left", padx=4)
+        ttk.Button(advanced, text="Upgrade existing Auto 32 to 24", command=self.upgrade_auto24).pack(side="left", padx=4)
         ttk.Button(basic, text="Tune Auto 32 recoil", command=self.tune_auto32).pack(side="left", padx=4)
         ttk.Button(advanced, text="Generate Legendary Pack", command=self.generate_legendary_pack).pack(side="left", padx=4)
         ttk.Button(advanced, text="Save profile / server export", command=self.profile_export).pack(side="left", padx=4)
@@ -242,6 +243,27 @@ class App(tk.Tk):
                 "\\nReview the README_TESTING.txt before deployment.")
         except Exception as exc:
             messagebox.showerror("Legendary pack failed", str(exc))
+
+    def upgrade_auto24(self):
+        try:
+            from upgrade_auto24 import upgrade_staging_auto24
+            mgr = self.require_manager()
+            if "Content/Auto32" in mgr.state()["installed"]:
+                raise ValueError("Unturned must be closed. Remove managed Content/Auto32 "
+                                 "in Managed Installs first, then upgrade staging and reinstall.")
+            if not messagebox.askyesno("Upgrade Auto 32 to Legendary Auto 24",
+                    "Keep the original item IDs and GUIDs but change magazine "
+                    "capacity to 24 and mark gun/magazine Legendary?\\n"
+                    "Only staging files will be edited."):
+                return
+            result = upgrade_staging_auto24(mgr.staging / "Auto32")
+            self.refresh()
+            messagebox.showinfo("Upgrade complete",
+                "Auto 24 staging updated. Gun ID " + result["gun_id"] +
+                ", magazine " + result["magazine_id"] +
+                ".\\nInstall local mod (Content), then restart Unturned.")
+        except Exception as exc:
+            messagebox.showerror("Auto 24 upgrade failed", str(exc))
 
     def install_module(self):
         try:
