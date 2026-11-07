@@ -65,6 +65,48 @@ internal static class PersistenceTests
             pending[0].readyAtUtcTicks != replacement.readyAtUtcTicks)
             return false;
 
+        // The base is a real native BarricadeManager site, not a free
+        // serialized prefab. Its manifest persists alongside surviving NPCs.
+        var settlement = new Line2NpcPersistence.SettlementRecord
+        {
+            groupId = 7, role = "friendly",
+            x = 119f, y = 14f, z = 2f,
+            placed = new[] {
+                new Line2NpcPersistence.PlacedBarricadeRecord
+                {
+                    assetId = 363, x = 122f, y = 14f, z = 2f, yaw = 90f
+                }
+            }
+        };
+        var camps = new List<Line2NpcPersistence.SettlementRecord> { settlement };
+        var alive = new List<Line2NpcPersistence.ActorRecord> { survivor };
+        var tickets = new List<Line2NpcPersistence.ReplacementRecord> { replacement };
+        if (!Line2NpcPersistence.TryWrite(map, alive, tickets, camps, out reason))
+            return false;
+        List<Line2NpcPersistence.SettlementRecord> loadedCamps;
+        if (!Line2NpcPersistence.TryRead(map, out loaded, out pending,
+            out loadedCamps, out reason) || loadedCamps.Count != 1 ||
+            loadedCamps[0].groupId != 7 ||
+            loadedCamps[0].placed.Length != 1 ||
+            loadedCamps[0].placed[0].assetId != 363 ||
+            loadedCamps[0].placed[0].yaw != 90f)
+            return false;
+
+        // Reject overlapping group IDs and impossible site-relative placements
+        // without replacing the last known-good survivor/settlement data.
+        if (Line2NpcPersistence.TryWrite(map, alive, tickets,
+            new List<Line2NpcPersistence.SettlementRecord> {
+                settlement, settlement }, out reason))
+            return false;
+        settlement.placed[0].x = 1000f;
+        if (Line2NpcPersistence.TryWrite(map, alive, tickets, camps, out reason))
+            return false;
+        if (!Line2NpcPersistence.TryRead(map, out loaded, out pending,
+            out loadedCamps, out reason) || loadedCamps.Count != 1 ||
+            loadedCamps[0].placed[0].x != 122f)
+            return false;
+        settlement.placed[0].x = 122f;
+
         // Pending tasks with impossible dates cannot overwrite the last good save.
         replacement.readyAtUtcTicks = -10;
         if (Line2NpcPersistence.TryWrite(map,
@@ -104,7 +146,7 @@ internal static class PersistenceTests
         if (!Line2NpcPersistence.TryRead(map, out loaded, out reason) ||
             loaded.Count != 1 || loaded[0].health != 72.5f)
             return false;
-        Console.WriteLine("NPC_PERSISTENCE_POLICY_OK: map key, roundtrip, equipment state, duplicate IDs, invalid health.");
+        Console.WriteLine("NPC_PERSISTENCE_POLICY_OK: native item state, per-limb injuries, respawn tickets, group bases, duplicate IDs and invalid health.");
         return true;
     }
 }
