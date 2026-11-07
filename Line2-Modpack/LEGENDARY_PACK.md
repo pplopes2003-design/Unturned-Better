@@ -108,3 +108,17 @@ Foi criado o algoritmo isolado `ClientModule/RepeatingBurstScheduler.cs` e um te
 **Limite essencial:** o algoritmo atualmente não recebe estado real do gatilho e não chama o mecanismo nativo de disparo do Unturned. A Eaglefire instalada continua com `Semi`, `Bursts 3` e `Auto` do jogo. Só depois de descobrir/verificar a API de `UseableGun`, os eventos do disparo e a autoridade da sessão será possível ligar o agendador sem disparos duplicados, problemas com munição ou dessintonia. Nenhum teste demonstrou ainda as rajadas repetidas no Steam.
 
 Critério de aceitação no jogo: 2 s de gatilho mantido devem produzir várias séries **3 + pausa + 3 + pausa** (até acabar munição), interrompendo imediatamente quando soltar, com dano/múltiplos jogadores contabilizados pelo disparo original do jogo. Não implementar dano paralelo à própria arma.
+
+## Novo adaptador nativo de rajadas repetidas (fonte; Steam ainda NÃO TESTADO)
+
+`ClientModule/RepeatingBurstGameBridge.cs` está conectado ao `Nexus.cs` e tenta repetir sequências de 3 disparos utilizando **somente** a API oficial do próprio `UseableGun`, sem criar balas/dano artificiais:
+
+1. Funciona somente com Eaglefire lendária **32612**, em modo **BURST**, singleplayer e cheats ativos; os modos SEMI e AUTO permanecem nativos.
+2. Observa `UseableGun.onBulletSpawned` (servidor) e conta apenas o pellet de índice zero de cada disparo autorizado.
+3. Após o terceiro disparo, com o botão esquerdo ainda pressionado, espera 0,25 s e chama `UseableGun.startPrimary()` para solicitar outra rajada. A arma original controla munição, recarga, cooldown, animação e dano.
+4. Soltar o gatilho, fechar a gameplay, trocar de arma, mudar o modo, zerar munição ou perder autoridade **cancela** a sequência. Um disparo nativo que não ocorrer em 1,5 s aborta a continuidade.
+5. A rotina não altera dados de armas de outros jogadores nem é ativada em servidores dedicados/online.
+
+Os símbolos foram conferidos no código-fonte U3 SDK do repositório: `UseableGun.startPrimary()`, `onBulletSpawned`, `GunStateIndices.FIREMODE`, `PlayerEquipment.useable` e `EFiremode.BURST` existem na fonte. **Isso não substitui compilação contra os assemblies da instalação Steam nem teste de gameplay.** A entrada do gatilho nesta primeira implementação utiliza o clique esquerdo padrão; remapeamento de controles ainda precisa de adaptação. Os logs úteis são `BURST_BRIDGE_READY`, `BURST_NATIVE_RETRIGGER_OK` e `BURST_RETRIGGER_FAILED`.
+
+O agendador lógico `RepeatingBurstScheduler` continua como teste de cadência; a nova classe é a ponte com a API nativa. Caso o comportamento de arma não seja coerente no teste, desative o módulo C# completo em vez de modificar `UseableGun` da Steam.
