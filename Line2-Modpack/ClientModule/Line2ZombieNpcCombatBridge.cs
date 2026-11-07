@@ -23,6 +23,7 @@ namespace Unturned2.Line2
         private static readonly FieldInfo VanillaPlayerTarget =
             typeof(Zombie).GetField("player", BindingFlags.Instance | BindingFlags.NonPublic);
         private readonly Collider[] _nearby = new Collider[128];
+        private readonly RaycastHit[] _sightHits = new RaycastHit[16];
         private readonly List<PrototypeActor> _actors = new List<PrototypeActor>(32);
         private readonly HashSet<int> _visited = new HashSet<int>();
         private readonly Dictionary<int, float> _attackReadyAt = new Dictionary<int, float>();
@@ -56,24 +57,43 @@ namespace Unturned2.Line2
             catch { return true; }
         }
 
-        private static bool FirsthandView(Zombie zombie, PrototypeActor actor)
+        private bool HasClearSight(Transform sourceRoot,
+            Transform targetRoot, Vector3 origin, Vector3 destination)
+        {
+            Vector3 ray = destination - origin;
+            if (ray.sqrMagnitude < 0.01f) return false;
+            int n = Physics.RaycastNonAlloc(origin, ray.normalized,
+                _sightHits, ray.magnitude, ~0, QueryTriggerInteraction.Ignore);
+            if (n >= _sightHits.Length) return false; // truncated, fail closed
+            float nearest = float.PositiveInfinity;
+            Transform blocker = null;
+            for (int i = 0; i < n; i++)
+            {
+                RaycastHit hit = _sightHits[i];
+                Transform t = hit.transform;
+                _sightHits[i] = default(RaycastHit);
+                if (t == null || t == sourceRoot || t.IsChildOf(sourceRoot)) continue;
+                if (hit.distance < nearest)
+                {
+                    nearest = hit.distance;
+                    blocker = t;
+                }
+            }
+            return blocker == null || blocker == targetRoot ||
+                blocker.IsChildOf(targetRoot);
+        }
+
+        private bool FirsthandView(Zombie zombie, PrototypeActor actor)
         {
             Vector3 eye = zombie.transform.position + Vector3.up * 1.45f;
             Vector3 victim = actor.transform.position + Vector3.up * 1.10f;
             Vector3 ray = victim - eye;
-            if (ray.sqrMagnitude < 0.02f || ray.sqrMagnitude > SightRadius * SightRadius)
-                return false;
-            RaycastHit hit;
-            if (Physics.Raycast(eye, ray.normalized, out hit, ray.magnitude,
-                ~0, QueryTriggerInteraction.Ignore))
-            {
-                Transform t = hit.transform;
-                if (t != actor.transform && !t.IsChildOf(actor.transform)) return false;
-            }
-            return true;
+            return ray.sqrMagnitude >= 0.02f &&
+                ray.sqrMagnitude <= SightRadius * SightRadius &&
+                HasClearSight(zombie.transform, actor.transform, eye, victim);
         }
 
-        private static bool PlayerHasPriority(Zombie zombie)
+        private bool PlayerHasPriority(Zombie zombie)
         {
             Player player = Player.player;
             if (player == null || player.life == null || player.life.isDead) return false;
@@ -81,12 +101,7 @@ namespace Unturned2.Line2
             if (ray.sqrMagnitude > 20f * 20f) return false;
             Vector3 start = zombie.transform.position + Vector3.up * 1.4f;
             Vector3 end = player.transform.position + Vector3.up * 1.25f;
-            Vector3 direction = end - start;
-            RaycastHit hit;
-            return !Physics.Raycast(start, direction.normalized, out hit,
-                       direction.magnitude, ~0, QueryTriggerInteraction.Ignore) ||
-                   hit.transform == player.transform ||
-                   hit.transform.IsChildOf(player.transform);
+            return HasClearSight(zombie.transform, player.transform, start, end);
         }
 
         private void Update()
