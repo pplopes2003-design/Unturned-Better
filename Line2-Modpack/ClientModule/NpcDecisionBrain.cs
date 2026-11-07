@@ -1,0 +1,169 @@
+using System;
+
+namespace Unturned2.Line2
+{
+    /// <summary>
+    /// Deterministic, per-actor decision core. Input must come from verified
+    /// game-side sensors (NOT fabricated by a remote model). No Unity APIs.
+    /// Decisions are intents, not permission to fire, damage or teleport.
+    /// </summary>
+    internal enum NpcIntent
+    {
+        Idle,
+        Patrol,
+        Follow,
+        Investigate,
+        Pursue,
+        SeekCover,
+        Retreat
+    }
+
+    internal struct NpcDecisionInput
+    {
+        internal bool IsHostile;
+        internal bool IsFriendly;
+        internal bool PassiveMode;
+        internal bool PlayerNearby;
+        internal bool ThreatVisible;
+        internal bool HasRecentMemory;
+        internal bool UnderFire;
+        internal bool HasVerifiedCover;
+        internal bool HasRealHealth;
+        internal float HealthFraction;
+        internal bool CanShoot;
+        internal bool CombatAdapterReady;
+        internal string RemoteSuggestion;
+    }
+
+    internal sealed class NpcDecisionBrain
+    {
+        private const float MinimumIntentDuration = 0.45f;
+        private const float EngageForgetSeconds = 8.0f;
+        private NpcIntent _intent = NpcIntent.Idle;
+        private float _changedAt = -1000f;
+        private float _lastVerifiedSightAt = -1000f;
+
+        internal NpcIntent Intent { get { return _intent; } }
+
+        internal void Reset()
+        {
+            _intent = NpcIntent.Idle;
+            _changedAt = -1000f;
+            _lastVerifiedSightAt = -1000f;
+        }
+
+        internal NpcIntent Evaluate(float now, NpcDecisionInput input)
+        {
+            if (float.IsNaN(now) || float.IsInfinity(now) || now < 0)
+            {
+                Reset();
+                return _intent;
+            }
+
+            // A remote AI cannot create a target that is not visible or
+            // remembered by THIS actor's own gameplay perception.
+            if (input.ThreatVisible)
+                _lastVerifiedSightAt = now;
+            bool hasMemory = input.HasRecentMemory &&
+                now - _lastVerifiedSightAt <= EngageForgetSeconds;
+
+            NpcIntent desired;
+            bool urgent = false;
+            if (input.PassiveMode || !input.IsHostile)
+            {
+                desired = input.IsFriendly && input.PlayerNearby
+                    ? NpcIntent.Follow : NpcIntent.Patrol;
+            }
+            else if (input.HasRealHealth && input.UnderFire &&
+                     input.HealthFraction < 0.30f)
+            {
+                // A real hit/health interface must be wired before this is
+                // available in Steam. The prototype never fabricates wounds.
+                desired = NpcIntent.Retreat;
+                urgent = true;
+            }
+            else if (input.UnderFire && input.HasVerifiedCover)
+            {
+                desired = NpcIntent.SeekCover;
+                urgent = true;
+            }
+            else if (input.ThreatVisible)
+            {
+                desired = NpcIntent.Pursue;
+                urgent = true;
+            }
+            else if (hasMemory)
+            {
+                desired = NpcIntent.Investigate;
+            }
+            else
+            {
+                desired = NpcIntent.Patrol;
+            }
+
+            // Suggested "engage" is merely confirmation of local vision.
+            // The external service cannot override local safety/LOS or issue
+            // combat commands when the weapon adapter is unimplemented.
+            if (desired == NpcIntent.Investigate &&
+                input.RemoteSuggestion == "idle" && !input.UnderFire)
+                desired = NpcIntent.Investigate; // retain evidence, not hearsay
+
+            if (desired != _intent &&
+                (urgent || now - _changedAt >= MinimumIntentDuration))
+            {
+                _intent = desired;
+                _changedAt = now;
+            }
+            return _intent;
+        }
+    }
+
+    /// <summary>
+    /// Pure C# state tests executed once during module bootstrap. Do not
+    /// assume this proves native NPC combat or navigation.
+    /// </summary>
+    internal static class NpcDecisionBrainSelfTest
+    {
+        internal static void Run()
+        {
+            try
+            {
+                var brain = new NpcDecisionBrain();
+                var input = new NpcDecisionInput { IsHostile = true };
+                Expect(brain.Evaluate(0f, input), NpcIntent.Patrol, "hostile no threat");
+                input.RemoteSuggestion = "engage";
+                Expect(brain.Evaluate(1f, input), NpcIntent.Patrol, "cannot invent vision");
+                input.ThreatVisible = true;
+                Expect(brain.Evaluate(2f, input), NpcIntent.Pursue, "verified sight");
+                input.ThreatVisible = false;
+                input.HasRecentMemory = true;
+                Expect(brain.Evaluate(3f, input), NpcIntent.Pursue, "intent hysteresis");
+                Expect(brain.Evaluate(3.5f, input), NpcIntent.Investigate, "last seen");
+                input.UnderFire = true;
+                input.HasVerifiedCover = true;
+                Expect(brain.Evaluate(4f, input), NpcIntent.SeekCover, "verified cover");
+                input.HasRealHealth = true;
+                input.HealthFraction = 0.2f;
+                Expect(brain.Evaluate(5f, input), NpcIntent.Retreat, "critical health");
+                brain.Reset();
+                input = new NpcDecisionInput { IsHostile = true, PassiveMode = true,
+                    ThreatVisible = true, UnderFire = true, HasRealHealth = true,
+                    HealthFraction = 0.1f };
+                Expect(brain.Evaluate(10f, input), NpcIntent.Patrol, "passive mode");
+                input = new NpcDecisionInput { IsFriendly = true, PlayerNearby = true };
+                Expect(brain.Evaluate(11f, input), NpcIntent.Follow, "friendly follow");
+                ProbeLogger.Log("NPC_BRAIN_SELFTEST_OK: vision, memory, state hysteresis, cover, retreat, passive and friendly");
+            }
+            catch (Exception ex)
+            {
+                ProbeLogger.Log("NPC_BRAIN_SELFTEST_FAILED: " + ex.Message);
+            }
+        }
+
+        private static void Expect(NpcIntent actual, NpcIntent expected, string name)
+        {
+            if (actual != expected)
+                throw new InvalidOperationException(name + ": expected " + expected + ", got " + actual);
+        }
+    }
+}
