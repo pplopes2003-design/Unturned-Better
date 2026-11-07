@@ -19,6 +19,12 @@ internal static class PersistenceTests
         {
             identity = "survivor-one", role = "friendly", displayName = "Morgan",
             groupId = 7, health = 72.5f, x = 120f, y = 14f, z = -3f,
+            injuries = new Line2MobileNPCInjurySystem.InjurySnapshot
+            {
+                condition = new float[] { 100f, 74f, 100f, 100f, 39f, 87f },
+                leftLegFractured = true,
+                bleedingSeverity = 2, bleedingPart = 4
+            },
             homeX = 118f, homeY = 14f, homeZ = -1f,
             items = new[] { new Line2NpcPersistence.ItemRecord
             {
@@ -34,7 +40,11 @@ internal static class PersistenceTests
             loaded[0].groupId != 7 || Math.Abs(loaded[0].health - 72.5f) > 0.01f ||
             loaded[0].items.Length != 1 ||
             loaded[0].items[0].state.Length != 3 ||
-            loaded[0].items[0].state[2] != 3)
+            loaded[0].items[0].state[2] != 3 ||
+            loaded[0].injuries == null ||
+            !loaded[0].injuries.leftLegFractured ||
+            loaded[0].injuries.bleedingSeverity != 2 ||
+            loaded[0].injuries.condition[4] != 39f)
             return false;
 
         // Delayed respawn tickets survive a save/load without reviving
@@ -65,6 +75,17 @@ internal static class PersistenceTests
         if (!Line2NpcPersistence.TryRead(map, out loaded, out pending, out reason) ||
             pending.Count != 1)
             return false;
+
+        // Invalid per-limb injuries must not corrupt a known good save.
+        survivor.injuries.condition[4] = -4f;
+        if (Line2NpcPersistence.TryWrite(map,
+            new List<Line2NpcPersistence.ActorRecord> { survivor },
+            out reason))
+            return false;
+        if (!Line2NpcPersistence.TryRead(map, out loaded, out reason) ||
+            loaded.Count != 1 || loaded[0].injuries.condition[4] != 39f)
+            return false;
+        survivor.injuries.condition[4] = 39f;
 
         // Invalid snapshots must be rejected BEFORE modifying the good file.
         if (Line2NpcPersistence.TryWrite(map,
