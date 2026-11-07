@@ -373,6 +373,9 @@ namespace Unturned2.Line2
                     needs.Initialize(actor);
                     var group = instance.AddComponent<Line2NPCGroupMember>();
                     group.Initialize(actor, groupCandidates);
+                    var survey = instance.AddComponent<Line2NpcWorldSurvey>();
+                    survey.Initialize(actor);
+                    actor.AttachWorldSurvey(survey);
                     groupCandidates.Add(actor);
                     string kitStatus;
                     if (Line2NPCStartingEquipment.GiveFreshKitServer(
@@ -791,6 +794,7 @@ namespace Unturned2.Line2
         private Line2MobileNPCDoorNavigation _doors;
         private Line2MobileNPCAdaptiveMemory _experience;
         private Line2MobileNPCTravelMemory _travelMemory;
+        private Line2NpcWorldSurvey _worldSurvey;
         private PrototypeCoverPlanner _coverPlanner;
         private Line2NPCCombatPerception _combatPerception;
         private Line2NPCRangedExecutor _rangedExecutor;
@@ -802,6 +806,10 @@ namespace Unturned2.Line2
         internal void AttachRangedExecutor(Line2NPCRangedExecutor executor)
         {
             _rangedExecutor = executor;
+        }
+        internal void AttachWorldSurvey(Line2NpcWorldSurvey survey)
+        {
+            _worldSurvey = survey;
         }
         private Vector3 _coverGoal;
         private Vector3 _retreatGoal;
@@ -1166,6 +1174,13 @@ namespace Unturned2.Line2
                              _legacyBrain.CurrentState == Line2MobileNPCBrain.State.Returning))
                         {
                             _goal = _legacyBrain.Destination;
+                            break;
+                        }
+                        Vector3 routineGoal;
+                        if (_worldSurvey != null &&
+                            _worldSurvey.TryGetRoutineGoalServer(out routineGoal))
+                        {
+                            _goal = routineGoal;
                             break;
                         }
                         if ((_goal - transform.position).sqrMagnitude < 2.5f ||
