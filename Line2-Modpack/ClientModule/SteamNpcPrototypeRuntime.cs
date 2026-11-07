@@ -417,6 +417,133 @@ namespace Unturned2.Line2
             actors.Clear();
         }
 
+        /// <summary>Checkpoints only fully loaded, living actors on the
+        /// authoritative local map. Never replaces a partially restored save.</summary>
+        private void SaveCheckpoint()
+        {
+            if (!_enabled || !_saveAllowed || _pendingRestore.Count != 0 ||
+                !Provider.isServer || Dedicator.IsDedicatedServer ||
+                !Level.isLoaded || string.IsNullOrEmpty(_saveMap)) return;
+            var records = new List<Line2NpcPersistence.ActorRecord>(_actors.Count);
+            foreach (PrototypeActor actor in _actors)
+            {
+                if (actor == null || actor.IsDead) continue;
+                Line2MobileNPCInventory inventory = actor.Inventory;
+                if (inventory == null)
+                {
+                    ProbeLogger.Log("NPC_SAVE_ABORTED: actor missing inventory");
+                    return;
+                }
+                Line2NpcPersistence.ItemRecord[] items = inventory.CaptureItemsServer();
+                if (items == null)
+                {
+                    ProbeLogger.Log("NPC_SAVE_ABORTED: cannot capture owned inventory");
+                    return;
+                }
+                Line2NPCGroupMember group = actor.GetComponent<Line2NPCGroupMember>();
+                Vector3 p = actor.transform.position;
+                Vector3 h = actor.HomePosition;
+                records.Add(new Line2NpcPersistence.ActorRecord
+                {
+                    identity = actor.Identity,
+                    role = actor.Disposition,
+                    displayName = actor.DisplayName,
+                    groupId = group != null ? group.GroupId : 0,
+                    health = actor.HealthFraction * 100f,
+                    x = p.x, y = p.y, z = p.z,
+                    homeX = h.x, homeY = h.y, homeZ = h.z,
+                    items = items
+                });
+            }
+            string detail;
+            if (Line2NpcPersistence.TryWrite(_saveMap, records, out detail))
+                ProbeLogger.Log("NPC_SAVE_OK: " + detail);
+            else
+                ProbeLogger.Log("NPC_SAVE_FAILED: " + detail);
+        }
+
+        private bool TryRestoreOne(Line2NpcPersistence.ActorRecord saved, out string reason)
+        {
+            reason = "invalid_restore";
+            if (saved == null || !IsAuthorized() || _actors.Count >= _cap)
+                return false;
+            Player player = Player.player;
+            Vector3 requested = saved.Position;
+            // Only recreate an NPC when its destination is physically loaded.
+            // Distant survivors remain preserved in the snapshot until loaded.
+            if (player == null || (player.transform.position - requested).sqrMagnitude >
+                120f * 120f)
+            {
+                reason = "saved region not loaded/near player";
+                return false;
+            }
+            RaycastHit ground;
+            if (!Physics.Raycast(requested + Vector3.up * 1.5f,
+                Vector3.down, out ground, 4f, RayMasks.GROUND2,
+                QueryTriggerInteraction.Ignore) ||
+                ground.normal.y < 0.7f || Mathf.Abs(ground.point.y - requested.y) > 1.0f)
+            {
+                reason = "saved position has no verified floor";
+                return false;
+            }
+            Vector3 destination = ground.point + Vector3.up * 0.08f;
+            if (Physics.CheckCapsule(destination + Vector3.up * 0.55f,
+                destination + Vector3.up * 1.55f, 0.32f,
+                RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore))
+            {
+                reason = "saved position blocked by world geometry";
+                return false;
+            }
+            foreach (PrototypeActor other in _actors)
+                if (other != null && !other.IsDead &&
+                    (other.transform.position - destination).sqrMagnitude < 2.25f)
+                {
+                    reason = "saved position occupied by NPC";
+                    return false;
+                }
+
+            _restoringActor = true;
+            try
+            {
+                string spawnDetail;
+                if (!TrySpawn(saved.role, 1, out spawnDetail))
+                {
+                    reason = "spawn rejected: " + spawnDetail;
+                    return false;
+                }
+                PrototypeActor actor = _actors[_actors.Count - 1];
+                CharacterController controller = actor.GetComponent<CharacterController>();
+                Line2MobileNPCInventory inventory = actor.Inventory;
+                Line2NPCGroupMember group = actor.GetComponent<Line2NPCGroupMember>();
+                bool valid = controller != null && inventory != null && group != null &&
+                    inventory.TryRestoreItemsServer(saved.items) &&
+                    actor.TryRestoreIdentity(saved) &&
+                    (saved.groupId == 0 || group.TryRestoreMembership(actor, saved.groupId));
+                if (!valid)
+                {
+                    _actors.Remove(actor);
+                    UnityEngine.Object.Destroy(actor.gameObject);
+                    reason = "saved actor state/group/inventory rejected";
+                    return false;
+                }
+                controller.enabled = false;
+                actor.transform.position = destination;
+                controller.enabled = true;
+                reason = "restored";
+                return true;
+            }
+            catch (Exception error)
+            {
+                reason = "restore error: " + error.GetType().Name;
+                ProbeLogger.Log("NPC_RESTORE_EXCEPTION: " + error);
+                return false;
+            }
+            finally
+            {
+                _restoringActor = false;
+            }
+        }
+
         private bool TryFindGround(int index, List<PrototypeActor> inFlight, out Vector3 location)
         {
             location = Vector3.zero;
