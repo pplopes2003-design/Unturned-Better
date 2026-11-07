@@ -82,6 +82,7 @@ class ProtocolTests(unittest.TestCase):
                          ["idle", "engage"])
         self.assertEqual([d["agent_id"] for d in response["decisions"]],
                          ["npc-a", "npc-b"])
+        self.assertTrue(all(d["valid_ms"] == 600 for d in response["decisions"]))
 
     def test_batched_rejects_duplicates_and_overload(self):
         a = {"protocol": 1, "agent_id": "same", "tick": 1,
