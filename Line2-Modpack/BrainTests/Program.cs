@@ -44,6 +44,18 @@ internal static class Program
             return 2;
         }
 
+        if (NpcExplosionMath.Calculate(100f, 10f, 0f) != 100f ||
+            NpcExplosionMath.Calculate(100f, 10f, 5f) != 50f ||
+            NpcExplosionMath.Calculate(100f, 10f, 10f) != 0f ||
+            NpcExplosionMath.Calculate(100f, 10f, 12f) != 0f ||
+            NpcExplosionMath.Calculate(100f, 10f, float.NaN) != 0f ||
+            NpcExplosionMath.Calculate(float.PositiveInfinity, 10f, 2f) != 0f ||
+            NpcExplosionMath.Calculate(100f, 0f, 2f) != 0f)
+        {
+            Console.Error.WriteLine("NPC radial explosion damage math FAILED.");
+            return 3;
+        }
+        Console.WriteLine("EXPLOSION_MATH_OK: center, half-radius, edge, out of range and invalid numbers.");
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
