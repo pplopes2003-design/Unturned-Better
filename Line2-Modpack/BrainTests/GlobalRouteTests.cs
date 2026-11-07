@@ -59,6 +59,7 @@ internal static class GlobalRouteTests
         var blocked = new Line2MobileNPCGlobalRoutePlanner();
         var impossible = new List<Vector3>();
         bool fabricated = false;
+        bool reportedNoConnectedRoute = false;
         for (int frame = 0; frame < 1100; ++frame)
         {
             if (blocked.Step(start, goal, frame * 0.016f, frame, 0,
@@ -67,8 +68,11 @@ internal static class GlobalRouteTests
                 fabricated = true;
                 break;
             }
+            if (blocked.LastOutcome == "no-connected-route")
+                reportedNoConnectedRoute = true;
         }
-        if (fabricated || impossible.Count != 0) return false;
+        if (fabricated || impossible.Count != 0 ||
+            !reportedNoConnectedRoute) return false;
         Console.WriteLine("NPC_COARSE_ASTAR_OK: original Line1 detour, physical edge safety and disconnected region fail-closed.");
         return true;
     }
