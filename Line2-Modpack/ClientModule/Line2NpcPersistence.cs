@@ -39,11 +39,19 @@ namespace Unturned2.Line2
             internal Vector3 Home { get { return new Vector3(homeX, homeY, homeZ); } }
         }
         [Serializable]
+        internal sealed class ReplacementRecord
+        {
+            public string role;
+            public int formerGroupId;
+            public long readyAtUtcTicks;
+        }
+        [Serializable]
         private sealed class SaveFile
         {
             public int schema = Schema;
             public string map;
             public ActorRecord[] actors;
+            public ReplacementRecord[] pending;
         }
         internal static string CurrentMapKey
         {
@@ -65,7 +73,15 @@ namespace Unturned2.Line2
         }
         internal static bool TryRead(string map, out List<ActorRecord> actors, out string reason)
         {
+            List<ReplacementRecord> ignored;
+            return TryRead(map, out actors, out ignored, out reason);
+        }
+
+        internal static bool TryRead(string map, out List<ActorRecord> actors,
+            out List<ReplacementRecord> pending, out string reason)
+        {
             actors = new List<ActorRecord>();
+            pending = new List<ReplacementRecord>();
             reason = "denied";
             if (string.IsNullOrEmpty(map) || !Provider.isServer ||
                 Dedicator.IsDedicatedServer || !Level.isLoaded) return false;
@@ -84,13 +100,16 @@ namespace Unturned2.Line2
                     data.actors == null || data.actors.Length > 32)
                     throw new InvalidDataException("invalid map/schema/count");
                 ValidateActors(data.actors);
+                ValidatePending(data.pending);
                 actors.AddRange(data.actors);
-                reason = "loaded=" + actors.Count;
+                if (data.pending != null) pending.AddRange(data.pending);
+                reason = "loaded=" + actors.Count + " pending=" + pending.Count;
                 return true;
             }
             catch (Exception error)
             {
                 actors.Clear();
+                pending.Clear();
                 reason = "rejected:" + error.GetType().Name + ": " + error.Message;
                 return false; // Don't overwrite a damaged save with empty data.
             }
@@ -141,16 +160,40 @@ namespace Unturned2.Line2
 
         internal static bool TryWrite(string map, List<ActorRecord> actors, out string reason)
         {
+            return TryWrite(map, actors, new List<ReplacementRecord>(), out reason);
+        }
+
+        private static void ValidatePending(ReplacementRecord[] records)
+        {
+            if (records == null) return; // Optional in older schema-one saves.
+            if (records.Length > 32)
+                throw new InvalidDataException("too many replacement tickets");
+            foreach (ReplacementRecord record in records)
+                if (record == null ||
+                    (record.role != "hostile" && record.role != "friendly" &&
+                     record.role != "neutral") ||
+                    record.formerGroupId < 0 || record.formerGroupId > 1000000 ||
+                    record.readyAtUtcTicks < 630822816000000000L ||
+                    record.readyAtUtcTicks > DateTime.MaxValue.Ticks)
+                    throw new InvalidDataException("invalid replacement");
+        }
+
+        internal static bool TryWrite(string map, List<ActorRecord> actors,
+            List<ReplacementRecord> pending, out string reason)
+        {
             reason = "denied";
             if (string.IsNullOrEmpty(map) || actors == null || actors.Count > 32 ||
+                pending == null || pending.Count > 32 ||
                 !Provider.isServer || Dedicator.IsDedicatedServer) return false;
             string temp = null;
             try
             {
                 ActorRecord[] validated = actors.ToArray();
                 ValidateActors(validated);
+                ReplacementRecord[] tickets = pending.ToArray();
+                ValidatePending(tickets);
                 string json = JsonUtility.ToJson(
-                    new SaveFile { map = map, actors = validated });
+                    new SaveFile { map = map, actors = validated, pending = tickets });
                 if (Encoding.UTF8.GetByteCount(json) > MaximumBytes)
                     throw new InvalidDataException("serialized data exceeds cap");
                 string path = GetPath(map);
