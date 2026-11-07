@@ -43,6 +43,61 @@ namespace Unturned2.Line2
 		public int FreeSlots => Mathf.Max(0, Capacity - slots.Count - reservedSlots);
 		public bool HasSpace => slots.Count + reservedSlots < Capacity;
 
+
+        /// <summary>Copies the exact finite contents of this NPC inventory for its
+        /// map-scoped checkpoint. Does not claim any ground item.</summary>
+        internal Line2NpcPersistence.ItemRecord[] CaptureItemsServer()
+        {
+            if (!Provider.isServer || Dedicator.IsDedicatedServer) return null;
+            var records = new Line2NpcPersistence.ItemRecord[slots.Count];
+            for (int i = 0; i < slots.Count; ++i)
+            {
+                Item owned = slots[i];
+                records[i] = new Line2NpcPersistence.ItemRecord
+                {
+                    id = owned.id, amount = owned.amount, quality = owned.quality,
+                    state = owned.state != null ? (byte[])owned.state.Clone() : new byte[0]
+                };
+            }
+            return records;
+        }
+
+        /// <summary>One-time restore of a saved actor's OWNED items. Validates the
+        /// complete list before replacing any starter kit, and rolls it back on
+        /// an unexpected insertion failure. Never reads or removes world drops.</summary>
+        internal bool TryRestoreItemsServer(Line2NpcPersistence.ItemRecord[] records)
+        {
+            if (!Provider.isServer || Dedicator.IsDedicatedServer || records == null ||
+                records.Length > Capacity || reservedSlots != 0) return false;
+            var items = new List<Item>(records.Length);
+            foreach (Line2NpcPersistence.ItemRecord record in records)
+            {
+                if (record == null || record.id < 1 || record.id > ushort.MaxValue ||
+                    record.amount < 0 || record.amount > byte.MaxValue ||
+                    record.quality < 0 || record.quality > byte.MaxValue ||
+                    record.state == null || record.state.Length > 2048 ||
+                    Assets.find(EAssetType.ITEM, (ushort)record.id) == null) return false;
+                var item = new Item((ushort)record.id, (byte)record.amount,
+                    (byte)record.quality, (byte[])record.state.Clone());
+                if (!CanStoreItemAmount(item)) return false;
+                items.Add(item);
+            }
+            Line2NpcPersistence.ItemRecord[] previous = CaptureItemsServer();
+            ClearServer();
+            foreach (Item item in items)
+                if (!TryStoreTransferredItem(item))
+                {
+                    ClearServer();
+                    if (previous != null)
+                        foreach (Line2NpcPersistence.ItemRecord old in previous)
+                            TryStoreTransferredItem(new Item((ushort)old.id,
+                                (byte)old.amount, (byte)old.quality,
+                                (byte[])old.state.Clone()));
+                    return false;
+                }
+            return true;
+        }
+
 		/// <summary>
 		/// Stores an owned item snapshot. The caller must already have exclusive
 		/// ownership of this item; this method does not remove any world drop.
