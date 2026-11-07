@@ -27,6 +27,7 @@ namespace Unturned2.Line2
         private PrototypeActor _owner;
         private float _nextScan;
         private float _nextLogAt;
+        private int _globalZombieCursor;
 
         internal TargetKind Kind { get; private set; }
         internal Transform VisibleTarget { get; private set; }
@@ -138,6 +139,48 @@ namespace Unturned2.Line2
                 best = candidate;
             }
             _zombies.Clear();
+
+            // Native getZombiesInRadius searches only our current navigation
+            // region. An NPC standing at a region boundary must still be
+            // allowed to SEE a zombie across the line. Check at most 48
+            // existing vanilla zombies from a rolling global window; no
+            // population changes, no FindObjectsOfType, no allocations.
+            if (best == null && ZombieManager.AllZombies != null)
+            {
+                List<Zombie> all = ZombieManager.AllZombies;
+                int total = all.Count;
+                int inspected = Mathf.Min(total, 48);
+                for (int i = 0; i < inspected; i++)
+                {
+                    int index = (_globalZombieCursor + i) % total;
+                    Zombie candidate = all[index];
+                    if (candidate == null || candidate.isDead ||
+                        !candidate.gameObject.activeInHierarchy)
+                        continue;
+                    float sq = (candidate.transform.position - transform.position).sqrMagnitude;
+                    if (sq >= bestZombieSq ||
+                        !HasVerifiedSight(candidate.transform, TargetKind.Zombie,
+                            MaxZombieSight))
+                        continue;
+                    bestZombieSq = sq;
+                    best = candidate;
+                }
+                if (total > 0)
+                    _globalZombieCursor = (_globalZombieCursor + inspected) % total;
+            }
+            // Keep a continuously verified nearby zombie as our selected
+            // target even if it was outside this frame's rolling sample.
+            if (best == null && Kind == TargetKind.Zombie &&
+                VisibleTarget != null)
+            {
+                Zombie prior = VisibleTarget.GetComponentInParent<Zombie>();
+                if (prior != null && !prior.isDead &&
+                    (prior.transform.position - transform.position).sqrMagnitude <=
+                        MaxZombieSight * MaxZombieSight &&
+                    HasVerifiedSight(prior.transform, TargetKind.Zombie,
+                        MaxZombieSight))
+                    best = prior;
+            }
             if (best != null)
             {
                 SetTarget(TargetKind.Zombie, best.transform);
