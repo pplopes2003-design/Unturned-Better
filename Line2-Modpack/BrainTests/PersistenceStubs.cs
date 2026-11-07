@@ -18,6 +18,22 @@ namespace SDG.Unturned
         internal static LevelInfo info = new LevelInfo();
     }
 }
+// Test-only DTO shape matching the original Line1 injury snapshot.
+namespace Unturned2.Line2
+{
+    internal sealed class Line2MobileNPCInjurySystem
+    {
+        [System.Serializable]
+        internal sealed class InjurySnapshot
+        {
+            public float[] condition = new float[6];
+            public bool leftLegFractured;
+            public bool rightLegFractured;
+            public int bleedingSeverity;
+            public int bleedingPart;
+        }
+    }
+}
 namespace UnityEngine
 {
     internal static class JsonUtility
