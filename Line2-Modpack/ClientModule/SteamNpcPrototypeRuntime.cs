@@ -397,9 +397,9 @@ namespace Unturned2.Line2
             }
 
             _actors.AddRange(created);
-            reason = "Created " + created.Count + " local prototype humanoids, native visuals; " +
-                     "validated melee vs player/zombie/opposing NPC is experimental; " +
-                     "native gunfire, dialogue, radio and saves remain pending";
+            reason = "Created " + created.Count + " local Steam humanoids with A*, " +
+                     "local combat, radio, inventory and survivor checkpoint adapters; " +
+                     "Steam runtime/gameplay integration remains unvalidated";
             ProbeLogger.Log("NPC_PROTOTYPE_SPAWN_OK: " + reason);
             return true;
         }
