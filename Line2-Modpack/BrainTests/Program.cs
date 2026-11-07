@@ -274,6 +274,41 @@ internal static class Program
         Console.WriteLine("NPC_FACTION_POLICY_OK: raiders, traders, military, " +
             "survivors, neutral scavengers and allied groups.");
 
+        if (!Line2NPCRadioRules.MayRelay(2, 2,
+                Line2NPCFactionPolicy.Id.Raiders,
+                Line2NPCFactionPolicy.Id.Raiders,
+                true, true, true, true, 90f) ||
+            Line2NPCRadioRules.MayRelay(2, 3,
+                Line2NPCFactionPolicy.Id.Raiders,
+                Line2NPCFactionPolicy.Id.Raiders,
+                true, true, true, true, 5f) ||
+            Line2NPCRadioRules.MayRelay(2, 2,
+                Line2NPCFactionPolicy.Id.Raiders,
+                Line2NPCFactionPolicy.Id.Military,
+                true, true, true, true, 5f) ||
+            Line2NPCRadioRules.MayRelay(2, 2,
+                Line2NPCFactionPolicy.Id.Raiders,
+                Line2NPCFactionPolicy.Id.Raiders,
+                true, true, true, false, 5f) ||
+            Line2NPCRadioRules.MayRelay(2, 2,
+                Line2NPCFactionPolicy.Id.Raiders,
+                Line2NPCFactionPolicy.Id.Raiders,
+                true, true, true, true, 91f) ||
+            Line2NPCRadioRules.MayRelay(2, 2,
+                Line2NPCFactionPolicy.Id.Raiders,
+                Line2NPCFactionPolicy.Id.Raiders,
+                true, false, true, true, 5f) ||
+            Line2NPCRadioRules.QuantizeSector(12f) != 10f ||
+            Line2NPCRadioRules.QuantizeSector(-12f) != -10f ||
+            !float.IsNaN(Line2NPCRadioRules.QuantizeSector(float.NaN)))
+        {
+            Console.Error.WriteLine("NPC_RADIO_POLICY_FAILED: groups, radio items, " +
+                "factions, alive, range or approximate sector.");
+            return 23;
+        }
+        Console.WriteLine("NPC_RADIO_POLICY_OK: authentic equipment, same group/faction, " +
+            "radio range, valid actors, coarse sector.");
+
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
