@@ -47,12 +47,28 @@ namespace Unturned2.Line2
             public long readyAtUtcTicks;
         }
         [Serializable]
+        internal sealed class PlacedBarricadeRecord
+        {
+            public int assetId;
+            public float x, y, z, yaw;
+        }
+        [Serializable]
+        internal sealed class SettlementRecord
+        {
+            public int groupId;
+            public string role;
+            public float x, y, z;
+            public PlacedBarricadeRecord[] placed;
+            internal Vector3 Anchor { get { return new Vector3(x, y, z); } }
+        }
+        [Serializable]
         private sealed class SaveFile
         {
             public int schema = Schema;
             public string map;
             public ActorRecord[] actors;
             public ReplacementRecord[] pending;
+            public SettlementRecord[] settlements;
         }
         internal static string CurrentMapKey
         {
@@ -81,8 +97,17 @@ namespace Unturned2.Line2
         internal static bool TryRead(string map, out List<ActorRecord> actors,
             out List<ReplacementRecord> pending, out string reason)
         {
+            List<SettlementRecord> ignored;
+            return TryRead(map, out actors, out pending, out ignored, out reason);
+        }
+
+        internal static bool TryRead(string map, out List<ActorRecord> actors,
+            out List<ReplacementRecord> pending,
+            out List<SettlementRecord> settlements, out string reason)
+        {
             actors = new List<ActorRecord>();
             pending = new List<ReplacementRecord>();
+            settlements = new List<SettlementRecord>();
             reason = "denied";
             if (string.IsNullOrEmpty(map) || !Provider.isServer ||
                 Dedicator.IsDedicatedServer || !Level.isLoaded) return false;
@@ -102,15 +127,19 @@ namespace Unturned2.Line2
                     throw new InvalidDataException("invalid map/schema/count");
                 ValidateActors(data.actors);
                 ValidatePending(data.pending);
+                ValidateSettlements(data.settlements);
                 actors.AddRange(data.actors);
                 if (data.pending != null) pending.AddRange(data.pending);
-                reason = "loaded=" + actors.Count + " pending=" + pending.Count;
+                if (data.settlements != null) settlements.AddRange(data.settlements);
+                reason = "loaded=" + actors.Count + " pending=" + pending.Count +
+                    " settlements=" + settlements.Count;
                 return true;
             }
             catch (Exception error)
             {
                 actors.Clear();
                 pending.Clear();
+                settlements.Clear();
                 reason = "rejected:" + error.GetType().Name + ": " + error.Message;
                 return false; // Don't overwrite a damaged save with empty data.
             }
@@ -194,9 +223,47 @@ namespace Unturned2.Line2
         internal static bool TryWrite(string map, List<ActorRecord> actors,
             List<ReplacementRecord> pending, out string reason)
         {
+            return TryWrite(map, actors, pending,
+                new List<SettlementRecord>(), out reason);
+        }
+
+        private static void ValidateSettlements(SettlementRecord[] data)
+        {
+            if (data == null) return; // Original schema-one checkpoints.
+            if (data.Length > 16)
+                throw new InvalidDataException("too many group bases");
+            var groups = new HashSet<int>();
+            foreach (SettlementRecord site in data)
+            {
+                if (site == null || site.groupId <= 0 ||
+                    site.groupId > 1000000 || !groups.Add(site.groupId) ||
+                    (site.role != "hostile" && site.role != "neutral" &&
+                     site.role != "friendly") ||
+                    !Finite(site.x) || !Finite(site.y) || !Finite(site.z) ||
+                    site.placed == null || site.placed.Length > 4)
+                    throw new InvalidDataException("invalid settlement site");
+                foreach (PlacedBarricadeRecord entry in site.placed)
+                {
+                    if (entry == null || entry.assetId <= 0 ||
+                        entry.assetId > ushort.MaxValue ||
+                        !Finite(entry.x) || !Finite(entry.y) ||
+                        !Finite(entry.z) || !Finite(entry.yaw) ||
+                        Math.Abs(entry.x - site.x) > 30 ||
+                        Math.Abs(entry.z - site.z) > 30 ||
+                        Math.Abs(entry.y - site.y) > 4)
+                        throw new InvalidDataException("invalid placed barricade");
+                }
+            }
+        }
+
+        internal static bool TryWrite(string map, List<ActorRecord> actors,
+            List<ReplacementRecord> pending,
+            List<SettlementRecord> settlements, out string reason)
+        {
             reason = "denied";
             if (string.IsNullOrEmpty(map) || actors == null || actors.Count > 32 ||
                 pending == null || pending.Count > 32 ||
+                settlements == null || settlements.Count > 16 ||
                 !Provider.isServer || Dedicator.IsDedicatedServer) return false;
             string temp = null;
             try
@@ -205,8 +272,11 @@ namespace Unturned2.Line2
                 ValidateActors(validated);
                 ReplacementRecord[] tickets = pending.ToArray();
                 ValidatePending(tickets);
+                SettlementRecord[] sites = settlements.ToArray();
+                ValidateSettlements(sites);
                 string json = JsonUtility.ToJson(
-                    new SaveFile { map = map, actors = validated, pending = tickets });
+                    new SaveFile { map = map, actors = validated,
+                        pending = tickets, settlements = sites });
                 if (Encoding.UTF8.GetByteCount(json) > MaximumBytes)
                     throw new InvalidDataException("serialized data exceeds cap");
                 string path = GetPath(map);
