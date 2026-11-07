@@ -16,6 +16,7 @@ SHOTGUN_MAG_ID = 113
 DEFAULT_EAGLE_ID = 32612
 DEFAULT_INCENDIARY_ID = 32613
 DEFAULT_LOOT_TABLE_ID = 32614
+WASHINGTON_SPECIAL_SPAWN_ID = "346"  # Verify in installed game; do not blindly attach
 
 def build_legendaries(game: Path, staging: Path, *, eagle_id=DEFAULT_EAGLE_ID,
                       fire_id=DEFAULT_INCENDIARY_ID, extra_roots=(),
@@ -94,6 +95,19 @@ def build_legendaries(game: Path, staging: Path, *, eagle_id=DEFAULT_EAGLE_ID,
     (m / "English.dat").write_text(
         "Name 12 Gauge Incendiaria (Legendary)\nDescription Experimental small-area impact ammunition.\n",
         encoding="utf-8")
+    # Washington root is attached only when official Spawn ID 346 is present
+    # and identifies the Washington Special America loot table. This is not
+    # an override and does not modify original files.
+    washington_root = None
+    spawn_dir = root / "Spawns"
+    if spawn_dir.is_dir():
+        matches = [(p, parse_dat(p)) for p in enumerate_dat(spawn_dir)]
+        matches = [(p, data) for p, data in matches
+                   if data.get("id") == WASHINGTON_SPECIAL_SPAWN_ID
+                   and data.get("type", "").lower() == "spawn"]
+        if len(matches) == 1 and "washington_special_america" in str(matches[0][0]).lower().replace("-", "_").replace(" ", "_"):
+            washington_root = WASHINGTON_SPECIAL_SPAWN_ID
+
     spawn_folder = staging / "Spawns" / "LegendaryLootPool"
     spawn_folder.mkdir(parents=True)
     spawn_guid = uuid.uuid5(NAMESPACE,"legendary-loot-pool-"+str(loot_table_id)).hex
@@ -102,6 +116,8 @@ def build_legendaries(game: Path, staging: Path, *, eagle_id=DEFAULT_EAGLE_ID,
             "Table_0_Asset_ID " + str(auto24_id) + "\nTable_0_Weight 1\n"
             "Table_1_Asset_ID " + str(eagle_id) + "\nTable_1_Weight 1\n"
             "Table_2_Asset_ID " + str(fire_id) + "\nTable_2_Weight 1\n")
+    if washington_root is not None:
+        loot += "Roots 1\\nRoot_0_Spawn_ID " + washington_root + "\\nRoot_0_Weight 1\\n"
     (spawn_folder / "Asset.dat").write_text(loot,encoding="utf-8")
     (staging / "README_TESTING.txt").write_text(
         "EXPERIMENTAL Legendary pack, requires Unturned Steam validation.\n"
@@ -109,10 +125,11 @@ def build_legendaries(game: Path, staging: Path, *, eagle_id=DEFAULT_EAGLE_ID,
         "Munitions copy original 12G caliber fields for compatibility.\n"
         "Explosive/Range is a small damage area, NOT the actual Burner zombie ignite effect.\n"
         "Explosion effect must be an existing, verified Unturned effect ID.\n"
-        "Loot: Rarity Legendary changes item UI rarity; natural loot requires a map spawn-table link.\n"
+        "Washington loot root: " + (washington_root or "NOT FOUND/NOT ATTACHED") + "\\n"
+        "Natural loot requires valid map use of this root. Relative spawn weight=1; actual odds vary.\\n"
         "Do not deploy until conflicts and C# runtime tests pass.\n",
         encoding="utf-8")
-    return {"eaglefire":eagle_id,"incendiary":fire_id,"loot_table":loot_table_id,"path":str(staging),
+    return {"eaglefire":eagle_id,"incendiary":fire_id,"loot_table":loot_table_id,\n            "washington_root_attached": washington_root is not None, "path":str(staging),
             "effect_configured":impact_effect_id is not None}
 
 def main():
