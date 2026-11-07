@@ -22,6 +22,8 @@ namespace UnityEngine
 
         public static Vector3 zero => new Vector3(0f, 0f, 0f);
         public float sqrMagnitude => x * x + y * y + z * z;
+        public float magnitude => (float)Math.Sqrt(sqrMagnitude);
+        public static float Distance(Vector3 a, Vector3 b) => (a - b).magnitude;
 
         public static Vector3 operator +(Vector3 a, Vector3 b) =>
             new Vector3(a.x + b.x, a.y + b.y, a.z + b.z);
@@ -50,6 +52,7 @@ namespace UnityEngine
             x < 0f ? 0f : x > 1f ? 1f : x;
         public static float Max(float a, float b) => Math.Max(a, b);
         public static float Min(float a, float b) => Math.Min(a, b);
+        public static int Min(int a, int b) => Math.Min(a, b);
         public static float Cos(float a) => (float)Math.Cos(a);
         public static float Sin(float a) => (float)Math.Sin(a);
         public static float Sqrt(float a) => (float)Math.Sqrt(a);
