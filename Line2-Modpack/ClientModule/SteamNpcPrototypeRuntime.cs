@@ -162,7 +162,14 @@ namespace Unturned2.Line2
                     instance = new GameObject("Line2_PrototypeNPC_" + Guid.NewGuid().ToString("N"));
                     instance.transform.position = location;
                     int agentLayer = LayerMask.NameToLayer("Agent");
-                    if (agentLayer >= 0) instance.layer = agentLayer;
+                    // DamageTool explosions overlap RayMasks.AGENT when they
+                    // can hurt zombies. Abort if the physical root is on
+                    // another layer: otherwise NPCs would be invulnerable.
+                    if (agentLayer < 0 ||
+                        (RayMasks.AGENT & (1 << agentLayer)) == 0)
+                        throw new InvalidOperationException(
+                            "Unturned Agent layer unavailable/mismatched; explosion damage unsafe");
+                    instance.layer = agentLayer;
                     CharacterController movement = instance.AddComponent<CharacterController>();
                     movement.height = 2.0f;
                     movement.radius = 0.38f;
