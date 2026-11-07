@@ -500,6 +500,20 @@ namespace Unturned2.Line2
                 lastKnown = _lastKnownThreat;
             else if (Time.time - _lastGunshotAt <= 7f)
                 lastKnown = _lastHeardPoint;
+            else if (_legacyBrain.CurrentState ==
+                         Line2MobileNPCBrain.State.Investigating)
+            {
+                // This is a decaying, uncertain area clue from the
+                // imported Line 1 memory. It does NOT grant LOS, damage,
+                // current player position, or remote target identity.
+                Vector3 center;
+                float confidence, uncertainty;
+                Line2MobileNPCPlayerKnowledge.Sense source;
+                if (_knowledge.TryGetEvidence(Time.time, out center,
+                                               out confidence, out uncertainty,
+                                               out source) && confidence >= 0.25f)
+                    lastKnown = center;
+            }
         }
 
         internal bool TryApplyAiAction(string action, float expiresRealtime)
@@ -513,7 +527,10 @@ namespace Unturned2.Line2
             if (action == "engage" && !_threatVisible)
                 return false;
             if (action == "investigate" && !_lastKnownThreat.HasValue &&
-                Time.time - _lastGunshotAt > 7f)
+                Time.time - _lastGunshotAt > 7f &&
+                !(_legacyBrain.HasDestination &&
+                  _legacyBrain.CurrentState ==
+                      Line2MobileNPCBrain.State.Investigating))
                 return false;
             _aiAction = action;
             _aiValidUntil = expiresRealtime;
@@ -524,6 +541,10 @@ namespace Unturned2.Line2
                     _goal = _lastKnownThreat.Value;
                 else if (Time.time - _lastGunshotAt <= 7f)
                     _goal = _lastHeardPoint;
+                else if (_legacyBrain.HasDestination &&
+                    _legacyBrain.CurrentState ==
+                        Line2MobileNPCBrain.State.Investigating)
+                    _goal = _legacyBrain.Destination;
             }
             return true;
         }
