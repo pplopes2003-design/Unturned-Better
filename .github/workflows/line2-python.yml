@@ -14,6 +14,8 @@ on:
     paths:
       - 'Line2-Modpack/AIService/**'
       - 'Line2-Modpack/ModpackManager/**'
+      - 'Line2-Modpack/ClientModule/**'
+      - 'Line2-Modpack/check_sdk_api_surface.py'
       - 'Line2-Modpack/run_tests.py'
       - '.github/workflows/line2-python.yml'
   workflow_dispatch:
