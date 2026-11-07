@@ -81,6 +81,18 @@ namespace Unturned2.Line2
             _nextNaturalAt = Time.time + 18f;
             // Setting NPCs off removes runtime-only prototype entities.
             if (!enabled) ClearActors();
+            else
+            {
+                // A lower configured cap must be enforced immediately.
+                _actors.RemoveAll(a => a == null);
+                while (_actors.Count > _cap)
+                {
+                    int last = _actors.Count - 1;
+                    PrototypeActor actor = _actors[last];
+                    _actors.RemoveAt(last);
+                    if (actor != null) UnityEngine.Object.Destroy(actor.gameObject);
+                }
+            }
         }
 
         public bool TrySpawn(string disposition, int count, out string reason)
