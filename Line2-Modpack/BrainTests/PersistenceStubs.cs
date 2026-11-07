@@ -16,6 +16,11 @@ namespace SDG.Unturned
     {
         internal static bool isLoaded = true;
         internal static LevelInfo info = new LevelInfo();
+        internal static bool checkSafeIncludingClipVolumes(UnityEngine.Vector3 point)
+        {
+            return !(float.IsNaN(point.x) || float.IsNaN(point.y)
+                || float.IsNaN(point.z));
+        }
     }
 }
 // Test-only DTO shape matching the original Line1 injury snapshot.
