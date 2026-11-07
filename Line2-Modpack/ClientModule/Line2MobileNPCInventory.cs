@@ -68,7 +68,12 @@ namespace Unturned2.Line2
         internal bool TryRestoreItemsServer(Line2NpcPersistence.ItemRecord[] records)
         {
             if (!Provider.isServer || Dedicator.IsDedicatedServer || records == null ||
-                records.Length > Capacity || reservedSlots != 0) return false;
+                records.Length > 18 || reservedSlots != 0) return false;
+            // Changing from Combat Total to Normal must not strand existing
+            // survivors with 13-18 valid owned slots. Preserve that exact
+            // inventory rather than throwing it away or rejecting restoration.
+            int previousCapacity = capacity;
+            int desiredCapacity = Mathf.Max(capacity, records.Length);
             var items = new List<Item>(records.Length);
             foreach (Line2NpcPersistence.ItemRecord record in records)
             {
@@ -83,11 +88,16 @@ namespace Unturned2.Line2
                 items.Add(item);
             }
             Line2NpcPersistence.ItemRecord[] previous = CaptureItemsServer();
+            capacity = desiredCapacity;
             ClearServer();
             foreach (Item item in items)
                 if (!TryStoreTransferredItem(item))
                 {
                     ClearServer();
+                    // Restore the previous capacity only if it can contain
+                    // the previous kit; never silently truncate owned slots.
+                    capacity = Mathf.Max(previousCapacity,
+                        previous != null ? previous.Length : 0);
                     if (previous != null)
                         foreach (Line2NpcPersistence.ItemRecord old in previous)
                             TryStoreTransferredItem(new Item((ushort)old.id,
