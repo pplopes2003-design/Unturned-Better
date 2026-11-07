@@ -152,3 +152,17 @@ The user successfully installed the generated Auto32 and confirmed it shoots. Th
 Next independent integration checkpoint: use **Check AI service** in the manager GUI. Open a PowerShell in `Line2-Modpack/AIService`, run `python server.py`, then press **Check AI service** in the GUI. The new health check confirms only loopback connectivity and protocol v1, not actual NPC movement. Once successful, the C# DLL build and F8/F9/F10 in-game diagnostics are next.
 
 The four-round reload and Steam-side horde/NPC movement remain unimplemented. The older standalone Line 1 remains paused.
+
+## F12 — Discover NPCs in the live Steam game
+
+The diagnostic module now also supports **F12**, a read-only scan of active NPC/Human-named Unity components and their positions. It writes `npc-snapshots.jsonl` and an `NPC_SNAPSHOT_OK` entry in `probe.log`. It does **not** create or drive mobile NPCs. See [TEST_IA_HORDAS_ZUMBIS.md](TEST_IA_HORDAS_ZUMBIS.md) for the testing sequence and interpretation.
+
+Windows users can build and deploy the **diagnostic-only** C# module with:
+
+```powershell
+.\scripts\build_diagnostics_windows.ps1 -GameDir "C:\Program Files (x86)\Steam\steamapps\common\Unturned"
+```
+
+This requires the .NET SDK and .NET Framework 4.7.2 reference assemblies; it fails safely if compilation fails, and backs up any existing `Unturned2.Line2` module before copying. Windows PowerShell execution policy may block local scripts; use `dotnet build` and manually copy the DLL + manifest in that case. Close the game before updating the module. The C# module has **not yet been compiled and executed against the user's Unturned Steam build**.
+
+Do not mistake `F12` NPC-like matches, `F9` camera-to-service connectivity, or synthetic `smoke_simulation.py` intentions for real moving/attacking NPCs. The true Steam-side NPC adapter remains pending.
