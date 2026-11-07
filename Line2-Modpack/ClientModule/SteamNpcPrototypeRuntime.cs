@@ -257,6 +257,11 @@ namespace Unturned2.Line2
                     var actor = instance.AddComponent<PrototypeActor>();
                     actor.Initialize(disposition, movement, instance.name);
                     actor.SetCombatMode(_mode);
+                    var combatSight = instance.AddComponent<Line2NPCCombatPerception>();
+                    combatSight.Initialize(this, actor);
+                    actor.AttachCombatPerception(combatSight);
+                    var melee = instance.AddComponent<Line2NPCMeleeExecutor>();
+                    melee.Initialize(actor, combatSight);
                     created.Add(actor);
                 }
                 catch (Exception ex)
@@ -272,7 +277,8 @@ namespace Unturned2.Line2
 
             _actors.AddRange(created);
             reason = "Created " + created.Count + " local prototype humanoids, native visuals; " +
-                     "combat/dialogue/save are not implemented";
+                     "validated melee vs player/zombie/opposing NPC is experimental; " +
+                     "native gunfire, dialogue, radio and saves remain pending";
             ProbeLogger.Log("NPC_PROTOTYPE_SPAWN_OK: " + reason);
             return true;
         }
@@ -367,6 +373,29 @@ namespace Unturned2.Line2
         private const float ThreatRadius = 20f;
         private string _identity;
         internal string Identity { get { return _identity; } }
+        internal string Disposition { get { return _disposition; } }
+        internal bool PlayerVisible { get { return _threatVisible; } }
+        internal bool IsCombatEnabled
+        {
+            get
+            {
+                return _combatMode != "passive" &&
+                    !IsDead && Provider.isServer &&
+                    !Dedicator.IsDedicatedServer &&
+                    (Provider.clients == null || Provider.clients.Count <= 1) &&
+                    Provider.hasCheats && Level.isLoaded;
+            }
+        }
+        internal bool IsTacticallyRetreating
+        {
+            get { return _tactics.CurrentGoal ==
+                Line2MobileNPCTactics.Goal.Retreat ||
+                _brain.Intent == NpcIntent.Retreat; }
+        }
+        internal void AttachCombatPerception(Line2NPCCombatPerception sensor)
+        {
+            _combatPerception = sensor;
+        }
         private string _aiAction;
         private float _aiValidUntil;
         private Vector3? _lastKnownThreat;
@@ -386,6 +415,7 @@ namespace Unturned2.Line2
         private Line2MobileNPCAdaptiveMemory _experience;
         private Line2MobileNPCTravelMemory _travelMemory;
         private PrototypeCoverPlanner _coverPlanner;
+        private Line2NPCCombatPerception _combatPerception;
         private Vector3 _coverGoal;
         private Vector3 _retreatGoal;
         private bool _hasRetreat;
@@ -731,6 +761,20 @@ namespace Unturned2.Line2
                         _goal = _home;
                         break;
                 }
+                // The Line 1 sensory priority is player > opposing NPC >
+                // zombie. Hostile player pursuit still wins, while
+                // secondary live visible targets can drive native A* routes.
+                if (_combatPerception != null &&
+                    _combatPerception.Kind !=
+                        Line2NPCCombatPerception.TargetKind.None &&
+                    _combatPerception.Kind !=
+                        Line2NPCCombatPerception.TargetKind.Player &&
+                    _combatPerception.VisibleTarget != null &&
+                    !_threatVisible && _combatMode != "passive" &&
+                    _tactics.CurrentGoal != Line2MobileNPCTactics.Goal.Retreat &&
+                    _tactics.CurrentGoal != Line2MobileNPCTactics.Goal.SeekCover)
+                    _goal = _combatPerception.LastVisiblePosition;
+
                 if ((_tactics.CurrentGoal == Line2MobileNPCTactics.Goal.SeekCover ||
                      _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Retreat) &&
                     _tactics.HasTacticalDestination &&
@@ -797,9 +841,20 @@ namespace Unturned2.Line2
                     transform.position + Vector3.up * 1.0f,
                     intended, 0.20f, 1.6f, RayMasks.BLOCK_COLLISION);
             }
-            if (direction.sqrMagnitude > 0)
+            // Line 1 melee faces the genuinely visible enemy even when
+            // CharacterController is already close enough to stop walking.
+            Vector3 face = direction;
+            if (face.sqrMagnitude <= 0.01f && _combatPerception != null &&
+                _combatPerception.VisibleTarget != null &&
+                _combatPerception.Kind != Line2NPCCombatPerception.TargetKind.None)
+            {
+                face = _combatPerception.LastVisiblePosition - transform.position;
+                face.y = 0f;
+                if (face.sqrMagnitude > 0.01f) face.Normalize();
+            }
+            if (face.sqrMagnitude > 0.01f)
                 transform.rotation = Quaternion.RotateTowards(transform.rotation,
-                    Quaternion.LookRotation(direction), 420f * Time.deltaTime);
+                    Quaternion.LookRotation(face), 420f * Time.deltaTime);
             else if (delta.sqrMagnitude > 2f)
                 _blockedSince = Time.time - 6.8f;
             if (_controller.isGrounded && _verticalVelocity < 0f)
