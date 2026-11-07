@@ -20,6 +20,12 @@ internal static class SettlementLedgerTests
                 return false;
             if (Line2NpcSettlementLedger.TryClaim(12, "hostile", site))
                 return false; // Faction cannot take over another base ID.
+            if (Line2NpcSettlementLedger.TryClaim(13, "hostile",
+                new Vector3(58f, 3f, -12f)))
+                return false; // A rival's camp must not overlap this site.
+            if (!Line2NpcSettlementLedger.TryClaim(13, "hostile",
+                new Vector3(90f, 3f, -12f)))
+                return false; // A sufficiently separated faction can settle.
             Vector3 actual;
             int pieces;
             if (!Line2NpcSettlementLedger.TryGet(12, "friendly",
