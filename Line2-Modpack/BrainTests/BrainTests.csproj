@@ -12,6 +12,12 @@
     <Compile Include="UnityValueStubs.cs" />
     <Compile Include="../ClientModule/Line2MobileNPCTactics.cs"
              Link="Line2MobileNPCTactics.cs" />
+    <Compile Include="../ClientModule/Line2MobileNPCBrain.cs"
+             Link="Line2MobileNPCBrain.cs" />
+    <Compile Include="../ClientModule/Line2MobileNPCPlayerKnowledge.cs"
+             Link="Line2MobileNPCPlayerKnowledge.cs" />
+    <Compile Include="../ClientModule/Line2MobileNPCLocomotionPolicy.cs"
+             Link="Line2MobileNPCLocomotionPolicy.cs" />
     <Compile Include="../ClientModule/NpcExplosionMath.cs"
              Link="NpcExplosionMath.cs" />
     <Compile Include="../ClientModule/NpcDecisionBrain.cs"
