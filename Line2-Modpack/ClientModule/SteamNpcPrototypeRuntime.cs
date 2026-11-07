@@ -144,6 +144,9 @@ namespace Unturned2.Line2
                     return;
                 }
                 Line2NpcSettlementLedger.Restore(_saveMap, settlements);
+                foreach (Line2NpcPersistence.ReplacementRecord ticket in tickets)
+                    Line2NPCGroupMember.ReserveHistoricalGroupId(
+                        ticket.formerGroupId);
                 _restoreCapacity = Mathf.Min(32, Mathf.Max(_cap, records.Count));
                 _saveSourceVerified = true;
                 _pendingRestore.AddRange(records);
