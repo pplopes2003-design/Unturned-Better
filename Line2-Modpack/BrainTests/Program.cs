@@ -314,6 +314,11 @@ internal static class Program
             Console.Error.WriteLine("NPC_PERSISTENCE_POLICY_FAILED: invalid checkpoint handling.");
             return 24;
         }
+        if (!GlobalRouteTests.Run())
+        {
+            Console.Error.WriteLine("NPC_COARSE_ASTAR_FAILED: Line 1 graph detour/edge gate.");
+            return 25;
+        }
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
