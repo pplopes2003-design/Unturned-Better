@@ -41,3 +41,11 @@ O prefixo `!u2` foi escolhido para não disputar nomes de comandos oficiais do j
 Faremos internamente build/testes de API e automações. Só oferecer **uma bateria de gameplay completa ao usuário** quando todos os pontos de spawn, visão, combate, diálogo, persistência, zumbis e performance estiverem conectados. Critérios detalhados: `NPC_INTEGRATED_ACCEPTANCE.md`.
 
 A entrega atual **não contém NPCs móveis** nem spawn natural realmente ativo; os comandos preparam configuração, não substituem o sistema de entidades. Não afirmar funcionalidade até haver log de teste real.
+
+## Migração incremental interna (sem testes fragmentados com o usuário)
+
+A lógica de população/grupos agora possui implementação Python isolada `AIService/npc_population_model.py`. Regras cobertas: ID único, limite máximo, papéis friendly/neutral/hostile, grupos com integrantes vivos, morte definitiva de identidade, reposição retardada, reentrada em grupo ainda vivo e extinção quando todos os integrantes morrem. Os testes estão em `AIService/test_npc_population_model.py`. Esse modelo **não possui adapter Steam**: não spawna GameObjects, não participa do ciclo de vida Unity nem altera saves do Unturned. O JSON exportado é um contrato inicial de serialização e não grava automaticamente arquivos.
+
+A investigação de arma também foi ampliada com **F6**: `ClientModule/GunApiDiscovery.cs` escreve `gun-api-discovery.txt` com APIs/assinaturas de `UseableGun`, `PlayerEquipment`, `PlayerInput` e `ItemGunAsset`, sem executar métodos. O agendador `RepeatingBurstScheduler` permanece somente como política de cadência; ainda não dispara a Eaglefire no jogo. O objetivo é integrar o disparo **original**, com munição, dano e validação de autoridade corretos.
+
+Fases internas restantes antes da bateria única solicitada: compilar módulo e capturar APIs Steam; criar/empacotar prefab compatível, implementar `ILine2NpcRuntime` e `IGameNpcAdapter`; conectar navegação, combate, persistência e facções; teste de integração com Unturned Steam e desempenho.
