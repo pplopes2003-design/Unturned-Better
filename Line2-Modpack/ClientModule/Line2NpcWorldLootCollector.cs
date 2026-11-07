@@ -59,9 +59,19 @@ namespace Unturned2.Line2
                     ItemGunAsset best;
                     return !_inventory.TryGetBestGun(out gun, out best) ? 115 : 24;
                 case EItemType.MAGAZINE:
-                    return asset is ItemMagazineAsset magazine &&
-                           _inventory.IsCompatibleRaidMagazineServer(magazine)
-                        ? 110 : 42;
+                    {
+                        Item ownedGun;
+                        ItemGunAsset gunAsset;
+                        ItemMagazineAsset magazine = asset as ItemMagazineAsset;
+                        if (magazine == null) return -1000;
+                        bool ordinaryCompatible =
+                            _inventory.TryGetBestGun(out ownedGun, out gunAsset) &&
+                            gunAsset != null &&
+                            magazine.CalibersContainAnyOfIds(gunAsset.magazineCalibers);
+                        return ordinaryCompatible ||
+                            _inventory.IsCompatibleRaidMagazineServer(magazine)
+                            ? 110 : 20;
+                    }
                 case EItemType.MELEE:
                     Item existing;
                     ItemMeleeAsset melee;
