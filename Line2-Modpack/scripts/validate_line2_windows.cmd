@@ -19,25 +19,31 @@ if errorlevel 1 (
   echo ERROR: Python 3.11+ not found.
   exit /b 4
 )
-echo [1/4] Python syntax
+echo [1/5] Python syntax
 python -m compileall -q "%ROOT%"
 if errorlevel 1 (
   echo FAILED: syntax / compileall
   exit /b 5
 )
-echo [2/4] AI Service tests
+echo [2/5] SDK source API check
+python "%ROOT%\check_sdk_api_surface.py"
+if errorlevel 1 (
+  echo FAILED: checked-in U3 SDK API symbols do not match Line 2 module.
+  exit /b 10
+)
+echo [3/5] AI Service tests
 python "%ROOT%\run_tests.py" AIService
 if errorlevel 1 (
   echo FAILED: AIService tests; see "%OUTPUT%\AIService-unittest.txt"
   exit /b 6
 )
-echo [3/4] Modpack Manager tests
+echo [4/5] Modpack Manager tests
 python "%ROOT%\run_tests.py" ModpackManager
 if errorlevel 1 (
   echo FAILED: ModpackManager tests; see "%OUTPUT%\ModpackManager-unittest.txt"
   exit /b 7
 )
-echo [4/4] Steam C# compile check
+echo [5/5] Steam C# compile check
 where dotnet >nul 2>nul
 if errorlevel 1 (
   echo BLOCKED: .NET SDK unavailable. No Steam module installed.
