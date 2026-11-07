@@ -98,7 +98,11 @@ def evaluate_batch(payload):
         if agent in identifiers:
             raise ValueError("duplicate_agent_id")
         identifiers.add(agent)
-        decisions.append(evaluate(item))
+        decision = evaluate(item)
+        # Batch clients poll at ~2Hz; do not expire movement intents between ticks.
+        # Single-camera probe keeps its stricter 250ms TTL.
+        decision["valid_ms"] = 600
+        decisions.append(decision)
     return {"protocol": PROTOCOL, "decisions": decisions}
 
 
