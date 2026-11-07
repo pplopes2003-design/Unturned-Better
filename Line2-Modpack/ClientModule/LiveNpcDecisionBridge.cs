@@ -32,9 +32,9 @@ namespace Unturned2.Line2
         {
             public string kind = "npc";
             public float[] position;
-            public float health = 1f; // Prototype has no damage model yet.
+            public float health = 1f; // Overwritten from authoritative PrototypeNpcVitals.
             public bool threat_visible;
-            public bool under_fire = false;
+            public bool under_fire; // Overwritten from validated recent damage.
             public bool has_cover = false;
             public float[] last_known_threat;
         }
@@ -190,6 +190,8 @@ namespace Unturned2.Line2
                     observation = new Observation
                     {
                         position = new[] { position.x, position.y, position.z },
+                        health = actor.HealthFraction,
+                        under_fire = actor.RecentlyDamaged,
                         threat_visible = visible,
                         last_known_threat = lastKnown.HasValue
                             ? new[] { lastKnown.Value.x, lastKnown.Value.y, lastKnown.Value.z }
@@ -270,13 +272,13 @@ namespace Unturned2.Line2
                           Time.realtimeSinceStartup + decision.valid_ms / 1000f))
                         applied++;
                 }
-                Status = "online; applied " + applied + "/" + response.decisions.Length + " movement decisions";
+                Status = "online; accepted " + applied + "/" + response.decisions.Length + " bounded movement suggestions";
                 if (Time.realtimeSinceStartup >= _nextLogAt)
                 {
                     ProbeLogger.Log("NPC_AI_LIVE_BATCH_OK: applied=" + applied +
                         " tick=" + _pendingTick + " latency_ms=" +
                         (elapsed * 1000f).ToString("F0") +
-                        " (movement only, no combat)");
+                        " (advisory movement only; game retains combat authority)");
                     _nextLogAt = Time.realtimeSinceStartup + 10f;
                 }
             }
