@@ -374,6 +374,7 @@ namespace Unturned2.Line2
         private string _identity;
         internal string Identity { get { return _identity; } }
         internal string Disposition { get { return _disposition; } }
+        internal string CombatMode { get { return _combatMode; } }
         internal bool PlayerVisible { get { return _threatVisible; } }
         internal bool IsCombatEnabled
         {
