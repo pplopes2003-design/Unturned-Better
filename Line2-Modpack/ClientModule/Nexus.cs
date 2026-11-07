@@ -24,9 +24,10 @@ namespace Unturned2.Line2
             _host.AddComponent<NpcInstanceProbe>();
             _host.AddComponent<Line2AdminControl>();
             _host.AddComponent<GunApiDiscovery>();
+            _host.AddComponent<SteamNpcPrototypeRuntime>();
             Level.onLevelLoaded += OnLevelLoaded;
             _subscribed = true;
-            ProbeLogger.Log("Diagnostics ready: F8 scans colliders, F9 probes AI Service, F10 inventories NPC APIs, F11 snapshots zombie movement, F12 samples NPC-like game objects, F7 opens local admin panel, F6 discovers firearm APIs.");
+            ProbeLogger.Log("Diagnostics ready: F8 scans colliders, F9 probes AI Service, F10 inventories NPC APIs, F11 snapshots zombie movement, F12 samples NPC-like game objects, F7 opens local admin panel, F6 discovers firearm APIs. NPC prototype runtime opt-in via F7 and local cheats.");
         }
 
         private void OnLevelLoaded(int level)
