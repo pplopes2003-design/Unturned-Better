@@ -358,6 +358,15 @@ namespace Unturned2.Line2
         private float _blockedSince;
         private float _verticalVelocity;
         private readonly NpcDecisionBrain _brain = new NpcDecisionBrain();
+        // Original Line 1 pursuit/investigation state machine owns the
+        // physical search destination; the high-level tactical selector
+        // alone chooses priority.
+        private readonly Line2MobileNPCBrain _legacyBrain = new Line2MobileNPCBrain();
+        private readonly Line2MobileNPCPlayerKnowledge _knowledge =
+            new Line2MobileNPCPlayerKnowledge();
+        private readonly Line2MobileNPCLocomotionPolicy _locomotion =
+            new Line2MobileNPCLocomotionPolicy();
+        private float _nextLegacyArrivalCheckAt;
         private readonly Line2MobileNPCTactics _tactics = new Line2MobileNPCTactics();
         internal NpcIntent CurrentIntent { get { return _brain.Intent; } }
 
@@ -382,6 +391,11 @@ namespace Unturned2.Line2
             _lastSeenAt = -100f;
             _lastGunshotAt = -100f;
             _brain.Reset();
+            _legacyBrain.SetSpawnPosition(transform.position);
+            _legacyBrain.Reset();
+            _knowledge.Clear();
+            _locomotion.Reset();
+            _nextLegacyArrivalCheckAt = Time.time + 0.75f;
             string[] names = { "Alex", "Morgan", "Sam", "Casey", "Jordan", "Riley", "Taylor", "Robin" };
             _displayName = names[UnityEngine.Random.Range(0, names.Length)] +
                            " (" + disposition + ")";
@@ -410,6 +424,9 @@ namespace Unturned2.Line2
             if (_combatMode == "passive")
             {
                 _brain.Reset();
+                _legacyBrain.Reset();
+                _knowledge.Clear();
+                _locomotion.Reset();
                 _tactics.ClearGoal();
                 _aiAction = null;
                 _threatVisible = false;
@@ -427,11 +444,16 @@ namespace Unturned2.Line2
             // A sound provides only coarse direction, NEVER exact live aim.
             // The acoustic bridge has already verified that a native shot
             // occurred nearby. No line-of-sight is implied by hearing.
+            if (heardAt - _lastGunshotAt < 0.9f)
+                return; // One clue per burst, not a new endless chase per bullet.
             _lastHeardPoint = new Vector3(
                 Mathf.Floor(position.x / 12f) * 12f + 6f,
                 position.y,
                 Mathf.Floor(position.z / 12f) * 12f + 6f);
             _lastGunshotAt = heardAt;
+            _knowledge.ObserveSound(_lastHeardPoint, 0.64f, heardAt);
+            _legacyBrain.ReportNoise(_lastHeardPoint, heardAt, 17f);
+            _tactics.ReportIncomingFire(heardAt);
         }
 
         internal void ObserveThreat(Player player, out bool visible, out Vector3? lastKnown)
@@ -447,6 +469,8 @@ namespace Unturned2.Line2
                 _threatVisible = true;
                 _lastKnownThreat = player.transform.position;
                 _lastSeenAt = Time.time;
+                _knowledge.ObserveSight(player.transform.position, Time.time);
+                _legacyBrain.ReportVisibleTarget(player.transform, Time.time);
             }
             else
             {
@@ -499,6 +523,7 @@ namespace Unturned2.Line2
                 bool visible;
                 Vector3? lastKnown;
                 ObserveThreat(player, out visible, out lastKnown);
+                _legacyBrain.Tick(Time.time, visible);
                 bool nearPlayer = player != null &&
                     (player.transform.position - transform.position).sqrMagnitude < 32f * 32f;
                 string validSuggestion = _aiAction != null &&
@@ -548,15 +573,24 @@ namespace Unturned2.Line2
                 switch (intent)
                 {
                     case NpcIntent.Follow:
-                        if (nearPlayer)
-                            _goal = player.transform.position - player.transform.forward * 3f;
+                        if (nearPlayer && player != null)
+                        {
+                            _legacyBrain.SetFollowDestination(
+                                player.transform.position - player.transform.forward * 3f);
+                            _goal = _legacyBrain.Destination;
+                        }
                         break;
                     case NpcIntent.Pursue:
-                        if (visible && player != null)
+                        if (_legacyBrain.HasDestination &&
+                            _legacyBrain.CurrentState == Line2MobileNPCBrain.State.Pursuing)
+                            _goal = _legacyBrain.Destination;
+                        else if (visible && player != null)
                             _goal = player.transform.position;
                         break;
                     case NpcIntent.Investigate:
-                        if (lastKnown.HasValue)
+                        if (_legacyBrain.HasDestination)
+                            _goal = _legacyBrain.Destination;
+                        else if (lastKnown.HasValue)
                             _goal = lastKnown.Value;
                         break;
                     case NpcIntent.Retreat:
@@ -568,6 +602,15 @@ namespace Unturned2.Line2
                         _goal = hasCover ? _coverGoal : transform.position;
                         break;
                     case NpcIntent.Patrol:
+                        // The original brain continues a bounded physical
+                        // search after the short tactical target memory expires.
+                        if (_disposition == "hostile" && _legacyBrain.HasDestination &&
+                            (_legacyBrain.CurrentState == Line2MobileNPCBrain.State.Investigating ||
+                             _legacyBrain.CurrentState == Line2MobileNPCBrain.State.Returning))
+                        {
+                            _goal = _legacyBrain.Destination;
+                            break;
+                        }
                         if ((_goal - transform.position).sqrMagnitude < 2.5f ||
                             Time.time >= _blockedSince + 7f)
                         {
@@ -594,8 +637,29 @@ namespace Unturned2.Line2
 
             Vector3 delta = _goal - transform.position;
             delta.y = 0;
-            float speed = _disposition == "hostile" ? 2.8f : 1.8f;
-            Vector3 direction = delta.sqrMagnitude > 1.5f ? delta.normalized : Vector3.zero;
+            var locomotion = new Line2MobileNPCLocomotionPolicy.Situation
+            {
+                HasDestination = delta.sqrMagnitude > 1.5f,
+                TargetVisible = _threatVisible,
+                Swimming = false, // Separate native water traversal adapter required.
+                UnderFire = RecentlyDamaged,
+                Injured = HealthFraction < 0.55f,
+                NearTarget = delta.sqrMagnitude < 5f * 5f,
+                InCover = false,
+                Investigating = _legacyBrain.CurrentState ==
+                    Line2MobileNPCBrain.State.Investigating,
+                Stalking = false,
+                Retreating = _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Retreat,
+                Pursuing = _brain.Intent == NpcIntent.Pursue,
+                Flanking = _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Flank,
+                DestinationDistance = Mathf.Sqrt(delta.sqrMagnitude)
+            };
+            var gait = _locomotion.Decide(locomotion, Time.time);
+            float speed = gait == Line2MobileNPCLocomotionPolicy.Gait.Sprint ? 3.0f
+                : gait == Line2MobileNPCLocomotionPolicy.Gait.Sneak ? 1.15f
+                : gait == Line2MobileNPCLocomotionPolicy.Gait.Hold ? 0f : 1.8f;
+            Vector3 direction = delta.sqrMagnitude > 1.5f && speed > 0f
+                ? delta.normalized : Vector3.zero;
             // Use bounded side-steering instead of repeatedly stopping in
             // front of the same wall. This does not open doors or navigate
             // entire buildings: a proper door-aware graph is still required.
@@ -614,6 +678,22 @@ namespace Unturned2.Line2
             if (_tactics.HasTacticalDestination &&
                 (transform.position - _tactics.TacticalDestination).sqrMagnitude < 2.25f)
                 _tactics.ReportGoalReached();
+            // Arrival is a physical observation, not merely a requested
+            // waypoint. The migrated Line 1 brain advances its three-point
+            // investigation spiral only when the CharacterController arrives.
+            if (_legacyBrain.HasDestination && Time.time >= _nextLegacyArrivalCheckAt)
+            {
+                Vector3 difference = _legacyBrain.Destination - transform.position;
+                if (Mathf.Abs(difference.y) < 1.35f &&
+                    new Vector2(difference.x, difference.z).sqrMagnitude < 1.7f * 1.7f)
+                {
+                    _legacyBrain.ReportDestinationReached();
+                    _nextLegacyArrivalCheckAt = Time.time + 0.65f;
+                    if (_legacyBrain.HasDestination &&
+                        !_tactics.HasTacticalDestination)
+                        _goal = _legacyBrain.Destination;
+                }
+            }
             if (_animation != null) _animation.SetMoving(direction.sqrMagnitude > 0.1f);
             _controller.Move((direction * speed +
                               Vector3.up * _verticalVelocity) * Time.deltaTime);
