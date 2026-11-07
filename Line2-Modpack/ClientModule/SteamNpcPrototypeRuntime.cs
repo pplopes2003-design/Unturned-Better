@@ -776,6 +776,10 @@ namespace Unturned2.Line2
 
         private void OnValidatedDeath()
         {
+            // Dead members vacate their group immediately, not after corpse
+            // cleanup. Remaining living members retain their saved group ID.
+            Line2NPCGroupMember membership = GetComponent<Line2NPCGroupMember>();
+            if (membership != null) membership.Leave();
             if (_experience != null)
                 _experience.ForgetOnDeathServer();
             if (_travelMemory != null)
