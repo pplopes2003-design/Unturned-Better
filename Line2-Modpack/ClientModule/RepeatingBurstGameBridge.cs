@@ -59,8 +59,7 @@ namespace Unturned2.Line2
             if (state == null || state.Length <= GunStateIndices.FIREMODE ||
                 state.Length <= GunStateIndices.AMMO ||
                 state[GunStateIndices.FIREMODE] != (byte)EFiremode.BURST ||
-                state[GunStateIndices.AMMO] == 0 ||
-                local.equipment.isBusy)
+                state[GunStateIndices.AMMO] == 0)
                 return false;
             gun = local.equipment.useable as UseableGun;
             return gun != null;
