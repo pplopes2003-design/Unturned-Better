@@ -125,7 +125,7 @@ namespace Unturned2.Line2
             for (int i = 0; i < count; i++)
             {
                 Vector3 location;
-                if (!TryFindGround(i, out location))
+                if (!TryFindGround(i, created, out location))
                 {
                     Rollback(created);
                     reason = "No verified nearby ground, spawn aborted";
@@ -149,6 +149,8 @@ namespace Unturned2.Line2
                     visual.name = "NPC_ClientVisual";
                     visual.transform.localPosition = Vector3.zero;
                     visual.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+                    if (visual.GetComponentInChildren<SkinnedMeshRenderer>(true) == null)
+                        throw new InvalidOperationException("Native visual missing skinned mesh");
                     // Native template has a kinematic root Rigidbody; do not
                     // allow it to become a second physics movement owner.
                     foreach (Rigidbody body in visual.GetComponentsInChildren<Rigidbody>(true))
@@ -166,6 +168,7 @@ namespace Unturned2.Line2
                         if (!name.StartsWith("Human", StringComparison.Ordinal))
                             behaviour.enabled = false;
                     }
+                    ApplyNativeAppearance(visual);
                     var actor = instance.AddComponent<PrototypeActor>();
                     actor.Initialize(disposition, movement, instance.name);
                     created.Add(actor);
@@ -188,6 +191,30 @@ namespace Unturned2.Line2
             return true;
         }
 
+        private static void ApplyNativeAppearance(GameObject visual)
+        {
+            HumanClothes clothes = visual.GetComponentInChildren<HumanClothes>(true);
+            if (clothes == null) return;
+            Color[] skins = {
+                new Color(0.91f, 0.75f, 0.62f),
+                new Color(0.77f, 0.56f, 0.41f),
+                new Color(0.63f, 0.43f, 0.31f),
+                new Color(0.47f, 0.32f, 0.23f),
+                new Color(0.96f, 0.82f, 0.70f)
+            };
+            Color[] hair = {
+                new Color(0.14f, 0.09f, 0.07f),
+                new Color(0.42f, 0.25f, 0.12f),
+                new Color(0.64f, 0.46f, 0.25f),
+                new Color(0.1f, 0.1f, 0.1f)
+            };
+            clothes.skin = skins[UnityEngine.Random.Range(0, skins.Length)];
+            clothes.color = hair[UnityEngine.Random.Range(0, hair.Length)];
+            // Native prefab controls actual face/mesh assets. Do not guess
+            // IDs of hair, beard or clothing that may be absent in Steam.
+            clothes.apply();
+        }
+
         private static void Rollback(List<PrototypeActor> actors)
         {
             foreach (PrototypeActor actor in actors)
@@ -195,7 +222,7 @@ namespace Unturned2.Line2
             actors.Clear();
         }
 
-        private bool TryFindGround(int index, out Vector3 location)
+        private bool TryFindGround(int index, List<PrototypeActor> inFlight, out Vector3 location)
         {
             location = Vector3.zero;
             Player local = Player.player;
@@ -215,6 +242,9 @@ namespace Unturned2.Line2
                 if ((candidate - origin).sqrMagnitude < 25f) continue;
                 bool nearOther = false;
                 foreach (PrototypeActor a in _actors)
+                    if (a != null && (a.transform.position - candidate).sqrMagnitude < 9f)
+                        nearOther = true;
+                foreach (PrototypeActor a in inFlight)
                     if (a != null && (a.transform.position - candidate).sqrMagnitude < 9f)
                         nearOther = true;
                 if (nearOther) continue;
@@ -241,6 +271,9 @@ namespace Unturned2.Line2
         private CharacterController _controller;
         private string _disposition;
         private string _identity;
+        private string _displayName;
+        private float _nextObstacleProbeAt;
+        private bool _pathBlocked;
         private Vector3 _goal;
         private Vector3 _home;
         private float _nextThink;
@@ -253,6 +286,9 @@ namespace Unturned2.Line2
             _disposition = disposition;
             _controller = controller;
             _identity = identity;
+            string[] names = { "Alex", "Morgan", "Sam", "Casey", "Jordan", "Riley", "Taylor", "Robin" };
+            _displayName = names[UnityEngine.Random.Range(0, names.Length)] +
+                           " (" + disposition + ")";
             _home = transform.position;
             _goal = _home;
             _nextThink = Time.time;
@@ -294,27 +330,48 @@ namespace Unturned2.Line2
             // Physics raycast prevents walking directly into nearby walls.
             if (direction.sqrMagnitude > 0)
             {
-                RaycastHit hit;
-                if (Physics.SphereCast(transform.position + Vector3.up, 0.25f,
-                                       direction, out hit, 1.25f, ~0,
-                                       QueryTriggerInteraction.Ignore) &&
-                    hit.transform != transform &&
-                    !hit.transform.IsChildOf(transform))
+                if (Time.time >= _nextObstacleProbeAt)
+                {
+                    _nextObstacleProbeAt = Time.time + 0.2f;
+                    RaycastHit hit;
+                    _pathBlocked = Physics.SphereCast(
+                        transform.position + Vector3.up, 0.25f,
+                        direction, out hit, 1.25f, ~0,
+                        QueryTriggerInteraction.Ignore) &&
+                        hit.transform != transform &&
+                        !hit.transform.IsChildOf(transform);
+                }
+                if (_pathBlocked)
                 {
                     direction = Vector3.zero;
                     _blockedSince = Time.time - 6.8f;
                 }
                 else
-                {
                     transform.rotation = Quaternion.RotateTowards(transform.rotation,
                         Quaternion.LookRotation(direction), 420f * Time.deltaTime);
-                }
             }
             if (_controller.isGrounded && _verticalVelocity < 0f)
                 _verticalVelocity = -1.0f;
             _verticalVelocity += Physics.gravity.y * Time.deltaTime;
             _controller.Move((direction * speed +
                               Vector3.up * _verticalVelocity) * Time.deltaTime);
+        }
+
+        private void OnGUI()
+        {
+            Camera cam = Camera.main;
+            if (cam == null || Player.player == null || string.IsNullOrEmpty(_displayName))
+                return;
+            Vector3 cameraPosition = cam.transform.position;
+            if ((cameraPosition - transform.position).sqrMagnitude > 17f * 17f)
+                return;
+            Vector3 screen = cam.WorldToScreenPoint(transform.position + Vector3.up * 2.25f);
+            if (screen.z <= 0 || screen.x < 0 || screen.x > Screen.width ||
+                screen.y < 0 || screen.y > Screen.height)
+                return;
+            Rect bounds = new Rect(screen.x - 100f, Screen.height - screen.y - 12f,
+                                   200f, 22f);
+            GUI.Label(bounds, _displayName);
         }
 
         private bool CanSeePlayer(Player player)
