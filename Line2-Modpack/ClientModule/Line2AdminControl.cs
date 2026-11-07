@@ -220,7 +220,7 @@ namespace Unturned2.Line2
                     Save();
                     PushRuntimeSettings();
                     _feedback = "Combat mode configured: " + _settings.combatMode +
-                        ". Prototype movement responds to mode; native combat is not installed.";
+                        ". Local combat adapters are experimental and not gameplay-validated.";
                     break;
                 case "spawn":
                     if (args.Length < 2 || args.Length > 3 ||
