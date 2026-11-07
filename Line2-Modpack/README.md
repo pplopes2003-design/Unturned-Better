@@ -261,3 +261,9 @@ The legacy `MobileNPCInjurySystem`, `MobileNPCBodyHitbox`, and `MobileNPCDamageB
 The legacy `MobileNPCDoorNavigation` was adapted to original Steam API: no unshipped `IsLockedForMobileNPCNavigation` property or inaccessible `FindBarricadeByRootFast`. It reads the native private lock flag only when available and uses public door state methods. It cannot create unavailable indoor A* edges.
 
 **All additions require successful Steam compilation and gameplay verification.** The bullet path specifically depends on vanilla issuing a `NONE` hit with the NPC impact point; do not assume this protocol works until observed in the player's game. NPC weapon attacks and NPC-vs-zombie combat are not implemented by this addition. See [LINE1_DIRECT_PORTS.md](LINE1_DIRECT_PORTS.md).
+
+## Combat perception and native melee bridge (2026-11-07)
+
+The Line 1 player→hostile-NPC→zombie perception hierarchy and the unarmed branch of `MobileNPCHumanoidCombat` were adapted into `Line2NPCCombatPerception` and `Line2NPCMeleeExecutor`. The local server uses real view/physical-hit checks and native `DamageTool.damagePlayer`, `Zombie.askDamage` or a rival NPC's single shared health owner. A bounded sample of `ZombieManager.AllZombies` permits sensing real nearby zombies across a navigation region boundary without increasing zombie counts; actual routing still depends on Steam's native A* Seeker. The prototype plays only animation clips actually found on `NPC_Client`. The `Line2NPCCombatRules` logic is covered by standalone C# tests.
+
+**Not compiled as a complete Steam module; no gameplay tests passed yet.** No NPC gun inventory/ammo/reload/shooting, no zombie native attacks against humanoid NPCs, no persistent faction radios or full decision driver. Details: [LINE1_COMBAT_MIGRATION.md](LINE1_COMBAT_MIGRATION.md).
