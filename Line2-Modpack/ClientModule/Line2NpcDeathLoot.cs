@@ -37,6 +37,7 @@ namespace Unturned2.Line2
             _resolved = true;
             if (!Provider.isServer || Dedicator.IsDedicatedServer ||
                 !Level.isLoaded || _inventory == null ||
+                ItemManager.instance == null ||
                 (Provider.clients != null && Provider.clients.Count > 1))
                 return;
             int count = Mathf.Min(18, _inventory.UsedSlots);
