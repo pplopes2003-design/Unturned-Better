@@ -55,5 +55,26 @@ class PopulationModelTests(unittest.TestCase):
         self.assertEqual(state["pending"][0]["ready_at"],61.0)
         self.assertEqual(state["mode"],"total")
 
+    def test_state_round_trip_retains_group_and_respawn_queue(self):
+        p=PopulationModel(cap=3,respawn_delay=10)
+        a=p.spawn("friendly")
+        b=p.spawn("friendly")
+        gid=p.form_group([a.uid,b.uid])
+        p.kill(a.uid,1)
+        restored=PopulationModel.from_state(p.export_state())
+        self.assertEqual(restored.active_count,1)
+        self.assertEqual(restored.pending[0].ready_at,11)
+        replacement=restored.tick(11)[0]
+        self.assertNotEqual(replacement.uid,a.uid)
+        self.assertEqual(replacement.group,gid)
+
+    def test_invalid_saved_data_refused(self):
+        p=PopulationModel(cap=1)
+        a=p.spawn("neutral")
+        state=p.export_state()
+        state["actors"].append(dict(state["actors"][0]))
+        with self.assertRaises(ValueError):
+            PopulationModel.from_state(state)
+
 if __name__=="__main__":
     unittest.main()
