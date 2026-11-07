@@ -36,6 +36,21 @@ namespace Unturned2.Line2
         private int _failedChoices;
         private float _lastGuardAt;
         internal Job CurrentJob { get { return _job; } }
+        private int _verifiedItemsCollected;
+        internal void RecordVerifiedWorldPickup()
+        {
+            if (!Provider.isServer || _actor == null || _actor.IsDead) return;
+            _verifiedItemsCollected = Mathf.Min(1000000, _verifiedItemsCollected + 1);
+            if (_hasDestination)
+            {
+                // Confirmed native item transfer completes the locally
+                // observed site objective, not an artificial loot report.
+                Remember(_destination);
+                _hasDestination = false;
+                _nextSelectionAt = Time.time + 3f;
+            }
+        }
+
 
         internal void Initialize(PrototypeActor actor)
         {
