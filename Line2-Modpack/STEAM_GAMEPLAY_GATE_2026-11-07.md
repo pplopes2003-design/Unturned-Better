@@ -12,6 +12,10 @@
 - Foram integrados adaptadores experimentais para: persistência por mapa (incluindo ferimentos e NPCs de regiões ainda não carregadas), necessidades, cura com itens nativos, diálogos/comércio por XP, reposição atrasada, ataque de zumbis a NPCs, rally local de hordas, múltiplos pellets e trajetória de projétil, lançamento físico de granadas nativas e loot do inventário do NPC morto. Todos exigem compilação contra os assemblies Steam e validação in-game.
 - Da Linha 1 foram migrados o planejador A* incremental de horizonte (61m), validação física de arestas/pisos/portas, salto por peitoril baixo e rotina A-Life de exploração/guarda/recuperação. Foi acrescentada construção real limitada de 4 barricadas nativas por grupo, com consumo de materiais/carregamento de receitas nativas e registro por mapa. Isso **não** equivale ao `BrainDriver` completo nem a construção avançada de casas/fortalezas.
 - `Line2NpcObstacleAudit` registra apenas colisões realmente observadas com objeto nativo, tipo de colisor, camada e destino; serve para localizar os assets que continuam bloqueando a IA, sem desativar fisicamente paredes ou vidros.
+- O `MobileNPCBrainDriver` da Linha 1 ganhou nesta rodada um port parcial de **monitoramento de progresso físico tático**, temporização de fuga/flanqueamento, bloqueio de rotas sem conexão e **reagrupamento pessoalmente observado** de aliados. Chegar à posição de recuo não encerra o recuo imediatamente. Contato visual com inimigo interrompe tarefas de regroup/observação de raid.
+- A morte real do NPC agora faz um checkpoint mesmo com natural spawn desativado, evitando reaparecimento de personagem morto após a criação de loot de cadáver.
+- O reconhecimento de base rival ganhou **ataque corpo a corpo com item melee nativo**, contra barricada física observada e não pertencente a jogador (aplicação via `BarricadeManager.damage`, desgaste do item). Raids explosivas/coordenadas, não.
+- A busca de integrantes da horda examina uma janela limitada de zumbis já carregados inclusive além da região de navegação do líder; `Zombie.alert` e o caminho vanilla continuam responsáveis pelo movimento, sem garantia de perseguição inter-regional.
 - A aprovação da pipeline não comprova navegação indoor, dano de zumbis em NPCs, A-Life, bases, comércio ou persistência.
 
 ## Preparação
@@ -30,28 +34,30 @@
 | Carregamento do módulo | `Module initialized` e menu F7 | Pendente de teste Steam |
 | Spawn e anatomia | NPC visível, colisor funcional, nome e hitboxes | Pendente de teste Steam |
 | Percepção e localhost | `NPC_AI_LIVE_BATCH_OK` com NPC válido | Pendente de teste Steam |
-| Saúde real e recuo | Dano validado reduz HP; sob pressão NPC procura cobertura/recuo | Pendente de teste Steam |
+| Saúde real e recuo | Dano validado reduz HP; sob pressão NPC procura cobertura/recuo | Monitor físico de destino, limite de travamento, blacklist de fuga e manutenção temporária de cobertura/flanco implementados; Steam pendente |
 | Combate completo | Armas gastam munição real e respeitam recarga, cadência, precisão e LOS | Pendente de teste Steam |
 | Explosões | Granada nativa causa dano verificado aos NPCs na camada Agent | Pendente de teste Steam |
 | Portas e janelas | Entrada/saída por portal real sem atravessar paredes | Portas nativas + fallback incremental + salto físico baixo implementados; escadas, vidros e janelas exigem validação no Steam |
 | Zumbis contra NPCs | Zumbi percebe, persegue e causa dano no NPC | Adaptador local experimental integrado; teste Steam pendente |
-| Hordas/regiões | População vanilla respeitada e transição regional | Rally local no mesmo nav bound; perseguição entre regiões NÃO implementada |
+| Hordas/regiões | População vanilla respeitada e transição regional | Descoberta delimitada de integrantes em regiões carregadas vizinhas; A* original recebe posição. Perseguição efetiva inter-regional NÃO comprovada/garantida |
 | Loot do chão | Transferência atômica sem duplicação/perda após reinício | **Código local conectado; Steam não validado:** só itens físicos no alcance, por ID exato, com rollback e checkpoint pós-coleta; suporte multiplayer permanece bloqueado |
-| Comércio/bases/A-Life | Ciclo de interação, tarefas, materiais e mundo persistido | Comércio básico, necessidades, coleta local, exploração, bases simples com barricadas nativas e observação visual de rival/estágio de raid codificados; depósitos/raids completos/fortalezas, não |
+| Comércio/bases/A-Life | Ciclo de interação, tarefas, materiais e mundo persistido | Comércio básico, necessidades, coleta, exploração, reagrupamento, bases simples nativas e reconhecimento/invasão com melee de barricada rival codificados; logística/raids explosivas/fortalezas, não |
 | Multiplayer | Host autoritativo, replicação, entrada/saída, reconexão | Não integrado; runtime local suspende NPCs se entrar outro jogador |
 
 ## Componentes e prioridades que ainda impedem o teste único final
 
 1. **Compatibilidade real:** compilar toda `ClientModule` com a versão instalada do Unturned Steam e resolver eventuais APIs Unity/Assembly-CSharp divergentes. O Windows CI testa políticas C# isoladas, Python e superfícies textuais de SDK, não o módulo real.
-2. **Cérebro completo:** portar os estados restantes de `MobileNPCBrainDriver` e operadores táticos, incluindo objetivos de facção, formação de grupos, invasões, recuo em combate prolongado e reação avançada a zumbis. Hoje há subconjuntos funcionais integrados e prioridade local de combate; **não** uma porta 1:1 completa.
-3. **A-Life e bases:** validar o novo algoritmo de coleta do chão contra o `ItemManager` real (sem perdas/duplicação entre checkpoints), construção persistente das barricadas nativas e suas colisões; acrescentar caixas/depósitos/ocupação de estruturas, planejamento logístico, invasão e destruição coordenada de bases usando armas e explosivos realmente carregados. A aproximação de raid atual é reconhecimento físico + movimentação, não destruição autônoma completa.
+2. **Cérebro completo:** portar restantes de `MobileNPCBrainDriver` e operadores táticos (investigação acústica avançada, emboscadas, formação/ordens de esquadrão, retirada coletiva, invasões em várias fases, sobrevivência econômica). Recusa de rotas bloqueadas, manutenção temporária de fuga/flanco, grupo observado e priorização pessoal já estão integrados; **não** uma porta 1:1 completa.
+3. **A-Life e bases:** validar coleta real do chão e snapshots (sem perdas/duplicação entre checkpoints), construção persistente das barricadas e colisões. Acrescentar armazenamento/depósitos/ocupação/recursos, armamento de cerco explosivo, coordenação de múltiplos invasores e tomada de base. O raid atual é reconhecimento, movimentação e possível **desgaste melee da barricada rival observada**, não uma incursão completa.
 4. **Navegação avançada:** comprovar conexão do ASPFP original e do grafo alternativo com portas, janelas quebradas, baixa travessia física, escadas, andares e obstáculos móveis em mapas reais sem clip ou teletransporte.
 5. **Zumbis:** validar dano mútuo, perseguição em regiões/níveis e o comportamento de investigação/hordas ao perder o alvo; o rally atual reutiliza zumbis já existentes, não altera o limite vanilla nem garante travessia de regiões.
 6. **Multiplayer integrado:** host Steam, sincronização autoritativa de NPCs/danos/itens/radio e entrada/reconexão de convidados. A Linha 2 permanece intencionalmente singleplayer local enquanto isso não existir.
 7. **Auto 32 e distribuição:** preservar IDs, carregadores 24/12, rajada automática, material de modpack/Workshop e assinatura/instalação, testando possíveis conflitos de mods no cliente Steam.
 
 ### Evidência de testes desta rodada
-- `BrainTests` do código original portado: sucesso na rota incremental por qualquer lado da parede e recusa de caminhos desconectados.
+- `BrainTests` do código original portado: sucesso na rota incremental por qualquer lado da parede, recusa de caminhos desconectados e detecção `no-connected-route`.
+- Monitor tático determinístico: progresso real, falha após ausência de movimento, tempo máximo do A* pendente, impossibilidade de chegar em outro andar e retenção temporária do ponto de fuga/flanco.
+- Reagrupamento: política isolada rejeita líder sem visão, perigo ativo, aliado recrutado, diferença vertical, distâncias inválidas e NaN.
 - Persistência isolada: ida e volta de inventário, grupos, ferimentos, identidades, tickets de reposição e manifesto de barricadas de cada base, com rejeição de registros corrompidos.
 - Ledger de grupos isolado: sem duplicar posição de barricadas, máximo de 4 por grupo, separação entre bases rivais, cópias independentes e não reaproveitamento de IDs de bases extintas (com ligação de runtime).
 - A auditoria `check_sdk_api_surface.py` inclui os símbolos originais de granadas, objetos de mapa, portas, transação de itens (`ItemManager.regions`, `ItemData`, `ReceiveDestroyItem`), construção (`BarricadeManager.dropBarricade`) e reconhecimento de barricadas (`FindBarricadeByRootTransform`).
