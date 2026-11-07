@@ -21,6 +21,7 @@ namespace Unturned2.Line2
         private CharacterController _controller;
         private bool _dead;
         private float _nextDiagnosticAt;
+        private Line2MobileNPCInjurySystem _injuries;
 
         internal float HealthFraction { get { return Mathf.Clamp01(_health / MaximumHealth); } }
         internal float Health { get { return _health; } }
@@ -39,6 +40,7 @@ namespace Unturned2.Line2
         private void Awake()
         {
             _controller = GetComponent<CharacterController>();
+            _injuries = GetComponent<Line2MobileNPCInjurySystem>();
         }
 
         public bool Equals(IExplosionDamageable other)
@@ -102,8 +104,52 @@ namespace Unturned2.Line2
             if (damage < 0.05f) return;
             LastDamageOrigin = parameters.point;
             HasExplosionOrigin = true;
+            if (_injuries != null)
+                _injuries.ApplyInjuryEffectsServer(
+                    Line2MobileNPCInjurySystem.BodyPart.Torso, damage,
+                    false, false,
+                    Line2MobileNPCInjurySystem.BleedingSeverity.None);
             ApplyServerDamage(damage, delta.sqrMagnitude > 0.001f
                 ? delta.normalized : Vector3.up);
+        }
+
+        // Compatibility boundary for the original Line 1 injury system.
+        // All actual health mutations still have exactly one owner.
+        public bool ApplyDamage(float amount)
+        {
+            return ApplyServerDamage(amount, Vector3.zero);
+        }
+
+        public bool Heal(float amount)
+        {
+            if (!Provider.isServer || Dedicator.IsDedicatedServer ||
+                _dead || float.IsNaN(amount) || float.IsInfinity(amount) ||
+                amount <= 0f)
+                return false;
+            float previous = _health;
+            _health = Mathf.Min(MaximumHealth, _health + amount);
+            return _health > previous;
+        }
+
+        public bool ApplyDamageToPart(float damage,
+            Line2MobileNPCInjurySystem.BodyPart part,
+            bool causeBleeding, bool causeFracture,
+            Line2MobileNPCInjurySystem.BleedingSeverity severity,
+            Vector3 impulse)
+        {
+            if (!Provider.isServer || Dedicator.IsDedicatedServer || _dead ||
+                damage <= 0f || float.IsNaN(damage) || float.IsInfinity(damage))
+                return false;
+
+            if (_injuries == null)
+                _injuries = GetComponent<Line2MobileNPCInjurySystem>();
+            // Limb metadata is recorded, but NEVER damages health itself.
+            // ApplyServerDamage below deducts the total damage only once.
+            if (_injuries != null &&
+                !_injuries.ApplyInjuryEffectsServer(part, damage,
+                    causeBleeding, causeFracture, severity))
+                return false;
+            return ApplyServerDamage(damage, impulse);
         }
 
         internal bool ApplyServerDamage(float amount, Vector3 direction)
@@ -116,7 +162,7 @@ namespace Unturned2.Line2
             _lastDamageAt = Time.time;
             if (_nextDiagnosticAt <= Time.time)
             {
-                ProbeLogger.Log("NPC_EXPLOSION_DAMAGE: actor=" + gameObject.name +
+                ProbeLogger.Log("NPC_DAMAGE: actor=" + gameObject.name +
                     " damage=" + amount.ToString("F1") +
                     " remaining=" + _health.ToString("F1"));
                 _nextDiagnosticAt = Time.time + 0.5f;
