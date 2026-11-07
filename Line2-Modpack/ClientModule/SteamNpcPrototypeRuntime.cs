@@ -1209,7 +1209,9 @@ namespace Unturned2.Line2
                 var facts = new NpcDecisionInput
                 {
                     IsHostile = _disposition == "hostile",
-                    IsFriendly = _disposition == "friendly",
+                    // Follow is an explicitly accepted alliance contract:
+                    // ordinary friendly NPCs keep their own A-Life routine.
+                    IsFriendly = _disposition == "friendly" && _recruited,
                     PassiveMode = _combatMode == "passive",
                     PlayerNearby = nearPlayer,
                     ThreatVisible = visible,
