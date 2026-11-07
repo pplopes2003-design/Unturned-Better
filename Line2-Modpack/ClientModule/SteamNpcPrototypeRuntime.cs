@@ -418,6 +418,8 @@ namespace Unturned2.Line2
                     actor.AttachRangedExecutor(ranged);
                     var grenades = instance.AddComponent<Line2NpcGrenadeThrower>();
                     grenades.Initialize(this, actor, combatSight, ownedInventory);
+                    var raid = instance.AddComponent<Line2NpcRaidObserver>();
+                    raid.Initialize(actor);
                     var radio = instance.AddComponent<Line2NPCRadioOutbox>();
                     radio.Initialize(this, actor, combatSight, ownedInventory);
                     actor.Died += OnActorDied;
@@ -1007,6 +1009,24 @@ namespace Unturned2.Line2
             }
         }
 
+        /// <summary>
+        /// Approaches a physically observed rival construction from validated
+        /// ground only. Damage still requires ammunition/grenade and native
+        /// line-of-sight. An AI or a base ledger cannot grant a blind hit.
+        /// </summary>
+        internal bool TryStageObservedRaid(Vector3 verifiedPoint)
+        {
+            if (!IsCombatEnabled || _disposition != "hostile" ||
+                _tactics.CurrentGoal != Line2MobileNPCTactics.Goal.None ||
+                _combatPerception == null ||
+                (_combatPerception.Kind !=
+                    Line2NPCCombatPerception.TargetKind.None &&
+                 _combatPerception.VisibleTarget != null) ||
+                !Level.checkSafeIncludingClipVolumes(verifiedPoint))
+                return false;
+            return _tactics.TryStartRaidStaging(verifiedPoint, Time.time);
+        }
+
         internal void HearVerifiedGunshot(Vector3 position, float heardAt)
         {
             if (_disposition != "hostile" || _combatMode == "passive") return;
@@ -1306,7 +1326,8 @@ namespace Unturned2.Line2
 
                 if ((_tactics.CurrentGoal == Line2MobileNPCTactics.Goal.SeekCover ||
                      _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Retreat ||
-                     _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Flank) &&
+                     _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Flank ||
+                     _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.RaidStaging) &&
                     _tactics.HasTacticalDestination &&
                     !(_tactics.IsGoalExpired(Time.time)) &&
                     _combatMode != "passive")
