@@ -105,3 +105,20 @@ Somente singleplayer com cheats, sem BattleEye; nao em servidores.
 Depende da versao atualizada da DLL C# compilada/carregada.
 Consultar probe.log para BURST_BRIDGE_READY / BURST_NATIVE_RETRIGGER_OK.
 AINDA NAO VALIDADO NA STEAM: nao considerar a funcao concluida.
+
+==========================================================
+ZUMBIS E IA NPC — ESTADO DE INTEGRACAO ATUAL
+==========================================================
+!u2 zombies on           Habilita prioridade do player a 20m visao limpa
+!u2 zombies off          Desabilita (padrao). NAO muda numero de zumbis
+!u2 status               Mostra NPCs instanciados e ultimo status da IA local
+F11                      Mede coordenadas REAIS de regiao (x,y),
+                         hunting/dead/bound, movimento e desaparecimento.
+                         bound NAO e regiao espacial.
+
+NPCs: iniciar python AIService/server.py em outro terminal. Os NPCs hostis
+instanciados na Linha 2 enviam visao/posicao para o AI Service e recebem
+idle/investigate/engage para o movimento, com fallback local.
+Acoes seek_cover/retreat nao estao habilitadas ate haver vida/dano/cobertura.
+
+Aguarde a bateria final integrada; NAO ha confirmacao de compilacao Steam.
