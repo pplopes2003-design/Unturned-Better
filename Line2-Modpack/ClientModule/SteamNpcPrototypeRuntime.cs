@@ -1484,16 +1484,12 @@ namespace Unturned2.Line2
             if (_controller.isGrounded && _verticalVelocity < 0f)
                 _verticalVelocity = -1.0f;
             _verticalVelocity += Physics.gravity.y * Time.deltaTime;
-            if (_tactics.HasTacticalDestination &&
-                (transform.position - _tactics.TacticalDestination).sqrMagnitude < 2.25f)
-            {
-                if (_experience != null &&
-                    _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.SeekCover)
-                    _experience.RecordOwnOutcomeServer(
-                        Line2MobileNPCAdaptiveMemory.ExperienceKind.CoverAccess,
-                        _tactics.TacticalDestination, true);
-                _tactics.ReportGoalReached();
-            }
+            // Arrival is handled by MonitorTacticalProgress AFTER the real
+            // CharacterController.Move. A verified retreat point must stay
+            // committed as a temporary refuge, and a flank point as a
+            // firing position, until the original tactic's deadline expires.
+            // The former eager ReportGoalReached() made wounded NPCs turn
+            // straight back toward their attacker.
             // Arrival is a physical observation, not merely a requested
             // waypoint. The migrated Line 1 brain advances its three-point
             // investigation spiral only when the CharacterController arrives.
@@ -1549,6 +1545,8 @@ namespace Unturned2.Line2
                 _tactics.ReportGoalReached();
                 return;
             }
+            if (progress == Line2NpcTacticalJourneyWatchdog.Outcome.Holding)
+                return; // keep finite retreat/flank goal until deadline
             if (progress != Line2NpcTacticalJourneyWatchdog.Outcome.Blocked)
                 return;
             // The native CharacterController never made progress for this
