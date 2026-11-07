@@ -23,6 +23,7 @@ namespace Unturned2.Line2
             new List<Transform>(40);
         private readonly RaycastHit[] _hits = new RaycastHit[MaxPhysicalHits];
         private PrototypeActor _actor;
+        private Line2NpcRaidBreacher _breacher;
         private float _nextAt;
         private float _nextReconsider;
         private float _nextLogAt;
@@ -30,6 +31,7 @@ namespace Unturned2.Line2
         internal void Initialize(PrototypeActor actor)
         {
             _actor = actor;
+            _breacher = GetComponent<Line2NpcRaidBreacher>();
             _nextAt = Time.time + UnityEngine.Random.Range(4f, 9f);
         }
 
@@ -86,10 +88,24 @@ namespace Unturned2.Line2
                         region.FindBarricadeByRootTransform(candidate);
                     if (native == null || native.asset == null ||
                         native.asset.id != observed.assetId ||
+                        native.GetServersideData() == null ||
+                        native.GetServersideData().owner != 0ul ||
+                        native.GetServersideData().group != 0ul ||
                         !HasUnobstructedSight(eye,
                             candidate.position + Vector3.up * 0.8f,
                             candidate))
                         continue;
+                    // After physically observing the original rival base
+                    // piece, a nearby raider with a real melee item can
+                    // attack that exact native barricade. The vanilla
+                    // manager owns armor, callbacks and final destruction.
+                    if (_breacher != null &&
+                        _breacher.TryStrikeVerifiedRivalServer(
+                            camp.groupId, native, candidate))
+                    {
+                        _nextAt = Time.time + 1.8f;
+                        return;
+                    }
                     Vector3 staging;
                     if (!TryFindStaging(camp.Anchor, out staging) ||
                         !_actor.TryStageObservedRaid(staging))
