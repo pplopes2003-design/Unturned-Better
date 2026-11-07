@@ -213,3 +213,13 @@ Two new Python generators were added and the Modpack Manager now has a dedicated
 **Not yet validated in Unturned Steam:** Eaglefire model/auto mode, incendiary effect, loot root and Auto24 rebalance. Python tests were added for generated asset metadata and collision safeguards; execution results should be read from Windows test output/Actions, not assumed green.
 
 The earlier NPC admin menu and AI Service work remain separate. No actual Steam-side mobile NPC spawning, combat, true Burner ignition or cross-region zombie chasing is shipped as functional yet.
+
+## Native-humanoid NPC prototype (source only; not final Line 1 migration)
+
+The Line 2 C# module now registers `SteamNpcPrototypeRuntime` alongside existing diagnostics. It attempts to load the game's existing `Characters/NPC_Client` Resources prefab (confirmed in checked-in U3 SDK main source) and uses a real `CharacterController` rather than creating a white capsule placeholder. Local cheats, local singleplayer authority and `!u2 npc on` are mandatory. When authorized, `!u2 spawn friendly|neutral|hostile [1..5]` can create NPC **prototypes**; `!u2 natural on` requests one spawn about every 18 seconds until the cap; `!u2 npc off` deletes them. The native mesh is required: a missing resource causes a logged refusal. CharacterControllers do bounded obstacle scans and local roaming/following, and a native Animation clip adapter attempts idle/walk playback. Lightweight IMGUI names appear nearby.
+
+**Critical:** no real weapon damage, injury/death, door pathfinding, indoor navigation, NPC-vs-zombie engagement, dialogue/shop, radio equipment/interception, faction group lifecycle or game save hooks are wired into these actors. The Python radio and faction models remain separate and must be connected to an authoritative live game adapter. Do **not** treat a created GameObject as proof the complete AI has been ported. The module has not yet been built against a current Steam installation, so every interaction and the resource name must be confirmed by a local C# build and game test.
+
+Building this module needs the Steam's `UnityEngine.AnimationModule.dll` and `UnityEngine.IMGUIModule.dll` references; those were added to `ClientModule/Unturned2.Line2.Probe.csproj`. The default cap is 8, with 32 as an absolute maximum. This prototype is intentionally opt-in and never touches vanilla NPC/zombie populations or native save data.
+
+Track full integration, gate criteria and future **single consolidated** acceptance test in [NPC_INTEGRATED_ACCEPTANCE.md](NPC_INTEGRATED_ACCEPTANCE.md).
