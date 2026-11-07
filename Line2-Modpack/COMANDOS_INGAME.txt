@@ -92,3 +92,16 @@ NPC STEAM — PROTOTIPO ISOLADO (NAO VERSAO FINAL)
 Requer cheats, singleplayer e DLL recompilada.
 Nao e recomendada a validacao final antes do adaptador de dano,
 comercio, portas, IA completa, radio e persistencia.
+
+==========================================================
+EAGLEFIRE LENDARIA — RAJADAS REPETIDAS NATIVAS (PENDENTE TESTE)
+==========================================================
+ID 32612: Eaglefire lendaria
+Selecionar modo BURST de 3 tiros no jogo, segurar clique esquerdo.
+O modulo C# RepeatingBurstGameBridge tenta solicitar uma nova rajada
+0,25 s apos o terceiro tiro da rajada anterior.
+Modo SEMI e modo AUTO convencionais permanecem distintos.
+Somente singleplayer com cheats, sem BattleEye; nao em servidores.
+Depende da versao atualizada da DLL C# compilada/carregada.
+Consultar probe.log para BURST_BRIDGE_READY / BURST_NATIVE_RETRIGGER_OK.
+AINDA NAO VALIDADO NA STEAM: nao considerar a funcao concluida.
