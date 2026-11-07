@@ -44,6 +44,12 @@ class LegendaryItemTests(unittest.TestCase):
         self.assertEqual(shell["pellets"],"1")
         self.assertEqual(shell["range"],"1.25")
         self.assertIn("explosive",shell)
+        loot=parse_dat(self.output/"Spawns/LegendaryLootPool/Asset.dat")
+        self.assertEqual(loot["type"],"Spawn")
+        self.assertEqual(loot["id"],"32614")
+        self.assertEqual(loot["table_0_asset_id"],"32610")
+        self.assertEqual(loot["table_1_asset_id"],"32612")
+        self.assertEqual(loot["table_2_asset_id"],"32613")
 
     def test_id_collision_rejected(self):
         conflict=self.game.parent/"workshop"/"bad"
@@ -51,6 +57,14 @@ class LegendaryItemTests(unittest.TestCase):
         (conflict/"Asset.dat").write_text("Type Magazine\nID 32613\n")
         with self.assertRaises(ValueError):
             build_legendaries(self.game,self.output,extra_roots=[conflict])
+        self.assertFalse(self.output.exists())
+
+    def test_loot_table_id_conflict(self):
+        conflict=self.game/"Bundles"/"Spawns"/"Existing"
+        conflict.mkdir(parents=True)
+        (conflict/"Asset.dat").write_text("Type Spawn\nID 32614\n")
+        with self.assertRaises(ValueError):
+            build_legendaries(self.game,self.output)
         self.assertFalse(self.output.exists())
 
     def test_auto24_keeps_original_identity(self):
