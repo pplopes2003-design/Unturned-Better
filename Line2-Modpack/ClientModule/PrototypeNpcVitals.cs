@@ -104,6 +104,8 @@ namespace Unturned2.Line2
             if (damage < 0.05f) return;
             LastDamageOrigin = parameters.point;
             HasExplosionOrigin = true;
+            if (_injuries == null)
+                _injuries = GetComponent<Line2MobileNPCInjurySystem>();
             if (_injuries != null)
                 _injuries.ApplyInjuryEffectsServer(
                     Line2MobileNPCInjurySystem.BodyPart.Torso, damage,
@@ -129,6 +131,23 @@ namespace Unturned2.Line2
             float previous = _health;
             _health = Mathf.Min(MaximumHealth, _health + amount);
             return _health > previous;
+        }
+
+        // Legacy validated-hit contract. Attribution will be surfaced in
+        // death/loot systems after a native Steam damage hook is attached.
+        public bool ApplyDamage(float amount, Vector3 impulse, Transform attacker)
+        {
+            return ApplyServerDamage(amount, impulse);
+        }
+
+        public bool ApplyDamageToPart(float damage,
+            Line2MobileNPCInjurySystem.BodyPart part,
+            bool causeBleeding, bool causeFracture,
+            Line2MobileNPCInjurySystem.BleedingSeverity severity,
+            Vector3 impulse, Transform attacker)
+        {
+            return ApplyDamageToPart(damage, part, causeBleeding, causeFracture,
+                                    severity, impulse);
         }
 
         public bool ApplyDamageToPart(float damage,
