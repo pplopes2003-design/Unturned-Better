@@ -200,6 +200,15 @@ namespace Unturned2.Line2
             }
         }
 
+        public static void SaveZombieSnapshot(string json)
+        {
+            lock (Sync)
+            {
+                Directory.CreateDirectory(DirectoryPath);
+                File.AppendAllText(Path.Combine(DirectoryPath, "zombie-snapshots.jsonl"), json + Environment.NewLine);
+            }
+        }
+
         public static void SaveScan(string json)
         {
             lock (Sync)
