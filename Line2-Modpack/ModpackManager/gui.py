@@ -44,6 +44,7 @@ class App(tk.Tk):
         ttk.Button(advanced, text="Check conflicts", command=self.show_conflicts).pack(side="left", padx=4)
         ttk.Button(advanced, text="Apply profile", command=self.apply_profile).pack(side="left", padx=4)
         ttk.Button(advanced, text="Install C# module", command=self.install_module).pack(side="left", padx=4)
+        ttk.Button(advanced, text="Check AI service", command=self.check_ai_service).pack(side="left", padx=4)
         ttk.Label(self, textvariable=self.status_var, anchor="w", padding=9).pack(fill="x")
 
     def make_tab(self, title, help_text):
@@ -229,6 +230,19 @@ class App(tk.Tk):
                 self.refresh()
         except Exception as exc:
             messagebox.showerror("Module installation failed", str(exc))
+
+    def check_ai_service(self):
+        from ai_service_status import check_ai_service
+        result = check_ai_service()
+        self.status_var.set(result["message"])
+        if result["online"]:
+            messagebox.showinfo("AI service online",
+                "Local AI Service responds on 127.0.0.1:8765.\\n"
+                "Protocol: " + str(result["protocol"]) +
+                "\\nThis does NOT mean NPCs are being controlled.")
+        else:
+            messagebox.showwarning("AI service unavailable",
+                result["message"] + "\\n\\nOpen AIService in PowerShell and run python server.py.")
 
     def show_conflicts(self):
         try:
