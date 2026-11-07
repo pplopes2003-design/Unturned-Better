@@ -63,3 +63,13 @@ Generate Legendary Pack, instalar Content/LegendaryPack.
 O Spawn natural com peso baixo so esta conectado a Washington se
 a tabela vanilla Washington_Special_America ID 346 for identificada
 no diretorio Bundles/Spawns da instalacao.
+
+==========================================================
+DIAGNOSTICO EXTRA: EAGLEFIRE BURST REPETIDO
+==========================================================
+F6               Registra APIs de UseableGun e itens na instalacao Steam
+                 Arquivo: Unturned2-Line2/gun-api-discovery.txt
+                 Requer DLL C# recompilada e carregada.
+
+O agendador de sequencias 3 + pausa + 3 foi criado, mas NAO executa
+disparos no Steam. A Eaglefire 32612 ainda usa os modos nativos.
