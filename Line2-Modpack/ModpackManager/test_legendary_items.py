@@ -98,7 +98,7 @@ class LegendaryItemTests(unittest.TestCase):
         gun=self.auto/"Items/Guns/Auto_32/Asset.dat"
         mag=self.auto/"Items/Guns/Auto_32_Magazine/Asset.dat"
         old_guid=parse_dat(gun)["guid"]
-        upgrade_auto24(self.auto)
+        upgrade_staging_auto24(self.auto)
         gun_data=parse_dat(gun); mag_data=parse_dat(mag)
         self.assertEqual(gun_data["id"],"32610")
         self.assertEqual(gun_data["guid"],old_guid)
