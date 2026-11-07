@@ -220,6 +220,7 @@ namespace Unturned2.Line2
                     // DamageTool.explode discovers IExplosionDamageable
                     // through the root Agent CharacterController collider.
                     instance.AddComponent<PrototypeNpcVitals>();
+                    instance.AddComponent<Line2MobileNPCAdaptiveMemory>();
                     var actor = instance.AddComponent<PrototypeActor>();
                     actor.Initialize(disposition, movement, instance.name);
                     actor.SetCombatMode(_mode);
@@ -345,6 +346,7 @@ namespace Unturned2.Line2
         private PrototypeObstacleNavigator _navigation;
         private PrototypeAStarFollower _astarFollower;
         private PrototypeNpcVitals _vitals;
+        private Line2MobileNPCAdaptiveMemory _experience;
         private PrototypeCoverPlanner _coverPlanner;
         private Vector3 _coverGoal;
         private Vector3 _retreatGoal;
@@ -379,12 +381,15 @@ namespace Unturned2.Line2
             _navigation = GetComponent<PrototypeObstacleNavigator>();
             _astarFollower = GetComponent<PrototypeAStarFollower>();
             _vitals = GetComponent<PrototypeNpcVitals>();
+            _experience = GetComponent<Line2MobileNPCAdaptiveMemory>();
             if (_vitals != null)
             {
                 _vitals.Damaged += OnValidatedDamage;
+                _vitals.Died += OnValidatedDeath;
                 _tactics.ReportHealth(_vitals.Health, 100f);
             }
             _coverPlanner = GetComponent<PrototypeCoverPlanner>();
+            if (_coverPlanner != null) _coverPlanner.Initialize(_experience);
             _identity = identity;
             _aiAction = null;
             _lastKnownThreat = null;
@@ -411,10 +416,23 @@ namespace Unturned2.Line2
                 _tactics.ReportDamage(_vitals.Health, 100f, Time.time);
         }
 
+        private void OnValidatedDeath()
+        {
+            if (_experience != null)
+                _experience.ForgetOnDeathServer();
+            _legacyBrain.Reset();
+            _knowledge.Clear();
+            _tactics.ClearGoal();
+            _locomotion.Reset();
+        }
+
         private void OnDestroy()
         {
             if (_vitals != null)
+            {
                 _vitals.Damaged -= OnValidatedDamage;
+                _vitals.Died -= OnValidatedDeath;
+            }
         }
 
         internal void SetCombatMode(string mode)
@@ -677,7 +695,14 @@ namespace Unturned2.Line2
             _verticalVelocity += Physics.gravity.y * Time.deltaTime;
             if (_tactics.HasTacticalDestination &&
                 (transform.position - _tactics.TacticalDestination).sqrMagnitude < 2.25f)
+            {
+                if (_experience != null &&
+                    _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.SeekCover)
+                    _experience.RecordOwnOutcomeServer(
+                        Line2MobileNPCAdaptiveMemory.ExperienceKind.CoverAccess,
+                        _tactics.TacticalDestination, true);
                 _tactics.ReportGoalReached();
+            }
             // Arrival is a physical observation, not merely a requested
             // waypoint. The migrated Line 1 brain advances its three-point
             // investigation spiral only when the CharacterController arrives.
