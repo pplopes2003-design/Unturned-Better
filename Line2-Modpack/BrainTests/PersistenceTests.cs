@@ -37,21 +37,22 @@ internal static class PersistenceTests
             loaded[0].items[0].state[2] != 3)
             return false;
 
-        // Poisoned save must be rejected rather than treated as an empty world.
-        if (!Line2NpcPersistence.TryWrite(map,
+        // Invalid snapshots must be rejected BEFORE modifying the good file.
+        if (Line2NpcPersistence.TryWrite(map,
             new List<Line2NpcPersistence.ActorRecord> { survivor, survivor },
             out reason))
             return false;
-        if (Line2NpcPersistence.TryRead(map, out loaded, out reason) ||
-            loaded.Count != 0 || !reason.StartsWith("rejected:", StringComparison.Ordinal))
+        if (!Line2NpcPersistence.TryRead(map, out loaded, out reason) ||
+            loaded.Count != 1 || loaded[0].identity != survivor.identity)
             return false;
 
-        // A negative health survivor must not be resurrected.
+        // Dead or damaged records cannot overwrite valid living NPCs.
         survivor.health = -1f;
-        if (!Line2NpcPersistence.TryWrite(map,
+        if (Line2NpcPersistence.TryWrite(map,
             new List<Line2NpcPersistence.ActorRecord> { survivor }, out reason))
             return false;
-        if (Line2NpcPersistence.TryRead(map, out loaded, out reason))
+        if (!Line2NpcPersistence.TryRead(map, out loaded, out reason) ||
+            loaded.Count != 1 || loaded[0].health != 72.5f)
             return false;
         Console.WriteLine("NPC_PERSISTENCE_POLICY_OK: map key, roundtrip, equipment state, duplicate IDs, invalid health.");
         return true;
