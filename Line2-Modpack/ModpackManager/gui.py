@@ -178,7 +178,7 @@ class App(tk.Tk):
             target = mgr.staging / "Auto32"
             extra = [mgr.workshop] if mgr.workshop else []
             if not messagebox.askyesno("Generate experimental mod",
-                "Generate a staging-only Auto 32 gun and magazine using your installed Bluntforce models?\\n\\n"
+                "Generate a staging-only Auto 32 gun and magazine using your installed Bluntforce models?\n\n"
                 "This does not install the mod or modify vanilla files. "
                 "The 4-round incremental reload is NOT implemented."):
                 return
@@ -188,7 +188,7 @@ class App(tk.Tk):
             messagebox.showinfo("Auto 32 generated",
                 "Staging only. IDs: " + str(result["gun_id"]) + ", " +
                 str(result["magazine_id"]) +
-                "\\nReview BUILD_NOTES.txt and scan for conflicts before installation.")
+                "\nReview BUILD_NOTES.txt and scan for conflicts before installation.")
         except Exception as exc:
             messagebox.showerror("Auto 32 generation failed", str(exc))
 
@@ -211,9 +211,9 @@ class App(tk.Tk):
                 raise ValueError("Select soft, balanced or strong.")
             result = tune_staged_auto32(mgr.staging / "Auto32", preset)
             messagebox.showinfo("Recoil preset applied",
-                "Adjusted Auto 32 in staging only.\\nPreset: " + preset +
-                "\\nItem ID: " + result["id"] +
-                "\\nNext: Install local mod (Content), then restart the game.")
+                "Adjusted Auto 32 in staging only.\nPreset: " + preset +
+                "\nItem ID: " + result["id"] +
+                "\nNext: Install local mod (Content), then restart the game.")
         except Exception as exc:
             messagebox.showerror("Auto 32 recoil adjustment failed", str(exc))
 
@@ -229,9 +229,9 @@ class App(tk.Tk):
                 minvalue=1, maxvalue=65535)
             if fire_id is None: return
             if not messagebox.askyesno("Experimental Legendary Pack",
-                "Generate two items into staging only?\\n"
-                "Eaglefire: semi, 3-round burst and full-auto\\n"
-                "12 Gauge: small-area explosive shot, NOT verified Burner ignition.\\n"
+                "Generate two items into staging only?\n"
+                "Eaglefire: semi, 3-round burst and full-auto\n"
+                "12 Gauge: small-area explosive shot, NOT verified Burner ignition.\n"
                 "Natural spawns need map loot-table integration."):
                 return
             extras = [mgr.workshop] if mgr.workshop else []
@@ -240,11 +240,11 @@ class App(tk.Tk):
                                       extra_roots=extras)
             self.refresh()
             messagebox.showinfo("Legendary pack generated",
-                "Staging: " + result["path"] + "\\nEaglefire ID " + str(eagle_id) +
-                "\\nIncendiary 12G ID " + str(fire_id) +
-                "\\nVisual burner effect: " + str(result["effect_id"] or "not found") +
-                "\\nWashington loot root: " + ("attached" if result["washington_root_attached"] else "not found") +
-                "\\nReview README_TESTING.txt before deployment.")
+                "Staging: " + result["path"] + "\nEaglefire ID " + str(eagle_id) +
+                "\nIncendiary 12G ID " + str(fire_id) +
+                "\nVisual burner effect: " + str(result["effect_id"] or "not found") +
+                "\nWashington loot root: " + ("attached" if result["washington_root_attached"] else "not found") +
+                "\nReview README_TESTING.txt before deployment.")
         except Exception as exc:
             messagebox.showerror("Legendary pack failed", str(exc))
 
@@ -257,7 +257,7 @@ class App(tk.Tk):
                                  "in Managed Installs first, then upgrade staging and reinstall.")
             if not messagebox.askyesno("Upgrade Auto 32 to Legendary Auto 24",
                     "Keep the original item IDs and GUIDs but change magazine "
-                    "capacity to 24 and mark gun/magazine Legendary?\\n"
+                    "capacity to 24 and mark gun/magazine Legendary?\n"
                     "Only staging files will be edited."):
                 return
             result = upgrade_staging_auto24(mgr.staging / "Auto32")
@@ -265,7 +265,7 @@ class App(tk.Tk):
             messagebox.showinfo("Upgrade complete",
                 "Auto 24 staging updated. Gun ID " + result["gun_id"] +
                 ", magazine " + result["magazine_id"] +
-                ".\\nInstall local mod (Content), then restart Unturned.")
+                ".\nInstall local mod (Content), then restart Unturned.")
         except Exception as exc:
             messagebox.showerror("Auto 24 upgrade failed", str(exc))
 
@@ -280,8 +280,8 @@ class App(tk.Tk):
             plan = install_module(mgr, name)
             if plan["issues"]:
                 raise ValueError("Dependencies or duplicate modules: " + str(plan["issues"]))
-            if messagebox.askyesno("Install C# module", "Executable code can run inside Unturned. Only install trusted modules.\\n\\n" +
-                                   str(plan["module"]) + "\\n\\nInstall?"):
+            if messagebox.askyesno("Install C# module", "Executable code can run inside Unturned. Only install trusted modules.\n\n" +
+                                   str(plan["module"]) + "\n\nInstall?"):
                 install_module(mgr, name, confirm=True)
                 self.refresh()
         except Exception as exc:
@@ -293,12 +293,12 @@ class App(tk.Tk):
         self.status_var.set(result["message"])
         if result["online"]:
             messagebox.showinfo("AI service online",
-                "Local AI Service responds on 127.0.0.1:8765.\\n"
+                "Local AI Service responds on 127.0.0.1:8765.\n"
                 "Protocol: " + str(result["protocol"]) +
-                "\\nThis does NOT mean NPCs are being controlled.")
+                "\nThis does NOT mean NPCs are being controlled.")
         else:
             messagebox.showwarning("AI service unavailable",
-                result["message"] + "\\n\\nOpen AIService in PowerShell and run python server.py.")
+                result["message"] + "\n\nOpen AIService in PowerShell and run python server.py.")
 
     def show_conflicts(self):
         try:
@@ -312,7 +312,7 @@ class App(tk.Tk):
             for conflict in result["conflicts"][:12]:
                 lines.append(str(conflict["kind"]) + " " + str(conflict["value"]) + ": " +
                              ", ".join(a["owner"] for a in conflict["assets"]))
-            messagebox.showinfo("Conflict report", "\\n".join(lines))
+            messagebox.showinfo("Conflict report", "\n".join(lines))
         except Exception as exc:
             messagebox.showerror("Conflict scan failed", str(exc))
 
@@ -322,9 +322,9 @@ class App(tk.Tk):
             name = simpledialog.askstring("Apply profile", "Existing profile name:", initialvalue=mgr.profile_state()["active"])
             if not name: return
             plan = mgr.apply_profile(name)
-            summary = ("Profile: " + name + "\\nInstall: " + ", ".join(plan["add"]) +
-                       "\\nRemove to recovery: " + ", ".join(plan["remove"]) +
-                       "\\nSteam Workshop subscriptions are unchanged.\\n\\nApply changes?")
+            summary = ("Profile: " + name + "\nInstall: " + ", ".join(plan["add"]) +
+                       "\nRemove to recovery: " + ", ".join(plan["remove"]) +
+                       "\nSteam Workshop subscriptions are unchanged.\n\nApply changes?")
             if messagebox.askyesno("Confirm profile deployment", summary):
                 mgr.apply_profile(name, confirm=True)
                 self.refresh()
