@@ -247,6 +247,7 @@ namespace Unturned2.Line2
                     // through the root Agent CharacterController collider.
                     instance.AddComponent<PrototypeNpcVitals>();
                     instance.AddComponent<Line2MobileNPCInjurySystem>();
+                    instance.AddComponent<Line2MobileNPCDoorNavigation>();
                     instance.AddComponent<Line2MobileNPCAdaptiveMemory>();
                     instance.AddComponent<Line2MobileNPCTravelMemory>();
                     var actor = instance.AddComponent<PrototypeActor>();
@@ -377,6 +378,7 @@ namespace Unturned2.Line2
         private PrototypeAStarFollower _astarFollower;
         private PrototypeNpcVitals _vitals;
         private Line2MobileNPCInjurySystem _injuries;
+        private Line2MobileNPCDoorNavigation _doors;
         private Line2MobileNPCAdaptiveMemory _experience;
         private Line2MobileNPCTravelMemory _travelMemory;
         private PrototypeCoverPlanner _coverPlanner;
@@ -414,6 +416,7 @@ namespace Unturned2.Line2
             _astarFollower = GetComponent<PrototypeAStarFollower>();
             _vitals = GetComponent<PrototypeNpcVitals>();
             _injuries = GetComponent<Line2MobileNPCInjurySystem>();
+            _doors = GetComponent<Line2MobileNPCDoorNavigation>();
             _experience = GetComponent<Line2MobileNPCAdaptiveMemory>();
             _travelMemory = GetComponent<Line2MobileNPCTravelMemory>();
             if (_astarFollower != null)
@@ -769,6 +772,27 @@ namespace Unturned2.Line2
                 direction = _astarFollower.GetHeading(_goal);
             else if (direction.sqrMagnitude > 0 && _navigation != null)
                 direction = _navigation.GetHeading(direction, _goal);
+            if (direction.sqrMagnitude > 0 && _doors != null &&
+                _doors.TryHandleBlockingDoorServer(
+                    transform.position + Vector3.up * 1.0f,
+                    direction, 0.20f, 1.75f, RayMasks.BLOCK_COLLISION))
+            {
+                // A verified unlocked door is opening through native
+                // BarricadeManager or ObjectManager. Hold movement until
+                // its real collider/animation clears. Never phase through.
+                direction = Vector3.zero;
+            }
+            else if (direction.sqrMagnitude < 0.1f && _doors != null &&
+                     delta.sqrMagnitude > 2f)
+            {
+                // The native Seeker may still be waiting for a graph path.
+                // Only try physically blocking doors in the goal direction.
+                // This never grants a path that A* has not verified.
+                Vector3 intended = delta.normalized;
+                _doors.TryHandleBlockingDoorServer(
+                    transform.position + Vector3.up * 1.0f,
+                    intended, 0.20f, 1.6f, RayMasks.BLOCK_COLLISION);
+            }
             if (direction.sqrMagnitude > 0)
                 transform.rotation = Quaternion.RotateTowards(transform.rotation,
                     Quaternion.LookRotation(direction), 420f * Time.deltaTime);
