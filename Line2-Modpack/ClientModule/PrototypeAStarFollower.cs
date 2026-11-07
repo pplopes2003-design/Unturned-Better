@@ -16,6 +16,7 @@ namespace Unturned2.Line2
     {
         private Line2NativeAStarRouteProvider _provider;
         private PrototypeObstacleNavigator _fallback;
+        private Line2CoarseRouteBridge _coarseFallback;
         private Line2MobileNPCTravelMemory _travelMemory;
         // Stores positions observed AFTER actual CharacterController motion,
         // never the proposed A* waypoints.
@@ -49,6 +50,33 @@ namespace Unturned2.Line2
         internal void AttachTravelMemory(Line2MobileNPCTravelMemory travelMemory)
         {
             _travelMemory = travelMemory;
+        }
+
+        internal void AttachCoarseFallback(Line2CoarseRouteBridge fallback)
+        {
+            _coarseFallback = fallback;
+        }
+
+        private Vector3 UseCoarseOrSteer(Vector3 toward, Vector3 goal)
+        {
+            if (_coarseFallback != null)
+            {
+                bool waiting;
+                Vector3 heading = _coarseFallback.GetHeading(goal, out waiting);
+                if (heading.sqrMagnitude > 0.01f)
+                {
+                    _status = "line1-physical-coarse-route";
+                    return heading;
+                }
+                if (waiting)
+                {
+                    _status = "line1-coarse-route-searching";
+                    return Vector3.zero;
+                }
+            }
+            _status = "short-range-collision-steering";
+            return _fallback != null
+                ? _fallback.GetHeading(toward, goal) : Vector3.zero;
         }
 
         private void StartJourney(Vector3 current)
@@ -105,8 +133,7 @@ namespace Unturned2.Line2
                 _walked.Clear();
                 _status = _provider == null ? "provider-missing"
                     : _provider.DiagnosticStatus;
-                return _fallback != null ? _fallback.GetHeading(toward, goal)
-                    : Vector3.zero;
+                return UseCoarseOrSteer(toward, goal);
             }
 
             // The path contains the world-space start and end, so consume
@@ -124,8 +151,7 @@ namespace Unturned2.Line2
             if (_path.Count == 0)
             {
                 if (Time.time < _failedUntil)
-                    return _fallback != null ? _fallback.GetHeading(toward, goal)
-                        : Vector3.zero;
+                    return UseCoarseOrSteer(toward, goal);
 
                 if (Time.time < _nextRepathAt)
                     return Vector3.zero;
@@ -138,8 +164,7 @@ namespace Unturned2.Line2
                     {
                         _failedUntil = Time.time + 2.0f;
                         _nextRepathAt = Time.time + 2.0f;
-                        return _fallback != null
-                            ? _fallback.GetHeading(toward, goal) : Vector3.zero;
+                        return UseCoarseOrSteer(toward, goal);
                     }
                     // Wait for the actual A* route; never treat a pending
                     // path as proof the door or wall is traversable.
