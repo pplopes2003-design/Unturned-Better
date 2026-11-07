@@ -41,6 +41,7 @@ namespace Unturned2.Line2
         private void Start()
         {
             Load();
+            PushRuntimeSettings();
             ChatManager.onChatted += OnChatted;
             ProbeLogger.Log("LINE2_ADMIN_READY: F7 panel, chat prefix !u2. Spawn adapter unavailable.");
         }
@@ -151,7 +152,8 @@ namespace Unturned2.Line2
                     _feedback = "NPC enabled=" + _settings.npcEnabled +
                         ", natural=" + _settings.naturalSpawn + ", max=" + _settings.maxNPCs +
                         ", combat=" + _settings.combatMode + ", hordes=" + _settings.hordesEnabled +
-                        ". ACTIVE NPCs=0 (adapter not installed).";
+                        ". ACTIVE NPCs=" + Line2NpcRuntimeRegistry.ActiveCount +
+                        " (runtime ready=" + Line2NpcRuntimeRegistry.IsReady + ").";
                     break;
                 case "population":
                     _feedback = "Population config max=" + _settings.maxNPCs +
@@ -172,7 +174,9 @@ namespace Unturned2.Line2
                     else if (action == "natural") _settings.naturalSpawn = value;
                     else _settings.hordesEnabled = value;
                     Save();
-                    _feedback = action + "=" + value + ". Configuration only; no live NPC spawn.";
+                    PushRuntimeSettings();
+                    _feedback = action + "=" + value +
+                        ". NPC runtime ready=" + Line2NpcRuntimeRegistry.IsReady + ".";
                     break;
                 case "max":
                     int limit;
@@ -183,6 +187,7 @@ namespace Unturned2.Line2
                     { _feedback = "Use max 1..32"; break; }
                     _settings.maxNPCs = limit;
                     Save();
+                    PushRuntimeSettings();
                     _feedback = "Max NPC population set to " + limit + ".";
                     break;
                 case "combat":
@@ -191,6 +196,7 @@ namespace Unturned2.Line2
                     { _feedback = "Use combat passive/normal/total"; break; }
                     _settings.combatMode = args[1];
                     Save();
+                    PushRuntimeSettings();
                     _feedback = "Combat mode configured: " + _settings.combatMode +
                         ". Live NPC combat is not installed.";
                     break;
@@ -202,8 +208,10 @@ namespace Unturned2.Line2
                     if (args.Length == 3 &&
                         (!int.TryParse(args[2], out count) || count < 1 || count > 5))
                     { _feedback = "Spawn batch limit is 1..5"; break; }
-                    _feedback = "SPAWN_UNAVAILABLE: no verified Steam-side mobile NPC prefab/adapter. " +
-                        "Requested " + count + " " + args[1] + ". No NPC created.";
+                    string spawnReason;
+                    bool spawned = Line2NpcRuntimeRegistry.TrySpawn(args[1], count, out spawnReason);
+                    _feedback = (spawned ? "SPAWN_OK: " : "SPAWN_UNAVAILABLE: ") +
+                        count + " " + args[1] + ": " + spawnReason;
                     break;
                 case "save":
                     Save();
@@ -214,6 +222,12 @@ namespace Unturned2.Line2
                     break;
             }
             ProbeLogger.Log("LINE2_ADMIN: " + action + " => " + _feedback);
+        }
+
+        private void PushRuntimeSettings()
+        {
+            Line2NpcRuntimeRegistry.UpdateSettings(_settings.npcEnabled,
+                _settings.naturalSpawn, _settings.maxNPCs, _settings.combatMode);
         }
 
         private static bool TryToggle(string value, out bool result)
