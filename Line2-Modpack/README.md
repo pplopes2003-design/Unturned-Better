@@ -253,3 +253,11 @@ The original Line 1 displacement-based `MobileNPCPlayerFootstepSensor` now runs 
 `MobileNPCTravelMemory` was ported as `Line2MobileNPCTravelMemory` and attached to the native `PrototypeAStarFollower`. It records only observed CharacterController footsteps and considers a route learned only after the NPC physically reaches the destination. Route reuse remains disabled until current-world collision/path verification exists. Both per-actor memories are erased when the NPC dies.
 
 These bridges are gated to one-client local sessions; if other players join, local-only NPC prototypes are removed rather than pretending to replicate. **No Steam runtime compilation success is confirmed.** See [LINE1_DIRECT_PORTS.md](LINE1_DIRECT_PORTS.md).
+
+## Direct Line 1 door and anatomical combat adapters (unverified)
+
+The legacy `MobileNPCInjurySystem`, `MobileNPCBodyHitbox`, and `MobileNPCDamageBridge` were ported to the Steam module and bound to a single `PrototypeNpcVitals` health owner. Six original **trigger** colliders from the checked-in `NPC_Client.prefab` are re-enabled on their original skeleton bones; no duplicate proxy physics bodies are built. A new singleplayer `UseableGun.onBulletHit` adapter validates custom NPC hits with the original first-wall physical ray and uses native gun limb multipliers and falloff.
+
+The legacy `MobileNPCDoorNavigation` was adapted to original Steam API: no unshipped `IsLockedForMobileNPCNavigation` property or inaccessible `FindBarricadeByRootFast`. It reads the native private lock flag only when available and uses public door state methods. It cannot create unavailable indoor A* edges.
+
+**All additions require successful Steam compilation and gameplay verification.** The bullet path specifically depends on vanilla issuing a `NONE` hit with the NPC impact point; do not assume this protocol works until observed in the player's game. NPC weapon attacks and NPC-vs-zombie combat are not implemented by this addition. See [LINE1_DIRECT_PORTS.md](LINE1_DIRECT_PORTS.md).
