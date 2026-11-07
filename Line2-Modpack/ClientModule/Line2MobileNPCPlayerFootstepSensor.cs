@@ -42,7 +42,7 @@ namespace Unturned2.Line2
             if (!Provider.isServer || Dedicator.IsDedicatedServer ||
                 !Provider.hasCheats || !Level.isLoaded ||
                 (Provider.clients != null && Provider.clients.Count > 1) ||
-                Provider.clients == null || runtime == null ||
+                Player.player == null || runtime == null ||
                 Time.time < nextSampleAt)
                 return;
 
@@ -57,10 +57,12 @@ namespace Unturned2.Line2
             for (int i = 0; i < stalePlayers.Count; ++i)
                 samples.Remove(stalePlayers[i]);
 
-            for (int i = 0; i < Provider.clients.Count; ++i)
+            // Singleplayer only: Player.player can exist before Provider.clients
+            // is populated. Observe the actual local avatar, not a client
+            // roster that may be empty in an offline world.
+            for (int i = 0; i < 1; ++i)
             {
-                SteamPlayer client = Provider.clients[i];
-                Player player = client != null ? client.player : null;
+                Player player = Player.player;
                 if (player == null || player.life == null || player.life.isDead)
                     continue;
 
