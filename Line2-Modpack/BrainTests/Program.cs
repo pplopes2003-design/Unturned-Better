@@ -309,6 +309,11 @@ internal static class Program
         Console.WriteLine("NPC_RADIO_POLICY_OK: authentic equipment, same group/faction, " +
             "radio range, valid actors, coarse sector.");
 
+        if (!PersistenceTests.Run())
+        {
+            Console.Error.WriteLine("NPC_PERSISTENCE_POLICY_FAILED: invalid checkpoint handling.");
+            return 24;
+        }
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
