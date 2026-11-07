@@ -173,6 +173,7 @@ namespace Unturned2.Line2
             }
 
             var created = new List<PrototypeActor>(count);
+            var groupCandidates = new List<PrototypeActor>(_actors);
             for (int i = 0; i < count; i++)
             {
                 Vector3 location;
@@ -258,10 +259,15 @@ namespace Unturned2.Line2
                     var actor = instance.AddComponent<PrototypeActor>();
                     actor.Initialize(disposition, movement, instance.name);
                     actor.SetCombatMode(_mode);
+                    var group = instance.AddComponent<Line2NPCGroupMember>();
+                    group.Initialize(actor, groupCandidates);
+                    groupCandidates.Add(actor);
                     string kitStatus;
                     if (Line2NPCStartingEquipment.GiveFreshKitServer(
                         ownedInventory, disposition, _mode, out kitStatus))
                         ProbeLogger.Log("NPC_STARTING_EQUIPMENT: " + kitStatus);
+                    Line2NPCStartingEquipment.GiveAuthenticRadioServer(
+                        ownedInventory, disposition, _mode);
                     var combatSight = instance.AddComponent<Line2NPCCombatPerception>();
                     combatSight.Initialize(this, actor);
                     actor.AttachCombatPerception(combatSight);
@@ -270,6 +276,8 @@ namespace Unturned2.Line2
                     var ranged = instance.AddComponent<Line2NPCRangedExecutor>();
                     ranged.Initialize(actor, combatSight, ownedInventory);
                     actor.AttachRangedExecutor(ranged);
+                    var radio = instance.AddComponent<Line2NPCRadioOutbox>();
+                    radio.Initialize(this, actor, combatSight, ownedInventory);
                     created.Add(actor);
                 }
                 catch (Exception ex)
@@ -411,6 +419,7 @@ namespace Unturned2.Line2
         private float _lastSeenAt;
         private float _lastGunshotAt;
         private float _lastFootstepAt;
+        private float _lastRadioAt;
         private Vector3 _lastHeardFootstepPoint;
         private Vector3 _lastHeardPoint; 
         private bool _threatVisible;
@@ -491,6 +500,7 @@ namespace Unturned2.Line2
             _lastSeenAt = -100f;
             _lastGunshotAt = -100f;
             _lastFootstepAt = -100f;
+            _lastRadioAt = -100f;
             _brain.Reset();
             _legacyBrain.SetSpawnPosition(transform.position);
             _legacyBrain.Reset();
@@ -551,6 +561,7 @@ namespace Unturned2.Line2
                 _lastKnownThreat = null;
                 _lastGunshotAt = -100f;
                 _lastFootstepAt = -100f;
+                _lastRadioAt = -100f;
                 _goal = _home;
             }
         }
@@ -588,6 +599,20 @@ namespace Unturned2.Line2
             _lastFootstepAt = at;
             _knowledge.ObserveSound(_lastHeardFootstepPoint, confidence, at);
             _legacyBrain.ReportNoise(_lastHeardFootstepPoint, at, 8f);
+        }
+
+        internal void ReceiveVerifiedRadioReport(Vector3 sector, float observedAt)
+        {
+            if (_disposition != "hostile" || _combatMode == "passive" ||
+                IsDead || observedAt - _lastRadioAt < 6f)
+                return;
+            _lastRadioAt = observedAt;
+            // Faction/group/equipment authorization is verified by
+            // Line2NPCRadioOutbox before this is called. The radio only
+            // supplies an uncertain sector. Never grant LOS, an aim target,
+            // ammo, direct damage rights or a permanent player identity.
+            _knowledge.ObserveReport(sector, 0.58f, observedAt);
+            _legacyBrain.ReportNoise(sector, observedAt, 15f);
         }
 
         internal void ObserveThreat(Player player, out bool visible, out Vector3? lastKnown)
@@ -720,7 +745,8 @@ namespace Unturned2.Line2
                     ThreatVisible = visible,
                     HasRecentMemory = lastKnown.HasValue,
                     HeardThreat = Time.time - _lastGunshotAt <= 7f ||
-                                  Time.time - _lastFootstepAt <= 4f,
+                                  Time.time - _lastFootstepAt <= 4f ||
+                                  Time.time - _lastRadioAt <= 6f,
                     // Only real explosion hits currently update HP and
                     // the threat point. The cover planner checks real solid
                     // geometry, while A* separately owns route feasibility.
