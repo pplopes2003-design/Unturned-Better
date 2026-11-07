@@ -385,6 +385,7 @@ namespace Unturned2.Line2
                     actor.SetCombatMode(_mode);
                     var collisionAudit = instance.AddComponent<Line2NpcObstacleAudit>();
                     collisionAudit.Initialize(actor);
+                    actor.AttachVault(instance.AddComponent<Line2MobileNPCVaultTraversal>());
                     var needs = instance.AddComponent<Line2NpcNeeds>();
                     needs.Initialize(actor);
                     var group = instance.AddComponent<Line2NPCGroupMember>();
@@ -826,6 +827,14 @@ namespace Unturned2.Line2
         private Line2MobileNPCInventory _inventory;
         internal Line2MobileNPCInventory Inventory { get { return _inventory; } }
         private Line2MobileNPCDoorNavigation _doors;
+        private Line2MobileNPCVaultTraversal _vault;
+        private bool _vaultActive;
+        private Line2MobileNPCVaultTraversal.JumpPlan _vaultPlan;
+        private Vector3 _vaultStart;
+        private float _vaultStartedAt;
+        private float _nextVaultAt;
+        private Vector3 _lastMotorProgress;
+        private float _lastMotorProgressAt;
         private Line2MobileNPCAdaptiveMemory _experience;
         private Line2MobileNPCTravelMemory _travelMemory;
         private Line2NpcWorldSurvey _worldSurvey;
@@ -844,6 +853,10 @@ namespace Unturned2.Line2
         internal void AttachWorldSurvey(Line2NpcWorldSurvey survey)
         {
             _worldSurvey = survey;
+        }
+        internal void AttachVault(Line2MobileNPCVaultTraversal vault)
+        {
+            _vault = vault;
         }
         private Vector3 _coverGoal;
         private Vector3 _retreatGoal;
@@ -916,6 +929,9 @@ namespace Unturned2.Line2
             _goal = _home;
             _nextThink = Time.time;
             _blockedSince = Time.time;
+            _lastMotorProgress = transform.position;
+            _lastMotorProgressAt = Time.time;
+            _nextVaultAt = Time.time + 4f;
         }
 
         private void OnValidatedDamage(float damage, Vector3 impulse)
@@ -940,6 +956,7 @@ namespace Unturned2.Line2
             _knowledge.Clear();
             _tactics.ClearGoal();
             _locomotion.Reset();
+            _vaultActive = false;
         }
 
         private void OnDestroy()
@@ -1355,6 +1372,11 @@ namespace Unturned2.Line2
                     transform.position + Vector3.up * 1.0f,
                     intended, 0.20f, 1.6f, RayMasks.BLOCK_COLLISION);
             }
+            // The original Line 1 jump preflight can clear a REAL low sill
+            // with ordinary gravity and CharacterController movement.
+            // Never invent a portal through intact glass, a high wall or
+            // a destination lacking observed support/capsule clearance.
+            ApplyVerifiedVault(ref direction, ref speed, delta);
             // Line 1 melee faces the genuinely visible enemy even when
             // CharacterController is already close enough to stop walking.
             Vector3 face = direction;
@@ -1422,6 +1444,70 @@ namespace Unturned2.Line2
                                    200f, 22f);
             GUI.Label(bounds, _displayName + (_vitals != null
                 ? " HP " + Mathf.CeilToInt(_vitals.Health) : ""));
+        }
+
+        private void ApplyVerifiedVault(ref Vector3 heading,
+            ref float speed, Vector3 delta)
+        {
+            if (_vault == null || _controller == null || !Level.isLoaded)
+                return;
+            if (_vaultActive)
+            {
+                float elapsed = Time.time - _vaultStartedAt;
+                float progressed = Vector3.Dot(
+                    transform.position - _vaultStart, _vaultPlan.Direction);
+                if (elapsed > _vaultPlan.MaximumDuration + 0.25f ||
+                    (_controller.isGrounded && elapsed > 0.45f &&
+                     _verticalVelocity < 0f))
+                {
+                    _vaultActive = false;
+                    _nextVaultAt = Time.time + 2.4f;
+                    return;
+                }
+                // Physics owns the ascent. Delay forward motion until the
+                // body is above the observed sill, then stop at the
+                // preflighted landing distance. No SetPosition/teleport.
+                if (elapsed >= _vaultPlan.ForwardDelay &&
+                    progressed < _vaultPlan.TravelDistance)
+                {
+                    heading = _vaultPlan.Direction;
+                    speed = _vaultPlan.HorizontalSpeed;
+                }
+                else
+                {
+                    heading = Vector3.zero;
+                    speed = 0f;
+                }
+                return;
+            }
+
+            if ((transform.position - _lastMotorProgress).sqrMagnitude >
+                0.5f * 0.5f)
+            {
+                _lastMotorProgress = transform.position;
+                _lastMotorProgressAt = Time.time;
+            }
+            if (!_controller.isGrounded || Time.time < _nextVaultAt ||
+                Time.time - _lastMotorProgressAt < 2.0f ||
+                delta.sqrMagnitude < 2.5f * 2.5f)
+                return;
+            _nextVaultAt = Time.time + 1.6f;
+            Vector3 attempted = delta.normalized;
+            Line2MobileNPCVaultTraversal.JumpPlan proposed;
+            if (!_vault.TryPlanJumpServer(_goal, attempted,
+                RayMasks.GROUND2, 45f, RayMasks.BLOCK_COLLISION,
+                Mathf.Abs(Physics.gravity.y), out proposed))
+                return;
+            _vaultPlan = proposed;
+            _vaultActive = true;
+            _vaultStart = transform.position;
+            _vaultStartedAt = Time.time;
+            _verticalVelocity = proposed.Impulse;
+            heading = Vector3.zero;
+            speed = 0f;
+            ProbeLogger.Log("NPC_NATIVE_VAULT_STARTED: actor=" + _identity +
+                " landing=" + proposed.Landing.ToString("F1") +
+                " lowObstacleTop=" + proposed.LandingOnObjectTop);
         }
 
         private bool TryFindVerifiedFlank(Vector3 enemy, out Vector3 result)
