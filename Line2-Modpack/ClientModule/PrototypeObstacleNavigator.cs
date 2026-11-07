@@ -115,12 +115,13 @@ namespace Unturned2.Line2
             bool blocked = found == HitLimit; // avoid treating truncated buffer as clear
             for (int i = 0; i < found; i++)
             {
-                Collider collider = _hits[i].collider;
+                RaycastHit result = _hits[i];
+                Collider collider = result.collider;
                 _hits[i] = default(RaycastHit);
                 if (collider == null || !collider.enabled) continue;
                 Transform hit = collider.transform;
                 if (hit == transform || hit.IsChildOf(transform)) continue;
-                if (_hits[i].distance < 0.01f) continue;
+                if (result.distance < 0.01f) continue;
                 blocked = true;
             }
             return !blocked;
