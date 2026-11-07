@@ -28,7 +28,7 @@ namespace Unturned2.Line2
         {
             get
             {
-                _actors.RemoveAll(a => a == null);
+                _actors.RemoveAll(a => a == null || a.IsDead);
                 return _actors.Count;
             }
         }
@@ -38,7 +38,7 @@ namespace Unturned2.Line2
             if (output == null) throw new ArgumentNullException("output");
             output.Clear();
             if (!IsAuthorized() || !_enabled) return;
-            _actors.RemoveAll(a => a == null);
+            _actors.RemoveAll(a => a == null || a.IsDead);
             for (int i = 0; i < _actors.Count && output.Count < limit; i++)
                 if (_actors[i] != null && _actors[i].isActiveAndEnabled)
                     output.Add(_actors[i]);
@@ -209,6 +209,9 @@ namespace Unturned2.Line2
                     var nativePath = instance.AddComponent<Line2NativeAStarRouteProvider>();
                     var follower = instance.AddComponent<PrototypeAStarFollower>();
                     follower.Initialize(nativePath, navigation);
+                    // DamageTool.explode discovers IExplosionDamageable
+                    // through the root Agent CharacterController collider.
+                    instance.AddComponent<PrototypeNpcVitals>();
                     var actor = instance.AddComponent<PrototypeActor>();
                     actor.Initialize(disposition, movement, instance.name);
                     actor.SetCombatMode(_mode);
@@ -333,6 +336,10 @@ namespace Unturned2.Line2
         private PrototypeAnimation _animation;
         private PrototypeObstacleNavigator _navigation;
         private PrototypeAStarFollower _astarFollower;
+        private PrototypeNpcVitals _vitals;
+        internal bool IsDead { get { return _vitals != null && _vitals.IsDead; } }
+        internal float HealthFraction { get { return _vitals != null ? _vitals.HealthFraction : 1f; } }
+        internal bool RecentlyDamaged { get { return _vitals != null && Time.time - _vitals.LastDamageAt < 5f; } }
         private Vector3 _goal;
         private Vector3 _home;
         private float _nextThink;
@@ -349,6 +356,7 @@ namespace Unturned2.Line2
             _animation = GetComponent<PrototypeAnimation>();
             _navigation = GetComponent<PrototypeObstacleNavigator>();
             _astarFollower = GetComponent<PrototypeAStarFollower>();
+            _vitals = GetComponent<PrototypeNpcVitals>();
             _identity = identity;
             _aiAction = null;
             _lastKnownThreat = null;
@@ -447,7 +455,7 @@ namespace Unturned2.Line2
 
         private void Update()
         {
-            if (_controller == null || !Provider.isServer || !Level.isLoaded) return;
+            if (_controller == null || IsDead || !Provider.isServer || !Level.isLoaded) return;
             Player player = Player.player;
             if (Time.time >= _nextThink)
             {
@@ -473,8 +481,9 @@ namespace Unturned2.Line2
                     HeardThreat = Time.time - _lastGunshotAt <= 7f,
                     // No health, damage, firearm, verified cover or hearing
                     // adapters exist for this prototype: do not fabricate.
-                    HasRealHealth = false,
-                    UnderFire = false,
+                    HasRealHealth = _vitals != null,
+                    HealthFraction = HealthFraction,
+                    UnderFire = RecentlyDamaged,
                     HasVerifiedCover = false,
                     RemoteSuggestion = validSuggestion
                 };
@@ -553,7 +562,8 @@ namespace Unturned2.Line2
                 return;
             Rect bounds = new Rect(screen.x - 100f, Screen.height - screen.y - 12f,
                                    200f, 22f);
-            GUI.Label(bounds, _displayName);
+            GUI.Label(bounds, _displayName + (_vitals != null
+                ? " HP " + Mathf.CeilToInt(_vitals.Health) : ""));
         }
 
         private bool CanSeePlayer(Player player)
