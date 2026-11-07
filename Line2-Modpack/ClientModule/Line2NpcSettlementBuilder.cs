@@ -187,7 +187,15 @@ namespace Unturned2.Line2
             if (!IsSafeRoutine() || Time.time < _nextPlacementAt) return;
             ushort ownedID;
             ItemBarricadeAsset asset;
-            if (!HasOwnedBuildable(out ownedID, out asset)) return;
+            if (!HasOwnedBuildable(out ownedID, out asset))
+            {
+                // This tries ONE real native blueprint per shared cooldown;
+                // never spawns a barricade without owned ingredients.
+                if (_inventory.TryCraftNativeCampBarricadeServer() &&
+                    _runtime != null)
+                    _runtime.RequestPriorityCheckpoint();
+                return;
+            }
             Vector3 site;
             int pieces;
             if (!Line2NpcSettlementLedger.TryGet(_group.GroupId,
