@@ -31,8 +31,6 @@ namespace Unturned2.Line2
         internal bool HasVerifiedCover;
         internal bool HasRealHealth;
         internal float HealthFraction;
-        internal bool CanShoot;
-        internal bool CombatAdapterReady;
         internal string RemoteSuggestion;
     }
 
