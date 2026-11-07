@@ -454,6 +454,7 @@ namespace Unturned2.Line2
         internal bool IsDead { get { return _vitals != null && _vitals.IsDead; } }
         internal float HealthFraction { get { return _vitals != null ? _vitals.HealthFraction : 1f; } }
         internal bool RecentlyDamaged { get { return _vitals != null && Time.time - _vitals.LastDamageAt < 5f; } }
+        internal bool HasVerifiedCover { get { return RecentlyDamaged && _coverPlanner != null && _coverPlanner.HasCover; } }
         private Vector3 _goal;
         private Vector3 _home;
         private float _nextThink;
@@ -664,8 +665,14 @@ namespace Unturned2.Line2
         internal bool TryApplyAiAction(string action, float expiresRealtime)
         {
             if (_disposition != "hostile" || _combatMode == "passive") return false;
-            if (action != "idle" && action != "engage" && action != "investigate")
-                return false; // Cover and retreat need an actual health/damage system.
+            if (action != "idle" && action != "engage" && action != "investigate" &&
+                action != "seek_cover" && action != "retreat")
+                return false;
+            // Defensive decisions require locally measured damage and geometry.
+            // A localhost response can never authorize a blind or invented route.
+            if (action == "seek_cover" && !HasVerifiedCover) return false;
+            if (action == "retreat" && (!RecentlyDamaged || HealthFraction >= 0.30f ||
+                _coverPlanner == null || !_coverPlanner.HasRetreat)) return false;
             if (expiresRealtime <= Time.realtimeSinceStartup ||
                 expiresRealtime - Time.realtimeSinceStartup > 1.0f)
                 return false;
