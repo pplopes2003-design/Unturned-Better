@@ -48,6 +48,9 @@ namespace Unturned2.Line2
                 _group.GroupId == rivalGroup || rivalGroup <= 0 ||
                 _inventory == null || native == null ||
                 native.asset == null || !native.asset.canBeDamaged ||
+                native.GetServersideData() == null ||
+                native.GetServersideData().owner != 0ul ||
+                native.GetServersideData().group != 0ul ||
                 physicalRoot == null || Time.time < _nextStrikeAt ||
                 (_perception != null &&
                  _perception.VisibleTarget != null &&
