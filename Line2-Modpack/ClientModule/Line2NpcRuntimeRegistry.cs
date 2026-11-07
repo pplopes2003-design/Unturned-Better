@@ -21,6 +21,10 @@ namespace Unturned2.Line2
     internal static class Line2NpcRuntimeRegistry
     {
         private static ILine2NpcRuntime _runtime;
+        private static bool _enabled;
+        private static bool _natural;
+        private static int _maxNPCs = 8;
+        private static string _mode = "normal";
 
         internal static bool IsReady { get { return _runtime != null; } }
         internal static int ActiveCount
@@ -35,6 +39,7 @@ namespace Unturned2.Line2
             if (_runtime != null && !object.ReferenceEquals(_runtime, runtime))
                 throw new System.InvalidOperationException("NPC runtime already registered");
             _runtime = runtime;
+            _runtime.UpdateSettings(_enabled, _natural, _maxNPCs, _mode);
         }
 
         internal static void Unregister(ILine2NpcRuntime runtime)
@@ -55,6 +60,10 @@ namespace Unturned2.Line2
         internal static void UpdateSettings(bool enabled, bool natural, int max,
             string mode)
         {
+            _enabled = enabled;
+            _natural = natural;
+            _maxNPCs = max;
+            _mode = mode;
             if (_runtime != null)
                 _runtime.UpdateSettings(enabled, natural, max, mode);
         }
