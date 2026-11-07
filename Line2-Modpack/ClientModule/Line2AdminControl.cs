@@ -44,7 +44,7 @@ namespace Unturned2.Line2
             Load();
             PushRuntimeSettings();
             ChatManager.onChatted += OnChatted;
-            ProbeLogger.Log("LINE2_ADMIN_READY: F7 panel, chat prefix !u2. Spawn adapter unavailable.");
+            ProbeLogger.Log("LINE2_ADMIN_READY: F7 panel, chat prefix !u2. Prototype runtime is singleplayer-only, requires local cheats.");
         }
 
         private void OnDestroy()
@@ -158,14 +158,14 @@ namespace Unturned2.Line2
                 case "help":
                     _feedback = "status | npc on/off | natural on/off | max 1..32 | " +
                         "combat passive/normal/total | hordes on/off | server | population | spawn friendly/neutral/hostile [1..5] | save. " +
-                        "Spawn is NOT available until NPC adapter is installed.";
+                        "Spawn uses EXPERIMENTAL visual prototype only; no real damage, dialogue, radio, saves or multiplayer.";
                     break;
                 case "status":
                     _feedback = "NPC enabled=" + _settings.npcEnabled +
                         ", natural=" + _settings.naturalSpawn + ", max=" + _settings.maxNPCs +
                         ", combat=" + _settings.combatMode + ", hordes=" + _settings.hordesEnabled +
-                        ". ACTIVE NPCs=" + Line2NpcRuntimeRegistry.ActiveCount +
-                        " (runtime ready=" + Line2NpcRuntimeRegistry.IsReady + ").";
+                        ". PROTOTYPE NPCs=" + Line2NpcRuntimeRegistry.ActiveCount +
+                        " (prototype connected=" + Line2NpcRuntimeRegistry.IsReady + ").";
                     break;
                 case "population":
                     _feedback = "Population config max=" + _settings.maxNPCs +
@@ -222,7 +222,7 @@ namespace Unturned2.Line2
                     { _feedback = "Spawn batch limit is 1..5"; break; }
                     string spawnReason;
                     bool spawned = Line2NpcRuntimeRegistry.TrySpawn(args[1], count, out spawnReason);
-                    _feedback = (spawned ? "SPAWN_OK: " : "SPAWN_UNAVAILABLE: ") +
+                    _feedback = (spawned ? "PROTOTYPE_SPAWN_OK: " : "SPAWN_UNAVAILABLE: ") +
                         count + " " + args[1] + ": " + spawnReason;
                     break;
                 case "save":
