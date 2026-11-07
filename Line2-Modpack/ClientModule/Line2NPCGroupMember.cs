@@ -68,6 +68,36 @@ namespace Unturned2.Line2
             roster.Add(this);
         }
 
+        /// <summary>Rejoin a surviving map group using its saved ID. A freshly
+        /// spawned actor must not inherit an extinct group's identity unless
+        /// this is an actual restore of that same survivor.</summary>
+        internal bool TryRestoreMembership(PrototypeActor actor, int savedGroupId)
+        {
+            if (actor == null || actor.IsDead || !Provider.isServer ||
+                Dedicator.IsDedicatedServer || savedGroupId <= 0 ||
+                savedGroupId > 1000000) return false;
+            Line2NPCFactionPolicy.Id faction =
+                Line2NPCFactionPolicy.DefaultForRole(actor.Disposition);
+            List<Line2NPCGroupMember> existing;
+            if (Groups.TryGetValue(savedGroupId, out existing))
+            {
+                if (existing.Count >= MaxGroupSize) return false;
+                foreach (Line2NPCGroupMember member in existing)
+                    if (member == null || member.Faction != faction) return false;
+            }
+            Leave();
+            if (!Groups.TryGetValue(savedGroupId, out existing))
+            {
+                existing = new List<Line2NPCGroupMember>(MaxGroupSize);
+                Groups.Add(savedGroupId, existing);
+            }
+            Faction = faction;
+            GroupId = savedGroupId;
+            existing.Add(this);
+            if (nextGroupId <= savedGroupId) nextGroupId = savedGroupId + 1;
+            return true;
+        }
+
         internal void Leave()
         {
             if (!Joined) return;
