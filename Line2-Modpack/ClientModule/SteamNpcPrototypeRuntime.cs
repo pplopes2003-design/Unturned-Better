@@ -204,6 +204,11 @@ namespace Unturned2.Line2
                     motion.Initialize(visual);
                     var navigation = instance.AddComponent<PrototypeObstacleNavigator>();
                     navigation.Initialize();
+                    // Connect the A* Seeker bundled in the ORIGINAL Steam
+                    // game. No Pathfinding DLL or licensed source is shipped.
+                    var nativePath = instance.AddComponent<Line2NativeAStarRouteProvider>();
+                    var follower = instance.AddComponent<PrototypeAStarFollower>();
+                    follower.Initialize(nativePath, navigation);
                     var actor = instance.AddComponent<PrototypeActor>();
                     actor.Initialize(disposition, movement, instance.name);
                     actor.SetCombatMode(_mode);
@@ -327,6 +332,7 @@ namespace Unturned2.Line2
         private string _displayName;
         private PrototypeAnimation _animation;
         private PrototypeObstacleNavigator _navigation;
+        private PrototypeAStarFollower _astarFollower;
         private Vector3 _goal;
         private Vector3 _home;
         private float _nextThink;
@@ -342,6 +348,7 @@ namespace Unturned2.Line2
             _controller = controller;
             _animation = GetComponent<PrototypeAnimation>();
             _navigation = GetComponent<PrototypeObstacleNavigator>();
+            _astarFollower = GetComponent<PrototypeAStarFollower>();
             _identity = identity;
             _aiAction = null;
             _lastKnownThreat = null;
@@ -515,7 +522,9 @@ namespace Unturned2.Line2
             // Use bounded side-steering instead of repeatedly stopping in
             // front of the same wall. This does not open doors or navigate
             // entire buildings: a proper door-aware graph is still required.
-            if (direction.sqrMagnitude > 0 && _navigation != null)
+            if (direction.sqrMagnitude > 0 && _astarFollower != null)
+                direction = _astarFollower.GetHeading(_goal);
+            else if (direction.sqrMagnitude > 0 && _navigation != null)
                 direction = _navigation.GetHeading(direction, _goal);
             if (direction.sqrMagnitude > 0)
                 transform.rotation = Quaternion.RotateTowards(transform.rotation,
