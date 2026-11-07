@@ -105,9 +105,6 @@ namespace Unturned2.Line2
             // Suggested "engage" is merely confirmation of local vision.
             // The external service cannot override local safety/LOS or issue
             // combat commands when the weapon adapter is unimplemented.
-            if (desired == NpcIntent.Investigate &&
-                input.RemoteSuggestion == "idle" && !input.UnderFire)
-                desired = NpcIntent.Investigate; // retain evidence, not hearsay
 
             if (desired != _intent &&
                 (urgent || now - _changedAt >= MinimumIntentDuration))
@@ -158,8 +155,9 @@ namespace Unturned2.Line2
                 input.HeardThreat = false;
                 input.HasRecentMemory = false;
                 Expect(brain.Evaluate(29f, input), NpcIntent.Patrol, "gunshot memory expires");
+                brain.Reset();
                 input = new NpcDecisionInput { IsFriendly = true, PlayerNearby = true };
-                Expect(brain.Evaluate(11f, input), NpcIntent.Follow, "friendly follow");
+                Expect(brain.Evaluate(30f, input), NpcIntent.Follow, "friendly follow");
                 ProbeLogger.Log("NPC_BRAIN_SELFTEST_OK: vision, memory, state hysteresis, gunshot hearing, cover, retreat, passive and friendly");
             }
             catch (Exception ex)
