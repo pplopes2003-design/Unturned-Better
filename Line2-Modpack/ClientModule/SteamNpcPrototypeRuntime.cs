@@ -169,6 +169,8 @@ namespace Unturned2.Line2
                             behaviour.enabled = false;
                     }
                     ApplyNativeAppearance(visual);
+                    var motion = instance.AddComponent<PrototypeAnimation>();
+                    motion.Initialize(visual);
                     var actor = instance.AddComponent<PrototypeActor>();
                     actor.Initialize(disposition, movement, instance.name);
                     created.Add(actor);
@@ -272,6 +274,7 @@ namespace Unturned2.Line2
         private string _disposition;
         private string _identity;
         private string _displayName;
+        private PrototypeAnimation _animation;
         private float _nextObstacleProbeAt;
         private bool _pathBlocked;
         private Vector3 _goal;
@@ -285,6 +288,7 @@ namespace Unturned2.Line2
         {
             _disposition = disposition;
             _controller = controller;
+            _animation = GetComponent<PrototypeAnimation>();
             _identity = identity;
             string[] names = { "Alex", "Morgan", "Sam", "Casey", "Jordan", "Riley", "Taylor", "Robin" };
             _displayName = names[UnityEngine.Random.Range(0, names.Length)] +
@@ -353,6 +357,7 @@ namespace Unturned2.Line2
             if (_controller.isGrounded && _verticalVelocity < 0f)
                 _verticalVelocity = -1.0f;
             _verticalVelocity += Physics.gravity.y * Time.deltaTime;
+            if (_animation != null) _animation.SetMoving(direction.sqrMagnitude > 0.1f);
             _controller.Move((direction * speed +
                               Vector3.up * _verticalVelocity) * Time.deltaTime);
         }
