@@ -247,6 +247,7 @@ namespace Unturned2.Line2
                     // through the root Agent CharacterController collider.
                     instance.AddComponent<PrototypeNpcVitals>();
                     instance.AddComponent<Line2MobileNPCAdaptiveMemory>();
+                    instance.AddComponent<Line2MobileNPCTravelMemory>();
                     var actor = instance.AddComponent<PrototypeActor>();
                     actor.Initialize(disposition, movement, instance.name);
                     actor.SetCombatMode(_mode);
@@ -375,6 +376,7 @@ namespace Unturned2.Line2
         private PrototypeAStarFollower _astarFollower;
         private PrototypeNpcVitals _vitals;
         private Line2MobileNPCAdaptiveMemory _experience;
+        private Line2MobileNPCTravelMemory _travelMemory;
         private PrototypeCoverPlanner _coverPlanner;
         private Vector3 _coverGoal;
         private Vector3 _retreatGoal;
@@ -410,6 +412,9 @@ namespace Unturned2.Line2
             _astarFollower = GetComponent<PrototypeAStarFollower>();
             _vitals = GetComponent<PrototypeNpcVitals>();
             _experience = GetComponent<Line2MobileNPCAdaptiveMemory>();
+            _travelMemory = GetComponent<Line2MobileNPCTravelMemory>();
+            if (_astarFollower != null)
+                _astarFollower.AttachTravelMemory(_travelMemory);
             if (_vitals != null)
             {
                 _vitals.Damaged += OnValidatedDamage;
@@ -449,6 +454,8 @@ namespace Unturned2.Line2
         {
             if (_experience != null)
                 _experience.ForgetOnDeathServer();
+            if (_travelMemory != null)
+                _travelMemory.ForgetOnDeathServer();
             _legacyBrain.Reset();
             _knowledge.Clear();
             _tactics.ClearGoal();
