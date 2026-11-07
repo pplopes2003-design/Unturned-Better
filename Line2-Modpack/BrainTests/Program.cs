@@ -245,6 +245,35 @@ internal static class Program
         Console.WriteLine("NPC_FINITE_AMMO_OK: 24,12 rounds, ammo per shot, " +
             "no infinite cartridges, reload capacity and invalid state.");
 
+        // Original Line 1 MobileNPCFaction relationship table:
+        // friendlies and hostiles have explicit allies/foes, while neutral
+        // scavengers must never become an arbitrary hostile target.
+        var faction = Line2NPCFactionPolicy.Id.Raiders;
+        if (Line2NPCFactionPolicy.DefaultForRole("hostile") != faction ||
+            Line2NPCFactionPolicy.DefaultForRole("friendly") !=
+                Line2NPCFactionPolicy.Id.Traders ||
+            Line2NPCFactionPolicy.GetRelationship(
+                faction, Line2NPCFactionPolicy.Id.Traders) !=
+                Line2NPCFactionPolicy.Relationship.Hostile ||
+            Line2NPCFactionPolicy.GetRelationship(
+                faction, Line2NPCFactionPolicy.Id.Military) !=
+                Line2NPCFactionPolicy.Relationship.Hostile ||
+            Line2NPCFactionPolicy.GetRelationship(
+                Line2NPCFactionPolicy.Id.Survivors,
+                Line2NPCFactionPolicy.Id.Military) !=
+                Line2NPCFactionPolicy.Relationship.Neutral ||
+            Line2NPCFactionPolicy.GetRelationship(
+                Line2NPCFactionPolicy.Id.Scavengers, faction) !=
+                Line2NPCFactionPolicy.Relationship.Neutral ||
+            Line2NPCFactionPolicy.GetRelationship(
+                faction, faction) != Line2NPCFactionPolicy.Relationship.Allied)
+        {
+            Console.Error.WriteLine("NPC_FACTION_POLICY_FAILED: Line 1 relationship matrix.");
+            return 22;
+        }
+        Console.WriteLine("NPC_FACTION_POLICY_OK: raiders, traders, military, " +
+            "survivors, neutral scavengers and allied groups.");
+
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
