@@ -350,6 +350,7 @@ namespace Unturned2.Line2
                     // through the root Agent CharacterController collider.
                     instance.AddComponent<PrototypeNpcVitals>();
                     var ownedInventory = instance.AddComponent<Line2MobileNPCInventory>();
+                    instance.AddComponent<Line2NpcDeathLoot>();
                     instance.AddComponent<Line2MobileNPCInjurySystem>();
                     instance.AddComponent<Line2MobileNPCDoorNavigation>();
                     var coarseNav = instance.AddComponent<Line2CoarseRouteBridge>();
