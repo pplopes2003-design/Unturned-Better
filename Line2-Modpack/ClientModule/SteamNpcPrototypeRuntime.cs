@@ -267,6 +267,9 @@ namespace Unturned2.Line2
                     actor.AttachCombatPerception(combatSight);
                     var melee = instance.AddComponent<Line2NPCMeleeExecutor>();
                     melee.Initialize(actor, combatSight);
+                    var ranged = instance.AddComponent<Line2NPCRangedExecutor>();
+                    ranged.Initialize(actor, combatSight, ownedInventory);
+                    actor.AttachRangedExecutor(ranged);
                     created.Add(actor);
                 }
                 catch (Exception ex)
@@ -424,6 +427,16 @@ namespace Unturned2.Line2
         private Line2MobileNPCTravelMemory _travelMemory;
         private PrototypeCoverPlanner _coverPlanner;
         private Line2NPCCombatPerception _combatPerception;
+        private Line2NPCRangedExecutor _rangedExecutor;
+        internal bool IsMoving { get; private set; }
+        internal bool HasUsableGun
+        {
+            get { return _rangedExecutor != null && _rangedExecutor.HasUsableGun; }
+        }
+        internal void AttachRangedExecutor(Line2NPCRangedExecutor executor)
+        {
+            _rangedExecutor = executor;
+        }
         private Vector3 _coverGoal;
         private Vector3 _retreatGoal;
         private bool _hasRetreat;
@@ -897,7 +910,8 @@ namespace Unturned2.Line2
                         _goal = _legacyBrain.Destination;
                 }
             }
-            if (_animation != null) _animation.SetMoving(direction.sqrMagnitude > 0.1f);
+            IsMoving = direction.sqrMagnitude > 0.1f;
+            if (_animation != null) _animation.SetMoving(IsMoving);
             _controller.Move((direction * speed +
                               Vector3.up * _verticalVelocity) * Time.deltaTime);
         }
