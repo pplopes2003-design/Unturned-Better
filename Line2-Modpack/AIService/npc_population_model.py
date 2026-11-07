@@ -114,3 +114,43 @@ class PopulationModel:
                 "mode":self.mode,
                 "actors":[asdict(a) for a in self.actors.values()],
                 "pending":[asdict(p) for p in self.pending]}
+
+    @classmethod
+    def from_state(cls, state):
+        """Restore simulation state with strict validation (not a game save)."""
+        if not isinstance(state, dict) or type(state.get("schema")) is not int or state["schema"] != 1:
+            raise ValueError("invalid population schema")
+        obj = cls(cap=state["cap"],
+                  respawn_delay=state["respawn_delay"],
+                  mode=state["mode"])
+        actors = state.get("actors")
+        pending = state.get("pending")
+        if not isinstance(actors, list) or not isinstance(pending, list) or len(actors) > 4096 or len(pending) > 4096:
+            raise ValueError("invalid population record count")
+        seen = set()
+        for item in actors:
+            if not isinstance(item, dict):
+                raise ValueError("invalid actor record")
+            uid, role, group, alive = (item.get("uid"), item.get("role"),
+                                        item.get("group"), item.get("alive"))
+            if (not isinstance(uid, str) or not 1 <= len(uid) <= 96 or
+                uid in seen or role not in ROLES or
+                (group is not None and (not isinstance(group, str) or len(group) > 96)) or
+                type(alive) is not bool):
+                raise ValueError("invalid/duplicate actor")
+            seen.add(uid)
+            obj.actors[uid] = Actor(uid=uid, role=role, group=group, alive=alive)
+        if obj.active_count > obj.cap:
+            raise ValueError("active actor count exceeds cap")
+        for item in pending:
+            if not isinstance(item, dict):
+                raise ValueError("invalid replacement record")
+            ready, role, former = (item.get("ready_at"), item.get("role"),
+                                    item.get("former_group"))
+            if (type(ready) not in (float, int) or
+                not 0 <= ready <= 10**15 or role not in ROLES or
+                (former is not None and (not isinstance(former, str) or len(former) > 96))):
+                raise ValueError("invalid replacement")
+            obj.pending.append(Replacement(
+                ready_at=float(ready), role=role, former_group=former))
+        return obj
