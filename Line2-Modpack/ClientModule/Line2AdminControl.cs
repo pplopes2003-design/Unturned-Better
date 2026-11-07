@@ -98,6 +98,8 @@ namespace Unturned2.Line2
                 " | Max: " + _settings.maxNPCs);
             GUI.Label(new Rect(12, 47, 475, 25),
                 "Combate: " + _settings.combatMode + " | Hordas: " + _settings.hordesEnabled);
+            GUI.Label(new Rect(12, 279, 470, 20),
+                "AI: " + LiveNpcDecisionBridge.Status);
             GUI.Label(new Rect(12, 73, 475, 25),
                 "Comandos: help, status, max 8, combat normal, natural on, spawn hostile");
             _typed = GUI.TextField(new Rect(12, 101, 460, 26), _typed, 100);
@@ -165,12 +167,14 @@ namespace Unturned2.Line2
                         ", natural=" + _settings.naturalSpawn + ", max=" + _settings.maxNPCs +
                         ", combat=" + _settings.combatMode + ", hordes=" + _settings.hordesEnabled +
                         ". PROTOTYPE NPCs=" + Line2NpcRuntimeRegistry.ActiveCount +
-                        " (prototype connected=" + Line2NpcRuntimeRegistry.IsReady + ").";
+                        " (prototype connected=" + Line2NpcRuntimeRegistry.IsReady +
+                        "), AI=" + LiveNpcDecisionBridge.Status + ".";
                     break;
                 case "population":
                     _feedback = "Population config max=" + _settings.maxNPCs +
                         ", natural=" + _settings.naturalSpawn +
-                        ", no NPCs spawned until verified game adapter is installed.";
+                        ", active prototype NPCs=" + Line2NpcRuntimeRegistry.ActiveCount +
+                        ". This does not include native NPCs or zombies.";
                     break;
                 case "server":
                     _feedback = "Local host=" + IsLocalHost() +
@@ -188,7 +192,7 @@ namespace Unturned2.Line2
                     Save();
                     PushRuntimeSettings();
                     _feedback = action + "=" + value +
-                        ". NPC runtime ready=" + Line2NpcRuntimeRegistry.IsReady + ".";
+                        ". Prototype runtime ready=" + Line2NpcRuntimeRegistry.IsReady + ".";
                     break;
                 case "max":
                     int limit;
@@ -210,7 +214,7 @@ namespace Unturned2.Line2
                     Save();
                     PushRuntimeSettings();
                     _feedback = "Combat mode configured: " + _settings.combatMode +
-                        ". Live NPC combat is not installed.";
+                        ". Prototype movement responds to mode; native combat is not installed.";
                     break;
                 case "spawn":
                     if (args.Length < 2 || args.Length > 3 ||
