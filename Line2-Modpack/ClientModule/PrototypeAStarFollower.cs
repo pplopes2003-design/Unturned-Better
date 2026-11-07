@@ -73,6 +73,16 @@ namespace Unturned2.Line2
                     _status = "line1-coarse-route-searching";
                     return Vector3.zero;
                 }
+                // The original Line1 planner physically enumerated all
+                // nearby accessible ground and found NO connected corridor.
+                // Never substitute blind forward steering at that point:
+                // that is exactly how NPCs repeatedly pressed against the
+                // same house wall rather than choosing a new destination.
+                if (_coarseFallback.Status == "no-connected-route")
+                {
+                    _status = "line1-no-connected-route";
+                    return Vector3.zero;
+                }
             }
             _status = "short-range-collision-steering";
             return _fallback != null
