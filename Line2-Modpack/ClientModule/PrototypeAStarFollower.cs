@@ -16,6 +16,13 @@ namespace Unturned2.Line2
     {
         private Line2NativeAStarRouteProvider _provider;
         private PrototypeObstacleNavigator _fallback;
+        private Line2MobileNPCTravelMemory _travelMemory;
+        // Stores positions observed AFTER actual CharacterController motion,
+        // never the proposed A* waypoints.
+        private readonly List<Vector3> _walked = new List<Vector3>(
+            Line2MobileNPCTravelMemory.MaxFootsteps);
+        private Vector3 _journeyStart;
+        private bool _journeyInvalid;
         private readonly List<Vector3> _path = new List<Vector3>(96);
         private Vector3 _pathGoal;
         private int _waypoint;
@@ -39,6 +46,52 @@ namespace Unturned2.Line2
             _nextRepathAt = Time.time;
         }
 
+        internal void AttachTravelMemory(Line2MobileNPCTravelMemory travelMemory)
+        {
+            _travelMemory = travelMemory;
+        }
+
+        private void StartJourney(Vector3 current)
+        {
+            _walked.Clear();
+            _walked.Add(current);
+            _journeyStart = current;
+            _journeyInvalid = false;
+        }
+
+        private void ObserveActualMovement(Vector3 current)
+        {
+            if (_journeyInvalid || _walked.Count == 0)
+                return;
+            float distance = Vector3.Distance(current, _walked[_walked.Count - 1]);
+            if (distance < 0.95f)
+                return;
+            // No synthetic interpolation across a teleport or giant frame.
+            if (distance > 2.6f ||
+                _walked.Count >= Line2MobileNPCTravelMemory.MaxFootsteps)
+            {
+                _journeyInvalid = true;
+                return;
+            }
+            _walked.Add(current);
+        }
+
+        private void FinishJourney(Vector3 current)
+        {
+            ObserveActualMovement(current);
+            if (!_journeyInvalid && _travelMemory != null &&
+                _walked.Count >= 3 &&
+                Vector3.Distance(current, _pathGoal) < 1.7f &&
+                Mathf.Abs(current.y - _pathGoal.y) <= 0.9f &&
+                _travelMemory.RememberCompletedJourneyServer(
+                    _journeyStart, _pathGoal, _walked))
+            {
+                ProbeLogger.Log("NPC_ROUTE_LEARNED: actor=" + gameObject.name +
+                                " physicalFootsteps=" + _walked.Count);
+            }
+            _walked.Clear();
+        }
+
         internal Vector3 GetHeading(Vector3 goal)
         {
             Vector3 current = transform.position;
@@ -49,6 +102,7 @@ namespace Unturned2.Line2
 
             if (_provider == null || !_provider.IsAvailable)
             {
+                _walked.Clear();
                 _status = _provider == null ? "provider-missing"
                     : _provider.DiagnosticStatus;
                 return _fallback != null ? _fallback.GetHeading(toward, goal)
@@ -62,6 +116,7 @@ namespace Unturned2.Line2
                 || Time.time - _routeReceivedAt > 5.0f;
             if (stale)
             {
+                _walked.Clear();
                 _path.Clear();
                 _waypoint = 0;
             }
@@ -98,6 +153,7 @@ namespace Unturned2.Line2
                     return Vector3.zero;
                 }
                 _pathGoal = goal;
+                StartJourney(current);
                 _waypoint = 1;
                 _routeReceivedAt = Time.time;
                 _nextRepathAt = Time.time + 1.0f;
@@ -105,6 +161,7 @@ namespace Unturned2.Line2
                 LogOnce();
             }
 
+            ObserveActualMovement(current);
             // Native waypoints may have vertical offsets from graph snapping,
             // but the humanoid CharacterController handles gravity itself.
             while (_waypoint < _path.Count)
@@ -123,6 +180,7 @@ namespace Unturned2.Line2
                 return delta.normalized;
             }
 
+            FinishJourney(current);
             _path.Clear();
             _status = "native-route-arrived";
             return Vector3.zero;
@@ -138,6 +196,7 @@ namespace Unturned2.Line2
 
         private void OnDisable()
         {
+            _walked.Clear();
             _path.Clear();
         }
     }
