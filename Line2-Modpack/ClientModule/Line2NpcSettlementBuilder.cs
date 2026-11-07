@@ -112,9 +112,9 @@ namespace Unturned2.Line2
                 count = 0;
             }
             if (count >= MaxPieces) return false;
-            Vector3 delta = site - transform.position;
-            delta.y = 0f;
-            if (delta.sqrMagnitude <= 3.25f * 3.25f) return false;
+            // Keep the patrol goal anchored at the claimed campsite even
+            // when already in range. Otherwise random patrol would walk the
+            // worker away before its next bounded native build interval.
             goal = site;
             return true;
         }
