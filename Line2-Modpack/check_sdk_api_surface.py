@@ -278,7 +278,7 @@ REQUIREMENTS = (
       "_verticalVelocity = proposed.Impulse")),
     ("Assets/Runtime/Assembly-CSharp/Unturned/Managers/ItemManager.cs",
      ("public static ItemRegion[,] regions", "public static void ReceiveDestroyItem(",
-      "region.items.RemoveAt(index)", "public static void dropItem(")),
+      "regions[x, y].items.RemoveAt(index)", "public static void dropItem(")),
     ("Assets/Runtime/Assembly-CSharp/Unturned/Managers/ItemRegion.cs",
      ("public List<ItemDrop> drops", "public List<ItemData> items")),
     ("Assets/Runtime/Assembly-CSharp/Unturned/Managers/ItemData.cs",
