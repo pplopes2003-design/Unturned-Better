@@ -93,3 +93,18 @@ The Legendary pack builder additionally scans `Unturned/Bundles/Effects` for an 
 The effect lookup does **not** create the gameplay-specific Burner effect of converting a zombie or applying a persistent fire debuff. The small `Range 1.25` blast and `Pellets 1` reduce the area and effect frequency. Visuals and damage must be verified in-game; the `effect_configured` output indicates only a reference was written, not that it rendered.
 
 The Legendary Eaglefire also uses the `balanced` recoil preset to avoid uncontrolled automatic recoil.
+
+## Especificação corrigida: rajada automática enquanto segura o gatilho
+
+O usuário solicitou **rajadas repetidas**, não apenas a opção vanilla `Bursts 3`.
+
+- `Semi`: um tiro a cada acionamento.
+- `Burst 3` nativo: três tiros por acionamento; **não repete sozinho**.
+- `Auto` nativo: tiros contínuos com cadência uniforme.
+- **Novo modo desejado Repeating Burst**: segurar o gatilho -> 3 tiros com intervalo de ~0,10 s entre disparos -> pausa de ~0,25 s após o terceiro -> repete a sequência enquanto houver munição; soltar o gatilho cancela imediatamente o próximo disparo. Não cria disparos ao recarregar, desequipar ou perder autoridade de host.
+
+Foi criado o algoritmo isolado `ClientModule/RepeatingBurstScheduler.cs` e um teste determinístico de estados em `RepeatingBurstSelfTest.cs`, que registra `BURST_SCHEDULER_SELFTEST_OK` quando o módulo é inicializado e o agendador passa.
+
+**Limite essencial:** o algoritmo atualmente não recebe estado real do gatilho e não chama o mecanismo nativo de disparo do Unturned. A Eaglefire instalada continua com `Semi`, `Bursts 3` e `Auto` do jogo. Só depois de descobrir/verificar a API de `UseableGun`, os eventos do disparo e a autoridade da sessão será possível ligar o agendador sem disparos duplicados, problemas com munição ou dessintonia. Nenhum teste demonstrou ainda as rajadas repetidas no Steam.
+
+Critério de aceitação no jogo: 2 s de gatilho mantido devem produzir várias séries **3 + pausa + 3 + pausa** (até acabar munição), interrompendo imediatamente quando soltar, com dano/múltiplos jogadores contabilizados pelo disparo original do jogo. Não implementar dano paralelo à própria arma.
