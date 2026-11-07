@@ -50,6 +50,8 @@ internal static class SettlementLedgerTests
                 out actual, out pieces))
                 return false;
             Line2NpcSettlementLedger.Restore(map, secondCopy);
+            if (Line2NPCGroupMember.LargestHistoricalGroupId < 12)
+                return false; // Don't give an extinct group's ID to new NPCs.
             if (!Line2NpcSettlementLedger.TryGet(12, "friendly",
                 out actual, out pieces) || pieces != 1)
                 return false;
