@@ -358,6 +358,7 @@ namespace Unturned2.Line2
         private float _blockedSince;
         private float _verticalVelocity;
         private readonly NpcDecisionBrain _brain = new NpcDecisionBrain();
+        private readonly Line2MobileNPCTactics _tactics = new Line2MobileNPCTactics();
         internal NpcIntent CurrentIntent { get { return _brain.Intent; } }
 
         internal void Initialize(string disposition, CharacterController controller,
@@ -369,6 +370,11 @@ namespace Unturned2.Line2
             _navigation = GetComponent<PrototypeObstacleNavigator>();
             _astarFollower = GetComponent<PrototypeAStarFollower>();
             _vitals = GetComponent<PrototypeNpcVitals>();
+            if (_vitals != null)
+            {
+                _vitals.Damaged += OnValidatedDamage;
+                _tactics.ReportHealth(_vitals.Health, 100f);
+            }
             _coverPlanner = GetComponent<PrototypeCoverPlanner>();
             _identity = identity;
             _aiAction = null;
@@ -385,12 +391,26 @@ namespace Unturned2.Line2
             _blockedSince = Time.time;
         }
 
+        private void OnValidatedDamage(float damage, Vector3 impulse)
+        {
+            if (_vitals != null)
+                _tactics.ReportDamage(_vitals.Health, 100f, Time.time);
+        }
+
+        private void OnDestroy()
+        {
+            if (_vitals != null)
+                _vitals.Damaged -= OnValidatedDamage;
+        }
+
         internal void SetCombatMode(string mode)
         {
             _combatMode = mode == "passive" || mode == "total" ? mode : "normal";
+            _tactics.CombatOnlyMode = _combatMode == "total";
             if (_combatMode == "passive")
             {
                 _brain.Reset();
+                _tactics.ClearGoal();
                 _aiAction = null;
                 _threatVisible = false;
                 _lastKnownThreat = null;
@@ -493,6 +513,19 @@ namespace Unturned2.Line2
                     hasCover = _coverPlanner.HasCover;
                     _hasRetreat = _coverPlanner.HasRetreat;
                 }
+                if (RecentlyDamaged && _vitals != null &&
+                    _vitals.HasExplosionOrigin && _combatMode != "passive" &&
+                    _disposition == "hostile")
+                {
+                    Vector3? coverPoint = hasCover ? (Vector3?)_coverGoal : null;
+                    _tactics.TryChooseDefensiveGoal(transform.position,
+                        coverPoint, _vitals.LastDamageOrigin, Time.time, false);
+                    if (_tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Retreat &&
+                        !_tactics.HasTacticalDestination && _hasRetreat)
+                        _tactics.ReportValidatedRetreatPoint(_retreatGoal, Time.time);
+                }
+                else if (_tactics.IsGoalExpired(Time.time))
+                    _tactics.ClearGoal();
                 var facts = new NpcDecisionInput
                 {
                     IsHostile = _disposition == "hostile",
@@ -548,6 +581,15 @@ namespace Unturned2.Line2
                         _goal = _home;
                         break;
                 }
+                if ((_tactics.CurrentGoal == Line2MobileNPCTactics.Goal.SeekCover ||
+                     _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Retreat) &&
+                    _tactics.HasTacticalDestination &&
+                    !(_tactics.IsGoalExpired(Time.time)) &&
+                    _combatMode != "passive")
+                {
+                    _goal = _tactics.TacticalDestination;
+                    // Cover/retreat movement wins over renewed aggression.
+                }
             }
 
             Vector3 delta = _goal - transform.position;
@@ -569,6 +611,9 @@ namespace Unturned2.Line2
             if (_controller.isGrounded && _verticalVelocity < 0f)
                 _verticalVelocity = -1.0f;
             _verticalVelocity += Physics.gravity.y * Time.deltaTime;
+            if (_tactics.HasTacticalDestination &&
+                (transform.position - _tactics.TacticalDestination).sqrMagnitude < 2.25f)
+                _tactics.ReportGoalReached();
             if (_animation != null) _animation.SetMoving(direction.sqrMagnitude > 0.1f);
             _controller.Move((direction * speed +
                               Vector3.up * _verticalVelocity) * Time.deltaTime);
