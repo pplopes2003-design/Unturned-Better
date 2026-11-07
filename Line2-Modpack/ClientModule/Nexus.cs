@@ -28,6 +28,7 @@ namespace Unturned2.Line2
             _host.AddComponent<GunApiDiscovery>();
             _host.AddComponent<SteamNpcPrototypeRuntime>();
             _host.AddComponent<LiveNpcDecisionBridge>();
+            _host.AddComponent<NpcAcousticSensorBridge>();
             _host.AddComponent<RepeatingBurstGameBridge>();
             Level.onLevelLoaded += OnLevelLoaded;
             _subscribed = true;
