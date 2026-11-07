@@ -33,6 +33,7 @@ namespace Unturned2.Line2
         private bool _restoreLoaded;
         private bool _saveAllowed;
         private bool _restoringActor;
+        private int _restoreCapacity;
         private float _nextSaveAt;
         private float _nextRestoreAt;
         private const float SaveIntervalSeconds = 30f;
@@ -138,6 +139,7 @@ namespace Unturned2.Line2
                         " (automatic overwrites disabled)");
                     return;
                 }
+                _restoreCapacity = Mathf.Min(32, Mathf.Max(_cap, records.Count));
                 _pendingRestore.AddRange(records);
                 _pendingReplacements.AddRange(tickets);
                 _saveAllowed = _pendingRestore.Count == 0;
@@ -255,7 +257,9 @@ namespace Unturned2.Line2
                 reason = "Invalid NPC disposition";
                 return false;
             }
-            if (count < 1 || count > 5 || ActiveCount + count > _cap)
+            int activeCap = _restoringActor
+                ? Mathf.Max(_cap, _restoreCapacity) : _cap;
+            if (count < 1 || count > 5 || ActiveCount + count > activeCap)
             {
                 reason = "Requested count exceeds per-command limit or population cap";
                 return false;
@@ -555,7 +559,8 @@ namespace Unturned2.Line2
         private bool TryRestoreOne(Line2NpcPersistence.ActorRecord saved, out string reason)
         {
             reason = "invalid_restore";
-            if (saved == null || !IsAuthorized() || _actors.Count >= _cap)
+            if (saved == null || !IsAuthorized() ||
+                _actors.Count >= Mathf.Max(_cap, _restoreCapacity))
                 return false;
             Player player = Player.player;
             Vector3 requested = saved.Position;
