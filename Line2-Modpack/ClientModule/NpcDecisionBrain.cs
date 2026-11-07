@@ -137,7 +137,7 @@ namespace Unturned2.Line2
                 Expect(brain.Evaluate(2f, input), NpcIntent.Pursue, "verified sight");
                 input.ThreatVisible = false;
                 input.HasRecentMemory = true;
-                Expect(brain.Evaluate(3f, input), NpcIntent.Pursue, "intent hysteresis");
+                Expect(brain.Evaluate(2.2f, input), NpcIntent.Pursue, "intent hysteresis");
                 Expect(brain.Evaluate(3.5f, input), NpcIntent.Investigate, "last seen");
                 input.UnderFire = true;
                 input.HasVerifiedCover = true;
