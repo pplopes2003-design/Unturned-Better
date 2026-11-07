@@ -217,26 +217,11 @@ namespace Unturned2.Line2
             Vector3 origin, Vector3 direction, float range,
             ItemGunAsset gun, float intendedDistance)
         {
-            int mask = RayMasks.DAMAGE_SERVER | RayMasks.ENTITY |
-                       RayMasks.PLAYER | RayMasks.ENEMY;
-            int count = Physics.RaycastNonAlloc(origin, direction, _hits,
-                range, mask, QueryTriggerInteraction.Collide);
-            if (count <= 0 || count >= _hits.Length) return false;
-            Transform first = null;
-            float nearest = float.PositiveInfinity;
-            for (int i = 0; i < count; ++i)
-            {
-                Transform hit = _hits[i].transform;
-                if (hit == null || hit == transform || hit.IsChildOf(transform))
-                    continue;
-                if (_hits[i].distance < nearest)
-                {
-                    nearest = _hits[i].distance;
-                    first = hit;
-                }
-            }
-            if (first == null) return false; // no fabricated hits
-
+            Transform first;
+            float nearest;
+            if (!TryTraceFirstImpact(origin, direction, range, gun,
+                out first, out nearest)) return false;
+            
             float falloffStart = gun.range * gun.damageFalloffRange;
             float falloffEnd = gun.range * gun.damageFalloffMaxRange;
             float falloff = Mathf.Lerp(1f, gun.damageFalloffMultiplier,
@@ -305,6 +290,73 @@ namespace Unturned2.Line2
                 return vitals.ApplyDamageToPart(amount, part, false, false,
                     Line2MobileNPCInjurySystem.BleedingSeverity.None,
                     direction, transform);
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Locates the first PHYSICAL impact on the same bent ballistic
+        /// trajectory as native U3's 20ms bullet simulation, when ballistics
+        /// are enabled. No invented target, line-of-sight bypass or fake
+        /// owner Player. This still commits the validated hit at shot time:
+        /// projectile travel-time replication requires a separate adapter.
+        /// </summary>
+        private bool TryTraceFirstImpact(Vector3 origin, Vector3 direction,
+            float range, ItemGunAsset gun, out Transform first,
+            out float distance)
+        {
+            first = null;
+            distance = 0f;
+            int mask = RayMasks.DAMAGE_SERVER | RayMasks.ENTITY |
+                       RayMasks.PLAYER | RayMasks.ENEMY;
+            bool ballistic = Provider.modeConfigData.Gameplay.Ballistics;
+            float speed = gun.muzzleVelocity;
+            float gravity = Physics.gravity.y * gun.bulletGravityMultiplier;
+            if (ballistic && (gun.ballisticSteps <= 0 ||
+                float.IsNaN(speed) || float.IsInfinity(speed) ||
+                speed < 1f || speed > 1500f ||
+                float.IsNaN(gravity) || float.IsInfinity(gravity)))
+                return false;
+            int steps = ballistic ? Mathf.Min((int)gun.ballisticSteps, 96) : 1;
+            const float dt = 0.02f; // Native UseableGun.BALLISTICS_DELTA_TIME
+            Vector3 current = origin;
+            Vector3 velocity = direction * speed;
+            float traveled = 0f;
+            for (int step = 0; step < steps && traveled < range; step++)
+            {
+                Vector3 advance = ballistic ? velocity * dt : direction * range;
+                float advanceLength = advance.magnitude;
+                if (advanceLength < 0.001f || float.IsNaN(advanceLength) ||
+                    float.IsInfinity(advanceLength)) return false;
+                float segment = Mathf.Min(advanceLength, range - traveled);
+                Vector3 normalized = advance / advanceLength;
+                int count = Physics.RaycastNonAlloc(current, normalized,
+                    _hits, segment, mask, QueryTriggerInteraction.Collide);
+                // Under a saturated result buffer, nearest-blocker proof
+                // is unavailable. Refuse the hit rather than shoot through.
+                if (count >= _hits.Length) return false;
+                float closest = float.PositiveInfinity;
+                Transform candidate = null;
+                for (int index = 0; index < count; ++index)
+                {
+                    Transform hit = _hits[index].transform;
+                    if (hit == null || hit == transform || hit.IsChildOf(transform))
+                        continue;
+                    if (_hits[index].distance < closest)
+                    {
+                        closest = _hits[index].distance;
+                        candidate = hit;
+                    }
+                }
+                if (candidate != null)
+                {
+                    first = candidate;
+                    distance = traveled + closest;
+                    return true;
+                }
+                traveled += segment;
+                current += normalized * segment;
+                if (ballistic) velocity.y += gravity * dt;
             }
             return false;
         }
