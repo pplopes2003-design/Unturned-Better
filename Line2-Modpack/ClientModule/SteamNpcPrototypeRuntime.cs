@@ -170,6 +170,12 @@ namespace Unturned2.Line2
                         body.isKinematic = true;
                         body.detectCollisions = false;
                     }
+                    // The CharacterController is the sole physical movement
+                    // owner. Additional native prefab colliders must never
+                    // trap the humanoid in its own skeleton or double-hit.
+                    foreach (Collider visualCollider in
+                             visual.GetComponentsInChildren<Collider>(true))
+                        visualCollider.enabled = false;
                     // The original NPC prefab can include interactive scripts.
                     // Disable everything except purely visual Human* components;
                     // our prototype is NOT a native quest NPC.
@@ -183,6 +189,8 @@ namespace Unturned2.Line2
                     ApplyNativeAppearance(visual);
                     var motion = instance.AddComponent<PrototypeAnimation>();
                     motion.Initialize(visual);
+                    var navigation = instance.AddComponent<PrototypeObstacleNavigator>();
+                    navigation.Initialize();
                     var actor = instance.AddComponent<PrototypeActor>();
                     actor.Initialize(disposition, movement, instance.name);
                     created.Add(actor);
@@ -294,8 +302,7 @@ namespace Unturned2.Line2
         private string _identity;
         private string _displayName;
         private PrototypeAnimation _animation;
-        private float _nextObstacleProbeAt;
-        private bool _pathBlocked;
+        private PrototypeObstacleNavigator _navigation;
         private Vector3 _goal;
         private Vector3 _home;
         private float _nextThink;
@@ -308,6 +315,7 @@ namespace Unturned2.Line2
             _disposition = disposition;
             _controller = controller;
             _animation = GetComponent<PrototypeAnimation>();
+            _navigation = GetComponent<PrototypeObstacleNavigator>();
             _identity = identity;
             string[] names = { "Alex", "Morgan", "Sam", "Casey", "Jordan", "Riley", "Taylor", "Robin" };
             _displayName = names[UnityEngine.Random.Range(0, names.Length)] +
@@ -315,6 +323,7 @@ namespace Unturned2.Line2
             _home = transform.position;
             _goal = _home;
             _nextThink = Time.time;
+            _blockedSince = Time.time;
         }
 
         private void Update()
@@ -350,29 +359,16 @@ namespace Unturned2.Line2
             delta.y = 0;
             float speed = _disposition == "hostile" ? 2.8f : 1.8f;
             Vector3 direction = delta.sqrMagnitude > 1.5f ? delta.normalized : Vector3.zero;
-            // Physics raycast prevents walking directly into nearby walls.
+            // Use bounded side-steering instead of repeatedly stopping in
+            // front of the same wall. This does not open doors or navigate
+            // entire buildings: a proper door-aware graph is still required.
+            if (direction.sqrMagnitude > 0 && _navigation != null)
+                direction = _navigation.GetHeading(direction, _goal);
             if (direction.sqrMagnitude > 0)
-            {
-                if (Time.time >= _nextObstacleProbeAt)
-                {
-                    _nextObstacleProbeAt = Time.time + 0.2f;
-                    RaycastHit hit;
-                    _pathBlocked = Physics.SphereCast(
-                        transform.position + Vector3.up, 0.25f,
-                        direction, out hit, 1.25f, ~0,
-                        QueryTriggerInteraction.Ignore) &&
-                        hit.transform != transform &&
-                        !hit.transform.IsChildOf(transform);
-                }
-                if (_pathBlocked)
-                {
-                    direction = Vector3.zero;
-                    _blockedSince = Time.time - 6.8f;
-                }
-                else
-                    transform.rotation = Quaternion.RotateTowards(transform.rotation,
-                        Quaternion.LookRotation(direction), 420f * Time.deltaTime);
-            }
+                transform.rotation = Quaternion.RotateTowards(transform.rotation,
+                    Quaternion.LookRotation(direction), 420f * Time.deltaTime);
+            else if (delta.sqrMagnitude > 2f)
+                _blockedSince = Time.time - 6.8f;
             if (_controller.isGrounded && _verticalVelocity < 0f)
                 _verticalVelocity = -1.0f;
             _verticalVelocity += Physics.gravity.y * Time.deltaTime;
