@@ -369,6 +369,8 @@ namespace Unturned2.Line2
                     var actor = instance.AddComponent<PrototypeActor>();
                     actor.Initialize(disposition, movement, instance.name);
                     actor.SetCombatMode(_mode);
+                    var collisionAudit = instance.AddComponent<Line2NpcObstacleAudit>();
+                    collisionAudit.Initialize(actor);
                     var needs = instance.AddComponent<Line2NpcNeeds>();
                     needs.Initialize(actor);
                     var group = instance.AddComponent<Line2NPCGroupMember>();
@@ -845,6 +847,7 @@ namespace Unturned2.Line2
         private float _nextLegacyArrivalCheckAt;
         private readonly Line2MobileNPCTactics _tactics = new Line2MobileNPCTactics();
         internal NpcIntent CurrentIntent { get { return _brain.Intent; } }
+        internal Vector3 CurrentDestination { get { return _goal; } }
 
         internal void Initialize(string disposition, CharacterController controller,
                                  string identity)
