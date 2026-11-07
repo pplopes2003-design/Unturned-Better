@@ -39,6 +39,7 @@ class App(tk.Tk):
         ttk.Button(basic, text="Install local mod", command=self.install).pack(side="left", padx=4)
         ttk.Button(basic, text="Remove managed mod", command=self.remove).pack(side="left", padx=4)
         ttk.Button(basic, text="Generate Auto 32", command=self.generate_auto32).pack(side="left", padx=4)
+        ttk.Button(basic, text="Tune Auto 32 recoil", command=self.tune_auto32).pack(side="left", padx=4)
         ttk.Button(advanced, text="Save profile / server export", command=self.profile_export).pack(side="left", padx=4)
         ttk.Button(advanced, text="Check conflicts", command=self.show_conflicts).pack(side="left", padx=4)
         ttk.Button(advanced, text="Apply profile", command=self.apply_profile).pack(side="left", padx=4)
@@ -185,6 +186,31 @@ class App(tk.Tk):
                 "\\nReview BUILD_NOTES.txt and scan for conflicts before installation.")
         except Exception as exc:
             messagebox.showerror("Auto 32 generation failed", str(exc))
+
+    def tune_auto32(self):
+        try:
+            from auto32_recoil import tune_staged_auto32, PRESETS
+            mgr = self.require_manager()
+            # Protect registry snapshots: never modify staged content while it
+            # has a managed copy deployed to the game.
+            if "Content/Auto32" in mgr.state()["installed"]:
+                raise ValueError(
+                    "Close Unturned, then remove Content/Auto32 under Managed Installs "
+                    "before tuning staging. The manager keeps the removed mod in recovery. "
+                    "Reinstall it after tuning.")
+            preset = simpledialog.askstring("Auto 32 recoil",
+                "Preset: soft / balanced / strong", initialvalue="balanced")
+            if preset is None: return
+            preset = preset.strip().lower()
+            if preset not in PRESETS:
+                raise ValueError("Select soft, balanced or strong.")
+            result = tune_staged_auto32(mgr.staging / "Auto32", preset)
+            messagebox.showinfo("Recoil preset applied",
+                "Adjusted Auto 32 in staging only.\\nPreset: " + preset +
+                "\\nItem ID: " + result["id"] +
+                "\\nNext: Install local mod (Content), then restart the game.")
+        except Exception as exc:
+            messagebox.showerror("Auto 32 recoil adjustment failed", str(exc))
 
     def install_module(self):
         try:
