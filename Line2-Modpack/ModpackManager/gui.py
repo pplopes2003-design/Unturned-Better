@@ -38,8 +38,9 @@ class App(tk.Tk):
         ttk.Button(basic, text="Import local folder", command=self.import_mod).pack(side="left", padx=4)
         ttk.Button(basic, text="Install local mod", command=self.install).pack(side="left", padx=4)
         ttk.Button(basic, text="Remove managed mod", command=self.remove).pack(side="left", padx=4)
-        ttk.Button(basic, text="Generate Auto 32", command=self.generate_auto32).pack(side="left", padx=4)
+        ttk.Button(basic, text="Generate Auto 24", command=self.generate_auto32).pack(side="left", padx=4)
         ttk.Button(basic, text="Tune Auto 32 recoil", command=self.tune_auto32).pack(side="left", padx=4)
+        ttk.Button(advanced, text="Generate Legendary Pack", command=self.generate_legendary_pack).pack(side="left", padx=4)
         ttk.Button(advanced, text="Save profile / server export", command=self.profile_export).pack(side="left", padx=4)
         ttk.Button(advanced, text="Check conflicts", command=self.show_conflicts).pack(side="left", padx=4)
         ttk.Button(advanced, text="Apply profile", command=self.apply_profile).pack(side="left", padx=4)
@@ -212,6 +213,35 @@ class App(tk.Tk):
                 "\\nNext: Install local mod (Content), then restart the game.")
         except Exception as exc:
             messagebox.showerror("Auto 32 recoil adjustment failed", str(exc))
+
+    def generate_legendary_pack(self):
+        try:
+            from build_legendary_items import build_legendaries
+            mgr = self.require_manager()
+            eagle_id = simpledialog.askinteger("Legendary Eaglefire",
+                "Eaglefire legacy item ID:", initialvalue=32612, minvalue=1, maxvalue=65535)
+            if eagle_id is None: return
+            fire_id = simpledialog.askinteger("Legendary 12 Gauge Incendiary",
+                "Incendiary magazine legacy ID:", initialvalue=32613,
+                minvalue=1, maxvalue=65535)
+            if fire_id is None: return
+            if not messagebox.askyesno("Experimental Legendary Pack",
+                "Generate two items into staging only?\\n"
+                "Eaglefire: semi, 3-round burst and full-auto\\n"
+                "12 Gauge: small-area explosive shot, NOT verified Burner ignition.\\n"
+                "Natural spawns need map loot-table integration."):
+                return
+            extras = [mgr.workshop] if mgr.workshop else []
+            result = build_legendaries(mgr.game, mgr.staging / "LegendaryPack",
+                                      eagle_id=eagle_id, fire_id=fire_id,
+                                      extra_roots=extras)
+            self.refresh()
+            messagebox.showinfo("Legendary pack generated",
+                "Staging: " + result["path"] + "\\nEaglefire ID " + str(eagle_id) +
+                "\\nIncendiary 12G ID " + str(fire_id) +
+                "\\nReview the README_TESTING.txt before deployment.")
+        except Exception as exc:
+            messagebox.showerror("Legendary pack failed", str(exc))
 
     def install_module(self):
         try:
