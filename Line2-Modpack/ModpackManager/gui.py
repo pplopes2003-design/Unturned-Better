@@ -38,6 +38,7 @@ class App(tk.Tk):
         ttk.Button(buttons, text="Check conflicts", command=self.show_conflicts).pack(side="left", padx=4)
         ttk.Button(buttons, text="Apply profile", command=self.apply_profile).pack(side="left", padx=4)
         ttk.Button(buttons, text="Install C# module", command=self.install_module).pack(side="left", padx=4)
+        ttk.Button(buttons, text="Generate Auto 32", command=self.generate_auto32).pack(side="left", padx=4)
         ttk.Label(self, textvariable=self.status_var, anchor="w", padding=9).pack(fill="x")
 
     def make_tab(self, title, help_text):
@@ -151,6 +152,35 @@ class App(tk.Tk):
             self.status_var.set("Profile saved (not applied). Use Apply profile to deploy selected mods.")
         except Exception as exc:
             messagebox.showerror("Profile error", str(exc))
+
+    def generate_auto32(self):
+        try:
+            from build_auto32 import create_auto32
+            mgr = self.require_manager()
+            gun_id = simpledialog.askinteger("Auto 32 (experimental)",
+                "Gun legacy ID (must not conflict):", initialvalue=32610,
+                minvalue=1, maxvalue=65535)
+            if gun_id is None: return
+            magazine_id = simpledialog.askinteger("Auto 32 (experimental)",
+                "Magazine legacy ID:", initialvalue=32611,
+                minvalue=1, maxvalue=65535)
+            if magazine_id is None: return
+            target = mgr.staging / "Auto32"
+            extra = [mgr.workshop] if mgr.workshop else []
+            if not messagebox.askyesno("Generate experimental mod",
+                "Generate a staging-only Auto 32 gun and magazine using your installed Bluntforce models?\\n\\n"
+                "This does not install the mod or modify vanilla files. "
+                "The 4-round incremental reload is NOT implemented."):
+                return
+            result = create_auto32(mgr.game, target, gun_id=gun_id,
+                                   magazine_id=magazine_id, other_roots=extra)
+            self.refresh()
+            messagebox.showinfo("Auto 32 generated",
+                "Staging only. IDs: " + str(result["gun_id"]) + ", " +
+                str(result["magazine_id"]) +
+                "\\nReview BUILD_NOTES.txt and scan for conflicts before installation.")
+        except Exception as exc:
+            messagebox.showerror("Auto 32 generation failed", str(exc))
 
     def install_module(self):
         try:
