@@ -329,6 +329,37 @@ internal static class Program
             Console.Error.WriteLine("NPC_TACTICAL_JOURNEY_FAILED: path progress / stuck-route safety.");
             return 27;
         }
+        UnityEngine.Vector3 squadOrigin = new UnityEngine.Vector3(0f, 0f, 0f);
+        UnityEngine.Vector3 observedLeader = new UnityEngine.Vector3(25f, 0f, 0f);
+        if (!Line2NpcSquadRegroupPolicy.MayRegroup(
+                true, true, true, false, false, false, true,
+                squadOrigin, observedLeader) ||
+            Line2NpcSquadRegroupPolicy.MayRegroup(
+                true, true, false, false, false, false, true,
+                squadOrigin, observedLeader) ||
+            Line2NpcSquadRegroupPolicy.MayRegroup(
+                true, true, true, true, false, false, true,
+                squadOrigin, observedLeader) ||
+            Line2NpcSquadRegroupPolicy.MayRegroup(
+                true, true, true, false, false, true, true,
+                squadOrigin, observedLeader) ||
+            Line2NpcSquadRegroupPolicy.MayRegroup(
+                true, true, true, false, false, false, true,
+                squadOrigin, new UnityEngine.Vector3(70f, 0f, 0f)) ||
+            Line2NpcSquadRegroupPolicy.MayRegroup(
+                true, true, true, false, false, false, true,
+                squadOrigin, new UnityEngine.Vector3(8f, 0f, 0f)) ||
+            Line2NpcSquadRegroupPolicy.MayRegroup(
+                true, true, true, false, false, false, true,
+                squadOrigin, new UnityEngine.Vector3(25f, 5f, 0f)) ||
+            Line2NpcSquadRegroupPolicy.MayRegroup(
+                true, true, true, false, false, false, true,
+                squadOrigin, new UnityEngine.Vector3(float.NaN, 0f, 0f)))
+        {
+            Console.Error.WriteLine("NPC_SQUAD_REGROUP_FAILED: eyesight, combat, formation, bounds or floor safety.");
+            return 28;
+        }
+        Console.WriteLine("NPC_SQUAD_REGROUP_OK: real local LOS, no combat preemption, 12-42m bounds and same-floor leader.");
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
