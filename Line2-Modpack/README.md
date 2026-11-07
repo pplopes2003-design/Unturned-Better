@@ -229,3 +229,13 @@ Track full integration, gate criteria and future **single consolidated** accepta
 `ClientModule/RepeatingBurstGameBridge.cs` now subscribes to the server-native `UseableGun.onBulletSpawned` event and, **only for custom Eaglefire item 32612 in BURST mode**, schedules an additional native `startPrimary()` after three actual shots and a 0.25-second pause while left mouse remains held. The module refuses remote/dedicated authority, uses normal gun ammo and damage, and resets on a released trigger, equipped-item change, reload, or missing server confirmation. It has no code path to change vanilla Eaglefire ID 4 or other guns. The separate `RepeatingBurstScheduler.cs` remains a pure-logic test.
 
 **Not yet proven in a compiled Steam game.** A safe source implementation is not equivalent to successful runtime integration. The current build/test blocker remains the lack of a validated local .NET compilation log and live Steam session. See [LEGENDARY_PACK.md](LEGENDARY_PACK.md) for precise boundaries.
+
+## Branch audit, Steam-native Astar and prototype blast damage (Nov 7, 2026)
+
+See [LINE1_BRANCH_AUDIT.md](LINE1_BRANCH_AUDIT.md) for a branch-by-branch decision system inventory. **The complete Line 1 brain has not been ported**. The old `MobileNPCBrainDriver` has substantially more behavior and dependencies than the new `NpcDecisionBrain`.
+
+This iteration ports the native Steam ASPFP `Seeker` route provider from Line 1 by reflection as `Line2NativeAStarRouteProvider`, with `PrototypeAStarFollower`; it does **not** ship the proprietary A* library or create new navigation graphs. Closed door/portal behavior and graphless indoor routes are not resolved.
+
+It also ports the `MobileNPCTactics` tactical goals into `Line2MobileNPCTactics` (with explicit combat-mode setting), adds `PrototypeCoverPlanner`, and connects these to the prototype's **native explosion** health receiver `PrototypeNpcVitals : IExplosionDamageable`. Existing grenade damage uses the original `DamageTool`/Agent-layer overlap, radial falloff and world obstruction. The new `NpcExplosionMath` and tactical policy are covered by separate C# Windows tests. The prior Line 1 humanoid did not implement this explosion interface and might have been excluded from vanilla blast candidate selection.
+
+**Still not confirmed:** compiled Steam module, actual grenade/fall damage in Washington, real shooting damage/hitboxes, full NPC combat, door-aware A*, radio/faction simulation in Unity, save/load, and all Line 1 features. Treat the integration as an experimental NPC prototype until a complete in-game test passes.
