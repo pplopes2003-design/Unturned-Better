@@ -330,6 +330,8 @@ namespace Unturned2.Line2
         private float _nextThink;
         private float _blockedSince;
         private float _verticalVelocity;
+        private readonly NpcDecisionBrain _brain = new NpcDecisionBrain();
+        internal NpcIntent CurrentIntent { get { return _brain.Intent; } }
 
         internal void Initialize(string disposition, CharacterController controller,
                                  string identity)
@@ -342,6 +344,7 @@ namespace Unturned2.Line2
             _aiAction = null;
             _lastKnownThreat = null;
             _lastSeenAt = -100f;
+            _brain.Reset();
             string[] names = { "Alex", "Morgan", "Sam", "Casey", "Jordan", "Riley", "Taylor", "Robin" };
             _displayName = names[UnityEngine.Random.Range(0, names.Length)] +
                            " (" + disposition + ")";
@@ -356,6 +359,7 @@ namespace Unturned2.Line2
             _combatMode = mode == "passive" || mode == "total" ? mode : "normal";
             if (_combatMode == "passive")
             {
+                _brain.Reset();
                 _aiAction = null;
                 _threatVisible = false;
                 _lastKnownThreat = null;
@@ -414,39 +418,67 @@ namespace Unturned2.Line2
             if (Time.time >= _nextThink)
             {
                 _nextThink = Time.time + 0.4f;
-                if (player != null && _disposition == "friendly" &&
-                    (player.transform.position - transform.position).sqrMagnitude < 32f * 32f)
+
+                // Own game senses are authoritative. Python suggestions
+                // cannot create invisible enemies or bypass passive mode.
+                bool visible;
+                Vector3? lastKnown;
+                ObserveThreat(player, out visible, out lastKnown);
+                bool nearPlayer = player != null &&
+                    (player.transform.position - transform.position).sqrMagnitude < 32f * 32f;
+                string validSuggestion = _aiAction != null &&
+                    Time.realtimeSinceStartup <= _aiValidUntil ? _aiAction : null;
+                var facts = new NpcDecisionInput
                 {
-                    Vector3 target = player.transform.position;
-                    _goal = target - player.transform.forward * 3f;
-                }
-                else if (_disposition == "hostile" && _combatMode != "passive" && _aiAction != null &&
-                         Time.realtimeSinceStartup <= _aiValidUntil)
+                    IsHostile = _disposition == "hostile",
+                    IsFriendly = _disposition == "friendly",
+                    PassiveMode = _combatMode == "passive",
+                    PlayerNearby = nearPlayer,
+                    ThreatVisible = visible,
+                    HasRecentMemory = lastKnown.HasValue,
+                    // No health, damage, firearm, verified cover or hearing
+                    // adapters exist for this prototype: do not fabricate.
+                    HasRealHealth = false,
+                    UnderFire = false,
+                    HasVerifiedCover = false,
+                    CanShoot = false,
+                    CombatAdapterReady = false,
+                    RemoteSuggestion = validSuggestion
+                };
+                NpcIntent intent = _brain.Evaluate(Time.time, facts);
+                switch (intent)
                 {
-                    // Only trust movement requests based on LOCAL, verified
-                    // world perception; localhost never gains magic targeting.
-                    if (_aiAction == "engage" && _threatVisible && player != null)
-                        _goal = player.transform.position;
-                    else if (_aiAction == "investigate" && _lastKnownThreat.HasValue &&
-                             Time.time - _lastSeenAt < 8f)
-                        _goal = _lastKnownThreat.Value;
-                    else if (_aiAction == "idle" &&
-                             (_goal - transform.position).sqrMagnitude < 2f)
+                    case NpcIntent.Follow:
+                        if (nearPlayer)
+                            _goal = player.transform.position - player.transform.forward * 3f;
+                        break;
+                    case NpcIntent.Pursue:
+                        if (visible && player != null)
+                            _goal = player.transform.position;
+                        break;
+                    case NpcIntent.Investigate:
+                        if (lastKnown.HasValue)
+                            _goal = lastKnown.Value;
+                        break;
+                    case NpcIntent.Retreat:
+                    case NpcIntent.SeekCover:
+                        // These states are impossible without real damage
+                        // and cover sensors; never guess a safe location.
                         _goal = _home;
-                }
-                else if (_disposition == "hostile" && _combatMode != "passive" && player != null &&
-                         (player.transform.position - transform.position).sqrMagnitude < ThreatRadius * ThreatRadius &&
-                         CanSeePlayer(player))
-                {
-                    _goal = player.transform.position;
-                }
-                else if ((_goal - transform.position).sqrMagnitude < 2.5f ||
-                         Time.time >= _blockedSince + 7f)
-                {
-                    float rad = UnityEngine.Random.Range(0f, 6.28318f);
-                    _goal = _home + new Vector3(Mathf.Cos(rad), 0f, Mathf.Sin(rad)) *
-                        UnityEngine.Random.Range(4f, 15f);
-                    _blockedSince = Time.time;
+                        break;
+                    case NpcIntent.Patrol:
+                        if ((_goal - transform.position).sqrMagnitude < 2.5f ||
+                            Time.time >= _blockedSince + 7f)
+                        {
+                            float rad = UnityEngine.Random.Range(0f, 6.28318f);
+                            _goal = _home + new Vector3(Mathf.Cos(rad), 0f, Mathf.Sin(rad)) *
+                                UnityEngine.Random.Range(4f, 15f);
+                            _blockedSince = Time.time;
+                        }
+                        break;
+                    default:
+                        _goal = _home;
+                        break;
                 }
             }
 
