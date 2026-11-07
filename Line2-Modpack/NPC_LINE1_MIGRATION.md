@@ -109,3 +109,15 @@ O núcleo tem autoteste `NpcDecisionBrainSelfTest`, iniciado em `Nexus.initializ
 - Nenhuma compilação da DLL contra Unturned Steam ou validação de gameplay foi confirmada nesta rodada. Não considerar a migração total da Linha 1 concluída.
 
 **Próxima integração prioritária dentro do mesmo pacote de NPCs:** adaptador de vida/dano e morte, armas e animações reais, detecção/uso de portas e cobertura, navegação indoor/outdoor com rotas, facções e rádio físico, persistência e orçamento de desempenho. A bateria de gameplay do usuário será **uma só**, quando esses recursos estiverem integrados e validados.
+
+## 2026-11-07 — Revisão sistemática de todas as branches (A* e explosões)
+
+A auditoria detalhada está em **[LINE1_BRANCH_AUDIT.md](LINE1_BRANCH_AUDIT.md)**; compara o cérebro e executores da Linha 1 das branches `backup/alife-survival-2026-10-16`, `feature/hybrid-npc-navigation`, `feature/integrated-friends-host`, `feature/npc-hybrid-integration`, `feature/release-candidate-cycle-2026-11-04` e `feature/steam-modpack-local-ai-prototype-2026-11-04`. **A Linha 2 não contém todas as funções antigas**.
+
+**Mudanças efetivas nesta rodada:** adaptação do provedor nativo `MobileNPCNativeAStarRouteProvider` da Linha 1 para `Line2NativeAStarRouteProvider` (reflexão de `Pathfinding.Seeker` já instalado no Steam); `PrototypeAStarFollower` passa a usar seus waypoints quando a rota chega, com freio durante espera e fallback para o navegador leve se o backend A* não estiver disponível/falhar. O operador de movimento ainda é `CharacterController`; não há cópia ou distribuição do A* Pro.
+
+Foi portado o seletor de decisões `Line2MobileNPCTactics` (a partir de `MobileNPCTactics.cs`), preservando metas de cobertura, recuo, flanco, espreita, reforços, reagrupamento, loot e staging de raid. Está ligado aos danos reais por explosão e ao planejador físico de cobertura/recuo (`PrototypeCoverPlanner`). As metas mais avançadas não têm ainda executores do jogo, então **não** são funcionalidades concluídas. O projeto `BrainTests` passou a compilar esse seletor usando stubs de tipos de valor do Unity, fora do módulo Steam, e testa os seus bloqueios básicos.
+
+**Bug histórico de explosões:** o `DamageTool.explode` vanilla usa `RayMasks.AGENT` ao selecionar zumbis/animais e procura `IExplosionDamageable` na hierarquia do colisor. Sem ambos, uma granada pode ignorar um NPC. `PrototypeNpcVitals` agora implementa a interface, o spawn exige a camada física Agent, o dano respeita raio, queda e parede, registra HP e mata a entidade (despawn do corpo após intervalo); `NpcExplosionMath` tem testes determinísticos. Essa correção ainda exige **teste in-game** com explosivos do Steam e não implementa dano de bala nem saque de corpo.
+
+**Riscos e gates:** backend A* pode não ter grafo em ambientes indoor e ainda precisa de lógica de portas; custom explosives que só geram dano a Player mas não consultam Agent não necessariamente encontram NPC; falta a integração das hitboxes e da autoridade de dano completo. Nenhuma compilação Steam validada; o protocolo GitHub Actions está em atualização, não presumir sucesso.
