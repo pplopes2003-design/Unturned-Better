@@ -15,6 +15,7 @@ MAX_BYTES = 65536
 PROTOCOL = 1
 ACTIONS = ("idle", "investigate", "seek_cover", "engage", "retreat")
 MAX_NPCS = 0  # No actual NPCs are created or controlled by this service.
+MAX_BATCH = 32  # Upper bound on decisions per HTTP request.
 
 
 def finite_vec(value):
@@ -81,6 +82,26 @@ def evaluate(payload):
             "action": action, "reason": reason, "valid_ms": 250}
 
 
+def evaluate_batch(payload):
+    """Bounded batch policy; all-or-nothing validation; no game effects."""
+    if not isinstance(payload, dict) or type(payload.get("protocol")) is not int or payload["protocol"] != PROTOCOL:
+        raise ValueError("invalid_protocol")
+    agents = payload.get("agents")
+    if not isinstance(agents, list) or not 1 <= len(agents) <= MAX_BATCH:
+        raise ValueError("invalid_batch_size")
+    identifiers = set()
+    decisions = []
+    for item in agents:
+        agent, tick, obs = validate(item)
+        if obs is None or obs["kind"] != "npc":
+            raise ValueError("batch_requires_npc_observations")
+        if agent in identifiers:
+            raise ValueError("duplicate_agent_id")
+        identifiers.add(agent)
+        decisions.append(evaluate(item))
+    return {"protocol": PROTOCOL, "decisions": decisions}
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "U2AI/0.2"
 
@@ -97,18 +118,18 @@ class Handler(BaseHTTPRequestHandler):
         if self.path != "/health":
             return self.respond(404, {"error": "not_found"})
         return self.respond(200, {"ok": True, "protocol": PROTOCOL, "service": "U2AI",
-                                  "capabilities": ["heartbeat", "camera_probe", "synthetic_npc_policy"],
+                                  "capabilities": ["heartbeat", "camera_probe", "synthetic_npc_policy", "synthetic_npc_batch_policy"],
                                   "controls_game": False})
 
     def do_POST(self):
-        if self.path != "/v1/decide":
+        if self.path not in ("/v1/decide", "/v1/decide_batch"):
             return self.respond(404, {"error": "not_found"})
         try:
             length = int(self.headers.get("Content-Length", "-1"))
             if length < 0 or length > MAX_BYTES:
                 return self.respond(413, {"error": "invalid_length"})
             data = json.loads(self.rfile.read(length))
-            result = evaluate(data)
+            result = evaluate_batch(data) if self.path == "/v1/decide_batch" else evaluate(data)
         except (ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             return self.respond(400, {"error": str(exc)[:120]})
         return self.respond(200, result)
