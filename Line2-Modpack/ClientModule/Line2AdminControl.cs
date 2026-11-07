@@ -20,6 +20,7 @@ namespace Unturned2.Line2
             public int maxNPCs = 8;
             public string combatMode = "normal";
             public bool hordesEnabled = false;
+            public bool zombiePriority = false;
         }
 
         private Settings _settings = new Settings();
@@ -97,7 +98,8 @@ namespace Unturned2.Line2
                 "NPCs: " + _settings.npcEnabled + " | Spawn natural: " + _settings.naturalSpawn +
                 " | Max: " + _settings.maxNPCs);
             GUI.Label(new Rect(12, 47, 475, 25),
-                "Combate: " + _settings.combatMode + " | Hordas: " + _settings.hordesEnabled);
+                "Combate: " + _settings.combatMode + " | Hordas: " + _settings.hordesEnabled +
+                " | Z20: " + _settings.zombiePriority);
             GUI.Label(new Rect(12, 166, 470, 20),
                 "AI: " + LiveNpcDecisionBridge.Status);
             GUI.Label(new Rect(12, 73, 475, 25),
@@ -159,13 +161,14 @@ namespace Unturned2.Line2
             {
                 case "help":
                     _feedback = "status | npc on/off | natural on/off | max 1..32 | " +
-                        "combat passive/normal/total | hordes on/off | server | population | spawn friendly/neutral/hostile [1..5] | save. " +
+                        "combat passive/normal/total | hordes on/off | zombies on/off | server | population | spawn friendly/neutral/hostile [1..5] | save. " +
                         "Spawn uses EXPERIMENTAL visual prototype only; no real damage, dialogue, radio, saves or multiplayer.";
                     break;
                 case "status":
                     _feedback = "NPC enabled=" + _settings.npcEnabled +
                         ", natural=" + _settings.naturalSpawn + ", max=" + _settings.maxNPCs +
                         ", combat=" + _settings.combatMode + ", hordes=" + _settings.hordesEnabled +
+                        ", zombies20m=" + _settings.zombiePriority +
                         ". PROTOTYPE NPCs=" + Line2NpcRuntimeRegistry.ActiveCount +
                         " (prototype connected=" + Line2NpcRuntimeRegistry.IsReady +
                         "), AI=" + LiveNpcDecisionBridge.Status + ".";
@@ -183,12 +186,14 @@ namespace Unturned2.Line2
                 case "npc":
                 case "natural":
                 case "hordes":
+                case "zombies":
                     bool value;
                     if (args.Length != 2 || !TryToggle(args[1], out value))
                     { _feedback = "Use " + action + " on/off"; break; }
                     if (action == "npc") _settings.npcEnabled = value;
                     else if (action == "natural") _settings.naturalSpawn = value;
-                    else _settings.hordesEnabled = value;
+                    else if (action == "hordes") _settings.hordesEnabled = value;
+                    else _settings.zombiePriority = value;
                     Save();
                     PushRuntimeSettings();
                     _feedback = action + "=" + value +
@@ -245,6 +250,7 @@ namespace Unturned2.Line2
         {
             Line2NpcRuntimeRegistry.UpdateSettings(_settings.npcEnabled,
                 _settings.naturalSpawn, _settings.maxNPCs, _settings.combatMode);
+            ZombiePriorityVisionBridge.Enabled = _settings.zombiePriority;
         }
 
         private static bool TryToggle(string value, out bool result)
