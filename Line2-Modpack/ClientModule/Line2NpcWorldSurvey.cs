@@ -99,7 +99,10 @@ namespace Unturned2.Line2
                 // pretend that supplies are present in a nearby building.
                 goal = _actor.HomePosition;
                 _hasDestination = false;
-                return (current - goal).sqrMagnitude > 3f * 3f;
+                // Hold this goal even after arriving: an exhausted survivor
+                // must not immediately wander off because the original
+                // Patrol fallback picked a random point.
+                return true;
             }
 
             if (_hasDestination)
