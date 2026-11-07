@@ -351,6 +351,8 @@ namespace Unturned2.Line2
                     var actor = instance.AddComponent<PrototypeActor>();
                     actor.Initialize(disposition, movement, instance.name);
                     actor.SetCombatMode(_mode);
+                    var needs = instance.AddComponent<Line2NpcNeeds>();
+                    needs.Initialize(actor);
                     var group = instance.AddComponent<Line2NPCGroupMember>();
                     group.Initialize(actor, groupCandidates);
                     groupCandidates.Add(actor);
@@ -434,6 +436,7 @@ namespace Unturned2.Line2
             {
                 if (actor == null || actor.IsDead) continue;
                 Line2MobileNPCInventory inventory = actor.Inventory;
+                Line2NpcNeeds needs = actor.GetComponent<Line2NpcNeeds>();
                 if (inventory == null)
                 {
                     ProbeLogger.Log("NPC_SAVE_ABORTED: actor missing inventory");
@@ -456,6 +459,9 @@ namespace Unturned2.Line2
                     recruited = actor.IsRecruited,
                     groupId = group != null ? group.GroupId : 0,
                     health = actor.HealthFraction * 100f,
+                    hasNeeds = needs != null,
+                    hunger = needs != null ? needs.Hunger : 100f,
+                    thirst = needs != null ? needs.Thirst : 100f,
                     x = p.x, y = p.y, z = p.z,
                     homeX = h.x, homeY = h.y, homeZ = h.z,
                     items = items
@@ -523,9 +529,12 @@ namespace Unturned2.Line2
                 CharacterController controller = actor.GetComponent<CharacterController>();
                 Line2MobileNPCInventory inventory = actor.Inventory;
                 Line2NPCGroupMember group = actor.GetComponent<Line2NPCGroupMember>();
+                Line2NpcNeeds needs = actor.GetComponent<Line2NpcNeeds>();
                 bool valid = controller != null && inventory != null && group != null &&
+                    needs != null &&
                     inventory.TryRestoreItemsServer(saved.items) &&
                     actor.TryRestoreIdentity(saved) &&
+                    (!saved.hasNeeds || needs.TryRestore(saved.hunger, saved.thirst)) &&
                     (saved.groupId == 0 || group.TryRestoreMembership(actor, saved.groupId));
                 if (!valid)
                 {
@@ -1107,6 +1116,15 @@ namespace Unturned2.Line2
                 {
                     _goal = _tactics.TacticalDestination;
                     // Cover/retreat movement wins over renewed aggression.
+                }
+                else if (!_recruited && GetComponent<Line2NpcNeeds>() != null &&
+                    GetComponent<Line2NpcNeeds>().IsUrgent &&
+                    (_combatPerception == null ||
+                     _combatPerception.Kind == Line2NPCCombatPerception.TargetKind.None))
+                {
+                    // Exhausted survivors return to their group's home anchor
+                    // without abandoning an observed opponent or defense.
+                    _goal = _home;
                 }
                 else if (_recruited && player != null &&
                     (player.transform.position - transform.position).sqrMagnitude < 80f * 80f &&
