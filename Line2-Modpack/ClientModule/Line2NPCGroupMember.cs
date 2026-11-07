@@ -18,6 +18,17 @@ namespace Unturned2.Line2
             new Dictionary<int, List<Line2NPCGroupMember>>();
         private static int nextGroupId = 1;
 
+        /// <summary>
+        /// Reserve identities of dead/abandoned groups and queued replacement
+        /// tickets after loading a map. Otherwise a newly spawned group might
+        /// be assigned the ID of a destroyed historical faction campsite.
+        /// </summary>
+        internal static void ReserveHistoricalGroupId(int used)
+        {
+            if (used > 0 && used <= 1000000 && nextGroupId <= used)
+                nextGroupId = used + 1;
+        }
+
         internal int GroupId { get; private set; }
         internal Line2NPCFactionPolicy.Id Faction { get; private set; }
         internal bool Joined { get { return GroupId != 0; } }
