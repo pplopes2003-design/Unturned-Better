@@ -45,7 +45,7 @@ namespace Unturned2.Line2
                 | RayMasks.PLAYER | RayMasks.ENEMY;
             if (!Physics.Raycast(origin, difference / length,
                 out RaycastHit hit, Mathf.Min(length + 0.75f, maximumRange + 1f),
-                mask, QueryTriggerInteraction.Ignore))
+                mask, QueryTriggerInteraction.Collide))
                 return false;
 
             // If a wall/fence is in front of the NPC, the FIRST physics hit
