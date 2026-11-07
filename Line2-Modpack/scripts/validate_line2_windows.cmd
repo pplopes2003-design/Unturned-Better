@@ -50,6 +50,12 @@ if errorlevel 1 (
   exit /b 8
 )
 dotnet --list-sdks
+echo Running standalone C# NPC tactical brain tests...
+dotnet run --project "%ROOT%\BrainTests\BrainTests.csproj" -c Release
+if errorlevel 1 (
+  echo FAILED: NPC decision brain unit tests; Steam DLL not installed.
+  exit /b 11
+)
 dotnet build "%ROOT%\ClientModule\Unturned2.Line2.Probe.csproj" -c Release "-p:UnturnedDir=%GAME%"
 if errorlevel 1 (
   echo FAILED: C# Steam compile; no game files modified.
