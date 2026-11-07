@@ -178,3 +178,25 @@ The prerequisite **C# compilation check** remains: the user's Windows environmen
 ```
 
 This command checks the SDK, compiles the **read-only** F8–F12 diagnostic module and installs it **only if an existing same-name module is absent**, refusing unsafe overwrites. It does not add game NPCs. For subsequent rebuilds, back up/remove the old diagnostic module folder before rerunning. Compiling with `dotnet build` manually is also supported.
+
+## Local admin panel & chat configuration (work in progress)
+
+`ClientModule/Line2AdminControl.cs` provides a **local-host-only** F7 panel and a chat event handler for commands starting with `!u2` (not registered as an official `/u2` server console command).
+
+| Local chat input | Current effect |
+|---|---|
+| `!u2 help` / `!u2 status` | Show command help and configuration in F7/log |
+| `!u2 npc on` / `!u2 npc off` | Persist NPC enabled flag |
+| `!u2 natural on` / `!u2 natural off` | Persist natural spawn flag |
+| `!u2 max 8` | Set future NPC population cap (1..32) |
+| `!u2 combat passive` / `!u2 combat normal` / `!u2 combat total` | Configure future NPC mode |
+| `!u2 hordes on` / `!u2 hordes off` | Persist horde request; **does not spawn zombies or lift vanilla limits** |
+| `!u2 population` | Show population settings |
+| `!u2 server` | Show local-host status; no integrated server start |
+| `!u2 spawn friendly` / `!u2 spawn neutral` / `!u2 spawn hostile 3` | Validate request but currently responds **SPAWN_UNAVAILABLE** until NPC runtime is installed |
+
+Settings are written to `Unturned2-Line2/admin-settings.json`. `Line2NpcRuntimeRegistry` defines the precise server-owned spawning/config interface. It has **no registered runtime implementation yet**. The C# module still requires compilation and in-game API confirmation.
+
+The AI Service now supports `POST /v1/decide_batch` with 1–32 synthetic NPC observations per call and duplicate-agent rejection. This does not imply that any game NPC is controlled.
+
+**No actual mobile NPCs, natural NPC spawns, dialogue, faction simulation or modified zombie pursuit are included in this commit.** For migration dependencies and the user's request for a consolidated test release, see [NPC_LINE1_MIGRATION.md](NPC_LINE1_MIGRATION.md) and [NPC_INTEGRATED_ACCEPTANCE.md](NPC_INTEGRATED_ACCEPTANCE.md). Do not instruct users to validate NPC playability before these Steam adapters exist.
