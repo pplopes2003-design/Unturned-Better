@@ -2,7 +2,7 @@
 
 **Branch de destino:** `line2/modpack-framework`  
 **Origem:** `feature/steam-modpack-local-ai-prototype-2026-11-04`  
-**Verificação:** comparados conteúdos dos arquivos diretamente via GitHub. Os quatro componentes abaixo correspondem integralmente ao arquivo de origem após **somente** a troca de namespace/nome de classe (e, em AdaptiveMemory, tipo de saúde e import SDG.Unturned).
+**Verificação:** comparados conteúdos dos arquivos diretamente via GitHub. Os quatro componentes da primeira tabela correspondem integralmente ao arquivo de origem após **somente** a troca de namespace/nome de classe (e, em AdaptiveMemory, tipo de saúde e import SDG.Unturned).
 
 | Classe original | Classe na Linha 2 | Integração atual |
 |---|---|---|
