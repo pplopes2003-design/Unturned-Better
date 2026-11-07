@@ -144,3 +144,11 @@ The previous `feature/offline-zombie-survival` line contained a 1.5x offline sur
 The new `AIService/horde_policy.py` is an **offline planning prototype** for grouping eligible zombie spawnpoints into bands of ~8–18, within a 25m leader radius. Its caller must supply the *real* vanilla regional zombie budget. `preserve_vanilla_population=True` is mandatory; exceeding the vanilla cap is rejected. The module does **not** spawn zombies or hook into the Steam version yet.
 
 Test with `python run_tests.py AIService`. Actual hordes in-game remain pending a validated C# server-side spawn adapter. Avoid changing `Zombies.Spawn_Chance` or region limits through our modpack.
+
+## First Steam-success milestone: Auto 32 spawns and fires
+
+The user successfully installed the generated Auto32 and confirmed it shoots. The recoil was uncontrolled; new Auto32 generation now explicitly uses a `balanced` recoil preset. The manager GUI also has a **Tune Auto 32 recoil** button; it refuses to tune while a managed deployed Auto32 exists, to preserve registry fingerprints. See [AUTO32.md](ModpackManager/AUTO32.md).
+
+Next independent integration checkpoint: use **Check AI service** in the manager GUI. Open a PowerShell in `Line2-Modpack/AIService`, run `python server.py`, then press **Check AI service** in the GUI. The new health check confirms only loopback connectivity and protocol v1, not actual NPC movement. Once successful, the C# DLL build and F8/F9/F10 in-game diagnostics are next.
+
+The four-round reload and Steam-side horde/NPC movement remain unimplemented. The older standalone Line 1 remains paused.
