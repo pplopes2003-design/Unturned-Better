@@ -412,6 +412,8 @@ namespace Unturned2.Line2
                     builder.Initialize(this, actor, combatSight);
                     var looting = instance.AddComponent<Line2NpcWorldLootCollector>();
                     looting.Initialize(this, actor, combatSight);
+                    var squad = instance.AddComponent<Line2NpcSquadRegroup>();
+                    squad.Initialize(actor, combatSight);
                     var medicalCare = instance.AddComponent<Line2NpcMedicalCare>();
                     medicalCare.Initialize(actor, combatSight);
                     var melee = instance.AddComponent<Line2NPCMeleeExecutor>();
@@ -1037,6 +1039,22 @@ namespace Unturned2.Line2
         /// ground only. Damage still requires ammunition/grenade and native
         /// line-of-sight. An AI or a base ledger cannot grant a blind hit.
         /// </summary>
+        internal bool TryStageObservedGroupRegroup(Vector3 verifiedPoint)
+        {
+            if (!Provider.isServer || Dedicator.IsDedicatedServer ||
+                (Provider.clients != null && Provider.clients.Count > 1) ||
+                IsDead || IsRecruited ||
+                _tactics.CurrentGoal != Line2MobileNPCTactics.Goal.None ||
+                (_combatPerception != null &&
+                 _combatPerception.Kind !=
+                    Line2NPCCombatPerception.TargetKind.None &&
+                 _combatPerception.VisibleTarget != null) ||
+                !Level.checkSafeIncludingClipVolumes(verifiedPoint) ||
+                Mathf.Abs(verifiedPoint.y - transform.position.y) > 1.0f)
+                return false;
+            return _tactics.TryStartGroupRegroup(verifiedPoint, Time.time);
+        }
+
         internal bool TryStageObservedRaid(Vector3 verifiedPoint)
         {
             if (!IsCombatEnabled || _disposition != "hostile" ||
@@ -1240,6 +1258,22 @@ namespace Unturned2.Line2
                 }
                 else if (_tactics.IsGoalExpired(Time.time))
                     _tactics.ClearGoal();
+                // Exact Line1 BrainDriver priority: personally observed
+                // combat immediately cancels noncombat group rendezvous
+                // or preliminary base reconnaissance. Never allow a stale
+                // regroup/raid waypoint to override new defensive action.
+                if (_combatPerception != null &&
+                    _combatPerception.Kind !=
+                        Line2NPCCombatPerception.TargetKind.None &&
+                    _combatPerception.VisibleTarget != null &&
+                    (_tactics.CurrentGoal ==
+                        Line2MobileNPCTactics.Goal.Regroup ||
+                     _tactics.CurrentGoal ==
+                        Line2MobileNPCTactics.Goal.RaidStaging))
+                {
+                    _tactics.ClearGoal();
+                    _tacticalJourney.Reset();
+                }
                 // Line 1 tactical flank is optional and never allowed to
                 // override emergency cover or a committed retreat.
                 if (_tactics.CurrentGoal == Line2MobileNPCTactics.Goal.None &&
@@ -1364,7 +1398,8 @@ namespace Unturned2.Line2
                 if ((_tactics.CurrentGoal == Line2MobileNPCTactics.Goal.SeekCover ||
                      _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Retreat ||
                      _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Flank ||
-                     _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.RaidStaging) &&
+                     _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.RaidStaging ||
+                     _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Regroup) &&
                     _tactics.HasTacticalDestination &&
                     !(_tactics.IsGoalExpired(Time.time)) &&
                     _combatMode != "passive")
