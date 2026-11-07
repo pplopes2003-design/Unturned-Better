@@ -67,6 +67,35 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(decide(dict(base, under_fire=False, threat_visible=False,
                                      last_known_threat=None)), "idle")
 
+    def test_batched_npc_policy(self):
+        def make_agent(agent, visible):
+            return {"protocol": 1, "agent_id": agent, "tick": 5,
+                    "observation": {"kind": "npc", "position": [1, 2, 3],
+                                    "health": 0.8, "threat_visible": visible,
+                                    "under_fire": False, "has_cover": False,
+                                    "last_known_threat": None}}
+        batch = {"protocol": 1, "agents": [
+            make_agent("npc-a", False), make_agent("npc-b", True)]}
+        response = self.request(endpoint="/v1/decide_batch", payload=batch)
+        self.assertEqual(response["protocol"], 1)
+        self.assertEqual([d["action"] for d in response["decisions"]],
+                         ["idle", "engage"])
+        self.assertEqual([d["agent_id"] for d in response["decisions"]],
+                         ["npc-a", "npc-b"])
+
+    def test_batched_rejects_duplicates_and_overload(self):
+        a = {"protocol": 1, "agent_id": "same", "tick": 1,
+             "observation": {"kind": "npc", "position": [0, 0, 0],
+                             "health": 1.0, "threat_visible": False,
+                             "under_fire": False, "has_cover": False,
+                             "last_known_threat": None}}
+        for agents in ([a, a], [a] * 33, []):
+            with self.subTest(count=len(agents)):
+                with self.assertRaises(HTTPError) as error:
+                    self.request(endpoint="/v1/decide_batch",
+                                 payload={"protocol": 1, "agents": agents})
+                self.assertEqual(error.exception.code, 400)
+
     def test_reject_bad_observations(self):
         invalid = [
             {"kind": "camera", "scene": "Washington", "position": [1, 2],
