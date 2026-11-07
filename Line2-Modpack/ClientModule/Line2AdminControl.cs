@@ -26,6 +26,7 @@ namespace Unturned2.Line2
         private string _typed = "help";
         private string _feedback = "F7: Line 2 admin. Use !u2 help in local chat.";
         private bool _show;
+        private float _lastCommandAt = -100f;
         private CursorLockMode _oldLock;
         private bool _oldCursor;
         private Rect _rect = new Rect(25, 55, 500, 310);
@@ -81,8 +82,13 @@ namespace Unturned2.Line2
 
         private void OnGUI()
         {
-            if (!_show || !IsLocalHost()) return;
-            _rect = GUI.Window(879321, _rect, DrawPanel, "Unturned 2 - Controle local (F7)");
+            if (!IsLocalHost()) return;
+            if (_show)
+                _rect = GUI.Window(879321, _rect, DrawPanel, "Unturned 2 - Controle local (F7)");
+            else if (Time.realtimeSinceStartup - _lastCommandAt < 7f)
+                GUI.Box(new Rect(22, 55, Mathf.Min(Screen.width - 44, 640f), 72),
+                    "Line 2: " + _feedback);
+
         }
 
         private void DrawPanel(int id)
@@ -95,6 +101,12 @@ namespace Unturned2.Line2
             GUI.Label(new Rect(12, 73, 475, 25),
                 "Comandos: help, status, max 8, combat normal, natural on, spawn hostile");
             _typed = GUI.TextField(new Rect(12, 101, 460, 26), _typed, 100);
+            if (Event.current.type == EventType.KeyDown &&
+                Event.current.keyCode == KeyCode.Return)
+            {
+                Run(_typed);
+                Event.current.Use();
+            }
             if (GUI.Button(new Rect(12, 134, 100, 27), "Executar"))
                 Run(_typed);
             if (GUI.Button(new Rect(122, 134, 100, 27), "Status"))
@@ -221,6 +233,7 @@ namespace Unturned2.Line2
                     _feedback = "Unknown command. Enter help.";
                     break;
             }
+            _lastCommandAt = Time.realtimeSinceStartup;
             ProbeLogger.Log("LINE2_ADMIN: " + action + " => " + _feedback);
         }
 
