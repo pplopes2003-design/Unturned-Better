@@ -80,27 +80,8 @@ namespace Unturned2.Line2
                 if (data == null || data.schema != Schema || data.map != map ||
                     data.actors == null || data.actors.Length > 32)
                     throw new InvalidDataException("invalid map/schema/count");
-                var seen = new HashSet<string>(StringComparer.Ordinal);
-                foreach (ActorRecord a in data.actors)
-                {
-                    if (a == null || string.IsNullOrEmpty(a.identity) ||
-                        a.identity.Length > 96 || !seen.Add(a.identity) ||
-                        (a.role != "hostile" && a.role != "neutral" && a.role != "friendly") ||
-                        a.groupId < 0 || a.groupId > 1000000 ||
-                        a.displayName == null || a.displayName.Length > 80 ||
-                        !Finite(a.health) || a.health <= 0f || a.health > 100f ||
-                        !Finite(a.x) || !Finite(a.y) || !Finite(a.z) ||
-                        !Finite(a.homeX) || !Finite(a.homeY) || !Finite(a.homeZ) ||
-                        a.items == null || a.items.Length > 18)
-                        throw new InvalidDataException("invalid actor");
-                    foreach (ItemRecord item in a.items)
-                        if (item == null || item.id < 1 || item.id > ushort.MaxValue ||
-                            item.amount < 0 || item.amount > byte.MaxValue ||
-                            item.quality < 0 || item.quality > byte.MaxValue ||
-                            item.state == null || item.state.Length > 2048)
-                            throw new InvalidDataException("invalid item");
-                    actors.Add(a);
-                }
+                ValidateActors(data.actors);
+                actors.AddRange(data.actors);
                 reason = "loaded=" + actors.Count;
                 return true;
             }
@@ -111,6 +92,47 @@ namespace Unturned2.Line2
                 return false; // Don't overwrite a damaged save with empty data.
             }
         }
+        private static void ValidateActors(ActorRecord[] actors)
+        {
+            if (actors == null || actors.Length > 32)
+                throw new InvalidDataException("invalid actor count");
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var groupSize = new Dictionary<int, int>();
+            var groupRole = new Dictionary<int, Line2NPCFactionPolicy.Id>();
+            foreach (ActorRecord a in actors)
+            {
+                if (a == null || string.IsNullOrEmpty(a.identity) ||
+                    a.identity.Length > 96 || !seen.Add(a.identity) ||
+                    (a.role != "hostile" && a.role != "neutral" && a.role != "friendly") ||
+                    a.groupId < 0 || a.groupId > 1000000 ||
+                    a.displayName == null || a.displayName.Length > 80 ||
+                    !Finite(a.health) || a.health <= 0f || a.health > 100f ||
+                    !Finite(a.x) || !Finite(a.y) || !Finite(a.z) ||
+                    !Finite(a.homeX) || !Finite(a.homeY) || !Finite(a.homeZ) ||
+                    a.items == null || a.items.Length > 18)
+                    throw new InvalidDataException("invalid actor");
+                if (a.groupId != 0)
+                {
+                    int count;
+                    groupSize.TryGetValue(a.groupId, out count);
+                    if (++count > 4) throw new InvalidDataException("group exceeds cap");
+                    groupSize[a.groupId] = count;
+                    var faction = Line2NPCFactionPolicy.DefaultForRole(a.role);
+                    Line2NPCFactionPolicy.Id existingFaction;
+                    if (groupRole.TryGetValue(a.groupId, out existingFaction) &&
+                        existingFaction != faction)
+                        throw new InvalidDataException("mixed-faction group");
+                    groupRole[a.groupId] = faction;
+                }
+                foreach (ItemRecord item in a.items)
+                    if (item == null || item.id < 1 || item.id > ushort.MaxValue ||
+                        item.amount < 0 || item.amount > byte.MaxValue ||
+                        item.quality < 0 || item.quality > byte.MaxValue ||
+                        item.state == null || item.state.Length > 2048)
+                        throw new InvalidDataException("invalid item");
+            }
+        }
+
         internal static bool TryWrite(string map, List<ActorRecord> actors, out string reason)
         {
             reason = "denied";
@@ -119,8 +141,10 @@ namespace Unturned2.Line2
             string temp = null;
             try
             {
+                ActorRecord[] validated = actors.ToArray();
+                ValidateActors(validated);
                 string json = JsonUtility.ToJson(
-                    new SaveFile { map = map, actors = actors.ToArray() });
+                    new SaveFile { map = map, actors = validated });
                 if (Encoding.UTF8.GetByteCount(json) > MaximumBytes)
                     throw new InvalidDataException("serialized data exceeds cap");
                 string path = GetPath(map);
