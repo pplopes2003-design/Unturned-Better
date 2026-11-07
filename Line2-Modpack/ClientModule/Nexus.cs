@@ -25,10 +25,11 @@ namespace Unturned2.Line2
             _host.AddComponent<Line2AdminControl>();
             _host.AddComponent<GunApiDiscovery>();
             _host.AddComponent<SteamNpcPrototypeRuntime>();
+            _host.AddComponent<LiveNpcDecisionBridge>();
             _host.AddComponent<RepeatingBurstGameBridge>();
             Level.onLevelLoaded += OnLevelLoaded;
             _subscribed = true;
-            ProbeLogger.Log("Diagnostics ready: F8 scans colliders, F9 probes AI Service, F10 inventories NPC APIs, F11 snapshots zombie movement, F12 samples NPC-like game objects, F7 opens local admin panel, F6 discovers firearm APIs. NPC prototype runtime opt-in via F7 and local cheats. Legendary Eaglefire native BURST repeat adapter enabled in local singleplayer.");
+            ProbeLogger.Log("Diagnostics ready: F8 scans colliders, F9 probes AI Service, F10 inventories NPC APIs, F11 snapshots zombie movement, F12 samples NPC-like game objects, F7 opens local admin panel, F6 discovers firearm APIs. NPC prototype runtime opt-in via F7 and local cheats. Native NPC AI bridge polls localhost asynchronously. Legendary Eaglefire native BURST repeat adapter enabled in local singleplayer.");
         }
 
         private void OnLevelLoaded(int level)
