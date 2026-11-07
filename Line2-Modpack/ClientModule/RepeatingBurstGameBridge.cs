@@ -9,8 +9,7 @@ namespace Unturned2.Line2
     /// (item ID 32612). Re-triggers the *native* UseableGun after an authorized
     /// burst completes. Never creates bullets, changes ammo, or deals damage.
     ///
-    /// The game's primary-fire input must be left mouse (default); no mapped
-    /// input hook has been validated. Feature requires local server authority.
+    /// The player's native ControlsSettings.primary binding is respected. Feature requires local server authority.
     /// </summary>
     internal sealed class RepeatingBurstGameBridge : MonoBehaviour
     {
@@ -78,7 +77,7 @@ namespace Unturned2.Line2
         private void Update()
         {
             UseableGun eligible;
-            if (!GetEligibleGun(out eligible) || !Input.GetMouseButton(0))
+            if (!GetEligibleGun(out eligible) || !Input.GetKey(ControlsSettings.primary))
             {
                 Clear();
                 return;
@@ -91,7 +90,7 @@ namespace Unturned2.Line2
 
             if (!_armed)
             {
-                if (!Input.GetMouseButtonDown(0))
+                if (!Input.GetKeyDown(ControlsSettings.primary))
                     return;
                 _gun = eligible;
                 _armed = true;
@@ -141,7 +140,7 @@ namespace Unturned2.Line2
             // A shotgun can emit many BulletInfo pellets per shot. Only
             // count pellet zero, and only from *our* selected local gun.
             if (bullet == null || bullet.pellet != 0 ||
-                !Input.GetMouseButton(0))
+                !Input.GetKey(ControlsSettings.primary))
                 return;
             UseableGun eligible;
             if (!GetEligibleGun(out eligible) || firedGun != eligible)
