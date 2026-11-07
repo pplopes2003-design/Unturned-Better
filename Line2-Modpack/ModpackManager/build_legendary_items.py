@@ -10,6 +10,7 @@ from pathlib import Path
 import uuid
 from asset_diagnostics import enumerate_dat, parse_dat
 from build_auto32 import find_asset, other_item_ids, replace_metadata, NAMESPACE
+from auto32_recoil import tune_text
 
 EAGLEFIRE_ID = 4
 SHOTGUN_MAG_ID = 113
@@ -77,6 +78,8 @@ def build_legendaries(game: Path, staging: Path, *, eagle_id=DEFAULT_EAGLE_ID,
         "Master_Bundle_Override":"core.masterbundle",
         "Bundle_Override_Path":eagle_path,
     },{"Exclude_From_Master_Bundle", "Bundle_Path_Include_Filename"})
+
+    eagle = tune_text(eagle, "balanced")  # Controllable full-auto, distinct from vanilla burst-only recoil.
 
     # Use exactly the vanilla magazine caliber(s) for broad compatibility
     # with other 12-gauge weapons without editing each gun.
