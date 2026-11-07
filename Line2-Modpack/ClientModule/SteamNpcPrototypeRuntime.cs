@@ -33,6 +33,17 @@ namespace Unturned2.Line2
             }
         }
 
+        internal void CopyLiveActors(List<PrototypeActor> output, int limit)
+        {
+            if (output == null) throw new ArgumentNullException("output");
+            output.Clear();
+            if (!IsAuthorized() || !_enabled) return;
+            _actors.RemoveAll(a => a == null);
+            for (int i = 0; i < _actors.Count && output.Count < limit; i++)
+                if (_actors[i] != null && _actors[i].isActiveAndEnabled)
+                    output.Add(_actors[i]);
+        }
+
         private static bool IsAuthorized()
         {
             return Provider.isServer && !Dedicator.IsDedicatedServer &&
@@ -300,6 +311,12 @@ namespace Unturned2.Line2
         private CharacterController _controller;
         private string _disposition;
         private string _identity;
+        internal string Identity { get { return _identity; } }
+        private string _aiAction;
+        private float _aiValidUntil;
+        private Vector3? _lastKnownThreat;
+        private float _lastSeenAt;
+        private bool _threatVisible;
         private string _displayName;
         private PrototypeAnimation _animation;
         private PrototypeObstacleNavigator _navigation;
@@ -317,6 +334,9 @@ namespace Unturned2.Line2
             _animation = GetComponent<PrototypeAnimation>();
             _navigation = GetComponent<PrototypeObstacleNavigator>();
             _identity = identity;
+            _aiAction = null;
+            _lastKnownThreat = null;
+            _lastSeenAt = -100f;
             string[] names = { "Alex", "Morgan", "Sam", "Casey", "Jordan", "Riley", "Taylor", "Robin" };
             _displayName = names[UnityEngine.Random.Range(0, names.Length)] +
                            " (" + disposition + ")";
@@ -324,6 +344,47 @@ namespace Unturned2.Line2
             _goal = _home;
             _nextThink = Time.time;
             _blockedSince = Time.time;
+        }
+
+        internal void ObserveThreat(Player player, out bool visible, out Vector3? lastKnown)
+        {
+            visible = false;
+            lastKnown = null;
+            if (_disposition != "hostile") return;
+            if (player != null &&
+                (player.transform.position - transform.position).sqrMagnitude <= 24f * 24f &&
+                CanSeePlayer(player))
+            {
+                visible = true;
+                _threatVisible = true;
+                _lastKnownThreat = player.transform.position;
+                _lastSeenAt = Time.time;
+            }
+            else
+            {
+                _threatVisible = false;
+                if (Time.time - _lastSeenAt > 8f)
+                    _lastKnownThreat = null;
+            }
+            if (_lastKnownThreat.HasValue && Time.time - _lastSeenAt <= 8f)
+                lastKnown = _lastKnownThreat;
+        }
+
+        internal bool TryApplyAiAction(string action, float expiresRealtime)
+        {
+            if (_disposition != "hostile") return false;
+            if (action != "idle" && action != "engage" && action != "investigate")
+                return false; // Cover and retreat need an actual health/damage system.
+            if (expiresRealtime <= Time.realtimeSinceStartup ||
+                expiresRealtime - Time.realtimeSinceStartup > 1.0f)
+                return false;
+            if (action == "engage" && !_threatVisible)
+                return false;
+            if (action == "investigate" && !_lastKnownThreat.HasValue)
+                return false;
+            _aiAction = action;
+            _aiValidUntil = expiresRealtime;
+            return true;
         }
 
         private void Update()
@@ -338,6 +399,20 @@ namespace Unturned2.Line2
                 {
                     Vector3 target = player.transform.position;
                     _goal = target - player.transform.forward * 3f;
+                }
+                else if (_disposition == "hostile" && _aiAction != null &&
+                         Time.realtimeSinceStartup <= _aiValidUntil)
+                {
+                    // Only trust movement requests based on LOCAL, verified
+                    // world perception; localhost never gains magic targeting.
+                    if (_aiAction == "engage" && _threatVisible && player != null)
+                        _goal = player.transform.position;
+                    else if (_aiAction == "investigate" && _lastKnownThreat.HasValue &&
+                             Time.time - _lastSeenAt < 8f)
+                        _goal = _lastKnownThreat.Value;
+                    else if (_aiAction == "idle" &&
+                             (_goal - transform.position).sqrMagnitude < 2f)
+                        _goal = _home;
                 }
                 else if (_disposition == "hostile" && player != null &&
                          (player.transform.position - transform.position).sqrMagnitude < 24f * 24f &&
