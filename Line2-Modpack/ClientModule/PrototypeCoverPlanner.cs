@@ -13,6 +13,12 @@ namespace Unturned2.Line2
     {
         private const int CandidatesPerSearch = 6;
         private const float SearchCooldown = 2.5f;
+        private Line2MobileNPCAdaptiveMemory _experience;
+        internal void Initialize(Line2MobileNPCAdaptiveMemory experience)
+        {
+            _experience = experience;
+        }
+
         private float _nextSearchAt;
         private Vector3 _lastSource;
         private Vector3 _lastCover;
@@ -78,9 +84,12 @@ namespace Unturned2.Line2
 
                 float awayScore = Vector3.Dot(dir, away) * 4f +
                     (point - threat).sqrMagnitude * 0.02f;
-                if (protectedFromThreat && awayScore > bestCoverScore)
+                float rememberedCoverUtility = _experience != null
+                    ? _experience.GetCoverAccessAdjustment(point) : 0f;
+                float coverScore = awayScore + rememberedCoverUtility;
+                if (protectedFromThreat && coverScore > bestCoverScore)
                 {
-                    bestCoverScore = awayScore;
+                    bestCoverScore = coverScore;
                     _lastCover = point;
                     _hasCover = true;
                 }
