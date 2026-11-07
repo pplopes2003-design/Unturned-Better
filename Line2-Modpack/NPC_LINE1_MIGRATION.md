@@ -1,3 +1,15 @@
+# Atualização — protótipo Steam de NPCs (código-fonte, ainda NÃO VALIDADO)
+
+O novo `ClientModule/SteamNpcPrototypeRuntime.cs` implementa `ILine2NpcRuntime` e foi registrado em `Nexus.cs`. Ele tenta instanciar o recurso humanoide nativo `Resources/Characters/NPC_Client` (cuja existência foi confirmada no SDK base, não ainda na build Steam local). Usa `CharacterController`, material/pele via `HumanClothes`, detector de animação nativa `PrototypeAnimation`, nomes visíveis a até 17 m, escolha limitada de terreno com Physics e movimento simples com checagens de colisão em intervalos.
+
+A implementação é **exclusiva de singleplayer e opt-in**: exige `Provider.isServer`, sessão não dedicada, cheats ativos, mapa carregado e `!u2 npc on`; então `!u2 spawn friendly|neutral|hostile [1..5]` tentará criar atores. `!u2 natural on` solicita um novo ator por ciclo de ~18 s até o limite configurado; `!u2 max N` até 32 altera imediatamente o limite; `!u2 npc off` limpa protótipos. Se o prefab nativo não existir, o spawn **falha sem criar cápsulas brancas de substituição**.
+
+**Não é o NPC final**: os atores têm roaming e seguimento/perseguição rudimentares, mas não possuem armas, dano, morte, diálogo, comércio, navegação indoor, portas, facções vivas, rádio nativo, multiplayer ou persistência no save. Um spawn `PROTOTYPE_SPAWN_OK` indica apenas que um GameObject local foi criado. Falta confirmar compilação e execução contra DLLs da Steam; as assinaturas de `HumanClothes`, `NPC_Client` e demais APIs podem variar na instalação real. Ainda não solicitar bateria final de gameplay ao usuário.
+
+A compilação passou a referenciar `UnityEngine.AnimationModule.dll` e `UnityEngine.IMGUIModule.dll`, exigidos pelo adaptador visual e pelo painel F7. Esses componentes não devem ser confundidos com NPCs permanentemente integrados à engine.
+
+---
+
 # Linha 2 — Migração de NPCs da Linha 1 para o Unturned Steam
 
 ## O que foi verificado no código antigo
