@@ -31,6 +31,7 @@ If successful, copy the resulting `Unturned2.Line2.Probe.dll` and the `ClientMod
 | F9 | Camera observation to AIService | `probe.log`, `AI_BRIDGE_OK` |
 | F10 | NPC and navigation type inventory | `npc-api-discovery.txt` |
 | F11 | Zombie movement/region snapshots | `zombie-snapshots.jsonl`, `ZOMBIE_SNAPSHOT_OK` |
+| F12 | NPC-like component snapshot | `npc-snapshots.jsonl`, `NPC_SNAPSHOT_OK` |
 
 Logs are saved under the game's *current working directory* `Unturned2-Line2` subfolder, which may differ from the install folder depending on Steam launch settings.
 
@@ -61,3 +62,20 @@ Before enabling game-side hordes we need the F10 inventory and F11 snapshots, th
 - Python `test-results` logs if Python tests fail.
 
 **Not verified:** C# compilation against the user's current Steam build or in-game F11 behavior. Do not claim NPC controls, cross-region pursuit, or real hordes until the respective adapters have passed the in-game tests.
+
+## F. First Steam-side NPC test — entity discovery only
+
+1. Update the `line2/modpack-framework` branch and rebuild the **C# module**. Python-only updates cannot add an F12 hotkey to an already installed DLL.
+2. Install the rebuilt module under `Unturned/Modules/Unturned2.Line2`, close and restart Unturned without BattlEye.
+3. Enter a map with NPCs that are actually loaded, or a trusted Workshop map with NPCs. **Washington may have no quest NPCs**, so `matchingComponents=0` is not inherently an error.
+4. Stand near an NPC and press **F10** once to capture available NPC class/method signatures.
+5. Press **F12** once next to the NPC, wait several seconds, and press **F12** again. Examine `npc-snapshots.jsonl` for component type, instance ID, position, distance to camera and meters moved.
+6. In parallel, run `python AIService/server.py` and `python AIService/smoke_simulation.py`. Press F9 in-game to verify localhost transport.
+
+This distinguishes two independent facts:
+- F12 shows that the module can see real game components whose *type names* match NPC/Human. Such matches can include quest NPC components or unrelated helper components; review class names and transform positions before interpreting them.
+- The Python AI service processes **synthetic** NPC observations. There is not yet a live `IGameNpcAdapter` implementation, so no game NPC is moved, attacked, damaged or given an action by the AI.
+
+**Important:** do not spawn hundreds of NPCs or raise zombie counts to "stress test" the unvalidated integration. The F12 scan is bounded to 80 output records and triggered only by the hotkey, but it still enumerates active behaviours once per request; avoid repeatedly pressing it on a slow PC.
+
+After the user returns the F10 report, F12 NPC snapshots and module build result, we can identify the real entity components and build a test-only authoritative mobile NPC adapter rather than claiming the simulated policy is live AI.
