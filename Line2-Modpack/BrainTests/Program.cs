@@ -228,6 +228,23 @@ internal static class Program
         Console.WriteLine("NPC_COMBAT_POLICY_OK: player priority, confirmed sight, " +
             "neutral immunity, faction hostility and passive-mode safety.");
 
+        if (!Line2NPCAmmoRules.CanFire(24, 1, 24) ||
+            Line2NPCAmmoRules.CanFire(25, 1, 24) ||
+            Line2NPCAmmoRules.CanFire(0, 1, 24) ||
+            Line2NPCAmmoRules.CanFire(24, 0, 24) ||
+            Line2NPCAmmoRules.CanFire(1, 2, 24) ||
+            Line2NPCAmmoRules.RemainingAfterShot(24, 2, 24) != 22 ||
+            Line2NPCAmmoRules.RemainingAfterShot(1, 2, 24) != -1 ||
+            !Line2NPCAmmoRules.CanLoadReplacement(12, 12) ||
+            Line2NPCAmmoRules.CanLoadReplacement(0, 12) ||
+            Line2NPCAmmoRules.CanLoadReplacement(14, 12))
+        {
+            Console.Error.WriteLine("NPC_FINITE_AMMO_FAILED: invalid mag/shot/reload.");
+            return 21;
+        }
+        Console.WriteLine("NPC_FINITE_AMMO_OK: 24,12 rounds, ammo per shot, " +
+            "no infinite cartridges, reload capacity and invalid state.");
+
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
