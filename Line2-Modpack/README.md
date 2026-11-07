@@ -136,3 +136,11 @@ Open **PowerShell** in `Line2-Modpack/scripts` and run:
 ```
 
 The script requires Python 3.10+ on PATH and a Windows Unturned installation. It runs Python AIService and ModpackManager tests, discovers the Workshop directory in the same Steam library if present, and generates the experimental Auto32 package to your manager staging area. It will NOT overwrite a preexisting Auto32 staging directory or deploy anything into Unturned. It saves a log under `%USERPROFILE%\Unturned2-ModpackManager\logs`. If your PowerShell policy blocks local scripts, use the command-line Python steps in `ModpackManager/AUTO32.md` rather than changing system-wide policy.
+
+## Zombies: vanilla population and optional hordes
+
+The previous `feature/offline-zombie-survival` line contained a 1.5x offline survival population multiplier in `ZombieManager.generateZombies`. This **has not been carried over** to Line 2; the standalone Line 1 is paused.
+
+The new `AIService/horde_policy.py` is an **offline planning prototype** for grouping eligible zombie spawnpoints into bands of ~8–18, within a 25m leader radius. Its caller must supply the *real* vanilla regional zombie budget. `preserve_vanilla_population=True` is mandatory; exceeding the vanilla cap is rejected. The module does **not** spawn zombies or hook into the Steam version yet.
+
+Test with `python run_tests.py AIService`. Actual hordes in-game remain pending a validated C# server-side spawn adapter. Avoid changing `Zombies.Spawn_Chance` or region limits through our modpack.
