@@ -58,3 +58,9 @@ Para a Linha 2, `PrototypeNpcVitals` agora implementa a interface com `IsEligibl
 O estado da tabela acima é histórico do início desta auditoria. Depois dela, as seguintes classes da Linha 1 foram copiadas **com adaptação estritamente de nomes, namespace e tipo de vitals** e conectadas a `PrototypeActor`: `Line2MobileNPCBrain` (busca em espiral e retorno após chegar fisicamente), `Line2MobileNPCPlayerKnowledge` (evidência sensorial individual), `Line2MobileNPCLocomotionPolicy` (passos/velocidades) e `Line2MobileNPCAdaptiveMemory` (êxitos reais em cobertura). A equivalência exata das quatro transformações textuais foi conferida com os arquivos da branch `feature/steam-modpack-local-ai-prototype-2026-11-04`.
 
 Ver [LINE1_DIRECT_PORTS.md](LINE1_DIRECT_PORTS.md) para quais componentes efetivamente executam e os que ainda dependem de outros executores. **O grande `MobileNPCBrainDriver` e as armas/hitboxes/portas/radio/saves não foram automaticamente migrados.**
+
+## Atualização posterior — combate corporal Steam e percepção visível
+
+O quadro histórico acima **não reflete sozinho** as integrações posteriores. Em 07/11/2026 foi concluída a **adaptação de código, ainda não validada no Steam**, da parte desarmada dos módulos antigos `MobileNPCHumanoidCombat`, `MobileNPCHumanoidPerception` e `MobileNPCHumanoidDisposition`: novo `Line2NPCCombatPerception` com jogador prioritário a 20 m, NPCs adversários e zumbis visíveis; `Line2NPCMeleeExecutor` com dano nativo e LoS; `Line2NPCCombatRules` isolado em teste C#; `PrototypeAnimation` com animações existentes. O movimento rumo ao alvo visível é encaminhado ao A* nativo. Consulte [LINE1_COMBAT_MIGRATION.md](LINE1_COMBAT_MIGRATION.md).
+
+**O módulo de armas de fogo do NPC, o `MobileNPCBrainDriver` completo, facções, rádio real e a reação ofensiva dos zumbis contra NPCs permanecem pendentes.** O jogo Steam ainda não foi compilado/testado neste estado.
