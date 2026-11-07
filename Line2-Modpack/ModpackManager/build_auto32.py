@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import uuid
 from asset_diagnostics import parse_dat, enumerate_dat
+from auto32_recoil import tune_text
 
 FIELD = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(.*?)\s*$")
 GUN_VANILLA_ID = "112"       # Bluntforce
@@ -102,6 +103,7 @@ def create_auto32(game: Path, target: Path, *, gun_id=DEFAULT_GUN_ID,
         "Blueprints", "Blueprint_0_Type", "Blueprint_0_Supplies",
         "Blueprint_0_Outputs", "Blueprint_0_Output",
         "RechamberAfterShotCount"})
+    gun = tune_text(gun, "balanced")
     mag = replace_metadata(mag_source, {
         "Type": "Magazine", "ID": magazine_id, "GUID": mag_guid,
         "Amount": 32,
@@ -128,6 +130,7 @@ def create_auto32(game: Path, target: Path, *, gun_id=DEFAULT_GUN_ID,
         "Gun ID: " + str(gun_id) + "\nMagazine ID: " + str(magazine_id) + "\n"
         "Uses existing game core.masterbundle prefabs, no game assets included.\n"
         "Neither bundle existence nor item spawning is yet verified.\n"
+        "Balanced recoil preset applied. Adjust staging using auto32_recoil.py.\n"
         "Reloading four rounds at a time requires a validated C# gameplay adapter.\n"
         "Do not distribute copied vanilla source files; this package reuses runtime resources.\n",
         encoding="utf-8")
