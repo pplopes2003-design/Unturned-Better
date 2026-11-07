@@ -252,7 +252,14 @@ namespace Unturned2.Line2
                 if (!Physics.Raycast(point, Vector3.down, out hit, 16f,
                                      ~0, QueryTriggerInteraction.Ignore)) continue;
                 if (hit.normal.y < 0.72f) continue;
+                if (Mathf.Abs(hit.point.y - origin.y) > 3.0f) continue;
                 Vector3 candidate = hit.point + Vector3.up * 0.08f;
+                // Do not instantiate a humanoid intersecting a building,
+                // vehicle, barricade or another solid physics object.
+                if (Physics.CheckCapsule(candidate + Vector3.up * 0.55f,
+                                         candidate + Vector3.up * 1.55f,
+                                         0.30f, ~0, QueryTriggerInteraction.Ignore))
+                    continue;
                 if ((candidate - origin).sqrMagnitude < 25f) continue;
                 bool nearOther = false;
                 foreach (PrototypeActor a in _actors)
