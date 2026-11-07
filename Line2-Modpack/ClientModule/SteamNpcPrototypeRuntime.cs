@@ -139,21 +139,25 @@ namespace Unturned2.Line2
             if (_pendingRestore.Count > 0 && Time.time >= _nextRestoreAt)
             {
                 _nextRestoreAt = Time.time + 2f;
-                string reason;
-                if (TryRestoreOne(_pendingRestore[0], out reason))
+                string reason = "none currently reachable";
+                // Distant survivors must not block restoration of nearby ones.
+                for (int i = 0; i < _pendingRestore.Count; ++i)
                 {
-                    _pendingRestore.RemoveAt(0);
+                    if (!TryRestoreOne(_pendingRestore[i], out reason)) continue;
+                    _pendingRestore.RemoveAt(i);
                     ProbeLogger.Log("NPC_RESTORE_OK: remaining=" + _pendingRestore.Count);
                     if (_pendingRestore.Count == 0)
                     {
                         _saveAllowed = true;
                         _nextSaveAt = Time.time + SaveIntervalSeconds;
                     }
+                    break; // Restore at most one actor per window.
                 }
-                else if (Time.time >= _nextRestoreLogAt)
+                if (_pendingRestore.Count > 0 && Time.time >= _nextRestoreLogAt)
                 {
                     _nextRestoreLogAt = Time.time + 20f;
-                    ProbeLogger.Log("NPC_RESTORE_DEFERRED: " + reason);
+                    ProbeLogger.Log("NPC_RESTORE_DEFERRED: pending=" +
+                        _pendingRestore.Count + " reason=" + reason);
                 }
             }
 
@@ -185,6 +189,8 @@ namespace Unturned2.Line2
         public void UpdateSettings(bool enabled, bool naturalSpawn,
                                    int maxNPCs, string combatMode)
         {
+            if (_enabled && !enabled)
+                SaveCheckpoint(); // Save before changing the enabled flag.
             _enabled = enabled;
             _natural = naturalSpawn;
             _cap = Mathf.Clamp(maxNPCs, 1, 32);
@@ -196,7 +202,6 @@ namespace Unturned2.Line2
             // Disable only after saving all restored survivors, avoiding stale snapshots.
             if (!enabled)
             {
-                SaveCheckpoint();
                 ClearActors();
                 _restoreLoaded = false;
                 _saveAllowed = false;
@@ -503,6 +508,7 @@ namespace Unturned2.Line2
                 }
 
             _restoringActor = true;
+            PrototypeActor created = null;
             try
             {
                 string spawnDetail;
@@ -512,6 +518,7 @@ namespace Unturned2.Line2
                     return false;
                 }
                 PrototypeActor actor = _actors[_actors.Count - 1];
+                created = actor;
                 CharacterController controller = actor.GetComponent<CharacterController>();
                 Line2MobileNPCInventory inventory = actor.Inventory;
                 Line2NPCGroupMember group = actor.GetComponent<Line2NPCGroupMember>();
@@ -523,17 +530,24 @@ namespace Unturned2.Line2
                 {
                     _actors.Remove(actor);
                     UnityEngine.Object.Destroy(actor.gameObject);
+                    created = null;
                     reason = "saved actor state/group/inventory rejected";
                     return false;
                 }
                 controller.enabled = false;
                 actor.transform.position = destination;
                 controller.enabled = true;
+                created = null;
                 reason = "restored";
                 return true;
             }
             catch (Exception error)
             {
+                if (created != null)
+                {
+                    _actors.Remove(created);
+                    UnityEngine.Object.Destroy(created.gameObject);
+                }
                 reason = "restore error: " + error.GetType().Name;
                 ProbeLogger.Log("NPC_RESTORE_EXCEPTION: " + error);
                 return false;
