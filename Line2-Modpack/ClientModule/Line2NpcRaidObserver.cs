@@ -22,6 +22,7 @@ namespace Unturned2.Line2
         private readonly List<Transform> _worldBarricades =
             new List<Transform>(40);
         private readonly RaycastHit[] _hits = new RaycastHit[MaxPhysicalHits];
+        private readonly RaycastHit[] _floorHits = new RaycastHit[16];
         private readonly List<PrototypeActor> _squad =
             new List<PrototypeActor>(32);
         private SteamNpcPrototypeRuntime _runtime;
@@ -200,11 +201,9 @@ namespace Unturned2.Line2
                     (attempt - 1) * 30f, 0f) * away;
                 Vector3 estimate = leaderStage + rotated * 2.8f;
                 RaycastHit floor;
-                if (!Physics.Raycast(estimate + Vector3.up * 1.8f,
-                    Vector3.down, out floor, 4.2f,
-                    Line2NpcFloorGeometry.SupportMask, QueryTriggerInteraction.Ignore) ||
-                    !Line2NpcFloorGeometry.IsStaticFloorCandidate(floor.collider) ||
-                    floor.normal.y < 0.77f)
+                if (!Line2NpcFloorGeometry.TryFindStaticSupport(
+                        estimate, 1.8f, 4.2f, 1.1f, 0.77f,
+                        _floorHits, out floor))
                     continue;
                 Vector3 point = floor.point + Vector3.up * 0.06f;
                 if (Mathf.Abs(point.y - ally.transform.position.y) > 1.1f ||
@@ -322,11 +321,9 @@ namespace Unturned2.Line2
                 float r = 2.2f + step * 1.1f;
                 Vector3 estimated = camp + away * r;
                 RaycastHit ground;
-                if (!Physics.Raycast(estimated + Vector3.up * 2f,
-                    Vector3.down, out ground, 4.2f, Line2NpcFloorGeometry.SupportMask,
-                    QueryTriggerInteraction.Ignore) ||
-                    !Line2NpcFloorGeometry.IsStaticFloorCandidate(ground.collider) ||
-                    ground.normal.y < 0.75f)
+                if (!Line2NpcFloorGeometry.TryFindStaticSupport(
+                        estimated, 2f, 4.2f, 1.15f, 0.75f,
+                        _floorHits, out ground))
                     continue;
                 Vector3 point = ground.point + Vector3.up * 0.07f;
                 if (!Level.checkSafeIncludingClipVolumes(point) ||
