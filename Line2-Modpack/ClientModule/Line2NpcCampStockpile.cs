@@ -70,7 +70,7 @@ namespace Unturned2.Line2
             return Authorized() && _group != null && _group.Joined &&
                 _actor != null && !_actor.IsDead &&
                 !_actor.IsRecruited &&
-                _inventory != null && _inventory.UsedSlots > 1 &&
+                _inventory != null &&
                 !_actor.IsTacticallyRetreating &&
                 (_sight == null ||
                  _sight.Kind == Line2NPCCombatPerception.TargetKind.None ||
@@ -136,6 +136,7 @@ namespace Unturned2.Line2
         {
             goal = Vector3.zero;
             if (Time.time < _nextDeliveryTripAt || !Safe() ||
+                _inventory.UsedSlots < 2 ||
                 _actor.CombatMode == "total")
                 return false;
             Line2NpcPersistence.PlacedBarricadeRecord record;
@@ -354,6 +355,7 @@ namespace Unturned2.Line2
             // group's emergency rations BEFORE donating a spare supply.
             if (TryWithdrawNeededSupply(storage))
                 return;
+            if (_inventory.UsedSlots < 2) return;
 
             for (int i = _inventory.UsedSlots - 1; i >= 0; --i)
             {
