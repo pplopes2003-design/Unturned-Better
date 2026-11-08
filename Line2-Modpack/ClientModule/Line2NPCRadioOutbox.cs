@@ -149,7 +149,13 @@ namespace Unturned2.Line2
                 }
             }
             _candidates.Clear();
-            _nextSendAt = now + SendCooldown;
+            // Combat Total callouts need a short, bounded response cycle
+            // for active squad fights. Ordinary player-contact radio keeps
+            // the original twenty-second pacing. Both still share the
+            // finite global channel airtime and recipient authorization.
+            _nextSendAt = now + (combatTotalContact ?
+                Line2NpcCombatTotalSquadPolicy.ReportCooldown + 1f :
+                SendCooldown);
             nextChannelAvailableAt = now + AirTime;
             if (Time.time >= _nextLogAt)
             {
