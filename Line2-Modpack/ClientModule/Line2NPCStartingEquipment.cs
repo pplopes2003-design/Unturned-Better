@@ -115,8 +115,10 @@ namespace Unturned2.Line2
                 return false;
             }
 
-            // Issue exactly TWO physical spares, not limitless reserves.
-            for (int i = 0; i < 2; ++i)
+            // Combat Total ports Line 1's three finite spares, whereas
+            // Normal retains its existing two-magazine allocation.
+            // The fourth magazine is genuinely loaded inside the gun.
+            for (int i = 0; i < (total ? 3 : 2); ++i)
             {
                 Item spare = new Item(choice.magazine, EItemOrigin.ADMIN);
                 if (!inventory.TryStoreTransferredItem(spare))
@@ -131,7 +133,33 @@ namespace Unturned2.Line2
             GiveIfLoaded(inventory, 96);      // Splint
             GiveIfLoaded(inventory, 15);      // Medkit
             GiveIfLoaded(inventory, 121);     // Military knife
-            description = choice.name + ": finite loaded gun, 2 owned spare magazines";
+
+            if (total)
+            {
+                // Original Line 1 CombatOnly equipment, all real vanilla
+                // item assets. The corresponding Steam equipment adapter
+                // renders and applies quality-sensitive protection.
+                GiveClothing(inventory, EItemType.HAT, 1010, 309);
+                GiveClothing(inventory, EItemType.SHIRT, 1011, 307);
+                GiveClothing(inventory, EItemType.PANTS, 1012, 308);
+                GiveClothing(inventory, EItemType.VEST, 1013, 310);
+                GiveClothing(inventory, EItemType.BACKPACK, 253, 0);
+                if (UnityEngine.Random.value < 0.70f)
+                {
+                    ItemThrowableAsset explosive =
+                        Assets.find(EAssetType.ITEM, (ushort)254)
+                            as ItemThrowableAsset;
+                    if (explosive != null && explosive.isExplosive &&
+                        explosive.throwable != null &&
+                        !explosive.isSticky && !explosive.explodeOnImpact &&
+                        explosive.fuseLength >= 1.5f)
+                        GiveIfLoaded(inventory, 254);
+                }
+            }
+
+            description = choice.name + ": loaded gun, " +
+                (total ? 3 : 2) + " finite spare magazines" +
+                (total ? ", native armor and medical equipment" : "");
             return true;
         }
 
@@ -153,6 +181,23 @@ namespace Unturned2.Line2
                 return false;
             return inventory.TryStoreTransferredItem(new Item(
                 Line2NPCRadioOutbox.NativeWalkieId, EItemOrigin.ADMIN));
+        }
+
+        private static void GiveClothing(Line2MobileNPCInventory inventory,
+            EItemType type, ushort preferred, ushort fallback)
+        {
+            ItemClothingAsset asset = Assets.find(EAssetType.ITEM, preferred)
+                as ItemClothingAsset;
+            ushort selected = preferred;
+            if (asset == null || asset.isPro || asset.type != type)
+            {
+                selected = fallback;
+                asset = fallback != 0 ? Assets.find(EAssetType.ITEM,
+                    fallback) as ItemClothingAsset : null;
+            }
+            if (asset == null || asset.isPro || asset.type != type)
+                return;
+            GiveIfLoaded(inventory, selected);
         }
 
         private static void GiveIfLoaded(Line2MobileNPCInventory inventory, ushort id)
