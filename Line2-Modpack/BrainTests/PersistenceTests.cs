@@ -74,7 +74,14 @@ internal static class PersistenceTests
             placed = new[] {
                 new Line2NpcPersistence.PlacedBarricadeRecord
                 {
-                    assetId = 363, x = 122f, y = 14f, z = 2f, yaw = 90f
+                    assetId = 363, instanceID = 9301u,
+                    x = 122f, y = 14f, z = 2f, yaw = 90f
+                },
+                new Line2NpcPersistence.PlacedBarricadeRecord
+                {
+                    assetId = 1244, instanceID = 9302u,
+                    isStorage = true,
+                    x = 119f, y = 14f, z = 2f, yaw = 0f
                 }
             }
         };
@@ -87,9 +94,12 @@ internal static class PersistenceTests
         if (!Line2NpcPersistence.TryRead(map, out loaded, out pending,
             out loadedCamps, out reason) || loadedCamps.Count != 1 ||
             loadedCamps[0].groupId != 7 ||
-            loadedCamps[0].placed.Length != 1 ||
+            loadedCamps[0].placed.Length != 2 ||
             loadedCamps[0].placed[0].assetId != 363 ||
-            loadedCamps[0].placed[0].yaw != 90f)
+            loadedCamps[0].placed[0].instanceID != 9301u ||
+            loadedCamps[0].placed[0].yaw != 90f ||
+            !loadedCamps[0].placed[1].isStorage ||
+            loadedCamps[0].placed[1].instanceID != 9302u)
             return false;
 
         // Reject overlapping group IDs and impossible site-relative placements
@@ -106,6 +116,23 @@ internal static class PersistenceTests
             loadedCamps[0].placed[0].x != 122f)
             return false;
         settlement.placed[0].x = 122f;
+
+        // One native storage per group and distinct positive IDs. Reject
+        // corrupt manifests before replacing the previous known-good save.
+        var duplicateNative = settlement.placed[1].instanceID;
+        settlement.placed[1].instanceID = settlement.placed[0].instanceID;
+        if (Line2NpcPersistence.TryWrite(map, alive, tickets, camps, out reason))
+            return false;
+        settlement.placed[1].instanceID = duplicateNative;
+        bool originalStorage = settlement.placed[0].isStorage;
+        settlement.placed[0].isStorage = true;
+        if (Line2NpcPersistence.TryWrite(map, alive, tickets, camps, out reason))
+            return false;
+        settlement.placed[0].isStorage = originalStorage;
+        if (!Line2NpcPersistence.TryRead(map, out loaded, out pending,
+            out loadedCamps, out reason) || loadedCamps.Count != 1 ||
+            loadedCamps[0].placed[1].instanceID != 9302u)
+            return false;
 
         // Pending tasks with impossible dates cannot overwrite the last good save.
         replacement.readyAtUtcTicks = -10;
