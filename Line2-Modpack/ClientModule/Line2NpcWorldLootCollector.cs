@@ -311,6 +311,8 @@ namespace Unturned2.Line2
                     ItemData item = region.items[i];
                     if (item == null || item.item == null ||
                         item.item.id == 0 || item.instanceID == 0 ||
+                        !Line2NpcLootClaims.CanAcquire(
+                            item.instanceID, ClaimOwner, now) ||
                         (item.instanceID == _lastDeniedID &&
                          now < _lastDeniedUntil))
                         continue;
