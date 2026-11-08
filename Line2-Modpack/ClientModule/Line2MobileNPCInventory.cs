@@ -335,22 +335,51 @@ namespace Unturned2.Line2
             }
             catch (Exception error)
             {
-                // Rollback in reverse order, preserving exact item state.
-                // Only a completed native removal can make the drop disappear.
-                // Never re-create it by ItemManager.dropItem (new ID).
-                if (removedFromWorld)
-                    owner.items.Insert(Mathf.Min(sourceIndex, owner.items.Count), source);
+                // A native callback may throw AFTER the world object has
+                // already been destroyed. Recreating the ItemData in that
+                // case would resurrect an invisible/duplicated world item.
+                // Decide ownership from the ACTUAL authoritative drop list.
+                bool nativeDropStillExists = false;
+                if (owner.drops != null)
+                    for (int i = 0; i < owner.drops.Count; ++i)
+                        if (owner.drops[i] != null &&
+                            owner.drops[i].instanceID == instanceID)
+                        {
+                            nativeDropStillExists = true;
+                            break;
+                        }
+                if (removedFromWorld && !nativeDropStillExists &&
+                    FindSlotByInstanceID(committedSlotID) >= 0)
+                {
+                    failureReason = "transferred-native-callback-exception";
+                    UnturnedLog.warn("[Line2Inventory] Native world removal " +
+                        "completed despite callback exception; kept exact " +
+                        "item in NPC custody. instance=" + instanceID +
+                        " error=" + error.GetType().Name);
+                    return true;
+                }
+
+                // Roll back only when the original native drop still exists,
+                // preserving the EXACT source instanceID. Never call
+                // ItemManager.dropItem here (it would mint a new ID).
+                if (nativeDropStillExists && removedFromWorld &&
+                    !owner.items.Contains(source))
+                    owner.items.Insert(Mathf.Min(
+                        sourceIndex, owner.items.Count), source);
                 Item rolledBack;
-                // The native destroy callback can notify other mods. Find
-                // our precise reserved inventory instance again rather than
-                // assuming callbacks left all slot indices unchanged.
+                // Native callbacks can mutate other slots. Restore by our
+                // reserved inventory instanceID, not by index.
                 int rollbackSlot = FindSlotByInstanceID(committedSlotID);
                 if (rollbackSlot < 0 ||
                     !TryTakeItemServer(rollbackSlot, out rolledBack))
                     UnturnedLog.error("[Line2Inventory] PICKUP ROLLBACK FAILED: " +
                         "manual restore required, instance=" + instanceID);
+                if (!nativeDropStillExists)
+                    UnturnedLog.error("[Line2Inventory] PICKUP INCONSISTENT: " +
+                        "original native drop missing and NPC ownership not " +
+                        "verified, instance=" + instanceID);
                 failureReason = "failed-closed:" + error.GetType().Name +
-                    (nativeNotified ? ":native-drop-removed" : "");
+                    (nativeNotified ? ":after-native-callback" : "");
                 UnturnedLog.warn("[Line2Inventory] Pickup aborted: " +
                     failureReason + " instance=" + instanceID);
                 return false;
