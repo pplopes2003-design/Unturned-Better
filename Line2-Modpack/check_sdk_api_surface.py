@@ -30,7 +30,7 @@ REQUIREMENTS = (
      ("Line2NpcFloorGeometry.TryFindStaticSupport",)),
     ("Line2-Modpack/ClientModule/SteamNpcPrototypeRuntime.cs",
      ("Line2NpcFloorGeometry.SupportMask",
-      "Line2NpcFloorGeometry.IsStaticFloorCandidate",
+      "Line2NpcFloorGeometry.TryFindStaticSupport",
       "Physics.RaycastNonAlloc(source, to / distance",
       "_playerSightHits",
       "RayMasks.BLOCK_COLLISION | RayMasks.ENTITY")),
