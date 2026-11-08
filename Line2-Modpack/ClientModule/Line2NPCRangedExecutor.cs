@@ -114,8 +114,9 @@ namespace Unturned2.Line2
 
             Line2NPCCombatPerception.TargetKind kind = _perception.Kind;
             Transform target = _perception.VisibleTarget;
-            if (kind == Line2NPCCombatPerception.TargetKind.None || target == null ||
-                _actor.IsTacticallyRetreating)
+            if (!Line2NpcFireCadencePolicy.RetainTarget(
+                    kind != Line2NPCCombatPerception.TargetKind.None &&
+                    target != null, _actor.IsTacticallyRetreating))
             {
                 _acquiredTarget = null;
                 return;
@@ -133,8 +134,8 @@ namespace Unturned2.Line2
             // target. Previously, every 90ms update during cooldown reset
             // _acquiredTarget, so the next check restarted the first-shot
             // reaction delay forever and NPCs could never fire.
-            if (Time.time < _nextShotAt ||
-                Time.time - _acquiredAt < 0.28f) return;
+            if (!Line2NpcFireCadencePolicy.MayFire(
+                    Time.time, _acquiredAt, _nextShotAt)) return;
             float gunRange = Mathf.Min(gun.range, HardMaximumRange);
             if (!_perception.HasVerifiedSight(target, kind, gunRange))
                 return;
