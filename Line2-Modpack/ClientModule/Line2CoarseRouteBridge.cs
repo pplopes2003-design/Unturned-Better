@@ -24,6 +24,7 @@ namespace Unturned2.Line2
         private const int MaxCastHits = 16;
         private readonly Collider[] _overlaps = new Collider[MaxOverlap];
         private readonly RaycastHit[] _castHits = new RaycastHit[MaxCastHits];
+        private readonly RaycastHit[] _floorHits = new RaycastHit[16];
         private readonly Line2MobileNPCGlobalRoutePlanner _planner =
             new Line2MobileNPCGlobalRoutePlanner();
         private readonly List<Vector3> _route = new List<Vector3>(160);
@@ -161,10 +162,9 @@ namespace Unturned2.Line2
             if (!Finite(estimate) || !Level.checkSafeIncludingClipVolumes(estimate))
                 return false;
             RaycastHit ground;
-            if (!Physics.Raycast(estimate + Vector3.up * 2.1f, Vector3.down,
-                out ground, 4.8f, Line2NpcFloorGeometry.SupportMask, QueryTriggerInteraction.Ignore) ||
-                !Line2NpcFloorGeometry.IsStaticFloorCandidate(ground.collider) ||
-                ground.normal.y < 0.70f || !Finite(ground.point))
+            if (!Line2NpcFloorGeometry.TryFindStaticSupport(
+                    estimate, 2.1f, 4.8f, 2.2f, 0.70f,
+                    _floorHits, out ground))
                 return false;
             // A same-surface coarse planner must not jump to another storey
             // or silently cross stacked indoor/underground floors.
@@ -241,12 +241,9 @@ namespace Unturned2.Line2
                 float t = i / (float)samples;
                 Vector3 expected = Vector3.Lerp(a, b, t);
                 RaycastHit ground;
-                if (!Physics.Raycast(expected + Vector3.up * 1.35f,
-                    Vector3.down, out ground, 2.75f, Line2NpcFloorGeometry.SupportMask,
-                    QueryTriggerInteraction.Ignore) ||
-                    !Line2NpcFloorGeometry.IsStaticFloorCandidate(ground.collider) ||
-                    ground.normal.y < 0.70f ||
-                    Mathf.Abs(ground.point.y - expected.y) > 0.57f)
+                if (!Line2NpcFloorGeometry.TryFindStaticSupport(
+                        expected, 1.35f, 2.75f, 0.57f, 0.70f,
+                        _floorHits, out ground))
                     return false;
                 Vector3 step = ground.point + Vector3.up * 0.07f;
                 if (!ClearCapsule(step) || !ClearEdgeCast(previous, step))
