@@ -13,6 +13,8 @@ namespace Unturned2.Line2
     /// </summary>
     internal sealed class Line2NpcInvestigationProbe
     {
+        private readonly RaycastHit[] _floorHits = new RaycastHit[16];
+
         internal bool TryValidate(Vector3 estimate, Vector3 actualPosition,
             out Vector3 verified)
         {
@@ -21,13 +23,15 @@ namespace Unturned2.Line2
                 !Level.checkSafeIncludingClipVolumes(estimate) ||
                 Mathf.Abs(estimate.y - actualPosition.y) > 1.4f)
                 return false;
+            // Radio/Combat Total hypotheses must stand on the ACTUAL
+            // current floor. GROUND2 alone misses native map interiors;
+            // a single ray may accidentally choose an upper roof or stair.
             RaycastHit floor;
-            if (!Physics.Raycast(estimate + Vector3.up * 1.3f,
-                Vector3.down, out floor, 3f, RayMasks.GROUND2,
-                QueryTriggerInteraction.Ignore) ||
-                floor.collider == null ||
-                floor.normal.y < 0.74f ||
-                Mathf.Abs(floor.point.y - actualPosition.y) > 0.85f)
+            Vector3 expectedFloor = new Vector3(
+                estimate.x, actualPosition.y, estimate.z);
+            if (!Line2NpcFloorGeometry.TryFindStaticSupport(
+                    expectedFloor, 1.3f, 3f, 0.85f, 0.74f,
+                    _floorHits, out floor))
                 return false;
             Vector3 foot = floor.point + Vector3.up * 0.06f;
             if (!Level.checkSafeIncludingClipVolumes(foot) ||
