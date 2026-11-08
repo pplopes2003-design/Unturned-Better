@@ -40,6 +40,8 @@
     <Compile Include="../ClientModule/Line2NpcAmbushPolicy.cs" Link="Line2NpcAmbushPolicy.cs" />
     <Compile Include="TacticalJourneyTests.cs" />
     <Compile Include="../ClientModule/Line2NpcTacticalJourneyWatchdog.cs" Link="Line2NpcTacticalJourneyWatchdog.cs" />
+    <Compile Include="RaidGroupOrderTests.cs" />
+    <Compile Include="../ClientModule/Line2NpcRaidGroupOrderPolicy.cs" Link="Line2NpcRaidGroupOrderPolicy.cs" />
     <Compile Include="CampWithdrawalTests.cs" />
     <Compile Include="../ClientModule/Line2NpcCampWithdrawalPolicy.cs" Link="Line2NpcCampWithdrawalPolicy.cs" />
     <Compile Include="CampSupplyPolicyTests.cs" />
