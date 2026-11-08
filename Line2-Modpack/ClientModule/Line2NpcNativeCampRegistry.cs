@@ -69,10 +69,11 @@ namespace Unturned2.Line2
             _nearby.Clear();
             _regions.Clear();
             if (foundCount != 1) { native = null; return false; }
-            if (entry.isStorage &&
-                (native.asset.build != EBuild.STORAGE ||
-                 native.model == null ||
-                 native.model.GetComponentInChildren<InteractableStorage>(true) == null))
+            // Reconciliation checks physical EXISTENCE, not whether the
+            // native InteractableStorage child finished initializing in
+            // this frame. The separate access path requires a fully
+            // instantiated inventory before anyone deposits real items.
+            if (entry.isStorage && native.asset.build != EBuild.STORAGE)
             {
                 native = null;
                 return false;
