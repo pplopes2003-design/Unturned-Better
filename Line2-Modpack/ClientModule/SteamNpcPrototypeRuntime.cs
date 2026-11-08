@@ -1269,7 +1269,8 @@ namespace Unturned2.Line2
                 {
                     _nextInvestigationCheckAt = Time.time + 2.0f;
                     if (_astarFollower != null &&
-                        _astarFollower.Status == "line1-no-connected-route")
+                        _astarFollower.Status == "line1-no-connected-route" &&
+                        (_goal - _legacyBrain.Destination).sqrMagnitude < 2.5f)
                         _legacyBrain.ReportDestinationReached();
                     ValidateInvestigationSweep();
                 }
@@ -1353,6 +1354,10 @@ namespace Unturned2.Line2
                     if (_combatPerception.HasVerifiedSight(opponent,
                         _combatPerception.Kind, 45f) &&
                         TryFindVerifiedFlank(opponent.position, out flank) &&
+                        !(_lastFailedTacticalKind ==
+                            Line2MobileNPCTactics.Goal.Flank &&
+                          Time.time < _tacticalRetryAfter &&
+                          (flank - _lastFailedTacticalPoint).sqrMagnitude < 5f) &&
                         _tactics.TryStartFlank(flank, Time.time))
                     {
                         _nextFlankAt = Time.time + 32f;
@@ -1829,6 +1834,12 @@ namespace Unturned2.Line2
                     destination, false);
             _tactics.ClearGoal();
             _nextFlankAt = Mathf.Max(_nextFlankAt, Time.time + 6f);
+            if (current == Line2MobileNPCTactics.Goal.Stalk)
+            {
+                _ambushArmedUntil = 0f;
+                _ambushVictim = null;
+                _nextStalkAt = Time.time + 22f;
+            }
             _goal = transform.position; // prevent stale pursuit on this frame
             if (Time.time >= _nextTacticalBlockedLog)
             {
