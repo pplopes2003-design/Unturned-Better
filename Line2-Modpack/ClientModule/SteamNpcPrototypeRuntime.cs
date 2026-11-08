@@ -1137,6 +1137,26 @@ namespace Unturned2.Line2
             // ammo, direct damage rights or a permanent player identity.
             _knowledge.ObserveReport(sector, 0.58f, observedAt);
             _legacyBrain.ReportNoise(sector, observedAt, 15f);
+            Vector3 locallyProposed, validated;
+            if (Line2NpcRadioReinforcementPolicy.TryPropose(
+                    Provider.isServer && !Dedicator.IsDedicatedServer &&
+                        (Provider.clients == null ||
+                         Provider.clients.Count <= 1),
+                    true,
+                    _combatPerception != null &&
+                        _combatPerception.VisibleTarget != null,
+                    RecentlyDamaged,
+                    _tactics.CurrentGoal != Line2MobileNPCTactics.Goal.None,
+                    _recruited,
+                    transform.position, sector, out locallyProposed) &&
+                _investigationProbe.TryValidate(
+                    locallyProposed, transform.position, out validated) &&
+                _tactics.TryStartRadioReinforcement(
+                    validated, Time.time))
+                ProbeLogger.Log("NPC_RADIO_REINFORCE: actor=" + _identity +
+                    " sector=" + sector.ToString("F1") +
+                    " waypoint=" + validated.ToString("F1") +
+                    " (coarse, real floor; native A* must verify route)");
         }
 
         internal void ObserveThreat(Player player, out bool visible, out Vector3? lastKnown)
@@ -1307,7 +1327,9 @@ namespace Unturned2.Line2
                      _tactics.CurrentGoal ==
                         Line2MobileNPCTactics.Goal.RaidStaging ||
                      _tactics.CurrentGoal ==
-                        Line2MobileNPCTactics.Goal.Stalk))
+                        Line2MobileNPCTactics.Goal.Stalk ||
+                     _tactics.CurrentGoal ==
+                        Line2MobileNPCTactics.Goal.Reinforce))
                 {
                     if (_tactics.CurrentGoal ==
                         Line2MobileNPCTactics.Goal.Stalk)
@@ -1442,7 +1464,8 @@ namespace Unturned2.Line2
                      _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Flank ||
                      _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.RaidStaging ||
                      _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Regroup ||
-                     _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Stalk) &&
+                     _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Stalk ||
+                     _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Reinforce) &&
                     _tactics.HasTacticalDestination &&
                     !(_tactics.IsGoalExpired(Time.time)) &&
                     _combatMode != "passive")
