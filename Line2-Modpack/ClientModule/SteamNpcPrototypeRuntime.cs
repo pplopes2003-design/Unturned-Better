@@ -500,6 +500,9 @@ namespace Unturned2.Line2
                     radio.Initialize(this, actor, combatSight, ownedInventory);
                     if (Line2NpcCombatTotalPolicy.Enabled(_mode))
                     {
+                        // Worn native armor is owned inventory, with actual
+                        // per-limb health reduction and real clothing wear.
+                        instance.AddComponent<Line2NpcCombatEquipment>();
                         // Direct port of Line 1 CombatOnly: suppress civilian
                         // tasks, not injuries, radio, physical inventory,
                         // group combat, gunfire, grenades, death or persistence.
