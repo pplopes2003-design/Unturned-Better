@@ -25,7 +25,8 @@ namespace Unturned2.Line2
         /// NEVER trust only the client hitmarker: require the server's own
         /// first unobstructed physics ray to hit an active NPC anatomical
         /// collider close to the reported point. World geometry uses the
-        /// identical DAMAGE_SERVER mask, plus only the NPC ENTITY layer.
+        /// native DAMAGE_SERVER geometry plus CLIP/VEHICLE blockers and
+        /// the NPC ENTITY layer.
         /// </summary>
         public static bool TryResolvePhysicalServerHit(Vector3 origin,
             Vector3 reportedPoint, float maximumRange, out Transform hitTransform)
@@ -39,10 +40,10 @@ namespace Unturned2.Line2
                 || float.IsNaN(length) || float.IsInfinity(length))
                 return false;
 
-            // Players/zombies also physically block the supplemental
-            // fallback: native DAMAGE_SERVER omits their special layers.
-            int mask = RayMasks.DAMAGE_SERVER | RayMasks.ENTITY
-                | RayMasks.PLAYER | RayMasks.ENEMY;
+            // Players/zombies and physical clip/vehicle volumes must
+            // block fallback player bullets too, not just map geometry.
+            int mask = RayMasks.DAMAGE_SERVER | RayMasks.BLOCK_COLLISION
+                | RayMasks.ENTITY | RayMasks.PLAYER | RayMasks.ENEMY;
             if (!Physics.Raycast(origin, difference / length,
                 out RaycastHit hit, Mathf.Min(length + 0.75f, maximumRange + 1f),
                 mask, QueryTriggerInteraction.Collide))
