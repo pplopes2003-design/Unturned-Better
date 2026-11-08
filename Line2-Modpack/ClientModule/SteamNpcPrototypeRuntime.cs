@@ -463,7 +463,7 @@ namespace Unturned2.Line2
                     var breacher = instance.AddComponent<Line2NpcRaidBreacher>();
                     breacher.Initialize(actor, combatSight);
                     var raid = instance.AddComponent<Line2NpcRaidObserver>();
-                    raid.Initialize(actor);
+                    raid.Initialize(this, actor);
                     var radio = instance.AddComponent<Line2NPCRadioOutbox>();
                     radio.Initialize(this, actor, combatSight, ownedInventory);
                     actor.Died += OnActorDied;
