@@ -39,7 +39,7 @@ namespace Unturned2.Line2
             confidence = 0f;
             uncertainty = 0f;
             sense = Sense.None;
-            if (!hasEvidence || !IsFinite(now))
+            if (!hasEvidence || !IsFinite(now) || now < lastEvidenceTime)
                 return false;
 
             float age = Mathf.Max(0f, now - lastEvidenceTime);
@@ -59,7 +59,8 @@ namespace Unturned2.Line2
 
         public void ObserveSight(Vector3 position, float now)
         {
-            if (!IsFinite(position) || !IsFinite(now))
+            if (!IsFinite(position) || !IsFinite(now) ||
+                (hasEvidence && now < lastEvidenceTime))
                 return;
 
             if (hasEvidence && lastSense == Sense.Sight)
@@ -117,7 +118,10 @@ namespace Unturned2.Line2
             if (!IsFinite(position) || !IsFinite(confidence) || !IsFinite(now))
                 return false;
             float age = now - lastEvidenceTime;
-            if (hasEvidence && age >= 0f)
+            // Delayed sound/radio reports cannot overwrite newer firsthand
+            // evidence or rewind an NPC's memory clock.
+            if (hasEvidence && age < 0f) return false;
+            if (hasEvidence)
             {
                 // Recent direct eyesight is more trustworthy than any indirect
                 // clue, however loud/repeated. The ordinary brain handles a
@@ -165,7 +169,8 @@ namespace Unturned2.Line2
         public bool TrySuggestSearchPoint(float now, out Vector3 searchPoint)
         {
             searchPoint = Vector3.zero;
-            if (!hasEvidence || !IsFinite(now) || hintsIssued >= 4)
+            if (!hasEvidence || !IsFinite(now) ||
+                now < lastEvidenceTime || hintsIssued >= 4)
                 return false;
 
             float age = Mathf.Max(0f, now - lastEvidenceTime);
@@ -205,6 +210,9 @@ namespace Unturned2.Line2
             hintsIssued = 0;
             observedVelocity = Vector3.zero;
             initialConfidence = 0f;
+            lastEvidenceTime = 0f;
+            lastEvidencePosition = Vector3.zero;
+            uncertaintyRadius = 0f;
         }
 
         private static bool IsFinite(float value)
