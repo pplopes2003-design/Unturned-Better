@@ -19,6 +19,8 @@ namespace Unturned2.Line2
         private Line2NPCRangedExecutor _ranged;
         private Line2NPCMeleeExecutor _melee;
         private Transform _rightHand;
+        private Transform _leftHand;
+        private Transform _spineHook;
         private Transform _spine;
         private Transform _model;
         private ushort _displayedItem;
@@ -54,6 +56,8 @@ namespace Unturned2.Line2
                 _melee.AttackCommitted -= OnMeleeCommitted;
             ClearVisual();
             _rightHand = null;
+            _leftHand = null;
+            _spineHook = null;
             _spine = null;
         }
 
@@ -121,6 +125,33 @@ namespace Unturned2.Line2
                 return;
             }
 
+            // Respect the SAME authored equipment parent as native
+            // PlayerEquipment. Workshop items may explicitly require
+            // left-hand, spine or spine-hook mounting.
+            Transform mount = _rightHand;
+            switch (desired.EquipableModelParent)
+            {
+                case EEquipableModelParent.LeftHook:
+                    mount = _leftHand;
+                    break;
+                case EEquipableModelParent.Spine:
+                    mount = _spine;
+                    break;
+                case EEquipableModelParent.SpineHook:
+                    mount = _spineHook;
+                    break;
+            }
+            if (mount == null)
+            {
+                _nextHookRetry = Time.time + MissingHookRetrySeconds;
+                if (!_loggedMissingHook)
+                {
+                    _loggedMissingHook = true;
+                    ProbeLogger.Log("NPC_WEAPON_VISUAL_NO_ASSET_HOOK: actor=" +
+                        gameObject.name + " asset=" + desired.id);
+                }
+                return;
+            }
             GameObject prefab = desired.equipablePrefab != null
                 ? desired.equipablePrefab : desired.item;
             if (prefab == null)
@@ -138,7 +169,7 @@ namespace Unturned2.Line2
                 created = Instantiate(prefab);
                 if (created == null) return;
                 Transform visual = created.transform;
-                visual.SetParent(_rightHand, false);
+                visual.SetParent(mount, false);
                 visual.localPosition = Vector3.zero;
                 visual.localRotation = Quaternion.Euler(0f, 0f, 90f);
                 visual.localScale = Vector3.one;
@@ -169,7 +200,7 @@ namespace Unturned2.Line2
 
         private bool FindHandHook()
         {
-            if (_rightHand != null) return true;
+            if (_spine != null) return true;
             if (_spine == null)
             {
                 Transform[] all = GetComponentsInChildren<Transform>(true);
@@ -185,18 +216,25 @@ namespace Unturned2.Line2
             // infer a hand by arbitrary world offsets if a prefab differs.
             _rightHand = _spine.Find(
                 "Right_Shoulder/Right_Arm/Right_Hand/Right_Hook");
-            if (_rightHand == null)
+            _leftHand = _spine.Find(
+                "Left_Shoulder/Left_Arm/Left_Hand/Left_Hook");
+            _spineHook = _spine.Find("Spine_Hook");
+            if (_rightHand == null || _leftHand == null)
             {
-                Transform[] descendants = _spine.GetComponentsInChildren<Transform>(true);
+                Transform[] descendants =
+                    _spine.GetComponentsInChildren<Transform>(true);
                 for (int i = 0; i < descendants.Length; ++i)
-                    if (descendants[i] != null &&
+                {
+                    if (descendants[i] == null) continue;
+                    if (_rightHand == null &&
                         descendants[i].name == "Right_Hook")
-                    {
                         _rightHand = descendants[i];
-                        break;
-                    }
+                    if (_leftHand == null &&
+                        descendants[i].name == "Left_Hook")
+                        _leftHand = descendants[i];
+                }
             }
-            return _rightHand != null;
+            return true;
         }
 
         private void ClearVisual()
