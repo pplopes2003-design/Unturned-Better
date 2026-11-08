@@ -803,7 +803,7 @@ namespace Unturned2.Line2
 				if (held == null || held.id != itemID)
 					continue;
 				ItemMeleeAsset melee = Assets.find(EAssetType.ITEM, held.id) as ItemMeleeAsset;
-				if (melee == null || Random.value >= melee.durability || held.quality == 0)
+				if (melee == null || UnityEngine.Random.value >= melee.durability || held.quality == 0)
 					return false;
 				byte worn = (byte)Mathf.Max(0, held.quality - melee.wear);
 				slots[i] = new Item(held.id, held.amount, worn,
