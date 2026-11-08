@@ -29,7 +29,8 @@ namespace Unturned2.Line2
         private Line2NpcSettlementBuilder _builder;
         private Line2NpcWorldLootCollector _collector;
         private PrototypeAStarFollower _routeFollower;
-        private float _unreachableLootSince;
+        private readonly Line2NpcRoutineRouteHealth _routeHealth =
+            new Line2NpcRoutineRouteHealth();
         private Vector3 _destination;
         private Job _job;
         private bool _hasDestination;
@@ -92,7 +93,7 @@ namespace Unturned2.Line2
         {
             if (_job == Job.SeekObservedItem && _collector != null)
                 _collector.AbandonObservedGoal();
-            _unreachableLootSince = 0f;
+            _routeHealth.Reset();
             if (_hasDestination)
             {
                 Remember(_destination);
@@ -127,19 +128,13 @@ namespace Unturned2.Line2
                     // The native A* says no connected path through this
                     // building; wait briefly for moving doors, then abandon
                     // the specific item instead of walking into its wall.
-                    bool disconnected = _routeFollower != null &&
-                        _routeFollower.Status == "line1-no-connected-route";
-                    if (disconnected)
+                    _destination = actual;
+                    Line2NpcRoutineRouteHealth.State routeState =
+                        ObserveRoutineHealth(current, actual);
+                    if (routeState == Line2NpcRoutineRouteHealth.State.Blocked)
+                        ClearGoal(false);
+                    else if (_hasDestination)
                     {
-                        if (_unreachableLootSince <= 0f)
-                            _unreachableLootSince = Time.time;
-                        if (Time.time - _unreachableLootSince > 4f)
-                            ClearGoal(false);
-                    }
-                    else _unreachableLootSince = 0f;
-                    if (_hasDestination)
-                    {
-                        _destination = actual;
                         goal = actual;
                         return true;
                     }
@@ -171,9 +166,12 @@ namespace Unturned2.Line2
             {
                 Vector3 delta = _destination - current;
                 float flatSq = delta.x * delta.x + delta.z * delta.z;
+                Line2NpcRoutineRouteHealth.State routeState =
+                    ObserveRoutineHealth(current, _destination);
                 if (flatSq <= 2f * 2f && Mathf.Abs(delta.y) < 1.25f)
                     ClearGoal(true);
-                else if (Time.time >= _expiresAt)
+                else if (Time.time >= _expiresAt ||
+                         routeState == Line2NpcRoutineRouteHealth.State.Blocked)
                     ClearGoal(false);
                 else
                 {
@@ -229,8 +227,24 @@ namespace Unturned2.Line2
             return false;
         }
 
+        private Line2NpcRoutineRouteHealth.State ObserveRoutineHealth(
+            Vector3 current, Vector3 destination)
+        {
+            string status = _routeFollower != null ? _routeFollower.Status : "";
+            bool disconnected = status == "line1-no-connected-route";
+            bool waiting = status.IndexOf("waiting",
+                StringComparison.OrdinalIgnoreCase) >= 0 ||
+                status.IndexOf("search",
+                StringComparison.OrdinalIgnoreCase) >= 0 ||
+                status.IndexOf("pending",
+                StringComparison.OrdinalIgnoreCase) >= 0;
+            return _routeHealth.Observe(destination, current, Time.time,
+                disconnected, waiting);
+        }
+
         private bool Commit(Vector3 location, out Vector3 goal)
         {
+            _routeHealth.Reset();
             goal = location;
             _hasDestination = true;
             _expiresAt = Time.time + Mathf.Clamp(
