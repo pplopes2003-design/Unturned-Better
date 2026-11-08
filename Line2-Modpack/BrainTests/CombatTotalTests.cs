@@ -96,8 +96,27 @@ internal static class CombatTotalTests
             Console.Error.WriteLine("NPC_COMBAT_TOTAL_RISK_FAILED: critical 8% HP must retreat.");
             return false;
         }
+        // Only firsthand sight plus a real loaded weapon permits an
+        // aggressive return-fire intent. A remote hint cannot grant it.
+        totalBrain.Reset();
+        urgent.HealthFraction = 0.65f;
+        urgent.CanReturnFire = true;
+        urgent.ThreatVisible = true;
+        if (totalBrain.Evaluate(3f, urgent) != NpcIntent.Pursue)
+        {
+            Console.Error.WriteLine("NPC_COMBAT_TOTAL_COUNTERFIRE_FAILED: verified shot ignored.");
+            return false;
+        }
+        totalBrain.Reset();
+        urgent.ThreatVisible = false;
+        if (totalBrain.Evaluate(4f, urgent) != NpcIntent.SeekCover)
+        {
+            Console.Error.WriteLine("NPC_COMBAT_TOTAL_COUNTERFIRE_FAILED: unseen target accepted.");
+            return false;
+        }
         var normalBrain = new NpcDecisionBrain();
         urgent.CombatOnlyMode = false;
+        urgent.CanReturnFire = false;
         urgent.HealthFraction = 0.20f;
         if (normalBrain.Evaluate(1f, urgent) != NpcIntent.Retreat)
         {
