@@ -414,6 +414,9 @@ namespace Unturned2.Line2
                     looting.Initialize(this, actor, combatSight);
                     var squad = instance.AddComponent<Line2NpcSquadRegroup>();
                     squad.Initialize(actor, combatSight);
+                    var supplySharing =
+                        instance.AddComponent<Line2NpcSquadSupplySharing>();
+                    supplySharing.Initialize(this, actor, combatSight);
                     var medicalCare = instance.AddComponent<Line2NpcMedicalCare>();
                     medicalCare.Initialize(actor, combatSight);
                     var melee = instance.AddComponent<Line2NPCMeleeExecutor>();
