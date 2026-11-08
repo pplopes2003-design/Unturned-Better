@@ -189,11 +189,12 @@ namespace Unturned2.Line2
                 if (other == null || other == _actor || other.IsDead ||
                     (other.transform.position - point).sqrMagnitude > squared)
                     continue;
-                // Treat neutral actors as noncombatants too. Opposed enemies
-                // are the only accepted collateral NPC targets.
-                if (!Line2NPCCombatRules.AreOpposed(
-                    _actor.Disposition, other.Disposition,
-                    _actor.CombatMode)) return true;
+                // Check the SAME living faction relationship used by
+                // ranged and melee executors. A same-faction survivor is
+                // never valid grenade collateral just because a role differs;
+                // neutral and noncombatants remain protected.
+                if (_sight == null || !_sight.CanEngageNpcTarget(other))
+                    return true;
             }
             return false;
         }
