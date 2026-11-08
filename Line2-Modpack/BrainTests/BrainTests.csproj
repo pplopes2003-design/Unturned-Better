@@ -31,6 +31,8 @@
     <Compile Include="../ClientModule/Line2NpcSquadRolePolicy.cs" Link="Line2NpcSquadRolePolicy.cs" />
     <Compile Include="SquadSupplyPolicyTests.cs" />
     <Compile Include="../ClientModule/Line2NpcSquadSupplyPolicy.cs" Link="Line2NpcSquadSupplyPolicy.cs" />
+    <Compile Include="NativeArrivalTests.cs" />
+    <Compile Include="../ClientModule/Line2NpcNativeArrivalPolicy.cs" Link="Line2NpcNativeArrivalPolicy.cs" />
     <Compile Include="RoutineRouteHealthTests.cs" />
     <Compile Include="../ClientModule/Line2NpcRoutineRouteHealth.cs" Link="Line2NpcRoutineRouteHealth.cs" />
     <Compile Include="LootClaimTests.cs" />
