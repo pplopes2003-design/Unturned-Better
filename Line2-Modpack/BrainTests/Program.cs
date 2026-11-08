@@ -32,6 +32,8 @@ internal static class Program
 
         if (!NativeArrivalTests.Run())
             return 63;
+        if (!PhysicalProgressTests.Run())
+            return 64;
         if (!SquadRoleTests.Run())
             return 60;
         if (!FireCadenceTests.Run())
