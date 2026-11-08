@@ -524,6 +524,27 @@ namespace Unturned2.Line2
                         actor, formerGroup);
                 }
             }
+            // NPC membership is removed synchronously before this event.
+            // Release the extinct GROUP ledger only when both the living
+            // roster and the not-yet-rehydrated survivor queue are empty.
+            // Native barricades, storage and loose items remain untouched:
+            // they are physical ruins, not a free prefab deletion.
+            bool awaitingGroupSurvivor = false;
+            foreach (Line2NpcPersistence.ActorRecord pending in _pendingRestore)
+                if (pending != null && pending.groupId == formerGroup)
+                {
+                    awaitingGroupSurvivor = true;
+                    break;
+                }
+            PrototypeActor otherLiving;
+            if (formerGroup > 0 && !awaitingGroupSurvivor &&
+                !Line2NPCGroupMember.TryGetLivingMember(
+                    formerGroup, out otherLiving) &&
+                Line2NpcSettlementLedger.RetireExtinctGroup(
+                    formerGroup, true))
+                ProbeLogger.Log("NPC_GROUP_EXTINCT_CAMP_RETIRED: group=" +
+                    formerGroup + " world barricades retained as ruins");
+
             // Actor has already been marked dead by native vitals.
             // SaveCheckpoint skips it while retaining other loaded and
             // still-pending survivors, so reloading cannot resurrect it.
