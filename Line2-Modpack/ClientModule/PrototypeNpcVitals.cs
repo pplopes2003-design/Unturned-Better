@@ -152,6 +152,24 @@ namespace Unturned2.Line2
         // death/loot systems after a native Steam damage hook is attached.
         public bool ApplyDamage(float amount, Vector3 impulse, Transform attacker)
         {
+            // Preserve a REAL server-validated attacker position before
+            // ApplyServerDamage may invoke the death event. Otherwise nearby
+            // teammates cannot distinguish a violent casualty from thirst
+            // or other environmental damage. Never fabricate an attacker.
+            if (Provider.isServer && !Dedicator.IsDedicatedServer &&
+                attacker != null && !_dead &&
+                amount > 0f && !float.IsNaN(amount) &&
+                !float.IsInfinity(amount))
+            {
+                Vector3 origin = attacker.position;
+                if (!float.IsNaN(origin.x) && !float.IsNaN(origin.y) &&
+                    !float.IsNaN(origin.z) && !float.IsInfinity(origin.x) &&
+                    !float.IsInfinity(origin.y) && !float.IsInfinity(origin.z))
+                {
+                    LastDamageOrigin = origin;
+                    HasExplosionOrigin = true;
+                }
+            }
             return ApplyServerDamage(amount, impulse);
         }
 
