@@ -269,14 +269,12 @@ namespace Unturned2.Line2
                 return "Preço ou estoque alterado; consulte novamente.";
 
             Item transferred;
-            if (!source.TryTakeOwnedInstanceServer(
+            if (!source.TryTakeOwnedInstanceForReservedTransferServer(
                 ownedInstanceID, out transferred))
-                return "Falha ao reservar item do vendedor.";
-            if (!source.TryReserveSlotServer())
-            {
-                source.TryStoreTransferredItem(transferred);
-                return "Falha ao reservar rollback da transação.";
-            }
+                return "Item ou reserva do vendedor indisponível.";
+            // The vacated slot was already reserved together with the
+            // exact item. No external inventory callback can interleave
+            // between withdrawal and reservation.
 
             bool received = false;
             try { received = player.inventory.tryAddItem(transferred, true); }
