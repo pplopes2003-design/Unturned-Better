@@ -8,6 +8,15 @@ namespace Unturned2.Line2
     /// </summary>
     internal static class Line2NPCCombatRules
     {
+        /// <summary>Verified forward-facing visual cone. Geometry is checked
+        /// separately by the local server physics raycast. A score is the
+        /// normalized flat forward/target dot product, not remote AI data.</summary>
+        internal static bool WithinVisualArc(float forwardDot)
+        {
+            return !float.IsNaN(forwardDot) && !float.IsInfinity(forwardDot) &&
+                forwardDot >= 0.15f && forwardDot <= 1f;
+        }
+
         internal static bool CanEngagePlayer(string role, string mode,
                                              bool verifiedVisible, float sqrDistance)
         {
