@@ -23,6 +23,8 @@
              Link="Line2NPCCombatRules.cs" />
     <Compile Include="UnityValueStubs.cs" />
     <Compile Include="../ClientModule/Line2NpcSquadRegroupPolicy.cs" Link="Line2NpcSquadRegroupPolicy.cs" />
+    <Compile Include="FireCadenceTests.cs" />
+    <Compile Include="../ClientModule/Line2NpcFireCadencePolicy.cs" Link="Line2NpcFireCadencePolicy.cs" />
     <Compile Include="SquadRoleTests.cs" />
     <Compile Include="../ClientModule/Line2NpcSquadRolePolicy.cs" Link="Line2NpcSquadRolePolicy.cs" />
     <Compile Include="SquadSupplyPolicyTests.cs" />
