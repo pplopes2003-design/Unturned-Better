@@ -190,9 +190,10 @@ namespace Unturned2.Line2
                 // slot. A failed transfer can restore the original donor
                 // inventory slot because removing it freed one slot.
                 if (!receiver.TryReserveSlotServer()) continue;
-                Item transferred;
+                Item transferred = null;
                 bool debited = false;
                 bool stored = false;
+                bool receiverReservationOutstanding = true;
                 try
                 {
                     Item latest;
@@ -212,8 +213,10 @@ namespace Unturned2.Line2
                         if (!_inventory.TryStoreTransferredItem(transferred))
                             ProbeLogger.Log("NPC_SQUAD_TRANSFER_ROLLBACK_FAILED: id=" +
                                 itemID + " source=" + _owner.Identity);
+                        debited = false; // rollback attempted, do not repeat
                         continue;
                     }
+                    receiverReservationOutstanding = false;
                     nextSharedTransferAt = Time.time + 5f;
                     if (_runtime != null)
                         _runtime.RequestPriorityCheckpoint();
@@ -225,14 +228,22 @@ namespace Unturned2.Line2
                 }
                 catch (Exception error)
                 {
+                    if (debited && !stored && transferred != null &&
+                        !_inventory.TryStoreTransferredItem(transferred))
+                        ProbeLogger.Log("NPC_SQUAD_TRANSFER_ROLLBACK_FAILED: id=" +
+                            itemID + " source=" + _owner.Identity);
                     ProbeLogger.Log("NPC_SQUAD_SUPPLY_FAILED: " +
                         error.GetType().Name + " donor=" + _owner.Identity);
-                    // At this point a failed native store has no receiver
-                    // custody. Do not fabricate a replacement world drop.
+                    // A real successful receiver store remains authoritative;
+                    // we do not credit another item to the donor.
                 }
                 finally
                 {
-                    receiver.ReleaseReservedSlotServer();
+                    // TryStoreReservedItemServer already consumes our slot
+                    // reservation on success. Do not release any unrelated
+                    // reservation held by another native inventory action.
+                    if (receiverReservationOutstanding)
+                        receiver.ReleaseReservedSlotServer();
                 }
             }
             Array.Clear(_neighbors, 0, _neighbors.Length);
