@@ -219,6 +219,16 @@ namespace Unturned2.Line2
                 damage <= 0f || float.IsNaN(damage) || float.IsInfinity(damage))
                 return false;
 
+            // Combat Total uses actual inventory-owned native armor,
+            // including quality loss, before applying either injury or HP.
+            // Other modes preserve their existing unarmored behavior.
+            Line2NpcCombatEquipment armor =
+                GetComponent<Line2NpcCombatEquipment>();
+            if (armor != null && armor.isActiveAndEnabled)
+                damage *= armor.ApplyValidatedBodyArmorServer(part);
+            if (damage <= 0f || float.IsNaN(damage) ||
+                float.IsInfinity(damage))
+                return false;
             if (_injuries == null)
                 _injuries = GetComponent<Line2MobileNPCInjurySystem>();
             // Limb metadata is recorded, but NEVER damages health itself.
