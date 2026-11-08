@@ -38,6 +38,11 @@ namespace Unturned2.Line2
         internal bool HasUsableGun { get; private set; }
         internal bool Reloading { get { return _pendingReloadGun != 0; } }
 
+        // Presentation subscribes to COMMITTED actions only. Damage, stock
+        // and cooldown remain wholly owned by this server executor.
+        internal event Action<ItemGunAsset> ShotFired;
+        internal event Action<ItemGunAsset> ReloadStarted;
+
         internal void Initialize(PrototypeActor actor,
             Line2NPCCombatPerception perception,
             Line2MobileNPCInventory inventory)
@@ -110,7 +115,7 @@ namespace Unturned2.Line2
             Line2NPCCombatPerception.TargetKind kind = _perception.Kind;
             Transform target = _perception.VisibleTarget;
             if (kind == Line2NPCCombatPerception.TargetKind.None || target == null ||
-                _actor.IsTacticallyRetreating || Time.time < _nextShotAt)
+                _actor.IsTacticallyRetreating)
             {
                 _acquiredTarget = null;
                 return;
@@ -124,7 +129,12 @@ namespace Unturned2.Line2
                 return; // Original Line 1 reaction delay before the FIRST shot.
             }
 
-            if (Time.time - _acquiredAt < 0.28f) return;
+            // Waiting for fire cadence must NOT discard the acquired
+            // target. Previously, every 90ms update during cooldown reset
+            // _acquiredTarget, so the next check restarted the first-shot
+            // reaction delay forever and NPCs could never fire.
+            if (Time.time < _nextShotAt ||
+                Time.time - _acquiredAt < 0.28f) return;
             float gunRange = Mathf.Min(gun.range, HardMaximumRange);
             if (!_perception.HasVerifiedSight(target, kind, gunRange))
                 return;
@@ -198,6 +208,12 @@ namespace Unturned2.Line2
                     UnityEngine.Random.Range(0.035f, 0.14f);
             }
 
+            try { ShotFired?.Invoke(gun); }
+            catch (Exception error)
+            {
+                ProbeLogger.Log("NPC_SHOT_VISUAL_REJECTED: " +
+                    error.GetType().Name);
+            }
             if (Time.time >= _nextLogAt)
             {
                 ProbeLogger.Log("NPC_RANGED_SHOT: actor=" + _actor.Identity +
@@ -376,6 +392,12 @@ namespace Unturned2.Line2
             _reloadCompleteAt = Time.time +
                 Mathf.Clamp(gun.reloadTime, 1.1f, 9f);
             _nextShotAt = _reloadCompleteAt + 0.3f;
+            try { ReloadStarted?.Invoke(gun); }
+            catch (Exception error)
+            {
+                ProbeLogger.Log("NPC_RELOAD_VISUAL_REJECTED: " +
+                    error.GetType().Name);
+            }
         }
 
         private void FinishReload()
