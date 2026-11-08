@@ -66,6 +66,16 @@ namespace Unturned2.Line2
             return true;
         }
 
+        internal static bool CanAcquire(uint instanceID, int actorID, float now)
+        {
+            if (instanceID == 0 || actorID == 0 ||
+                float.IsNaN(now) || float.IsInfinity(now) || now < 0f)
+                return false;
+            Claim active;
+            return !Claims.TryGetValue(instanceID, out active) ||
+                active.Actor == actorID || active.Until <= now;
+        }
+
         internal static bool BelongsTo(uint instanceID, int actorID, float now)
         {
             Claim record;
