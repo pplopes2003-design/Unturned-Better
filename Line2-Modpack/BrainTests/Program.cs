@@ -365,6 +365,11 @@ internal static class Program
             Console.Error.WriteLine("NPC_SEARCH_AMBUSH_POLICY_FAILED: unsafe remembered location or blind attack.");
             return 29;
         }
+        if (!RadioReinforcementTests.Run())
+        {
+            Console.Error.WriteLine("NPC_RADIO_REINFORCEMENT_FAILED: unsafe radio movement target.");
+            return 30;
+        }
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
