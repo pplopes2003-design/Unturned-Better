@@ -11,6 +11,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="ZombieSoundPolicyTests.cs" />
+    <Compile Include="../ClientModule/Line2ZombieSoundPolicy.cs" Link="Line2ZombieSoundPolicy.cs" />
     <Compile Include="../ClientModule/Line2NPCRadioRules.cs"
              Link="Line2NPCRadioRules.cs" />
     <Compile Include="../ClientModule/Line2NPCFactionPolicy.cs"
