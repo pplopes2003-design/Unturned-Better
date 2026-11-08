@@ -360,6 +360,11 @@ internal static class Program
             return 28;
         }
         Console.WriteLine("NPC_SQUAD_REGROUP_OK: real local LOS, no combat preemption, 12-42m bounds and same-floor leader.");
+        if (!InvestigationSafetyTests.Run())
+        {
+            Console.Error.WriteLine("NPC_SEARCH_AMBUSH_POLICY_FAILED: unsafe remembered location or blind attack.");
+            return 29;
+        }
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
