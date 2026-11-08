@@ -723,6 +723,7 @@ namespace Unturned2.Line2
             if (!Physics.Raycast(requested + Vector3.up * 1.5f,
                 Vector3.down, out ground, 4f, Line2NpcFloorGeometry.SupportMask,
                 QueryTriggerInteraction.Ignore) ||
+                !Line2NpcFloorGeometry.IsStaticFloorCandidate(ground.collider) ||
                 ground.normal.y < 0.7f || Mathf.Abs(ground.point.y - requested.y) > 1.0f)
             {
                 reason = "saved position has no verified floor";
@@ -2233,6 +2234,7 @@ namespace Unturned2.Line2
                 if (!Physics.Raycast(estimate + Vector3.up * 1.8f,
                     Vector3.down, out floor, 4.5f, Line2NpcFloorGeometry.SupportMask,
                     QueryTriggerInteraction.Ignore) ||
+                    !Line2NpcFloorGeometry.IsStaticFloorCandidate(floor.collider) ||
                     floor.normal.y < 0.72f ||
                     Mathf.Abs(floor.point.y - transform.position.y) > 1.15f)
                     continue;
