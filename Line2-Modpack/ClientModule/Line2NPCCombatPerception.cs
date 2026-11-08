@@ -249,8 +249,11 @@ namespace Unturned2.Line2
                 Vector3.Dot(flattened.normalized, facing.normalized) < 0.15f)
                 return false;
 
-            int mask = RayMasks.DAMAGE_SERVER | RayMasks.ENTITY |
-                       RayMasks.PLAYER | RayMasks.ENEMY;
+            // DAMAGE_SERVER omits CLIP and VEHICLE in the original
+            // Unturned mask. Always include physical motor blockers so a
+            // valid target behind an invisible clip or car is not exposed.
+            int mask = RayMasks.DAMAGE_SERVER | RayMasks.BLOCK_COLLISION |
+                       RayMasks.ENTITY | RayMasks.PLAYER | RayMasks.ENEMY;
             int count = Physics.RaycastNonAlloc(origin, displacement / length,
                 _hits, length + 0.18f, mask, QueryTriggerInteraction.Collide);
             // A saturated buffer may omit the nearest wall: fail closed.
