@@ -11,6 +11,29 @@ ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "Line2-Modpack" / "ClientModule"
 
 REQUIREMENTS = (
+    # Original indoor and outdoor walkable surfaces can be GROUND,
+    # GROUND2, level-building LARGE/MEDIUM or player-built STRUCTURE.
+    # GROUND2-only casts caused false 'no-connected-route' indoors.
+    ("Line2-Modpack/ClientModule/Line2NpcFloorGeometry.cs",
+     ("RayMasks.GROUND |", "RayMasks.GROUND2 | RayMasks.LARGE",
+      "RayMasks.MEDIUM", "RayMasks.STRUCTURE",
+      "IsStaticFloorCandidate", "InteractableVehicle")),
+    ("Line2-Modpack/ClientModule/Line2CoarseRouteBridge.cs",
+     ("Line2NpcFloorGeometry.SupportMask",
+      "Line2NpcFloorGeometry.IsStaticFloorCandidate",
+      "IsTraversableUnlockedDoorEdgeServer")),
+    ("Line2-Modpack/ClientModule/Line2NpcWorldSurvey.cs",
+     ("Line2NpcFloorGeometry.SupportMask",
+      "Line2NpcFloorGeometry.IsStaticFloorCandidate")),
+    ("Line2-Modpack/ClientModule/PrototypeCoverPlanner.cs",
+     ("Line2NpcFloorGeometry.SupportMask",
+      "Line2NpcFloorGeometry.IsStaticFloorCandidate")),
+    ("Line2-Modpack/ClientModule/Line2NpcRaidObserver.cs",
+     ("Line2NpcFloorGeometry.SupportMask",
+      "Line2NpcFloorGeometry.IsStaticFloorCandidate")),
+    ("Line2-Modpack/ClientModule/SteamNpcPrototypeRuntime.cs",
+     ("Line2NpcFloorGeometry.SupportMask",
+      "Line2NpcFloorGeometry.IsStaticFloorCandidate")),
     # Real Steam-safe NPC firearm presentation and fire-control integration.
     # The original Line 1 model used an INTERNAL ItemTool overload that a
     # separately compiled module may not invoke.
