@@ -1398,6 +1398,78 @@ namespace Unturned2.Line2
             }
         }
 
+        private float _lastCombatSquadReportAt = -100f;
+
+        /// <summary>Combat Total fire-team reports are rough radio sectors
+        /// of rival NPCs or zombies personally seen by a teammate.
+        /// They do not enter the player identity/knowledge subsystem and
+        /// cannot supply a direct shot, target or unexplored path.</summary>
+        internal bool TryReceiveVerifiedCombatSquadContact(
+            PrototypeActor sender, Vector3 sector, float observedAt)
+        {
+            if (!IsCombatEnabled || IsDead ||
+                !Line2NpcCombatTotalPolicy.Enabled(_combatMode) ||
+                sender == null || sender == this || sender.IsDead ||
+                _inventory == null || sender.Inventory == null ||
+                !Level.isLoaded || _investigationProbe == null)
+                return false;
+
+            Line2NPCGroupMember mine =
+                GetComponent<Line2NPCGroupMember>();
+            Line2NPCGroupMember theirs =
+                sender.GetComponent<Line2NPCGroupMember>();
+            bool sameGroup = mine != null && theirs != null &&
+                mine.Joined && theirs.Joined &&
+                mine.GroupId == theirs.GroupId &&
+                mine.Faction == theirs.Faction;
+            bool bothRadios =
+                _inventory.ContainsItemID(Line2NPCRadioRules.NativeWalkieId) &&
+                sender.Inventory.ContainsItemID(
+                    Line2NPCRadioRules.NativeWalkieId);
+            bool hasLiveEnemy = _combatPerception != null &&
+                _combatPerception.Kind !=
+                    Line2NPCCombatPerception.TargetKind.None &&
+                _combatPerception.VisibleTarget != null;
+            float separation = Vector3.Distance(
+                transform.position, sender.transform.position);
+            float toSector = Vector3.Distance(transform.position, sector);
+            if (!Line2NpcCombatTotalSquadPolicy.CanInvestigate(
+                    true, sameGroup, bothRadios, hasLiveEnemy,
+                    RecentlyDamaged || UnderVerifiedSuppression ||
+                    _tactics.CurrentGoal != Line2MobileNPCTactics.Goal.None ||
+                    _recruited,
+                    separation, toSector,
+                    Mathf.Abs(sector.y - transform.position.y),
+                    observedAt, _lastCombatSquadReportAt) ||
+                float.IsNaN(sector.x) || float.IsInfinity(sector.x) ||
+                float.IsNaN(sector.y) || float.IsInfinity(sector.y) ||
+                float.IsNaN(sector.z) || float.IsInfinity(sector.z) ||
+                observedAt > Time.time + 0.15f ||
+                Time.time - observedAt > 1.5f)
+                return false;
+
+            Vector3 proposal, checkedFloor;
+            if (!Line2NpcRadioReinforcementPolicy.TryPropose(
+                    true, true, hasLiveEnemy,
+                    RecentlyDamaged || UnderVerifiedSuppression,
+                    _tactics.CurrentGoal != Line2MobileNPCTactics.Goal.None,
+                    _recruited, transform.position, sector,
+                    out proposal) ||
+                !_investigationProbe.TryValidate(
+                    proposal, transform.position, out checkedFloor) ||
+                !_tactics.TryStartRadioReinforcement(checkedFloor, Time.time))
+                return false;
+
+            _lastCombatSquadReportAt = observedAt;
+            ProbeLogger.Log("NPC_COMBAT_TOTAL_SQUAD_REINFORCE: actor=" +
+                _identity + " sender=" + sender.Identity +
+                " group=" + mine.GroupId +
+                " approximateSector=" + sector.ToString("F1") +
+                " verifiedWaypoint=" + checkedFloor.ToString("F1") +
+                " (no imported enemy target; native A* still required)");
+            return true;
+        }
+
         internal void ReceiveVerifiedRadioReport(Vector3 sector, float observedAt)
         {
             if (_disposition != "hostile" || _combatMode == "passive" ||
