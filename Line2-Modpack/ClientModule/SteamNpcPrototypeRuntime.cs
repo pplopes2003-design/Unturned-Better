@@ -932,6 +932,10 @@ namespace Unturned2.Line2
         private float _aiValidUntil;
         private Vector3? _lastKnownThreat;
         private float _lastSeenAt;
+        // Vanilla NPC_Client has anatomical ENTITY trigger volumes: a
+        // first-hit Physics.Raycast against ~0 can strike our own arm and
+        // incorrectly report that the player behind it is invisible.
+        private readonly RaycastHit[] _playerSightHits = new RaycastHit[16];
         private float _lastGunshotAt;
         private float _lastFootstepAt;
         private float _lastRadioAt;
@@ -2266,8 +2270,6 @@ namespace Unturned2.Line2
         {
             if (player == null || player.life == null || player.life.isDead)
                 return false;
-            // A clear ray behind the NPC is not firsthand sight. Use the
-            // same frontal angular gate as the NPC/zombie combat sensor.
             Vector3 flat = player.transform.position - transform.position;
             flat.y = 0f;
             Vector3 facing = transform.forward;
@@ -2280,13 +2282,39 @@ namespace Unturned2.Line2
             Vector3 source = transform.position + Vector3.up * 1.5f;
             Vector3 target = player.transform.position + Vector3.up * 1.3f;
             Vector3 to = target - source;
-            if (to.sqrMagnitude < 0.0001f) return false;
-            RaycastHit hit;
-            if (!Physics.Raycast(source, to.normalized, out hit, to.magnitude,
-                                 ~0, QueryTriggerInteraction.Ignore))
-                return true;
-            return hit.transform == player.transform ||
-                   hit.transform.IsChildOf(player.transform);
+            float distance = to.magnitude;
+            if (distance < 0.15f || distance > ThreatRadius + 0.5f)
+                return false;
+            // Filter physics like the combat perception adapter: ignore our
+            // own six anatomical triggers but respect actual walls, CLIP,
+            // vehicles, barricades, survivors and zombies. NonAlloc's hit
+            // order is unspecified, so find the nearest non-self collider.
+            int mask = RayMasks.BLOCK_COLLISION | RayMasks.ENTITY |
+                       RayMasks.PLAYER | RayMasks.ENEMY;
+            int count = Physics.RaycastNonAlloc(source, to / distance,
+                _playerSightHits, distance, mask,
+                QueryTriggerInteraction.Collide);
+            // A saturated buffer can omit a nearer blocking wall.
+            if (count >= _playerSightHits.Length) return false;
+            Transform nearest = null;
+            float nearestDistance = float.PositiveInfinity;
+            for (int i = 0; i < count; ++i)
+            {
+                Collider c = _playerSightHits[i].collider;
+                if (c == null || c.transform == transform ||
+                    c.transform.IsChildOf(transform))
+                    continue;
+                if (_playerSightHits[i].distance < nearestDistance)
+                {
+                    nearestDistance = _playerSightHits[i].distance;
+                    nearest = c.transform;
+                }
+            }
+            // If the known player has no collider along this particular
+            // eye ray, allow only a wholly unobstructed physical ray.
+            return nearest == null ||
+                nearest == player.transform ||
+                nearest.IsChildOf(player.transform);
         }
     }
 }
