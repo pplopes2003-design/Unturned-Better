@@ -308,8 +308,11 @@ namespace Unturned2.Line2
         {
             first = null;
             distance = 0f;
-            int mask = RayMasks.DAMAGE_SERVER | RayMasks.ENTITY |
-                       RayMasks.PLAYER | RayMasks.ENEMY;
+            // DAMAGE_SERVER omits CLIP and VEHICLE in the original
+            // Unturned mask. Always include physical motor blockers so a
+            // valid target behind an invisible clip or car is not exposed.
+            int mask = RayMasks.DAMAGE_SERVER | RayMasks.BLOCK_COLLISION |
+                       RayMasks.ENTITY | RayMasks.PLAYER | RayMasks.ENEMY;
             bool ballistic = Provider.modeConfigData.Gameplay.Ballistics;
             float speed = gun.muzzleVelocity;
             float gravity = Physics.gravity.y * gun.bulletGravityMultiplier;
