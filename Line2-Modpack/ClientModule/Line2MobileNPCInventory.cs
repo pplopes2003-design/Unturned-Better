@@ -187,6 +187,29 @@ namespace Unturned2.Line2
                 out transferredItem);
         }
 
+        /// <summary>
+        /// Atomically reserves the slot VACATED by an exact owned item
+        /// before any external PlayerInventory callbacks can run. The caller
+        /// must either commit the transfer and ReleaseReservedSlotServer, or
+        /// restore it with TryStoreReservedItemServer. This intentionally
+        /// refuses when any other inventory reservation is outstanding.
+        /// </summary>
+        public bool TryTakeOwnedInstanceForReservedTransferServer(
+            uint ownedInstanceID, out Item transferredItem)
+        {
+            transferredItem = null;
+            if (!Provider.isServer || Dedicator.IsDedicatedServer ||
+                ownedInstanceID == 0 || reservedSlots != 0)
+                return false;
+            int slot = FindSlotByInstanceID(ownedInstanceID);
+            if (slot < 0 || !TryTakeItemServer(slot, out transferredItem))
+                return false;
+            // TryTakeItemServer only mutates local lists synchronously.
+            // Preserve this newly vacant slot for exact rollback.
+            reservedSlots++;
+            return true;
+        }
+
 		public void ReleaseReservedSlotServer()
 		{
 			if (Provider.isServer && reservedSlots > 0)
