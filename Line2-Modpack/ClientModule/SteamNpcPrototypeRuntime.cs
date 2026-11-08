@@ -410,6 +410,8 @@ namespace Unturned2.Line2
                     actor.AttachCombatPerception(combatSight);
                     var builder = instance.AddComponent<Line2NpcSettlementBuilder>();
                     builder.Initialize(this, actor, combatSight);
+                    var stockpile = instance.AddComponent<Line2NpcCampStockpile>();
+                    stockpile.Initialize(this, actor, combatSight);
                     var looting = instance.AddComponent<Line2NpcWorldLootCollector>();
                     looting.Initialize(this, actor, combatSight);
                     var squad = instance.AddComponent<Line2NpcSquadRegroup>();
