@@ -100,6 +100,23 @@ internal static class TacticalJourneyTests
             return false;
         }
 
+        // Repeated corner-bouncing does NOT count as a new flank segment.
+        // Retreating or regrouping NPCs must eventually abandon this route
+        // rather than repeating a two-point wall trap.
+        var oscillating = new Line2NpcTacticalJourneyWatchdog();
+        if (Observe(oscillating, flank, 0f, 0f) !=
+                Line2NpcTacticalJourneyWatchdog.Outcome.Moving ||
+            Observe(oscillating, flank, -1.1f, 2f) !=
+                Line2NpcTacticalJourneyWatchdog.Outcome.Moving ||
+            Observe(oscillating, flank, 0f, 5f) !=
+                Line2NpcTacticalJourneyWatchdog.Outcome.Moving ||
+            Observe(oscillating, flank, -1.1f, 7.1f) !=
+                Line2NpcTacticalJourneyWatchdog.Outcome.Blocked)
+        {
+            Console.Error.WriteLine("NPC_TACTICAL_OSCILLATION_FAILED: wall bouncing reset a flank.");
+            return false;
+        }
+
         // A moving actor must not renew the absolute 45-second deadline.
         var finiteDetour = new Line2NpcTacticalJourneyWatchdog();
         if (Observe(finiteDetour, flank, 0f, 0f) !=
