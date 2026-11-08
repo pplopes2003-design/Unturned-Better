@@ -305,6 +305,10 @@ namespace Unturned2.Line2
                     }
                     _nextWithdrawalAt = Time.time + 14f;
                     _nextWorldTransferAt = Time.time + 3f;
+                    Line2NpcWorldSurvey survey =
+                        GetComponent<Line2NpcWorldSurvey>();
+                    if (survey != null)
+                        survey.RecordVerifiedStockWithdrawal();
                     if (_runtime != null)
                         _runtime.RequestPriorityCheckpoint();
                     ProbeLogger.Log("NPC_CAMP_STOCK_WITHDRAWN: group=" +
