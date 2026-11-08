@@ -1367,8 +1367,19 @@ namespace Unturned2.Line2
             if (expiresRealtime <= Time.realtimeSinceStartup ||
                 expiresRealtime - Time.realtimeSinceStartup > 1.0f)
                 return false;
-            if (action == "engage" && !_threatVisible)
-                return false;
+            if (action == "engage")
+            {
+                // The sensor may have last seen the player up to one think
+                // interval ago. Never accept a delayed remote engage order
+                // without fresh, firsthand game-side line of sight.
+                Player livePlayer = Player.player;
+                if (!_threatVisible || livePlayer == null ||
+                    livePlayer.life == null || livePlayer.life.isDead ||
+                    (livePlayer.transform.position - transform.position).sqrMagnitude >
+                        ThreatRadius * ThreatRadius ||
+                    !CanSeePlayer(livePlayer))
+                    return false;
+            }
             if (action == "investigate" && !_lastKnownThreat.HasValue &&
                 Time.time - _lastGunshotAt > 7f &&
                 Time.time - _lastFootstepAt > 4f &&
@@ -1376,22 +1387,12 @@ namespace Unturned2.Line2
                   _legacyBrain.CurrentState ==
                       Line2MobileNPCBrain.State.Investigating))
                 return false;
+            // A localhost suggestion is advisory input to the next local
+            // decision tick. It must not write the motor goal immediately:
+            // doing so could replace an ongoing cover, retreat, flank,
+            // regroup or raid route between local brain evaluations.
             _aiAction = action;
             _aiValidUntil = expiresRealtime;
-            if (action == "idle") _goal = _home;
-            else if (action == "investigate")
-            {
-                if (_lastKnownThreat.HasValue)
-                    _goal = _lastKnownThreat.Value;
-                else if (Time.time - _lastGunshotAt <= 7f)
-                    _goal = _lastHeardPoint;
-                else if (Time.time - _lastFootstepAt <= 4f)
-                    _goal = _lastHeardFootstepPoint;
-                else if (_legacyBrain.HasDestination &&
-                    _legacyBrain.CurrentState ==
-                        Line2MobileNPCBrain.State.Investigating)
-                    _goal = _legacyBrain.Destination;
-            }
             return true;
         }
 
