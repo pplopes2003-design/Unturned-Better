@@ -1760,10 +1760,18 @@ namespace Unturned2.Line2
             // Complete the actual physics move before interpreting arrival.
             // The legacy investigation state may advance only from measured
             // CharacterController position, never from a predicted waypoint.
-            IsMoving = direction.sqrMagnitude > 0.1f;
-            if (_animation != null) _animation.SetMoving(IsMoving);
+            Vector3 beforeMove = transform.position;
             _controller.Move((direction * speed +
                               Vector3.up * _verticalVelocity) * Time.deltaTime);
+            // Physics, not the requested heading, determines whether this
+            // survivor is walking. A blocked wall must not produce footstep
+            // animation, movement accuracy penalties or moving status.
+            Vector3 actualStep = transform.position - beforeMove;
+            actualStep.y = 0f;
+            IsMoving = Time.deltaTime > 0f &&
+                actualStep.sqrMagnitude > (Time.deltaTime * 0.12f) *
+                    (Time.deltaTime * 0.12f);
+            if (_animation != null) _animation.SetMoving(IsMoving);
             // Arrival is a physical observation, not merely a requested
             // waypoint. The migrated Line 1 brain advances its three-point
             // investigation spiral only when the CharacterController arrives.
