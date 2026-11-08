@@ -51,9 +51,7 @@ namespace Unturned2.Line2
                 _runtime == null || _membership == null ||
                 !_actor.IsCombatEnabled || _actor.IsDead ||
                 _actor.Disposition != "hostile" ||
-                _sight.Kind != Line2NPCCombatPerception.TargetKind.Player ||
                 _sight.VisibleTarget == null ||
-                !_actor.PlayerVisible ||
                 !_inventory.ContainsItemID(NativeWalkieId) ||
                 !_membership.Joined || Time.time < _nextSendAt ||
                 Time.time < nextChannelAvailableAt ||
@@ -61,11 +59,53 @@ namespace Unturned2.Line2
                 (Provider.clients != null && Provider.clients.Count > 1))
                 return;
 
-            Player player = _sight.VisibleTarget.GetComponentInParent<Player>();
-            if (player == null || player.life == null || player.life.isDead)
-                return;
-            if ((player.transform.position - transform.position).sqrMagnitude > 400f)
-                return;
+            bool playerContact =
+                _sight.Kind == Line2NPCCombatPerception.TargetKind.Player;
+            bool combatTotalContact =
+                Line2NpcCombatTotalPolicy.Enabled(_actor.CombatMode) &&
+                (_sight.Kind == Line2NPCCombatPerception.TargetKind.Npc ||
+                 _sight.Kind == Line2NPCCombatPerception.TargetKind.Zombie);
+            if (!playerContact && !combatTotalContact) return;
+            if (playerContact)
+            {
+                Player player =
+                    _sight.VisibleTarget.GetComponentInParent<Player>();
+                if (!_actor.PlayerVisible || player == null ||
+                    player.life == null || player.life.isDead ||
+                    (player.transform.position - transform.position).sqrMagnitude >
+                        400f)
+                    return;
+            }
+            else
+            {
+                // A rival/zombie report is only allowed from a CURRENT,
+                // personally verified, living and hostile contact.
+                bool livingEnemy = false;
+                if (_sight.Kind == Line2NPCCombatPerception.TargetKind.Npc)
+                {
+                    PrototypeActor rival = _sight.VisibleTarget
+                        .GetComponentInParent<PrototypeActor>();
+                    livingEnemy = rival != null && !rival.IsDead &&
+                        _sight.CanEngageNpcTarget(rival);
+                }
+                else if (_sight.Kind ==
+                    Line2NPCCombatPerception.TargetKind.Zombie)
+                {
+                    Zombie zombie = _sight.VisibleTarget
+                        .GetComponentInParent<Zombie>();
+                    livingEnemy = zombie != null && !zombie.isDead;
+                }
+                float contactDistance = Vector3.Distance(
+                    transform.position, _sight.VisibleTarget.position);
+                bool firsthand = _sight.HasVerifiedSight(
+                    _sight.VisibleTarget, _sight.Kind,
+                    Line2NpcCombatTotalSquadPolicy.MaxContactRange);
+                if (!Line2NpcCombatTotalSquadPolicy.CanBroadcast(
+                    true, firsthand, livingEnemy,
+                    _inventory.ContainsItemID(NativeWalkieId),
+                    contactDistance))
+                    return;
+            }
 
             // Do not radio the exact Player position: spatial grid preserves
             // an approximate 20m sector from one confirmed observation.
@@ -96,17 +136,31 @@ namespace Unturned2.Line2
                             transform.position)))
                     continue;
 
-                other.ReceiveVerifiedRadioReport(sector, now);
-                recipients++;
+                if (combatTotalContact)
+                {
+                    if (other.TryReceiveVerifiedCombatSquadContact(
+                            _actor, sector, now))
+                        recipients++;
+                }
+                else
+                {
+                    other.ReceiveVerifiedRadioReport(sector, now);
+                    recipients++;
+                }
             }
             _candidates.Clear();
             _nextSendAt = now + SendCooldown;
             nextChannelAvailableAt = now + AirTime;
             if (Time.time >= _nextLogAt)
             {
-                ProbeLogger.Log("NPC_RADIO_CONTACT: group=" + _membership.GroupId +
+                ProbeLogger.Log(
+                    (combatTotalContact ? "NPC_COMBAT_TOTAL_RADIO_CONTACT" :
+                     "NPC_RADIO_CONTACT") +
+                    ": group=" + _membership.GroupId +
                     " faction=" + _membership.Faction +
-                    " sender=" + _actor.Identity + " recipients=" + recipients +
+                    " sender=" + _actor.Identity +
+                    " threatKind=" + _sight.Kind +
+                    " recipients=" + recipients +
                     " sector20m=" + (int)sector.x + "," + (int)sector.z);
                 _nextLogAt = Time.time + 12f;
             }
