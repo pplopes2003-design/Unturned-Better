@@ -143,13 +143,14 @@ namespace Unturned2.Line2
                     inspected++;
                     if (HasNativePlayerTarget(zombie) || PlayerHasPriority(zombie) ||
                         !FirsthandView(zombie, actor)) continue;
-                    // Claim only after firsthand sight is confirmed. Otherwise a
-                    // blocked NPC encountered first could prevent this zombie
-                    // from considering another, actually visible NPC this tick.
-                    if (!_visited.Add(zombie.GetInstanceID())) continue;
                     Vector3 delta = actor.transform.position - zombie.transform.position;
                     float horizontalSq = delta.x * delta.x + delta.z * delta.z;
+                    // A first-hand ray to an NPC on a disconnected upper
+                    // storey is NOT an actionable contact for a ground-level
+                    // zombie. Test height before claiming this zombie's tick,
+                    // so it can still choose a visible NPC on its own floor.
                     if (Mathf.Abs(delta.y) > 2.1f) continue;
+                    if (!_visited.Add(zombie.GetInstanceID())) continue;
                     // Native point-hunting uses the vanilla A* movement component.
                     // This is not a forced transform or fabricated player target.
                     if (horizontalSq > AttackRadius * AttackRadius)
