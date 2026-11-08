@@ -459,12 +459,19 @@ namespace Unturned2.Line2
                     survey.Initialize(actor);
                     actor.AttachWorldSurvey(survey);
                     groupCandidates.Add(actor);
-                    string kitStatus;
-                    if (Line2NPCStartingEquipment.GiveFreshKitServer(
-                        ownedInventory, disposition, _mode, out kitStatus))
-                        ProbeLogger.Log("NPC_STARTING_EQUIPMENT: " + kitStatus);
-                    Line2NPCStartingEquipment.GiveAuthenticRadioServer(
-                        ownedInventory, disposition, _mode);
+                    string kitStatus = "saved inventory; no starter kit";
+                    // Saved Combat Total soldiers must keep EXACTLY their
+                    // old ammo, clothing condition and medicines. Do not
+                    // provision even a temporary gun or radio during
+                    // restoration; the inventory loader is authoritative.
+                    if (!_restoringActor)
+                    {
+                        if (Line2NPCStartingEquipment.GiveFreshKitServer(
+                            ownedInventory, disposition, _mode, out kitStatus))
+                            ProbeLogger.Log("NPC_STARTING_EQUIPMENT: " + kitStatus);
+                        Line2NPCStartingEquipment.GiveAuthenticRadioServer(
+                            ownedInventory, disposition, _mode);
+                    }
                     var combatSight = instance.AddComponent<Line2NPCCombatPerception>();
                     combatSight.Initialize(this, actor);
                     actor.AttachCombatPerception(combatSight);
