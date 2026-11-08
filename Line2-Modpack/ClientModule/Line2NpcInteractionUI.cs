@@ -50,7 +50,7 @@ namespace Unturned2.Line2
             if (!Authorized() || _selected == null || _selected.IsDead ||
                 _selected.Disposition == "hostile") return false;
             Player player = Player.player;
-            return player != null &&
+            return player != null && player.life != null && !player.life.isDead &&
                 (player.transform.position - _selected.transform.position).sqrMagnitude <= 4.0f * 4.0f;
         }
 
@@ -204,14 +204,19 @@ namespace Unturned2.Line2
                 return "Comércio bloqueado.";
             Player player = Player.player;
             Line2MobileNPCInventory source = actor.Inventory;
-            if (player == null || player.skills == null || player.inventory == null ||
+            if (player == null || player.life == null || player.life.isDead ||
+                player.skills == null || player.inventory == null ||
                 source == null || player.skills.experience < price ||
                 (player.transform.position - actor.transform.position).sqrMagnitude > 16f)
                 return "Sem experiência suficiente ou fora do alcance.";
             Item owned;
-            if (!source.TryGetItemSnapshot(slot, out owned) ||
-                Assets.find(EAssetType.ITEM, owned.id) == null)
+            if (!source.TryGetItemSnapshot(slot, out owned))
                 return "Item não disponível.";
+            ItemAsset actualAsset = Assets.find(EAssetType.ITEM, owned.id) as ItemAsset;
+            // The UI's displayed price is not transaction authority:
+            // recompute against the actual owned item before withdrawal.
+            if (actualAsset == null || Price(actualAsset, owned) != price)
+                return "Preço ou estoque alterado; consulte novamente.";
 
             Item transferred;
             if (!source.TryTakeItemServer(slot, out transferred))
