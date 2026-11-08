@@ -61,6 +61,49 @@ internal static class RoutineRouteHealthTests
                 false, false) != Line2NpcRoutineRouteHealth.State.Blocked)
             return false;
 
+        // A real A* corridor can move AWAY from the goal while routing
+        // around a house. Valid measured steps should not be misdiagnosed
+        // as a stalled NPC merely because straight-line distance grows.
+        var detour = new Line2NpcRoutineRouteHealth();
+        if (detour.Observe(goal, new Vector3(0f, 0f, 0f), 0f,
+                false, false) != Line2NpcRoutineRouteHealth.State.Moving ||
+            detour.Observe(goal, new Vector3(-1.5f, 0f, 0f), 12f,
+                false, false) != Line2NpcRoutineRouteHealth.State.Moving ||
+            detour.Observe(goal, new Vector3(-3f, 0f, 0f), 25f,
+                false, false) != Line2NpcRoutineRouteHealth.State.Moving ||
+            detour.Observe(goal, new Vector3(-4.5f, 0f, 0f), 39f,
+                false, false) != Line2NpcRoutineRouteHealth.State.Moving ||
+            detour.Observe(goal, new Vector3(-4.5f, 0f, 0f), 64f,
+                false, false) != Line2NpcRoutineRouteHealth.State.Blocked)
+        {
+            Console.Error.WriteLine("NPC_ROUTINE_DETOUR_FAILED: legitimate physical travel or actual stall.");
+            return false;
+        }
+
+        // Circling forever is not a valid journey. The absolute time bound
+        // still applies even if the NPC is continuously moving.
+        var endlessDetour = new Line2NpcRoutineRouteHealth();
+        if (endlessDetour.Observe(goal, new Vector3(0f, 0f, 0f), 0f,
+                false, false) != Line2NpcRoutineRouteHealth.State.Moving)
+            return false;
+        for (int tick = 1; tick < 14; ++tick)
+        {
+            if (endlessDetour.Observe(goal,
+                    new Vector3(-2f * tick, 0f, 0f), 10f * tick,
+                    false, false) != Line2NpcRoutineRouteHealth.State.Moving)
+            {
+                Console.Error.WriteLine("NPC_ROUTINE_DETOUR_FAILED: early timeout during valid travel.");
+                return false;
+            }
+        }
+        if (endlessDetour.Observe(goal, new Vector3(-28f, 0f, 0f),
+                140f, false, false) !=
+                    Line2NpcRoutineRouteHealth.State.Blocked)
+        {
+            Console.Error.WriteLine("NPC_ROUTINE_DETOUR_FAILED: absolute 140s bound.");
+            return false;
+        }
+
         Console.WriteLine("NPC_ROUTINE_ROUTE_OK: native A* grace, disconnected wall, long stagnation, floor mismatch, new destination and invalid coordinates.");
         return true;
     }
