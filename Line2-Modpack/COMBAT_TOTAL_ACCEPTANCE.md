@@ -28,6 +28,26 @@
 
 **Ainda não homologado:** comunicação, interação de portas e sucesso da movimentação sob A* em gameplay no Steam. A versão exata dos assemblies, modelos e perfis do jogo precisa ser usada na compilação final.
 
+## Entrega da etapa 1 — código e testes automatizados (08/11/2026)
+
+Esta entrega fixa o **escopo de código para a primeira compilação e bateria de gameplay do Combate Total**. Inclui os sistemas existentes de combate, percepção, armas reais, dano por hitbox, zumbis, granadas, morte, reabastecimento, navegação, rádio, facções e persistência em uma única branch.
+
+**Correções de integração da última revisão:**
+
+- Combate NPC↔NPC em Total exige **dois grupos vivos e válidos**, IDs diferentes e facções realmente hostis antes da seleção e novamente antes do impacto. O fallback genérico `hostile`/`friendly` fica apenas no Normal.
+- Reagrupamento confere grupo e facção idênticos, ausência de ferimento recente ou supressão, visão direta do companheiro e piso correto de construção com cápsula livre. Ele não persegue o líder através de andares ou paredes fictícios.
+- Comunicação de esquadrão só transmite setores aproximados de inimigos vistos pessoalmente, com rádios físicos e verificação de grupo. Os papéis de guarda, intendente, explorador e líder preservam as prioridades de combate.
+- **Script de transferência da etapa 1:** `verify-and-stage-combat-total.ps1`. Confere o conjunto necessário de DLLs Steam, executa os testes C# puros, compila o módulo `net472` contra a instalação informada, valida o resultado e gera um módulo de distribuição na pasta `build/CombatTotal/Unturned2.Line2`. **Não instala por padrão**; `-Install` só age sob comando explícito, com backup da DLL anterior.
+- A pipeline Windows confirma sintaxe PowerShell e manifesto, testes C#, testes Python e auditoria textual da API. **O CI não tem os assemblies distribuídos pelo Steam** e não executa o `ClientModule` completo: a compatibilidade da DLL e do gameplay ainda não foi demonstrada.
+
+**Passagem para a etapa 2:** executar, no PowerShell, a partir de `Line2-Modpack`:
+
+```powershell
+.\verify-and-stage-combat-total.ps1 -UnturnedDir "C:\Program Files (x86)\Steam\steamapps\common\Unturned"
+```
+
+Se os testes e a compilação terminarem sem erros, opcionalmente executar o mesmo comando com `-Install` para instalar a DLL gerada. Abrir o singleplayer sem BattlEye e realizar a bateria abaixo. **Uma falha de compilação ainda é uma pendência de código para correção, não um resultado de gameplay.**
+
 ## Bateria Steam obrigatória (pendente)
 
 1. **Seleção:** executar os comandos, verificar `NPC_COMBAT_TOTAL_READY` no log e NPCs sempre hostis mesmo quando o comando pede `friendly` ou `neutral`.
