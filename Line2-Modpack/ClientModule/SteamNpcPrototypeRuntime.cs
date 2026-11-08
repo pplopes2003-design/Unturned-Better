@@ -1702,6 +1702,7 @@ namespace Unturned2.Line2
                     // ordinary friendly NPCs keep their own A-Life routine.
                     IsFriendly = _disposition == "friendly" && _recruited,
                     PassiveMode = _combatMode == "passive",
+                    CombatOnlyMode = Line2NpcCombatTotalPolicy.Enabled(_combatMode),
                     PlayerNearby = nearPlayer,
                     ThreatVisible = visible,
                     HasRecentMemory = lastKnown.HasValue,
