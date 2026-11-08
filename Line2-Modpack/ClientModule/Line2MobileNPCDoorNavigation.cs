@@ -219,7 +219,10 @@ namespace Unturned2.Line2
                 if (door != null)
                 {
                     if (!door.isActiveAndEnabled || door.IsChildOfVehicle
-                        || !IsConfirmedUnlocked(door)
+                        || !IsConfirmedUnlocked(door) ||
+                        !(door.isOpen || door.isOpenable ||
+                          door == lastOpenedDoor &&
+                          Time.time < waitingForDoorAnimationUntil)
                         || !Level.checkSafeIncludingClipVolumes(door.transform.position)
                         || onlyMapDoor != null || onlyDoor != null && onlyDoor != door)
                         return false;
@@ -229,7 +232,10 @@ namespace Unturned2.Line2
                 {
                     InteractableObjectBinaryState mapDoor =
                         hit.GetComponentInParent<InteractableObjectBinaryState>();
-                    if (!IsRegisteredPassiveMapDoor(mapDoor)
+                    if (!IsRegisteredPassiveMapDoor(mapDoor) ||
+                        !(mapDoor.isUsed || mapDoor.isUsable ||
+                          mapDoor == lastOpenedMapDoor &&
+                          Time.time < waitingForDoorAnimationUntil)
                         || onlyDoor != null || onlyMapDoor != null && onlyMapDoor != mapDoor)
                         return false;
                     onlyMapDoor = mapDoor;
@@ -272,7 +278,10 @@ namespace Unturned2.Line2
                 if (door != null)
                 {
                     if (!door.isActiveAndEnabled || door.IsChildOfVehicle
-                        || !IsConfirmedUnlocked(door)
+                        || !IsConfirmedUnlocked(door) ||
+                        !(door.isOpen || door.isOpenable ||
+                          door == lastOpenedDoor &&
+                          Time.time < waitingForDoorAnimationUntil)
                         || !Level.checkSafeIncludingClipVolumes(door.transform.position)
                         || onlyMapDoor != null || onlyDoor != null && onlyDoor != door)
                         return false;
@@ -282,7 +291,10 @@ namespace Unturned2.Line2
                 {
                     InteractableObjectBinaryState mapDoor =
                         collider.GetComponentInParent<InteractableObjectBinaryState>();
-                    if (!IsRegisteredPassiveMapDoor(mapDoor)
+                    if (!IsRegisteredPassiveMapDoor(mapDoor) ||
+                        !(mapDoor.isUsed || mapDoor.isUsable ||
+                          mapDoor == lastOpenedMapDoor &&
+                          Time.time < waitingForDoorAnimationUntil)
                         || onlyDoor != null || onlyMapDoor != null && onlyMapDoor != mapDoor)
                         return false;
                     onlyMapDoor = mapDoor;
