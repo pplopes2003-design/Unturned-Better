@@ -385,7 +385,7 @@ namespace Unturned2.Line2
                 return false;
             RaycastHit hit;
             if (!Physics.Raycast(estimate + Vector3.up * 2f,
-                Vector3.down, out hit, 4.5f, RayMasks.GROUND2,
+                Vector3.down, out hit, 4.5f, Line2NpcFloorGeometry.SupportMask,
                 QueryTriggerInteraction.Ignore) ||
                 hit.normal.y < 0.72f ||
                 Mathf.Abs(hit.point.y - estimate.y) > 2f)
