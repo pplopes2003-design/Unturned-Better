@@ -72,7 +72,7 @@ REQUIREMENTS = (
       "Line2NpcSuppressionPolicy.IsCurrent",
       "_tactics.ReportIncomingFire(firedAt)",
       "bool gunnerStrafe = activeCombatTarget",
-      "bool canReturnFire = _rangedExecutor != null")),
+      "canReturnFire = _rangedExecutor != null")),
     ("Line2-Modpack/ClientModule/Line2NpcGrenadeThrower.cs",
      ("AlliesInBlastZone", "_sight.CanEngageNpcTarget(other)")),
     ("Line2-Modpack/ClientModule/Line2NpcGunDamagePolicy.cs",
