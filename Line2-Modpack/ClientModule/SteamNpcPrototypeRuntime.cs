@@ -1313,7 +1313,8 @@ namespace Unturned2.Line2
             visible = false;
             lastKnown = null;
             if (_disposition != "hostile" || _combatMode == "passive") return;
-            if (player != null &&
+            if (player != null && player.life != null &&
+                !player.life.isDead &&
                 (player.transform.position - transform.position).sqrMagnitude <= ThreatRadius * ThreatRadius &&
                 CanSeePlayer(player))
             {
