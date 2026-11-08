@@ -135,12 +135,18 @@ namespace Unturned2.Line2
             Vector3 current = transform.position;
             Vector3 toward = goal - current;
             toward.y = 0f;
-            // Horizontal proximity is not arrival if the destination is
-            // above/below us. Let native A* attempt a real stairway route;
-            // never silently stop at the same X/Z on another floor.
-            if (toward.sqrMagnitude < 0.8f * 0.8f &&
-                Mathf.Abs(goal.y - current.y) <= 1.0f)
+            // A native path can end at a snapped graph node rather than
+            // the precise brain goal. Only real CharacterController
+            // proximity on the correct floor can mark arrival.
+            if (Line2NpcNativeArrivalPolicy.HasPhysicallyArrived(
+                    current, goal))
+            {
+                if (_path.Count > 0) FinishJourney(current);
+                _path.Clear();
+                _waypoint = 0;
+                _status = "native-physical-goal-arrived";
                 return Vector3.zero;
+            }
 
             if (_provider == null || !_provider.IsAvailable)
             {
@@ -234,6 +240,22 @@ namespace Unturned2.Line2
                 return delta.normalized;
             }
 
+            // Consuming the ASPFP vectorPath proves only that the LAST
+            // native graph node was reached. It can still be more than
+            // a meter from the actual goal or on a different floor.
+            // Reject such a partial route; a fresh request may find a
+            // connected alternative, while the journey watchdog remains
+            // responsible for a bounded failure after repeated attempts.
+            if (!Line2NpcNativeArrivalPolicy.HasPhysicallyArrived(
+                    current, goal))
+            {
+                _path.Clear();
+                _walked.Clear();
+                _waypoint = 0;
+                _nextRepathAt = Time.time + 1.4f;
+                _status = "native-endpoint-not-actual-arrival";
+                return Vector3.zero;
+            }
             FinishJourney(current);
             _path.Clear();
             _status = "native-route-arrived";
