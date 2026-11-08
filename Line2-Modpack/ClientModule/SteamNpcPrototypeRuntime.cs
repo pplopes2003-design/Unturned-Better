@@ -1742,7 +1742,10 @@ namespace Unturned2.Line2
             if (!_stalkPlanner.TryPlan(transform.position, clue,
                 transform, out concealed) ||
                 !_tactics.TryStartStalk(concealed, Time.time))
+            {
+                Line2NpcEncounterPacing.Release(GetInstanceID());
                 return;
+            }
             ProbeLogger.Log("NPC_STALK_SHELTERED: actor=" + _identity +
                 " evidence=" + evidence + " uncertainty=" +
                 uncertainty.ToString("F1") + " point=" +
@@ -1866,7 +1869,10 @@ namespace Unturned2.Line2
                 Vector3 proposed, verified;
                 if (!_knowledge.TrySuggestSearchPoint(Time.time,
                     out proposed))
+                {
+                    Line2NpcEncounterPacing.Release(GetInstanceID());
                     return;
+                }
                 if (!Line2NpcInvestigationPolicy.MayProbe(
                     true, true, false, confidence, uncertainty,
                     observed, proposed, transform.position,
@@ -1883,6 +1889,9 @@ namespace Unturned2.Line2
                     " (no enemy Transform; A* must prove route)");
                 return;
             }
+            // No valid floor/capsule was found for this optional clue. Free
+            // the squad's search budget for a different investigator.
+            Line2NpcEncounterPacing.Release(GetInstanceID());
         }
 
         private void MonitorTacticalProgress()
