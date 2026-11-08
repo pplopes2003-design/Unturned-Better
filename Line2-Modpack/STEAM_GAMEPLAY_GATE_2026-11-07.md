@@ -16,6 +16,10 @@
 - A morte real do NPC agora faz um checkpoint mesmo com natural spawn desativado, evitando reaparecimento de personagem morto após a criação de loot de cadáver.
 - O reconhecimento de base rival ganhou **ataque corpo a corpo com item melee nativo**, contra barricada física observada e não pertencente a jogador (aplicação via `BarricadeManager.damage`, desgaste do item). Raids explosivas/coordenadas, não.
 - A busca de integrantes da horda examina uma janela limitada de zumbis já carregados inclusive além da região de navegação do líder; `Zombie.alert` e o caminho vanilla continuam responsáveis pelo movimento, sem garantia de perseguição inter-regional.
+- Da Linha 1 foi acrescentado o `Line2NpcInvestigationProbe`: os pontos da espiral e hipóteses sensoriais passam por teste de piso verdadeiro, cápsula desobstruída, altura compatível e orçamento limitado; rota definitivamente desconectada avança para o próximo ponto. `Line2NpcConcealedApproachPlanner` só escolhe abrigo a partir de uma pista própria ainda válida. O NPC só prepara arma/combate após a percepção atual confirmar pessoalmente o alvo.
+- O rádio de facções agora pode orientar até um waypoint **local (máximo 12m)** na direção do setor aproximado transmitido. Isso não concede mira, teletransporte, nem localização precisa do jogador.
+- A lógica de `MobileNPCEncounterDirector` foi parcialmente migrada: no máximo dois integrantes de um mesmo grupo executam buscas adicionais por hipótese simultaneamente. As autorizações expiram após oito segundos e são descartadas na morte, contato visual e troca de mapa; o sensor e combate normais não sofrem limitação.
+- Uma morte violenta fisicamente observada ou ouvida a curta distância pode acionar retirada limitada de aliados sobreviventes do mesmo grupo para cobertura local; sem alvo herdado do morto.
 - A aprovação da pipeline não comprova navegação indoor, dano de zumbis em NPCs, A-Life, bases, comércio ou persistência.
 
 ## Preparação
@@ -33,7 +37,7 @@
 |---|---|---|
 | Carregamento do módulo | `Module initialized` e menu F7 | Pendente de teste Steam |
 | Spawn e anatomia | NPC visível, colisor funcional, nome e hitboxes | Pendente de teste Steam |
-| Percepção e localhost | `NPC_AI_LIVE_BATCH_OK` com NPC válido | Pendente de teste Steam |
+| Percepção e localhost | `NPC_AI_LIVE_BATCH_OK` com NPC válido | Evidência sensorial, busca com piso/altura e emboscada de alvo observado integradas; servidor Python e atualizações Steam pendentes de teste em jogo |
 | Saúde real e recuo | Dano validado reduz HP; sob pressão NPC procura cobertura/recuo | Monitor físico de destino, limite de travamento, blacklist de fuga e manutenção temporária de cobertura/flanco implementados; Steam pendente |
 | Combate completo | Armas gastam munição real e respeitam recarga, cadência, precisão e LOS | Pendente de teste Steam |
 | Explosões | Granada nativa causa dano verificado aos NPCs na camada Agent | Pendente de teste Steam |
@@ -47,7 +51,7 @@
 ## Componentes e prioridades que ainda impedem o teste único final
 
 1. **Compatibilidade real:** compilar toda `ClientModule` com a versão instalada do Unturned Steam e resolver eventuais APIs Unity/Assembly-CSharp divergentes. O Windows CI testa políticas C# isoladas, Python e superfícies textuais de SDK, não o módulo real.
-2. **Cérebro completo:** portar restantes de `MobileNPCBrainDriver` e operadores táticos (investigação acústica avançada, emboscadas, formação/ordens de esquadrão, retirada coletiva, invasões em várias fases, sobrevivência econômica). Recusa de rotas bloqueadas, manutenção temporária de fuga/flanco, grupo observado e priorização pessoal já estão integrados; **não** uma porta 1:1 completa.
+2. **Cérebro completo:** integrar ainda estados restantes de `MobileNPCBrainDriver` e operadores avançados (conversa sobre pistas/classificação fina de sons, comportamento urbano/indoor, ordem de patrulha, papéis de esquadrão, comando de incursões em várias fases, A-Life econômico). Busca com piso/altura validados, aproximação protegida/emboscada breve, reforços por rádio, orçamento de buscas, retirada de aliados próximos e flanco já possuem adaptadores; **não** é uma porta 1:1 completa.
 3. **A-Life e bases:** validar coleta real do chão e snapshots (sem perdas/duplicação entre checkpoints), construção persistente das barricadas e colisões. Acrescentar armazenamento/depósitos/ocupação/recursos, armamento de cerco explosivo, coordenação de múltiplos invasores e tomada de base. O raid atual é reconhecimento, movimentação e possível **desgaste melee da barricada rival observada**, não uma incursão completa.
 4. **Navegação avançada:** comprovar conexão do ASPFP original e do grafo alternativo com portas, janelas quebradas, baixa travessia física, escadas, andares e obstáculos móveis em mapas reais sem clip ou teletransporte.
 5. **Zumbis:** validar dano mútuo, perseguição em regiões/níveis e o comportamento de investigação/hordas ao perder o alvo; o rally atual reutiliza zumbis já existentes, não altera o limite vanilla nem garante travessia de regiões.
@@ -58,6 +62,10 @@
 - `BrainTests` do código original portado: sucesso na rota incremental por qualquer lado da parede, recusa de caminhos desconectados e detecção `no-connected-route`.
 - Monitor tático determinístico: progresso real, falha após ausência de movimento, tempo máximo do A* pendente, impossibilidade de chegar em outro andar e retenção temporária do ponto de fuga/flanco.
 - Reagrupamento: política isolada rejeita líder sem visão, perigo ativo, aliado recrutado, diferença vertical, distâncias inválidas e NaN.
+- Busca/emboscada: testes isolados rejeitam memória insuficiente, local não observado, pista vencida, janela em outro andar, coordenadas inválidas e tiro de surpresa em alvo não confirmado.
+- Rádio: testes exigem setor genuíno, waypoint de aproximação de no máximo 12m e rejeitam comunicação com risco em combate ou incompatibilidade de andar.
+- EncounterDirector (parcial): testes limitam as pistas extras a dois NPCs por grupo, liberam licenças vencidas e garantem isolamento entre grupos/mapas.
+- Reação de grupo: testes rejeitam retirada quando a morte não foi vista/ouvida, não foi violenta, está em outro andar, veio de outro grupo ou ocorreu longe demais.
 - Persistência isolada: ida e volta de inventário, grupos, ferimentos, identidades, tickets de reposição e manifesto de barricadas de cada base, com rejeição de registros corrompidos.
 - Ledger de grupos isolado: sem duplicar posição de barricadas, máximo de 4 por grupo, separação entre bases rivais, cópias independentes e não reaproveitamento de IDs de bases extintas (com ligação de runtime).
 - A auditoria `check_sdk_api_surface.py` inclui os símbolos originais de granadas, objetos de mapa, portas, transação de itens (`ItemManager.regions`, `ItemData`, `ReceiveDestroyItem`), construção (`BarricadeManager.dropBarricade`) e reconhecimento de barricadas (`FindBarricadeByRootTransform`).
