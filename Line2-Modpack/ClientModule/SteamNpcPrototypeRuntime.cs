@@ -1886,7 +1886,8 @@ namespace Unturned2.Line2
         private void ValidateInvestigationSweep()
         {
             if (_legacyBrain.CurrentState !=
-                Line2MobileNPCBrain.State.Investigating)
+                Line2MobileNPCBrain.State.Investigating ||
+                _tactics.HasTacticalDestination)
                 return;
             // The underlying Line1 state machine has a maximum of three
             // additional spiral waypoints. We may skip invalid ones now,
