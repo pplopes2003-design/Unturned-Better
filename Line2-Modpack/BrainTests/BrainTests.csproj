@@ -27,6 +27,7 @@
     <Compile Include="../ClientModule/Line2NpcGunDamagePolicy.cs" Link="Line2NpcGunDamagePolicy.cs" />
     <Compile Include="../ClientModule/Line2NpcSuppressionPolicy.cs" Link="Line2NpcSuppressionPolicy.cs" />
     <Compile Include="../ClientModule/Line2NpcAimSpreadPolicy.cs" Link="Line2NpcAimSpreadPolicy.cs" />
+    <Compile Include="../ClientModule/Line2NpcFireModePolicy.cs" Link="Line2NpcFireModePolicy.cs" />
     <Compile Include="FiringPositionTests.cs" />
     <Compile Include="../ClientModule/Line2NpcFiringPositionPolicy.cs" Link="Line2NpcFiringPositionPolicy.cs" />
     <Compile Include="FireCadenceTests.cs" />
