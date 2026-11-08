@@ -67,6 +67,32 @@ internal static class Program
             return 3;
         }
         Console.WriteLine("EXPLOSION_MATH_OK: center, half-radius, edge, out of range and invalid numbers.");
+        // An AGENT collider can be discovered by a zombie/animal overlap
+        // even when the native game forbids player damage (PvE). Never
+        // convert a forbidden damage channel into a real NPC injury.
+        if (NpcExplosionMath.SelectEligibleDamage(false, false,
+                75f, 60f) != 0f ||
+            NpcExplosionMath.SelectEligibleDamage(false, true,
+                75f, 60f) != 60f ||
+            NpcExplosionMath.SelectEligibleDamage(true, true,
+                75f, 60f) != 75f ||
+            NpcExplosionMath.SelectEligibleDamage(true, false,
+                75f, 60f) != 75f ||
+            NpcExplosionMath.SelectEligibleDamage(false, false,
+                0f, 75f) != 0f ||
+            NpcExplosionMath.SelectEligibleDamage(true, false,
+                float.NaN, 75f) != 0f ||
+            NpcExplosionMath.SelectEligibleDamage(false, true,
+                75f, float.PositiveInfinity) != 0f ||
+            NpcExplosionMath.SelectEligibleDamage(true, true,
+                float.NaN, 60f) != 60f)
+        {
+            Console.Error.WriteLine("NPC_EXPLOSION_PERMISSION_FAILED: unapproved native damage channel.");
+            return 65;
+        }
+        Console.WriteLine("NPC_EXPLOSION_PERMISSION_OK: player/zombie flags and finite damage.");
+
+
         var tactical = new Line2MobileNPCTactics();
         tactical.ReportDamage(20f, 100f, 1f);
         bool defensive = tactical.TryChooseDefensiveGoal(
