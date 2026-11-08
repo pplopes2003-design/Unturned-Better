@@ -31,6 +31,17 @@ namespace Unturned2.Line2
             vitals = GetComponent<PrototypeNpcVitals>();
         }
 
+        private void OnDisable()
+        {
+            // Level unload and NPC despawn must not keep an animation lease
+            // from a door in the prior map or prior NPC activation.
+            nextProbeTime = 0f;
+            nextActualOpenAttemptTime = 0f;
+            waitingForDoorAnimationUntil = 0f;
+            lastOpenedDoor = null;
+            lastOpenedMapDoor = null;
+        }
+
         /// <summary>
         /// Returns true when an actual door was opened (or is temporarily
         /// animating). The motor may wait for collision to clear rather than
@@ -103,7 +114,13 @@ namespace Unturned2.Line2
                     return mapDoor == lastOpenedMapDoor
                         && Time.time < waitingForDoorAnimationUntil;
                 if (!mapDoor.isUsable)
-                    return true; // Native animation/toggle cooldown.
+                {
+                    // Only wait for an animation THIS NPC actually initiated.
+                    // A permanently unusable map door must not freeze A*
+                    // indefinitely or pretend an invalid edge is openable.
+                    return mapDoor == lastOpenedMapDoor &&
+                        Time.time < waitingForDoorAnimationUntil;
+                }
                 if (Time.time < nextActualOpenAttemptTime)
                     return true;
                 nextActualOpenAttemptTime = Time.time + 1.5f;
@@ -136,7 +153,12 @@ namespace Unturned2.Line2
             // The native animated door may still be within its 0.75s toggle
             // debounce. Briefly wait rather than repeatedly deleting the path.
             if (!door.isOpenable)
-                return true;
+            {
+                // Closed but not openable may be a permanent native state,
+                // not a short toggle debounce. Avoid infinite wait loops.
+                return door == lastOpenedDoor &&
+                    Time.time < waitingForDoorAnimationUntil;
+            }
             if (Time.time < nextActualOpenAttemptTime)
                 return true;
             nextActualOpenAttemptTime = Time.time + 1.5f;
