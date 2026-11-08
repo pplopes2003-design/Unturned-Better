@@ -15,6 +15,7 @@ namespace Unturned2.Line2
         private const float GroupCooldown = 23f;
         private const int MaximumRayHits = 16;
         private readonly RaycastHit[] _hits = new RaycastHit[MaximumRayHits];
+        private readonly RaycastHit[] _floorHits = new RaycastHit[16];
         private PrototypeActor _actor;
         private Line2NPCGroupMember _group;
         private Line2NPCCombatPerception _perception;
@@ -41,12 +42,20 @@ namespace Unturned2.Line2
             if (Time.time < _nextAt) return;
             _nextAt = Time.time + TickInterval;
             if (_actor == null || _actor.IsDead || _group == null ||
-                !_group.Joined || !Authorized()) return;
+                !_group.Joined || !Authorized() ||
+                _actor.RecentlyDamaged ||
+                _actor.UnderVerifiedSuppression) return;
             PrototypeActor leader;
             if (!Line2NPCGroupMember.TryGetLivingMember(
                 _group.GroupId, out leader) || leader == null ||
                 leader == _actor || leader.IsDead ||
                 leader.Disposition != _actor.Disposition)
+                return;
+            Line2NPCGroupMember leaderGroup =
+                leader.GetComponent<Line2NPCGroupMember>();
+            if (leaderGroup == null || !leaderGroup.Joined ||
+                leaderGroup.GroupId != _group.GroupId ||
+                leaderGroup.Faction != _group.Faction)
                 return;
             if (_perception != null &&
                 _perception.Kind !=
@@ -65,10 +74,14 @@ namespace Unturned2.Line2
             flat.y = 0f;
             Vector3 candidate = leader.transform.position -
                 flat.normalized * 2.6f;
+            // Original floor-only GROUND2 missed map interiors and
+            // could pick overhead rooftops in multi-storey buildings.
             RaycastHit floor;
-            if (!Physics.Raycast(candidate + Vector3.up * 2f,
-                Vector3.down, out floor, 4.5f, RayMasks.GROUND2,
-                QueryTriggerInteraction.Ignore) || floor.normal.y < 0.72f)
+            Vector3 expected = new Vector3(
+                candidate.x, transform.position.y, candidate.z);
+            if (!Line2NpcFloorGeometry.TryFindStaticSupport(
+                    expected, 2f, 4.5f, 0.7f, 0.72f,
+                    _floorHits, out floor))
                 return;
             Vector3 safe = floor.point + Vector3.up * 0.08f;
             if (Mathf.Abs(safe.y - transform.position.y) > 0.7f ||
@@ -87,7 +100,9 @@ namespace Unturned2.Line2
                 true,
                 _perception != null &&
                     _perception.VisibleTarget != null,
-                _actor.IsTacticallyRetreating,
+                _actor.IsTacticallyRetreating ||
+                    _actor.RecentlyDamaged ||
+                    _actor.UnderVerifiedSuppression,
                 _actor.IsRecruited,
                 true,
                 transform.position,
