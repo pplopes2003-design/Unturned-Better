@@ -26,6 +26,8 @@ internal static class RoutineRouteHealthTests
             pending.Observe(goal, new Vector3(-4f, 0f, 0f), 30f,
                 false, true) != Line2NpcRoutineRouteHealth.State.Moving ||
             pending.Observe(goal, new Vector3(-4f, 0f, 0f), 34.2f,
+                false, true) != Line2NpcRoutineRouteHealth.State.Moving ||
+            pending.Observe(goal, new Vector3(-4f, 0f, 0f), 64.2f,
                 false, true) != Line2NpcRoutineRouteHealth.State.Blocked)
             return false;
 
