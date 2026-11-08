@@ -15,7 +15,7 @@ namespace Unturned2.Line2
     [DisallowMultipleComponent]
     internal sealed class Line2NpcWorldSurvey : MonoBehaviour
     {
-        internal enum Job { Patrol, ExploreAuthoredSite, GuardGroup, Recover, BuildSettlement, SeekObservedItem }
+        internal enum Job { Patrol, ExploreAuthoredSite, GuardGroup, Recover, BuildSettlement, SeekObservedItem, DeliverSurplus }
         private const int MaxSiteChecks = 80;
         private const int RecentCapacity = 6;
         private const float MinimumDestinationSq = 7f * 7f;
@@ -27,6 +27,7 @@ namespace Unturned2.Line2
         private Line2NPCGroupMember _group;
         private Line2NpcNeeds _needs;
         private Line2NpcSettlementBuilder _builder;
+        private Line2NpcCampStockpile _stockpile;
         private Line2NpcWorldLootCollector _collector;
         private PrototypeAStarFollower _routeFollower;
         private readonly Line2NpcRoutineRouteHealth _routeHealth =
@@ -61,6 +62,7 @@ namespace Unturned2.Line2
             _group = GetComponent<Line2NPCGroupMember>();
             _needs = GetComponent<Line2NpcNeeds>();
             _routeFollower = GetComponent<PrototypeAStarFollower>();
+            _stockpile = GetComponent<Line2NpcCampStockpile>();
             _hasDestination = false;
             _nextSelectionAt = Time.time + UnityEngine.Random.Range(2.0f, 7.0f);
             _lastGuardAt = Time.time;
@@ -181,6 +183,14 @@ namespace Unturned2.Line2
             }
             if (Time.time < _nextSelectionAt) return false;
             _nextSelectionAt = Time.time + 9f;
+            Vector3 depot;
+            if (_stockpile != null && _actor.CombatMode != "total" &&
+                _stockpile.TryGetDeliveryGoalServer(out depot))
+            {
+                _job = Job.DeliverSurplus;
+                _destination = depot;
+                return Commit(depot, out goal);
+            }
             Vector3 usefulItem;
             if (_collector != null &&
                 _collector.TryGetObservedScavengeGoal(out usefulItem))
