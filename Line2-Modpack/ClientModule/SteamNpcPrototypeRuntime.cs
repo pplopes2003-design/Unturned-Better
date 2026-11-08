@@ -787,6 +787,7 @@ namespace Unturned2.Line2
             _actors.Clear();
             Line2NPCGroupMember.ResetSession();
             Line2NpcEncounterPacing.ResetSession();
+            Line2NpcLootClaims.ResetSession();
             Line2NpcSettlementLedger.ResetSession();
             Line2NPCRadioOutbox.ResetSession();
             _pendingReplacements.Clear();
