@@ -721,7 +721,7 @@ namespace Unturned2.Line2
             }
             RaycastHit ground;
             if (!Physics.Raycast(requested + Vector3.up * 1.5f,
-                Vector3.down, out ground, 4f, RayMasks.GROUND2,
+                Vector3.down, out ground, 4f, Line2NpcFloorGeometry.SupportMask,
                 QueryTriggerInteraction.Ignore) ||
                 ground.normal.y < 0.7f || Mathf.Abs(ground.point.y - requested.y) > 1.0f)
             {
@@ -2200,7 +2200,7 @@ namespace Unturned2.Line2
             Vector3 attempted = delta.normalized;
             Line2MobileNPCVaultTraversal.JumpPlan proposed;
             if (!_vault.TryPlanJumpServer(_goal, attempted,
-                RayMasks.GROUND2, 45f, RayMasks.BLOCK_COLLISION,
+                Line2NpcFloorGeometry.SupportMask, 45f, RayMasks.BLOCK_COLLISION,
                 Mathf.Abs(Physics.gravity.y), out proposed))
                 return;
             _vaultPlan = proposed;
@@ -2231,7 +2231,7 @@ namespace Unturned2.Line2
                     lateral * side * 7f + toward * 2.5f;
                 RaycastHit floor;
                 if (!Physics.Raycast(estimate + Vector3.up * 1.8f,
-                    Vector3.down, out floor, 4.5f, RayMasks.GROUND2,
+                    Vector3.down, out floor, 4.5f, Line2NpcFloorGeometry.SupportMask,
                     QueryTriggerInteraction.Ignore) ||
                     floor.normal.y < 0.72f ||
                     Mathf.Abs(floor.point.y - transform.position.y) > 1.15f)
