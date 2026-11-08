@@ -33,7 +33,10 @@ REQUIREMENTS = (
       "Line2NpcFloorGeometry.IsStaticFloorCandidate")),
     ("Line2-Modpack/ClientModule/SteamNpcPrototypeRuntime.cs",
      ("Line2NpcFloorGeometry.SupportMask",
-      "Line2NpcFloorGeometry.IsStaticFloorCandidate")),
+      "Line2NpcFloorGeometry.IsStaticFloorCandidate",
+      "Physics.RaycastNonAlloc(source, to / distance",
+      "_playerSightHits",
+      "RayMasks.BLOCK_COLLISION | RayMasks.ENTITY")),
     # Real Steam-safe NPC firearm presentation and fire-control integration.
     # The original Line 1 model used an INTERNAL ItemTool overload that a
     # separately compiled module may not invoke.
@@ -602,6 +605,21 @@ REQUIREMENTS = (
 
 def main():
     problems = []
+    # Regression: the shared floor mask may refer to GROUND2, but callers
+    # must not narrow it back to GROUND2 alone. This is particularly
+    # important for Washington level-object interiors and player structures.
+    floor_users = (
+        "Line2-Modpack/ClientModule/Line2CoarseRouteBridge.cs",
+        "Line2-Modpack/ClientModule/SteamNpcPrototypeRuntime.cs",
+        "Line2-Modpack/ClientModule/Line2NpcWorldSurvey.cs",
+        "Line2-Modpack/ClientModule/PrototypeCoverPlanner.cs",
+        "Line2-Modpack/ClientModule/Line2NpcRaidObserver.cs",
+    )
+    for relative in floor_users:
+        path = ROOT / relative
+        if path.is_file() and "RayMasks.GROUND2" in path.read_text(
+                encoding="utf-8-sig", errors="replace"):
+            problems.append("NARROW FLOOR MASK: " + relative)
     for relative, needles in REQUIREMENTS:
         path = ROOT / relative
         if not path.is_file():
