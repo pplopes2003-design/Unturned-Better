@@ -146,7 +146,12 @@ namespace Unturned2.Line2
         private void Update()
         {
             if (Time.time < _nextAt) return;
-            _nextAt = Time.time + SampleInterval;
+            // The group's living quartermaster checks physically present
+            // teammates more often. Actual transfer rate remains capped by
+            // the same shared five-second cooldown and inventory reserves.
+            bool quartermaster = _group != null &&
+                Line2NpcSquadRolePolicy.PrioritizeSupply(_group.Role);
+            _nextAt = Time.time + (quartermaster ? 4.25f : SampleInterval);
             if (!Authorized() || Time.time < nextSharedTransferAt ||
                 IsBusy(_perception, _owner) || _group == null ||
                 !_group.Joined || _inventory == null || _needs == null)
