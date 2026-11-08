@@ -29,6 +29,9 @@ namespace Unturned2.Line2
         private float _startedAt;
         private float _lastProgressAt;
         private float _bestDistance = float.PositiveInfinity;
+        // A retreat/flank route often moves sideways or briefly away
+        // from the target to go through an actual doorway or corridor.
+        private Vector3 _lastPhysicalProgressPosition;
         private bool _initialized;
         private bool _arrived;
 
@@ -91,6 +94,7 @@ namespace Unturned2.Line2
                 if (!sameGoal) _startedAt = now;
                 _lastProgressAt = now;
                 _bestDistance = flatDistance;
+                _lastPhysicalProgressPosition = actualPosition;
                 _arrived = true;
                 return Outcome.Holding;
             }
@@ -103,6 +107,7 @@ namespace Unturned2.Line2
                 _startedAt = now;
                 _lastProgressAt = now;
                 _bestDistance = flatDistance;
+                _lastPhysicalProgressPosition = actualPosition;
                 return Outcome.Moving;
             }
             if (_arrived)
@@ -112,6 +117,7 @@ namespace Unturned2.Line2
                 // immunity from the stuck-route monitor.
                 _arrived = false;
                 _bestDistance = flatDistance;
+                _lastPhysicalProgressPosition = actualPosition;
                 _lastProgressAt = now;
             }
             // A new best *physical* position proves progress. A proposal to
@@ -119,6 +125,17 @@ namespace Unturned2.Line2
             if (_bestDistance - flatDistance >= MinimumProgress)
             {
                 _bestDistance = flatDistance;
+                _lastPhysicalProgressPosition = actualPosition;
+                _lastProgressAt = now;
+            }
+            else if ((actualPosition - _lastPhysicalProgressPosition).sqrMagnitude >=
+                MinimumProgress * MinimumProgress)
+            {
+                // Measured CharacterController displacement is legitimate
+                // tactical movement even when native A* routes around a wall
+                // and momentarily increases distance to the destination.
+                // The original absolute 45s cap remains unchanged.
+                _lastPhysicalProgressPosition = actualPosition;
                 _lastProgressAt = now;
             }
             float waitBudget = nativePathPending
