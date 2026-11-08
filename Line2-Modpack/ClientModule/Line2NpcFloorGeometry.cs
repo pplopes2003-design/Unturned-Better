@@ -18,11 +18,6 @@ namespace Unturned2.Line2
             RayMasks.ENVIRONMENT | RayMasks.STRUCTURE;
 
         /// <summary>
-        /// Reject moving platforms and unrelated actors as static floor.
-        /// A ray hitting a stable horizontal level-object collider can
-        /// support a step; no fake NAVMESH surface is created.
-        /// </summary>
-        /// <summary>
         /// A single downward Raycast returns only the first ceiling, roof or
         /// loft hit. Buildings may have multiple horizontal layers above one
         /// another, so inspect a bounded native hit buffer and choose the
@@ -79,16 +74,30 @@ namespace Unturned2.Line2
             return IsFinite(v.x) && IsFinite(v.y) && IsFinite(v.z);
         }
 
+        /// <summary>
+        /// A static horizontal architectural floor is not the same thing as
+        /// the flat top of movable furnishings, a closed map door, a zombie,
+        /// or a parked vehicle. These are never promoted to A* support.
+        /// </summary>
         internal static bool IsStaticFloorCandidate(Collider candidate)
         {
-            return candidate != null &&
-                candidate.enabled &&
-                (candidate.attachedRigidbody == null ||
-                 candidate.attachedRigidbody.isKinematic) &&
-                candidate.GetComponentInParent<InteractableVehicle>() == null &&
-                candidate.GetComponentInParent<PrototypeActor>() == null &&
-                candidate.GetComponentInParent<Player>() == null &&
-                candidate.GetComponentInParent<Zombie>() == null;
+            if (candidate == null || !candidate.enabled ||
+                candidate.attachedRigidbody != null &&
+                !candidate.attachedRigidbody.isKinematic ||
+                candidate.GetComponentInParent<InteractableVehicle>() != null ||
+                candidate.GetComponentInParent<PrototypeActor>() != null ||
+                candidate.GetComponentInParent<Player>() != null ||
+                candidate.GetComponentInParent<Zombie>() != null ||
+                candidate.GetComponentInParent<InteractableObjectBinaryState>() != null)
+                return false;
+
+            Interactable interactive =
+                candidate.GetComponentInParent<Interactable>();
+            return !(interactive is InteractableDoor ||
+                     interactive is InteractableBed ||
+                     interactive is InteractableStorage ||
+                     interactive is InteractableMannequin ||
+                     interactive is InteractableSentry);
         }
     }
 }
