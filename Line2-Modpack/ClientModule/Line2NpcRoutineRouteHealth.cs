@@ -27,7 +27,8 @@ namespace Unturned2.Line2
         private float _bestFlatDistance;
         // A real detour around a building can initially increase distance
         // to the goal. Track measured travel as well as goal improvement.
-        private Vector3 _lastPhysicalProgressPosition;
+        private readonly Line2NpcPhysicalProgressLedger _physicalProgress =
+            new Line2NpcPhysicalProgressLedger();
         private float _invalidSince;
         private bool _initialized;
 
@@ -66,7 +67,7 @@ namespace Unturned2.Line2
                 _goal = goal;
                 _firstAt = now;
                 _lastImprovementAt = now;
-                _lastPhysicalProgressPosition = actual;
+                _physicalProgress.Reset(actual);
                 _bestFlatDistance = flat;
                 _invalidSince = noConnectedPath ? now : -1f;
                 return State.Moving;
@@ -74,17 +75,16 @@ namespace Unturned2.Line2
             if (_bestFlatDistance - flat >= PhysicalImprovementMeters)
             {
                 _bestFlatDistance = flat;
-                _lastPhysicalProgressPosition = actual;
+                _physicalProgress.TryObserveNewPosition(actual,
+                    PhysicalImprovementMeters);
                 _lastImprovementAt = now;
             }
-            else if ((actual - _lastPhysicalProgressPosition).sqrMagnitude >=
-                PhysicalImprovementMeters * PhysicalImprovementMeters)
+            else if (_physicalProgress.TryObserveNewPosition(
+                actual, PhysicalImprovementMeters))
             {
-                // The CharacterController physically moved far enough to
-                // follow a genuine A* detour, even if the goal is temporarily
-                // farther away. Do not reset the absolute 140s journey cap,
-                // nor bypass the explicit disconnected-route deadline.
-                _lastPhysicalProgressPosition = actual;
+                // A genuine new corridor location counts as movement;
+                // returning between the same two blocked-wall positions
+                // does not renew progress. The absolute 140s limit remains.
                 _lastImprovementAt = now;
             }
             if (noConnectedPath)
