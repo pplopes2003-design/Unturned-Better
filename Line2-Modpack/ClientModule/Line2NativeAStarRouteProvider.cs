@@ -420,6 +420,15 @@ namespace Unturned2.Line2
 			completedRoute.Clear();
 			pathCallback = null;
 			nextRequestTime = 0f;
+			// A pooled NPC reenabled on another map must rediscover the
+			// active Steam ASPFP backend rather than reuse a stale Seeker.
+			// The Seeker component itself is retained for normal Unity reuse.
+			initialized = false;
+			seeker = null;
+			startPathMethod = null;
+			cancelPathMethod = null;
+			nextInitializationAttemptTime = 0f;
+			observedBackendName = "none";
 			diagnosticStatus = "disabled";
 		}
 
