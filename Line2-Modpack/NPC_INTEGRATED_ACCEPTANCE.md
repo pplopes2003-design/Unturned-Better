@@ -108,3 +108,18 @@ A comparação com a branch `feature/release-candidate-cycle-2026-11-04` identif
 - `BrainTests` recebeu regressões de flanqueamento com desvios, patrulhas que contornam construções, tempo máximo, chegada ao andar correto e oscilação em paredes. O auditor textual exige as integrações ativas no runtime.
 
 **Não comprovado por CI:** a execução das rotas nativas no mapa Washington, acesso real por portas/janelas/escadas com assets instalados, conclusão de missões A-Life, coordenação total da facção, compilação contra DLLs da versão Steam e teste de gameplay unificado. CI verde não remove estas pendências.
+
+## Integração adicional — combate dinâmico e modos de tiro (08/11/2026)
+
+**Alterações efetivas na `line2/modpack-framework`:**
+
+- **Tiros contra facções:** os explosivos agora consultam `Line2NPCCombatPerception.CanEngageNpcTarget` para avaliar todos os NPCs no raio de efeito. Aliados de facção e neutrals são protegidos independentemente da string `hostile`/`friendly`.
+- **Dano balístico controlado:** o executor de rifle aplica validação finita do multiplicador de queda de dano e dos impactos contra jogador, zumbi e outro NPC. Os raios continuam sujeitos à colisão nativa, ao consumo real de munição e às autorizações de combate.
+- **Supressão de tiro REAL que errou:** uma rajada de munição debitada contra rival NPC pessoalmente visível pode criar pressão temporária (2,5s, raio máximo 35m) **sem infligir dano**. A vítima valida novamente o atirador e a linha de visão; intervalos de 1s evitam que dezenas de pellets renovem continuamente o pânico. O cérebro pode optar entre cobertura fisicamente comprovada, resposta armada ou retirada após dano. Não cria percepção de jogadores ocultos.
+- **Estresse e dispersão humana:** disparos realizados em movimento, sob ferimentos recentes, sob supressão ou no fim de uma rajada têm maior desvio angular, com teto explícito. O espalhamento ocorre no **eixo local da mira**, não ao redor dos eixos globais do mapa.
+- **Flanqueamento armado:** com um inimigo já selecionado, o NPC pode movimentar-se lateralmente mantendo o corpo voltado para o alvo. A navegação, colisão e confirmação de visão do executor permanecem distintas. Ao recuar de forma emergencial, a orientação volta a privilegiar a saída.
+- **Modo nativo da arma:** a lógica agora lê `GunStateIndices.FIREMODE` de cada item possuído e respeita `EFiremode.SEMI`, `BURST`, `AUTO` e `SAFETY`, além das capacidades declaradas por `ItemGunAsset`. Armas semiautomáticas deixam de emitir rajadas automáticas fictícias; armas no modo segurança não disparam.
+- **Armas adquiridas sem carregador:** se o item nativo possui `MAGAZINE_ID=0` e munição zerada, o executor pode procurar um carregador **realmente possuído e compatível**, iniciar a recarga e aplicar a mesma transação autenticada já existente.
+- **Testes:** a suíte C# verifica política de segurança do dano, supressão sem ferimento, cadência, penalidades de precisão e duração de rajadas por modo. A auditoria de SDK verifica o encadeamento do modo nativo aos executores e à movimentação.
+
+**Não é homologação Steam.** O teste real deverá comprovar posicionamento da arma, animação de tiro, danos às seis hitboxes, granadas, ritmo de rajadas, precisão, cobertura, reações a quase acertos, zumbis e CPU com vários NPCs. O `BrainTests` não compila o módulo inteiro com as DLLs instaladas; a experiência completa em jogo ainda depende dessa validação.
