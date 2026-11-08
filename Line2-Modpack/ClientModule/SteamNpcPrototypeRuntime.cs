@@ -457,6 +457,10 @@ namespace Unturned2.Line2
                     melee.Initialize(actor, combatSight);
                     var ranged = instance.AddComponent<Line2NPCRangedExecutor>();
                     ranged.Initialize(actor, combatSight, ownedInventory);
+            // Adapted from Line 1: render only a genuinely owned gun or
+            // melee tool at the native NPC hand hook; effects cannot fire
+            // damage, and remain absent on dedicated servers.
+            instance.AddComponent<Line2NpcWeaponPresentation>();
                     actor.AttachRangedExecutor(ranged);
                     var grenades = instance.AddComponent<Line2NpcGrenadeThrower>();
                     grenades.Initialize(this, actor, combatSight, ownedInventory);
