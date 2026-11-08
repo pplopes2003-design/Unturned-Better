@@ -68,6 +68,30 @@ internal static class CombatTotalSquadTests
             Console.Error.WriteLine("NPC_TOTAL_SQUAD_REINFORCE_FAILED: authorization, cooldown or floor.");
             return false;
         }
+        // Combat Total uses two hostile dispositions, but only verified
+        // opposing FACTIONS may damage each other. A missing group is not
+        // an excuse to guess at faction identity and friendly-fire.
+        var raider = Line2NPCFactionPolicy.Id.Raiders;
+        var military = Line2NPCFactionPolicy.Id.Military;
+        if (!Line2NpcCombatTotalSquadPolicy.CanEngageRival(
+                true, true, 1, 2, raider, military) ||
+            !Line2NpcCombatTotalSquadPolicy.CanEngageRival(
+                true, true, 2, 1, military, raider) ||
+            Line2NpcCombatTotalSquadPolicy.CanEngageRival(
+                true, true, 1, 1, raider, military) ||
+            Line2NpcCombatTotalSquadPolicy.CanEngageRival(
+                true, true, 1, 3, raider, raider) ||
+            Line2NpcCombatTotalSquadPolicy.CanEngageRival(
+                true, false, 1, 2, raider, military) ||
+            Line2NpcCombatTotalSquadPolicy.CanEngageRival(
+                true, true, 0, 2, raider, military) ||
+            Line2NpcCombatTotalSquadPolicy.CanEngageRival(
+                false, true, 1, 2, raider, military))
+        {
+            Console.Error.WriteLine("NPC_TOTAL_SQUAD_HOSTILITY_FAILED: invalid rival or friendly fire.");
+            return false;
+        }
+
         // Assigned squad members have distinct combat roles: leader/scout
         // flank on verified sights, guard/quartermaster hold the gunline.
         // A lone ungrouped actor can flank and Normal mode is unchanged.
