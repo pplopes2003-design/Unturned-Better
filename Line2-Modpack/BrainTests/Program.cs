@@ -207,6 +207,28 @@ internal static class Program
         }
         Console.WriteLine("NPC_EVIDENCE_ORDER_OK: monotonic sensing, future-clue rejection and reset.");
 
+        // The runtime must never restart a search when the sensory memory
+        // rejects the new sound/radio evidence.
+        var evidenceGate = new Line2MobileNPCPlayerKnowledge();
+        var firstClue = new UnityEngine.Vector3(12f, 0f, 5f);
+        if (!evidenceGate.TryObserveSound(firstClue, 0.64f, 30f) ||
+            evidenceGate.TryObserveSound(firstClue, 0.64f, 31f) ||
+            evidenceGate.TryObserveReport(firstClue, 0.58f, 32f) ||
+            !evidenceGate.TryObserveSound(
+                new UnityEngine.Vector3(32f, 0f, 5f), 0.8f, 34f))
+        {
+            Console.Error.WriteLine("NPC_CLUE_GATE_FAILED: duplicate sound/report reset investigation.");
+            return 56;
+        }
+        evidenceGate.ObserveSight(new UnityEngine.Vector3(40f, 0f, 5f), 35f);
+        if (evidenceGate.TryObserveSound(firstClue, 0.9f, 36f) ||
+            evidenceGate.TryObserveReport(firstClue, 0.9f, 36f))
+        {
+            Console.Error.WriteLine("NPC_CLUE_GATE_FAILED: hearsay overrode recent eyesight.");
+            return 57;
+        }
+        Console.WriteLine("NPC_CLUE_GATE_OK: duplicate acoustic and radio clues do not reset search.");
+
         var gait = new Line2MobileNPCLocomotionPolicy();
         var running = new Line2MobileNPCLocomotionPolicy.Situation
         {
