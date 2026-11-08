@@ -370,6 +370,11 @@ internal static class Program
             Console.Error.WriteLine("NPC_RADIO_REINFORCEMENT_FAILED: unsafe radio movement target.");
             return 30;
         }
+        if (!EncounterPacingTests.Run())
+        {
+            Console.Error.WriteLine("NPC_ENCOUNTER_PACING_FAILED: speculative search capacity or map expiry.");
+            return 31;
+        }
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
