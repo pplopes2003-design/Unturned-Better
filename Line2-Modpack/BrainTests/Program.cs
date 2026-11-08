@@ -32,6 +32,8 @@ internal static class Program
 
         if (!SquadRoleTests.Run())
             return 60;
+        if (!FireCadenceTests.Run())
+            return 61;
 
         var brain = new NpcDecisionBrain();
         var noVision = new NpcDecisionInput
