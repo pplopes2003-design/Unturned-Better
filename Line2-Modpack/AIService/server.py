@@ -138,7 +138,20 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond(404, {"error": "not_found"})
         try:
             length = int(self.headers.get("Content-Length", "-1"))
-            if length < 0 or length > MAX_BYTES:
+            if length < 0:
+                return self.respond(413, {"error": "invalid_length"})
+            if length > MAX_BYTES:
+                # Sending 413 while the peer is still transmitting the
+                # oversized body can cause Windows to reset the TCP socket,
+                # swallowing the HTTP status entirely. Drain only a SMALL,
+                # bounded overage; never allocate or parse a large request.
+                # Very large bodies still fail closed without an unbounded
+                # read or an open-ended loopback worker.
+                if length <= MAX_BYTES * 2:
+                    self.connection.settimeout(2.0)
+                    self.rfile.read(length)
+                else:
+                    self.close_connection = True
                 return self.respond(413, {"error": "invalid_length"})
             data = json.loads(self.rfile.read(length))
             result = evaluate_batch(data) if self.path == "/v1/decide_batch" else evaluate(data)
