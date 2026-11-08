@@ -11,6 +11,38 @@ ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "Line2-Modpack" / "ClientModule"
 
 REQUIREMENTS = (
+    # Combat Total is an opt-in independent sandbox, ported from
+    # MobileNPCCombatOnlyPolicy. Normal save/roles must never change.
+    ("Line2-Modpack/ClientModule/Line2NpcCombatTotalPolicy.cs",
+     ("ScopedSaveKey", "ResolveNewRole",
+      "AllowCivilianWork", "FactionForGroup",
+      "SaveSuffix = \"::Line2CombatTotal\"")),
+    ("Line2-Modpack/ClientModule/SteamNpcPrototypeRuntime.cs",
+     ("Line2NpcCombatTotalPolicy.ScopedSaveKey",
+      "Line2NpcCombatTotalPolicy.ResolveNewRole",
+      "changedSaveScope", "SaveCheckpoint();",
+      "ClearActors();", "NPC_COMBAT_TOTAL_READY",
+      "needs.enabled = false", "builder.enabled = false",
+      "stockpile.enabled = false", "looting.enabled = false",
+      "AddComponent<Line2NpcCombatEquipment>")),
+    ("Line2-Modpack/ClientModule/Line2NPCGroupMember.cs",
+     ("Line2NpcCombatTotalPolicy.FactionForGroup",
+      "TryRestoreMembership", "Line2NPCFactionPolicy.Id")),
+    ("Line2-Modpack/ClientModule/Line2NPCStartingEquipment.cs",
+     ("total ? 3 : 2", "GiveClothing",
+      "EItemType.HAT", "EItemType.VEST",
+      "ItemThrowableAsset", "GunStateIndices.AMMO")),
+    ("Line2-Modpack/ClientModule/Line2NpcWorldSurvey.cs",
+     ("Line2NpcCombatTotalPolicy.CanUseCombatPatrol",
+      "TryGetCombatPatrolGoal", "TryChooseGroundNear")),
+    ("Line2-Modpack/ClientModule/Line2NpcCombatEquipment.cs",
+     ("HumanClothes", "visual.apply()", "ApplyValidatedBodyArmorServer",
+      "TryDegradeWornClothingQualityServer", "EItemType.VEST")),
+    ("Line2-Modpack/ClientModule/PrototypeNpcVitals.cs",
+     ("GetComponent<Line2NpcCombatEquipment>",
+      "armor.ApplyValidatedBodyArmorServer(part)")),
+    ("Line2-Modpack/BrainTests/Program.cs",
+     ("CombatTotalTests.Run()",)),
     # High-impact NPC gunfights: real firemodes, no fake near-miss damage,
     # humanized weapon spread, real faction checks for grenade collateral.
     ("Assets/Runtime/Assembly-CSharp/Unturned/Useable/UseableGun.cs",
