@@ -390,6 +390,11 @@ internal static class Program
             Console.Error.WriteLine("NPC_ROUTINE_ROUTE_FAILED: invalid physical A-Life progress monitoring.");
             return 34;
         }
+        if (!SquadSupplyPolicyTests.Run())
+        {
+            Console.Error.WriteLine("NPC_SQUAD_SUPPLY_POLICY_FAILED: illegal resource sharing conditions.");
+            return 35;
+        }
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
