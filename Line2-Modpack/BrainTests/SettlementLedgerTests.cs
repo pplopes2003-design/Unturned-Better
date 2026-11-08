@@ -118,10 +118,23 @@ internal static class SettlementLedgerTests
             if (!Line2NpcSettlementLedger.TryClaim(13, "hostile",
                 new Vector3(90f, 3f, -12f)))
                 return false; // Separate factions may settle outside buffer.
+            if (Line2NpcSettlementLedger.RetireExtinctGroup(12, false) ||
+                !Line2NpcSettlementLedger.HasCentralStorage(12, "friendly") ||
+                !Line2NpcSettlementLedger.RetireExtinctGroup(12, true) ||
+                Line2NpcSettlementLedger.TryGet(12, "friendly",
+                    out actual, out pieces) ||
+                Line2NpcSettlementLedger.RetireExtinctGroup(12, true))
+                return false; // Verified last death retires only group claim.
+            if (!Line2NpcSettlementLedger.TryGet(13, "hostile",
+                out actual, out pieces) ||
+                !Line2NpcSettlementLedger.TryClaim(14, "friendly",
+                    new Vector3(44f, 3f, -12f)))
+                return false; // A new group may plan; native ruins still
+                              // need physical clearance in the game.
             Level.info.name = "some-other-map";
             if (Line2NpcSettlementLedger.TryClaim(50, "hostile", site))
                 return false; // No cross-map base ownership leak.
-            Console.WriteLine("NPC_SETTLEMENT_LEDGER_OK: immutable checkpoints, group/faction isolation, world map isolation, no duplicate footprints, central native storage, destroyed piece reconciliation and five-piece cap.");
+            Console.WriteLine("NPC_SETTLEMENT_LEDGER_OK: immutable checkpoints, group/faction isolation, world map isolation, no duplicate footprints, central native storage, destroyed piece reconciliation, extinct group retirement and five-piece cap.");
             return true;
         }
         finally
