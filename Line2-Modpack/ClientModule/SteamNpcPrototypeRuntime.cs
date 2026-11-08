@@ -15,6 +15,7 @@ namespace Unturned2.Line2
     {
         private const string VisualPath = "Characters/NPC_Client";
         private readonly List<PrototypeActor> _actors = new List<PrototypeActor>(32);
+        private readonly RaycastHit[] _savedFloorHits = new RaycastHit[16];
         private GameObject _visualPrefab;
         private bool _enabled;
         private bool _natural;
@@ -720,11 +721,9 @@ namespace Unturned2.Line2
                 return false;
             }
             RaycastHit ground;
-            if (!Physics.Raycast(requested + Vector3.up * 1.5f,
-                Vector3.down, out ground, 4f, Line2NpcFloorGeometry.SupportMask,
-                QueryTriggerInteraction.Ignore) ||
-                !Line2NpcFloorGeometry.IsStaticFloorCandidate(ground.collider) ||
-                ground.normal.y < 0.7f || Mathf.Abs(ground.point.y - requested.y) > 1.0f)
+            if (!Line2NpcFloorGeometry.TryFindStaticSupport(
+                    requested, 1.5f, 4f, 1f, 0.7f,
+                    _savedFloorHits, out ground))
             {
                 reason = "saved position has no verified floor";
                 return false;
@@ -992,6 +991,7 @@ namespace Unturned2.Line2
         private Vector3 _goal;
         private Vector3 _home;
         private float _nextThink;
+        private readonly RaycastHit[] _flankFloorHits = new RaycastHit[16];
         private float _nextFlankAt;
         private float _nextReloadCoverAt;
         private float _blockedSince;
@@ -2235,12 +2235,9 @@ namespace Unturned2.Line2
                 Vector3 estimate = transform.position +
                     lateral * side * 7f + toward * 2.5f;
                 RaycastHit floor;
-                if (!Physics.Raycast(estimate + Vector3.up * 1.8f,
-                    Vector3.down, out floor, 4.5f, Line2NpcFloorGeometry.SupportMask,
-                    QueryTriggerInteraction.Ignore) ||
-                    !Line2NpcFloorGeometry.IsStaticFloorCandidate(floor.collider) ||
-                    floor.normal.y < 0.72f ||
-                    Mathf.Abs(floor.point.y - transform.position.y) > 1.15f)
+                if (!Line2NpcFloorGeometry.TryFindStaticSupport(
+                        estimate, 1.8f, 4.5f, 1.15f, 0.72f,
+                        _flankFloorHits, out floor))
                     continue;
                 Vector3 candidate = floor.point + Vector3.up * 0.08f;
                 if (!Level.checkSafeIncludingClipVolumes(candidate) ||
