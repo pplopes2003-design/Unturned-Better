@@ -128,6 +128,8 @@ namespace Unturned2.Line2
             float gunRange = Mathf.Min(gun.range, HardMaximumRange);
             if (!_perception.HasVerifiedSight(target, kind, gunRange))
                 return;
+            if (_actor.ShouldHoldPreparedAmbushShot(target))
+                return;
 
             Vector3 origin = transform.position + Vector3.up * 1.45f;
             Vector3 offset = target.position + Vector3.up * 1.0f - origin;
