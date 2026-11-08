@@ -17,6 +17,17 @@
 - A proteção de vestimenta é anatômica e dependente da qualidade de peças realmente possuídas. Uma peça avariada protege menos; o servidor reduz sua qualidade quando a configuração do jogo permite. A aparência `HumanClothes` lê o mesmo inventário.
 - O comportamento de retirada do combate Total usa o limiar crítico **9% de HP**, contra **30% no modo Normal**. Antes disso, coberturas validadas e fogo de resposta podem prevalecer, mas o NPC continua sujeito às decisões defensivas e aos ferimentos.
 
+## Integração de cérebro, esquadrão e navegação — rodada aplicada
+
+- Os rádios agora podem retransmitir **NPC rival ou zumbi avistado pessoalmente** por um integrante em Combate Total, além do relato original de jogador. Enviar exige alvo vivo/hostil, visão física atual, rádio realmente possuído e contato a até 35 m.
+- A transmissão continua limitada à facção e ao **mesmo grupo vivo** (ambos portando rádio e até 90 m entre si), com setores de 20 m e intervalo de 9 s para contatos de combate. O receptor não recebe o `Transform` do inimigo, nenhuma linha de visão fictícia e nenhum direito de atirar.
+- O receptor só aceita o setor se estiver livre para reagir, sem alvo pessoal ou retirada em curso, no mesmo nível de piso, com pista nova, e se a direção escolhida tiver **piso estático, cápsula desobstruída** e um destino confirmado. A navegação A* original ainda precisa conectar o trajeto.
+- Corrigido o validador `Line2NpcInvestigationProbe`, que permanecia restrito a `RayMasks.GROUND2`: ele agora compartilha o amostrador nativo com múltiplas camadas de piso e escolhe a superfície correta no andar do NPC.
+- O papel ativo do integrante agora modifica a tática de Combate Total: **líder e explorador** podem iniciar flanqueamento; **guarda e intendente** permanecem na linha de tiro e reabastecimento. A retirada, cobertura, ferimentos e tiros validados continuam independentes da função.
+- `CombatTotalSquadTests` simula rejeição de pistas cegas, inimigos aliados, rádios ausentes, grupos diferentes, posição em outro andar, repetição prematura e responsabilidades táticas. A auditoria exige a ligação real às classes do módulo.
+
+**Ainda não homologado:** comunicação, interação de portas e sucesso da movimentação sob A* em gameplay no Steam. A versão exata dos assemblies, modelos e perfis do jogo precisa ser usada na compilação final.
+
 ## Bateria Steam obrigatória (pendente)
 
 1. **Seleção:** executar os comandos, verificar `NPC_COMBAT_TOTAL_READY` no log e NPCs sempre hostis mesmo quando o comando pede `friendly` ou `neutral`.
