@@ -1249,7 +1249,7 @@ namespace Unturned2.Line2
             // occurred nearby. No line-of-sight is implied by hearing.
             if (heardAt - _lastGunshotAt < 0.9f)
                 return; // One clue per burst, not a new endless chase per bullet.
-            _lastHeardPoint = new Vector3(
+            Vector3 heardSector = new Vector3(
                 Mathf.Floor(position.x / 12f) * 12f + 6f,
                 position.y,
                 Mathf.Floor(position.z / 12f) * 12f + 6f);
@@ -1257,10 +1257,11 @@ namespace Unturned2.Line2
             // memory accepts that clue. Rejected noise must not also make
             // the higher-level brain invent a fresh 'heard threat' intent.
             // Genuine nearby gunfire still counts as incoming-fire pressure.
-            if (_knowledge.TryObserveSound(_lastHeardPoint, 0.64f, heardAt))
+            if (_knowledge.TryObserveSound(heardSector, 0.64f, heardAt))
             {
+                _lastHeardPoint = heardSector;
                 _lastGunshotAt = heardAt;
-                _legacyBrain.ReportNoise(_lastHeardPoint, heardAt, 17f);
+                _legacyBrain.ReportNoise(heardSector, heardAt, 17f);
             }
             _tactics.ReportIncomingFire(heardAt);
         }
@@ -1273,13 +1274,14 @@ namespace Unturned2.Line2
                 return;
             // Player displacement was observed by the migrated footstep
             // sensor: approximate the acoustic area at 6m resolution.
-            _lastHeardFootstepPoint = new Vector3(
+            Vector3 heardFootstepSector = new Vector3(
                 Mathf.Floor(position.x / 6f) * 6f + 3f, position.y,
                 Mathf.Floor(position.z / 6f) * 6f + 3f);
-            if (_knowledge.TryObserveSound(_lastHeardFootstepPoint, confidence, at))
+            if (_knowledge.TryObserveSound(heardFootstepSector, confidence, at))
             {
+                _lastHeardFootstepPoint = heardFootstepSector;
                 _lastFootstepAt = at;
-                _legacyBrain.ReportNoise(_lastHeardFootstepPoint, at, 8f);
+                _legacyBrain.ReportNoise(heardFootstepSector, at, 8f);
             }
         }
 
