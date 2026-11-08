@@ -62,7 +62,7 @@ namespace Unturned2.Line2
                 Vector3 ground = point + Vector3.up * 2.4f;
                 RaycastHit hit;
                 if (!Physics.Raycast(ground, Vector3.down, out hit, 5f,
-                                     RayMasks.GROUND2, QueryTriggerInteraction.Ignore) ||
+                                     Line2NpcFloorGeometry.SupportMask, QueryTriggerInteraction.Ignore) ||
                     hit.normal.y < 0.72f ||
                     Mathf.Abs(hit.point.y - transform.position.y) > 1.4f)
                     continue;
