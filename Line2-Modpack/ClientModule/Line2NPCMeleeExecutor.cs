@@ -71,20 +71,19 @@ namespace Unturned2.Line2
                     kind != Line2NPCCombatPerception.TargetKind.Zombie,
                     out heldWeapon, out meleeAsset);
             // Explicit initialization also handles the short-circuit path.
-            float reach = armed ? Mathf.Clamp(meleeAsset.range, 1f, 3.2f)
+            float reach = armed
+                ? Line2NPCCombatRules.MeleeReach(meleeAsset.range)
                 : AttackReach;
+            if (reach <= 0f) return;
             float damage = BasePunchDamage;
             if (armed)
             {
-                float quality = heldWeapon.quality / 100f;
-                float condition = quality < 0.5f ? 0.5f + quality : 1f;
                 float nativeDamage = kind == Line2NPCCombatPerception.TargetKind.Zombie
                     ? meleeAsset.zombieOrPlayerDamageMultiplier.multiply(ELimb.SPINE)
                     : meleeAsset.playerDamageMultiplier.multiply(ELimb.SPINE);
-                damage = nativeDamage * condition;
-                if (damage <= 0f || float.IsNaN(damage) ||
-                    float.IsInfinity(damage))
-                    return;
+                damage = Line2NPCCombatRules.MeleeDamage(
+                    nativeDamage, heldWeapon.quality);
+                if (damage <= 0f) return;
             }
             bool witnessedContact =
                 _perception.ValidateStrike(kind, target, reach);
@@ -165,7 +164,7 @@ namespace Unturned2.Line2
             // Native weak attack interval, bounded to avoid unreasonably
             // fast custom workshop weapons or a frame-by-frame damage loop.
             float cadence = armed
-                ? Mathf.Clamp(meleeAsset.weak + 0.2f, 0.65f, 1.9f)
+                ? Line2NPCCombatRules.MeleeCadence(meleeAsset.weak)
                 : Cooldown;
             _nextAttackAt = Time.time + cadence +
                 UnityEngine.Random.Range(-0.1f, 0.16f);
