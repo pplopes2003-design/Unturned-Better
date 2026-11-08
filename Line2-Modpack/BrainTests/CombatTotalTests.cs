@@ -74,6 +74,37 @@ internal static class CombatTotalTests
             return false;
         }
 
+        // The original CombatOnly brain fights more aggressively under
+        // wounds: a fighter at 20% HP with verified cover takes cover;
+        // the identical Normal fighter requests retreat. At 8% HP
+        // Combat Total also retreats, never suicidally ignores injuries.
+        var totalBrain = new NpcDecisionBrain();
+        var urgent = new NpcDecisionInput
+        {
+            IsHostile = true, CombatOnlyMode = true,
+            UnderFire = true, HasRealHealth = true,
+            HealthFraction = 0.20f, HasVerifiedCover = true
+        };
+        if (totalBrain.Evaluate(1f, urgent) != NpcIntent.SeekCover)
+        {
+            Console.Error.WriteLine("NPC_COMBAT_TOTAL_RISK_FAILED: 20% HP should use cover.");
+            return false;
+        }
+        urgent.HealthFraction = 0.08f;
+        if (totalBrain.Evaluate(2f, urgent) != NpcIntent.Retreat)
+        {
+            Console.Error.WriteLine("NPC_COMBAT_TOTAL_RISK_FAILED: critical 8% HP must retreat.");
+            return false;
+        }
+        var normalBrain = new NpcDecisionBrain();
+        urgent.CombatOnlyMode = false;
+        urgent.HealthFraction = 0.20f;
+        if (normalBrain.Evaluate(1f, urgent) != NpcIntent.Retreat)
+        {
+            Console.Error.WriteLine("NPC_COMBAT_TOTAL_RISK_FAILED: changed Normal retreat.");
+            return false;
+        }
+
         Console.WriteLine("NPC_COMBAT_TOTAL_OK: isolated saves, hostile squads, "
             + "rival factions, civilian exclusion and native armor quality.");
         return true;
