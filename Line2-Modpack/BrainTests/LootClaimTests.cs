@@ -32,7 +32,9 @@ internal static class LootClaimTests
         for (uint id = 1000; id < 1095; id++)
             if (!Line2NpcLootClaims.TryAcquire(id, 1, 20f))
                 return false;
-        if (Line2NpcLootClaims.TryAcquire(99999u, 2, 21f) ||
+        // At t=21 the owner's earlier lease expires, so capacity would
+        // actually be freed. Check FULL occupancy strictly before t=21.
+        if (Line2NpcLootClaims.TryAcquire(99999u, 2, 20.5f) ||
             !Line2NpcLootClaims.TryAcquire(99999u, 2, 28f))
             return false;
         Line2NpcLootClaims.ResetSession();
