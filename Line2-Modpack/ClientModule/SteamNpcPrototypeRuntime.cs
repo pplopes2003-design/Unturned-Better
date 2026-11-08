@@ -498,6 +498,20 @@ namespace Unturned2.Line2
                     raid.Initialize(this, actor);
                     var radio = instance.AddComponent<Line2NPCRadioOutbox>();
                     radio.Initialize(this, actor, combatSight, ownedInventory);
+                    if (Line2NpcCombatTotalPolicy.Enabled(_mode))
+                    {
+                        // Direct port of Line 1 CombatOnly: suppress civilian
+                        // tasks, not injuries, radio, physical inventory,
+                        // group combat, gunfire, grenades, death or persistence.
+                        needs.enabled = false;
+                        builder.enabled = false;
+                        stockpile.enabled = false;
+                        looting.enabled = false;
+                        ProbeLogger.Log("NPC_COMBAT_TOTAL_READY: hostile=" +
+                            actor.Identity + " faction=" + group.Faction +
+                            " kit=" + kitStatus +
+                            " (civilian A-Life suspended)");
+                    }
                     actor.Died += OnActorDied;
                     created.Add(actor);
                 }
