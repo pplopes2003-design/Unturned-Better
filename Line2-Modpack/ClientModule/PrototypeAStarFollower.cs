@@ -135,7 +135,11 @@ namespace Unturned2.Line2
             Vector3 current = transform.position;
             Vector3 toward = goal - current;
             toward.y = 0f;
-            if (toward.sqrMagnitude < 0.8f * 0.8f)
+            // Horizontal proximity is not arrival if the destination is
+            // above/below us. Let native A* attempt a real stairway route;
+            // never silently stop at the same X/Z on another floor.
+            if (toward.sqrMagnitude < 0.8f * 0.8f &&
+                Mathf.Abs(goal.y - current.y) <= 1.0f)
                 return Vector3.zero;
 
             if (_provider == null || !_provider.IsAvailable)
@@ -148,8 +152,11 @@ namespace Unturned2.Line2
 
             // The path contains the world-space start and end, so consume
             // waypoint 1 first. Do not re-request on every animated frame.
-            bool stale = (goal - _pathGoal).sqrMagnitude > 2.5f * 2.5f
-                || Mathf.Abs(goal.y - _pathGoal.y) > 0.8f
+            // Doorways and building corners may be less than 2.5m apart.
+            // Do not keep following a route to the other side of a wall
+            // when the brain's observed destination changes materially.
+            bool stale = (goal - _pathGoal).sqrMagnitude > 1.0f * 1.0f
+                || Mathf.Abs(goal.y - _pathGoal.y) > 0.45f
                 || Time.time - _routeReceivedAt > 5.0f;
             if (stale)
             {
