@@ -1751,7 +1751,13 @@ namespace Unturned2.Line2
             // Arrival is a physical observation, not merely a requested
             // waypoint. The migrated Line 1 brain advances its three-point
             // investigation spiral only when the CharacterController arrives.
-            if (_legacyBrain.HasDestination && Time.time >= _nextLegacyArrivalCheckAt)
+            // Do not credit an investigation waypoint while another system
+            // (combat retreat, cover, regroup, etc.) owns locomotion.
+            // Merely passing close to a clue during an unrelated journey is
+            // not evidence that the clue was deliberately investigated.
+            if (_legacyBrain.HasDestination && !_tactics.HasTacticalDestination &&
+                (_goal - _legacyBrain.Destination).sqrMagnitude < 2.5f &&
+                Time.time >= _nextLegacyArrivalCheckAt)
             {
                 Vector3 difference = _legacyBrain.Destination - transform.position;
                 if (Mathf.Abs(difference.y) < 1.35f &&
