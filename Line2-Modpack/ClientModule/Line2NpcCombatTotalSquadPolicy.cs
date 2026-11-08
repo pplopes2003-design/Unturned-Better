@@ -19,6 +19,23 @@ namespace Unturned2.Line2
         /// line and resupply. Everyone may still retreat, defend and shoot
         /// on valid firsthand sight. A solitary ungrouped fighter is free
         /// to flank; Normal/Passive keep their old tactical behavior.</summary>
+        /// <summary>
+        /// In Combat Total every soldier has the SAME hostile disposition,
+        /// so role strings cannot determine friendly fire. Rival squads
+        /// require two living, authoritative group memberships and a truly
+        /// hostile faction relationship. No ungrouped fallback in this mode.
+        /// </summary>
+        internal static bool CanEngageRival(bool combatTotal,
+            bool bothJoined, int ownGroupId, int rivalGroupId,
+            Line2NPCFactionPolicy.Id ownFaction,
+            Line2NPCFactionPolicy.Id rivalFaction)
+        {
+            if (!combatTotal) return false;
+            return bothJoined && ownGroupId > 0 && rivalGroupId > 0 &&
+                ownGroupId != rivalGroupId &&
+                Line2NPCFactionPolicy.AreHostile(ownFaction, rivalFaction);
+        }
+
         internal static bool CanInitiateFlank(bool combatTotal,
             Line2NpcSquadRolePolicy.Role role)
         {
