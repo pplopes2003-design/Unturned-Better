@@ -162,7 +162,7 @@ namespace Unturned2.Line2
                 return false;
             RaycastHit ground;
             if (!Physics.Raycast(estimate + Vector3.up * 2.1f, Vector3.down,
-                out ground, 4.8f, RayMasks.GROUND2, QueryTriggerInteraction.Ignore) ||
+                out ground, 4.8f, Line2NpcFloorGeometry.SupportMask, QueryTriggerInteraction.Ignore) ||
                 ground.normal.y < 0.70f || !Finite(ground.point))
                 return false;
             // A same-surface coarse planner must not jump to another storey
@@ -241,7 +241,7 @@ namespace Unturned2.Line2
                 Vector3 expected = Vector3.Lerp(a, b, t);
                 RaycastHit ground;
                 if (!Physics.Raycast(expected + Vector3.up * 1.35f,
-                    Vector3.down, out ground, 2.75f, RayMasks.GROUND2,
+                    Vector3.down, out ground, 2.75f, Line2NpcFloorGeometry.SupportMask,
                     QueryTriggerInteraction.Ignore) ||
                     ground.normal.y < 0.70f ||
                     Mathf.Abs(ground.point.y - expected.y) > 0.57f)
