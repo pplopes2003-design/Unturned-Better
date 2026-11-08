@@ -82,6 +82,23 @@ internal static class RoutineRouteHealthTests
             return false;
         }
 
+        // A survivor trapped between two wall-adjacent points has MOVED
+        // physically, but it has not discovered any new corridor. Repeating
+        // those points must not perpetually extend the routine watchdog.
+        var oscillating = new Line2NpcRoutineRouteHealth();
+        if (oscillating.Observe(goal, new Vector3(0f, 0f, 0f), 0f,
+                false, false) != Line2NpcRoutineRouteHealth.State.Moving ||
+            oscillating.Observe(goal, new Vector3(-1.3f, 0f, 0f), 4f,
+                false, false) != Line2NpcRoutineRouteHealth.State.Moving ||
+            oscillating.Observe(goal, new Vector3(0f, 0f, 0f), 12f,
+                false, false) != Line2NpcRoutineRouteHealth.State.Moving ||
+            oscillating.Observe(goal, new Vector3(-1.3f, 0f, 0f), 29f,
+                false, false) != Line2NpcRoutineRouteHealth.State.Blocked)
+        {
+            Console.Error.WriteLine("NPC_ROUTINE_OSCILLATION_FAILED: repeated physical points renewed the route.");
+            return false;
+        }
+
         // Circling forever is not a valid journey. The absolute time bound
         // still applies even if the NPC is continuously moving.
         var endlessDetour = new Line2NpcRoutineRouteHealth();
