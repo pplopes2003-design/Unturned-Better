@@ -30,6 +30,7 @@ namespace Unturned2.Line2
         internal bool HeardThreat;
         internal bool UnderFire;
         internal bool HasVerifiedCover;
+        internal bool CanReturnFire;
         internal bool HasRealHealth;
         internal float HealthFraction;
         internal string RemoteSuggestion;
@@ -84,8 +85,14 @@ namespace Unturned2.Line2
                 desired = NpcIntent.Retreat;
                 urgent = true;
             }
-            else if (input.UnderFire && input.HasVerifiedCover)
+            else if (input.UnderFire && input.HasVerifiedCover &&
+                     !(input.CombatOnlyMode && input.CanReturnFire &&
+                       input.ThreatVisible))
             {
+                // Combat Total is allowed to suppress an already SEEN
+                // attacker from a functioning owned gun rather than
+                // automatically retreat into cover. This never grants
+                // unseen targeting or bypasses the weapon executor.
                 desired = NpcIntent.SeekCover;
                 urgent = true;
             }
