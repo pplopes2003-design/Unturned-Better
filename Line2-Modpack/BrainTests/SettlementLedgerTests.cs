@@ -86,6 +86,19 @@ internal static class SettlementLedgerTests
                 1244, new Vector3(44f, 3f, -12f), 0f, 291u, true))
                 return false; // Five-piece cap, one central storage.
 
+            // Native registry exceptions do not prove the physical
+            // world is gone. A failed scan must preserve the whole base.
+            if (Line2NpcSettlementLedger.ReconcileObservedPieces(
+                12, "friendly", part =>
+                {
+                    if (part.assetId == 1244)
+                        throw new InvalidOperationException("native not ready");
+                    return false;
+                }) ||
+                !Line2NpcSettlementLedger.TryGet(12, "friendly",
+                    out actual, out pieces) || pieces != 5)
+                return false;
+
             // A verified physically destroyed wall frees its exact slot
             // but must NEVER remove the real native storage or other walls.
             if (!Line2NpcSettlementLedger.ReconcileObservedPieces(
