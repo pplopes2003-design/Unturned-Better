@@ -1892,16 +1892,30 @@ namespace Unturned2.Line2
             // Never invent a portal through intact glass, a high wall or
             // a destination lacking observed support/capsule clearance.
             ApplyVerifiedVault(ref direction, ref speed, delta);
-            // Line 1 melee faces the genuinely visible enemy even when
-            // CharacterController is already close enough to stop walking.
+            // Locomotion and torso facing are separate decisions: a
+            // gunner with a genuinely selected enemy can sidestep/flank
+            // while orienting the weapon toward that enemy. Emergency
+            // retreat or cover traversal must still face the escape route.
+            // This is NOT permission to fire: the executor independently
+            // verifies line of sight, cone, ammunition and faction again.
             Vector3 face = direction;
-            if (face.sqrMagnitude <= 0.01f && _combatPerception != null &&
-                _combatPerception.VisibleTarget != null &&
-                _combatPerception.Kind != Line2NPCCombatPerception.TargetKind.None)
+            bool activeCombatTarget = _combatPerception != null &&
+                _combatPerception.Kind !=
+                    Line2NPCCombatPerception.TargetKind.None &&
+                _combatPerception.VisibleTarget != null;
+            bool gunnerStrafe = activeCombatTarget && HasUsableGun &&
+                _combatMode != "passive" &&
+                _tactics.CurrentGoal != Line2MobileNPCTactics.Goal.Retreat &&
+                _tactics.CurrentGoal != Line2MobileNPCTactics.Goal.SeekCover;
+            if ((face.sqrMagnitude <= 0.01f || gunnerStrafe) &&
+                activeCombatTarget)
             {
-                face = _combatPerception.LastVisiblePosition - transform.position;
-                face.y = 0f;
-                if (face.sqrMagnitude > 0.01f) face.Normalize();
+                Vector3 towardEnemy =
+                    _combatPerception.VisibleTarget.position -
+                    transform.position;
+                towardEnemy.y = 0f;
+                if (towardEnemy.sqrMagnitude > 0.01f)
+                    face = towardEnemy.normalized;
             }
             if (face.sqrMagnitude > 0.01f)
                 transform.rotation = Quaternion.RotateTowards(transform.rotation,
