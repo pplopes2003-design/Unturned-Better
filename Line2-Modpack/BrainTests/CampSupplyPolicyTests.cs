@@ -4,7 +4,8 @@ using Unturned2.Line2;
 internal static class CampSupplyPolicyTests
 {
     private static bool May(bool authorized = true,
-        bool group = true, bool storage = true, bool combat = false,
+        bool group = true, bool storage = true,
+        bool sight = true, bool combat = false,
         bool spare = true, bool needy = false, bool vendor = false,
         float meters = 2f)
     {
