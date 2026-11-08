@@ -385,6 +385,11 @@ internal static class Program
             Console.Error.WriteLine("NPC_LOOT_CLAIM_FAILED: exclusive item target lease / expiry.");
             return 33;
         }
+        if (!RoutineRouteHealthTests.Run())
+        {
+            Console.Error.WriteLine("NPC_ROUTINE_ROUTE_FAILED: invalid physical A-Life progress monitoring.");
+            return 34;
+        }
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
