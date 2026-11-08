@@ -432,6 +432,8 @@ namespace Unturned2.Line2
             {
                 _lastDeniedID = bestID;
                 _lastDeniedUntil = Time.time + 12f;
+                if (_observedItemID == bestID)
+                    AbandonObservedGoal();
                 if (reason != "world-item-occluded")
                     ProbeLogger.Log("NPC_WORLD_PICKUP_DEFERRED: instance=" +
                         bestID + " reason=" + reason);
