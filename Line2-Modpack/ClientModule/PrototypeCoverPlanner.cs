@@ -19,6 +19,7 @@ namespace Unturned2.Line2
             _experience = experience;
         }
 
+        private readonly RaycastHit[] _floorHits = new RaycastHit[16];
         private float _nextSearchAt;
         private Vector3 _lastSource;
         private Vector3 _lastCover;
@@ -59,13 +60,10 @@ namespace Unturned2.Line2
                 Vector3 dir = Quaternion.Euler(0f, angle, 0f) * away;
                 float distance = i % 2 == 0 ? 6f : 10f;
                 Vector3 point = transform.position + dir * distance;
-                Vector3 ground = point + Vector3.up * 2.4f;
                 RaycastHit hit;
-                if (!Physics.Raycast(ground, Vector3.down, out hit, 5f,
-                                     Line2NpcFloorGeometry.SupportMask, QueryTriggerInteraction.Ignore) ||
-                    !Line2NpcFloorGeometry.IsStaticFloorCandidate(hit.collider) ||
-                    hit.normal.y < 0.72f ||
-                    Mathf.Abs(hit.point.y - transform.position.y) > 1.4f)
+                if (!Line2NpcFloorGeometry.TryFindStaticSupport(
+                        point, 2.4f, 5f, 1.4f, 0.72f,
+                        _floorHits, out hit))
                     continue;
 
                 point = hit.point + Vector3.up * 0.08f;
