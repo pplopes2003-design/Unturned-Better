@@ -252,6 +252,7 @@ namespace Unturned2.Line2
             Line2NpcRuntimeRegistry.UpdateSettings(_settings.npcEnabled,
                 _settings.naturalSpawn, _settings.maxNPCs, _settings.combatMode);
             ZombiePriorityVisionBridge.Enabled = _settings.zombiePriority;
+            Line2ZombieGunshotSearchBridge.Enabled = _settings.zombiePriority;
             Line2ZombieHordeBridge.Enabled = _settings.hordesEnabled;
         }
 
