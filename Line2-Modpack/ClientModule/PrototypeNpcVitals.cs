@@ -86,12 +86,14 @@ namespace Unturned2.Line2
                 !result.shouldAffectPlayers)
                 return;
 
-            // Do not duplicate firearm damage. DamageTool invokes this once
-            // per NPC due to its HashSet<IExplosionDamageable> deduplication.
-            float amount = result.canDealPlayerDamage && parameters.playerDamage > 0f
-                ? parameters.playerDamage : parameters.zombieDamage;
-            if (amount <= 0f || float.IsNaN(amount) || float.IsInfinity(amount))
-                return;
+            // DamageTool can select the NPC AGENT collider while the
+            // payload is NOT allowed to hurt players. Honor its actual
+            // permission flags before applying any health mutation.
+            float amount = NpcExplosionMath.SelectEligibleDamage(
+                result.canDealPlayerDamage && result.shouldAffectPlayers,
+                result.shouldAffectZombies,
+                parameters.playerDamage, parameters.zombieDamage);
+            if (amount <= 0f) return;
 
             Vector3 impactPoint = result.closestPoint;
             Vector3 delta = impactPoint - parameters.point;
@@ -179,13 +181,23 @@ namespace Unturned2.Line2
             Line2MobileNPCInjurySystem.BleedingSeverity severity,
             Vector3 impulse, Transform attacker)
         {
-            if (attacker != null)
+            // A rejected/invalid hit must not forge an attacker's
+            // location in the squad's casualty and threat memory.
+            if (!Provider.isServer || Dedicator.IsDedicatedServer || _dead ||
+                damage <= 0f || float.IsNaN(damage) ||
+                float.IsInfinity(damage))
+                return false;
+            bool validAttacker = attacker != null &&
+                Finite(attacker.position);
+            Vector3 origin = validAttacker ? attacker.position : Vector3.zero;
+            bool applied = ApplyDamageToPart(damage, part, causeBleeding,
+                causeFracture, severity, impulse);
+            if (applied && validAttacker)
             {
-                LastDamageOrigin = attacker.position;
+                LastDamageOrigin = origin;
                 HasExplosionOrigin = true;
             }
-            return ApplyDamageToPart(damage, part, causeBleeding, causeFracture,
-                                    severity, impulse);
+            return applied;
         }
 
         public bool ApplyDamageToPart(float damage,
@@ -209,6 +221,13 @@ namespace Unturned2.Line2
             return ApplyServerDamage(damage, impulse);
         }
 
+        private static bool Finite(Vector3 origin)
+        {
+            return !float.IsNaN(origin.x) && !float.IsInfinity(origin.x) &&
+                !float.IsNaN(origin.y) && !float.IsInfinity(origin.y) &&
+                !float.IsNaN(origin.z) && !float.IsInfinity(origin.z);
+        }
+
         internal bool ApplyServerDamage(float amount, Vector3 direction)
         {
             if (!Provider.isServer || Dedicator.IsDedicatedServer || _dead ||
@@ -224,10 +243,14 @@ namespace Unturned2.Line2
                     " remaining=" + _health.ToString("F1"));
                 _nextDiagnosticAt = Time.time + 0.5f;
             }
+            // Set the fatal guard BEFORE announcing damage. Listeners may
+            // synchronously cause other hits/explosions and must never
+            // trigger a duplicate death, loot, or replacement ticket.
+            bool fatal = _health <= 0f;
+            if (fatal) _dead = true;
             Damaged?.Invoke(amount, direction);
-            if (_health > 0f) return true;
+            if (!fatal) return true;
 
-            _dead = true;
             // Reject any subsequent duplicate explosion candidates immediately.
             if (_controller != null) _controller.enabled = false;
             foreach (Collider collider in GetComponentsInChildren<Collider>())
