@@ -278,8 +278,7 @@ namespace Unturned2.Line2
                 PrototypeActor victim = first.GetComponentInParent<PrototypeActor>();
                 PrototypeActor expected = intended.GetComponentInParent<PrototypeActor>();
                 if (victim == null || victim != expected || victim.IsDead ||
-                    !Line2NPCCombatRules.AreOpposed(
-                        _actor.Disposition, victim.Disposition, _actor.CombatMode))
+                    !_perception.CanEngageNpcTarget(victim))
                     return false;
                 Line2MobileNPCInjurySystem.BodyPart part;
                 if (!Line2MobileNPCBodyHitbox.TryResolve(first, out part))
