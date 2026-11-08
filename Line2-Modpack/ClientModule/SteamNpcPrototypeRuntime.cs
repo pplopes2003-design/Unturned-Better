@@ -1917,7 +1917,8 @@ namespace Unturned2.Line2
                     // Never fall through to player pursuit at this stage.
                     _goal = transform.position;
                 }
-                else if (!_recruited && GetComponent<Line2NpcNeeds>() != null &&
+                else if (!Line2NpcCombatTotalPolicy.Enabled(_combatMode) &&
+                    !_recruited && GetComponent<Line2NpcNeeds>() != null &&
                     GetComponent<Line2NpcNeeds>().IsUrgent &&
                     (_combatPerception == null ||
                      _combatPerception.Kind == Line2NPCCombatPerception.TargetKind.None))
