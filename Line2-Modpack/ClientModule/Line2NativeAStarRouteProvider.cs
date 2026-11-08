@@ -409,9 +409,26 @@ namespace Unturned2.Line2
 			activeRequestVersion = ++requestVersion;
 		}
 
+		private void OnDisable()
+		{
+			// Scene unload, despawn, and module disable invalidate pending
+			// callbacks. A later callback must never resurrect a route from
+			// an earlier map or NPC activation.
+			CancelPendingRequest();
+			routeReady = false;
+			lastPathFailed = false;
+			completedRoute.Clear();
+			pathCallback = null;
+			nextRequestTime = 0f;
+			diagnosticStatus = "disabled";
+		}
+
 		private void OnDestroy()
 		{
 			CancelPendingRequest();
+			routeReady = false;
+			completedRoute.Clear();
+			pathCallback = null;
 		}
 	}
 }
