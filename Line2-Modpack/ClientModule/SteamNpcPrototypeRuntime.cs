@@ -1750,9 +1750,17 @@ namespace Unturned2.Line2
                 }
                 // Line 1 tactical flank is optional and never allowed to
                 // override emergency cover or a committed retreat.
+                Line2NPCGroupMember combatGroup =
+                    GetComponent<Line2NPCGroupMember>();
+                Line2NpcSquadRolePolicy.Role combatRole =
+                    combatGroup != null ? combatGroup.Role :
+                    Line2NpcSquadRolePolicy.Role.Unassigned;
                 if (_tactics.CurrentGoal == Line2MobileNPCTactics.Goal.None &&
                     Time.time >= _nextFlankAt && !RecentlyDamaged &&
                     _combatMode != "passive" && HasUsableGun &&
+                    Line2NpcCombatTotalSquadPolicy.CanInitiateFlank(
+                        Line2NpcCombatTotalPolicy.Enabled(_combatMode),
+                        combatRole) &&
                     _combatPerception != null &&
                     _combatPerception.Kind !=
                         Line2NPCCombatPerception.TargetKind.None &&
