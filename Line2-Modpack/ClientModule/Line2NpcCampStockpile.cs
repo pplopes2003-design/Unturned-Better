@@ -29,6 +29,7 @@ namespace Unturned2.Line2
         private readonly Line2NpcNativeCampRegistry _nativeCamp =
             new Line2NpcNativeCampRegistry();
         private float _nextAt;
+        private float _nextDeliveryTripAt;
 
         internal static void ResetSession()
         {
@@ -46,6 +47,7 @@ namespace Unturned2.Line2
             _needs = GetComponent<Line2NpcNeeds>();
             _injury = GetComponent<Line2MobileNPCInjurySystem>();
             _nextAt = Time.time + UnityEngine.Random.Range(8f, 14f);
+            _nextDeliveryTripAt = Time.time + 65f;
         }
 
         private static bool Authorized()
@@ -88,6 +90,50 @@ namespace Unturned2.Line2
                 _needs != null && _needs.Thirst < 68f) return false;
             if (asset.type == EItemType.MEDICAL &&
                 _injury != null && _injury.NeedsMedicalAttention) return false;
+            return true;
+        }
+
+        /// <summary>
+        /// A group member remembers the location of its OWN previously
+        /// built central stockpile. It may ask A-Life to travel there with
+        /// spare supplies, but neither the manifest nor this goal authorizes
+        /// depositing into an unobserved/absent or player-owned container.
+        /// Physical registry validation still happens at delivery time.
+        /// </summary>
+        internal bool TryGetDeliveryGoalServer(out Vector3 goal)
+        {
+            goal = Vector3.zero;
+            if (Time.time < _nextDeliveryTripAt || !Safe() ||
+                _actor.CombatMode == "total")
+                return false;
+            Line2NpcPersistence.PlacedBarricadeRecord record;
+            if (!Line2NpcSettlementLedger.TryGetCentralStorage(
+                _group.GroupId, _actor.Disposition, out record))
+                return false;
+            Vector3 depot = new Vector3(record.x, record.y, record.z);
+            if (!Level.checkSafeIncludingClipVolumes(depot) ||
+                Mathf.Abs(transform.position.y - depot.y) > 1.4f)
+                return false;
+            float length = Vector3.Distance(transform.position, depot);
+            if (length <= 4.3f || length >= 60f)
+                return false;
+            bool hasSurplus = false;
+            for (int i = 0; i < _inventory.UsedSlots; ++i)
+            {
+                Item own;
+                if (!_inventory.TryGetItemSnapshot(i, out own) ||
+                    own == null) continue;
+                ItemAsset asset = Assets.find(EAssetType.ITEM,
+                    own.id) as ItemAsset;
+                if (!ShouldTransfer(own, asset)) continue;
+                hasSurplus = true;
+                break;
+            }
+            if (!hasSurplus) return false;
+            // Finite trip lease. The existing actor/world survey follows A*
+            // and autonomously abandons a disconnected building route.
+            _nextDeliveryTripAt = Time.time + 115f;
+            goal = depot;
             return true;
         }
 
