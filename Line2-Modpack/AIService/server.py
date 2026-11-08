@@ -91,8 +91,16 @@ def evaluate_batch(payload):
         raise ValueError("invalid_batch_size")
     identifiers = set()
     decisions = []
+    batch_tick = None
     for item in agents:
         agent, tick, obs = validate(item)
+        # All agents in one client observation batch share its sequence
+        # number. Reject mixed snapshots rather than returning orders that
+        # the authoritative C# bridge would have to discard.
+        if batch_tick is None:
+            batch_tick = tick
+        elif tick != batch_tick:
+            raise ValueError("mixed_batch_ticks")
         if obs is None or obs["kind"] != "npc":
             raise ValueError("batch_requires_npc_observations")
         if agent in identifiers:
