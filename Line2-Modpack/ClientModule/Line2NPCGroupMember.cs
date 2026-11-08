@@ -55,7 +55,9 @@ namespace Unturned2.Line2
             if (actor == null || !Provider.isServer ||
                 Dedicator.IsDedicatedServer || Joined)
                 return;
-            Faction = Line2NPCFactionPolicy.DefaultForRole(actor.Disposition);
+            Faction = Line2NpcCombatTotalPolicy.Enabled(actor.CombatMode)
+                ? Line2NpcCombatTotalPolicy.FactionForGroup(nextGroupId)
+                : Line2NPCFactionPolicy.DefaultForRole(actor.Disposition);
             int group = 0;
             float nearest = JoinRangeSquared;
             if (existing != null)
@@ -84,6 +86,10 @@ namespace Unturned2.Line2
             }
             if (group == 0) group = nextGroupId++;
             if (nextGroupId <= 0) nextGroupId = 1;
+            // The actual joined group is authoritative, including if
+            // persistence reserved historic group IDs before we spawned.
+            if (Line2NpcCombatTotalPolicy.Enabled(actor.CombatMode))
+                Faction = Line2NpcCombatTotalPolicy.FactionForGroup(group);
             List<Line2NPCGroupMember> roster;
             if (!Groups.TryGetValue(group, out roster))
             {
@@ -104,7 +110,9 @@ namespace Unturned2.Line2
                 Dedicator.IsDedicatedServer || savedGroupId <= 0 ||
                 savedGroupId > 1000000) return false;
             Line2NPCFactionPolicy.Id faction =
-                Line2NPCFactionPolicy.DefaultForRole(actor.Disposition);
+                Line2NpcCombatTotalPolicy.Enabled(actor.CombatMode)
+                    ? Line2NpcCombatTotalPolicy.FactionForGroup(savedGroupId)
+                    : Line2NPCFactionPolicy.DefaultForRole(actor.Disposition);
             List<Line2NPCGroupMember> existing;
             if (Groups.TryGetValue(savedGroupId, out existing))
             {
