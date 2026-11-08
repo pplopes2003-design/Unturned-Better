@@ -50,6 +50,10 @@ namespace Unturned2.Line2
         internal sealed class PlacedBarricadeRecord
         {
             public int assetId;
+            // Serialized by Unity JsonUtility; zero denotes legacy
+            // manifests created before stable native object tracking.
+            public uint instanceID;
+            public bool isStorage;
             public float x, y, z, yaw;
         }
         [Serializable]
@@ -240,10 +244,21 @@ namespace Unturned2.Line2
                     (site.role != "hostile" && site.role != "neutral" &&
                      site.role != "friendly") ||
                     !Finite(site.x) || !Finite(site.y) || !Finite(site.z) ||
-                    site.placed == null || site.placed.Length > 4)
+                    site.placed == null || site.placed.Length > 5)
                     throw new InvalidDataException("invalid settlement site");
+                bool alreadyHasStorage = false;
+                var instanceIDs = new HashSet<uint>();
                 foreach (PlacedBarricadeRecord entry in site.placed)
                 {
+                    if (entry != null && entry.isStorage)
+                    {
+                        if (alreadyHasStorage)
+                            throw new InvalidDataException("multiple central storages");
+                        alreadyHasStorage = true;
+                    }
+                    if (entry != null && entry.instanceID != 0 &&
+                        !instanceIDs.Add(entry.instanceID))
+                        throw new InvalidDataException("duplicate native barricade instance");
                     if (entry == null || entry.assetId <= 0 ||
                         entry.assetId > ushort.MaxValue ||
                         !Finite(entry.x) || !Finite(entry.y) ||
