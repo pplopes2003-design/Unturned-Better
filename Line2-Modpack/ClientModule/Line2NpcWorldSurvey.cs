@@ -15,7 +15,7 @@ namespace Unturned2.Line2
     [DisallowMultipleComponent]
     internal sealed class Line2NpcWorldSurvey : MonoBehaviour
     {
-        internal enum Job { Patrol, ExploreAuthoredSite, GuardGroup, Recover, BuildSettlement, SeekObservedItem, DeliverSurplus }
+        internal enum Job { Patrol, ExploreAuthoredSite, GuardGroup, Recover, BuildSettlement, SeekObservedItem, DeliverSurplus, FetchEmergencyStock }
         private const int MaxSiteChecks = 80;
         private const int RecentCapacity = 6;
         private const float MinimumDestinationSq = 7f * 7f;
@@ -55,6 +55,12 @@ namespace Unturned2.Line2
                 ClearGoal(true);
         }
 
+
+        internal void RecordVerifiedStockWithdrawal()
+        {
+            if (_job == Job.FetchEmergencyStock && _hasDestination)
+                ClearGoal(true);
+        }
 
         internal void Initialize(PrototypeActor actor)
         {
@@ -118,6 +124,22 @@ namespace Unturned2.Line2
                 _collector = GetComponent<Line2NpcWorldLootCollector>();
             bool depleted = (_needs != null && _needs.IsUrgent) ||
                 _actor.HealthFraction < 0.38f;
+            if (_job == Job.FetchEmergencyStock && _hasDestination)
+            {
+                if (!depleted)
+                    ClearGoal(true);
+                else if (Time.time >= _expiresAt ||
+                    ObserveRoutineHealth(current, _destination) ==
+                        Line2NpcRoutineRouteHealth.State.Blocked)
+                    ClearGoal(false);
+                else
+                {
+                    // Stay at the verified stockpile until the native
+                    // withdrawal completes, but never indefinitely.
+                    goal = _destination;
+                    return true;
+                }
+            }
             if (_job == Job.SeekObservedItem && _hasDestination)
             {
                 Vector3 actual;
@@ -152,6 +174,15 @@ namespace Unturned2.Line2
                     _job = Job.SeekObservedItem;
                     _destination = essential;
                     return Commit(essential, out goal);
+                }
+                Vector3 emergencyDepot;
+                if (_stockpile != null &&
+                    _stockpile.TryGetEmergencySupplyGoalServer(
+                        out emergencyDepot))
+                {
+                    _job = Job.FetchEmergencyStock;
+                    _destination = emergencyDepot;
+                    return Commit(emergencyDepot, out goal);
                 }
                 _job = Job.Recover;
                 // An urgent NPC first returns to its known home. It does not
