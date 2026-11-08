@@ -31,7 +31,8 @@ namespace Unturned2.Line2
         private float _bestDistance = float.PositiveInfinity;
         // A retreat/flank route often moves sideways or briefly away
         // from the target to go through an actual doorway or corridor.
-        private Vector3 _lastPhysicalProgressPosition;
+        private readonly Line2NpcPhysicalProgressLedger _physicalProgress =
+            new Line2NpcPhysicalProgressLedger();
         private bool _initialized;
         private bool _arrived;
 
@@ -94,7 +95,7 @@ namespace Unturned2.Line2
                 if (!sameGoal) _startedAt = now;
                 _lastProgressAt = now;
                 _bestDistance = flatDistance;
-                _lastPhysicalProgressPosition = actualPosition;
+                _physicalProgress.Reset(actualPosition);
                 _arrived = true;
                 return Outcome.Holding;
             }
@@ -117,7 +118,8 @@ namespace Unturned2.Line2
                 // immunity from the stuck-route monitor.
                 _arrived = false;
                 _bestDistance = flatDistance;
-                _lastPhysicalProgressPosition = actualPosition;
+                _physicalProgress.TryObserveNewPosition(actualPosition,
+                    MinimumProgress);
                 _lastProgressAt = now;
             }
             // A new best *physical* position proves progress. A proposal to
@@ -128,14 +130,12 @@ namespace Unturned2.Line2
                 _lastPhysicalProgressPosition = actualPosition;
                 _lastProgressAt = now;
             }
-            else if ((actualPosition - _lastPhysicalProgressPosition).sqrMagnitude >=
-                MinimumProgress * MinimumProgress)
+            else if (_physicalProgress.TryObserveNewPosition(
+                actualPosition, MinimumProgress))
             {
-                // Measured CharacterController displacement is legitimate
-                // tactical movement even when native A* routes around a wall
-                // and momentarily increases distance to the destination.
-                // The original absolute 45s cap remains unchanged.
-                _lastPhysicalProgressPosition = actualPosition;
+                // A truly new physical position counts as progress even on
+                // a detour. Repeated alternating points beside one wall
+                // cannot keep a tactical goal alive indefinitely.
                 _lastProgressAt = now;
             }
             float waitBudget = nativePathPending
