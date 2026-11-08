@@ -30,6 +30,9 @@ internal static class Program
             return 1;
         }
 
+        if (!SquadRoleTests.Run())
+            return 60;
+
         var brain = new NpcDecisionBrain();
         var noVision = new NpcDecisionInput
         {
