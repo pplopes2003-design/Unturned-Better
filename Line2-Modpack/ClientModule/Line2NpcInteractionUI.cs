@@ -49,7 +49,9 @@ namespace Unturned2.Line2
         private bool CanStillTalk()
         {
             if (!Authorized() || _selected == null || _selected.IsDead ||
-                _selected.Disposition == "hostile") return false;
+                _selected.Disposition == "hostile" ||
+                !Line2NpcCombatTotalPolicy.AllowTrade(_selected.CombatMode))
+                return false;
             Player player = Player.player;
             return player != null && player.life != null && !player.life.isDead &&
                 (player.transform.position - _selected.transform.position).sqrMagnitude <= 4.0f * 4.0f &&
@@ -103,7 +105,9 @@ namespace Unturned2.Line2
             Vector3 view = camera.transform.forward;
             foreach (PrototypeActor actor in _actors)
             {
-                if (actor == null || actor.IsDead || actor.Disposition == "hostile")
+                if (actor == null || actor.IsDead ||
+                    actor.Disposition == "hostile" ||
+                    !Line2NpcCombatTotalPolicy.AllowTrade(actor.CombatMode))
                     continue;
                 Vector3 vector = actor.transform.position +
                     Vector3.up * 1.25f - camera.transform.position;
