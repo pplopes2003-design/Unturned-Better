@@ -14,6 +14,20 @@ namespace Unturned2.Line2
         internal const float MinimumReceiverDistance = 14f;
         internal const float ReportCooldown = 8f;
 
+        /// <summary>Only a leader or scout initiates an ordinary flank
+        /// in Combat Total. Guards and quartermasters maintain the firing
+        /// line and resupply. Everyone may still retreat, defend and shoot
+        /// on valid firsthand sight. A solitary ungrouped fighter is free
+        /// to flank; Normal/Passive keep their old tactical behavior.</summary>
+        internal static bool CanInitiateFlank(bool combatTotal,
+            Line2NpcSquadRolePolicy.Role role)
+        {
+            return !combatTotal ||
+                role == Line2NpcSquadRolePolicy.Role.Leader ||
+                role == Line2NpcSquadRolePolicy.Role.Scout ||
+                role == Line2NpcSquadRolePolicy.Role.Unassigned;
+        }
+
         internal static bool CanBroadcast(bool combatTotal,
             bool firsthandSight, bool livingHostileTarget,
             bool senderHasRadio, float contactDistance)
