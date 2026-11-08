@@ -23,6 +23,7 @@ namespace Unturned2.Line2
         private readonly List<RegionCoordinate> _regions = new List<RegionCoordinate>(9);
         private readonly Vector3[] _recent = new Vector3[RecentCapacity];
         private readonly float[] _recentUntil = new float[RecentCapacity];
+        private readonly RaycastHit[] _floorHits = new RaycastHit[16];
         private PrototypeActor _actor;
         private Line2NPCGroupMember _group;
         private Line2NpcNeeds _needs;
@@ -384,12 +385,9 @@ namespace Unturned2.Line2
                 !Level.checkSafeIncludingClipVolumes(estimate))
                 return false;
             RaycastHit hit;
-            if (!Physics.Raycast(estimate + Vector3.up * 2f,
-                Vector3.down, out hit, 4.5f, Line2NpcFloorGeometry.SupportMask,
-                QueryTriggerInteraction.Ignore) ||
-                !Line2NpcFloorGeometry.IsStaticFloorCandidate(hit.collider) ||
-                hit.normal.y < 0.72f ||
-                Mathf.Abs(hit.point.y - estimate.y) > 2f)
+            if (!Line2NpcFloorGeometry.TryFindStaticSupport(
+                    estimate, 2f, 4.5f, 2f, 0.72f,
+                    _floorHits, out hit))
                 return false;
             foot = hit.point + Vector3.up * 0.07f;
             return Level.checkSafeIncludingClipVolumes(foot) &&
