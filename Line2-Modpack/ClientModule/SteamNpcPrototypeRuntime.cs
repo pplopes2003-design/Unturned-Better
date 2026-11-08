@@ -915,6 +915,11 @@ namespace Unturned2.Line2
         private readonly Line2MobileNPCBrain _legacyBrain = new Line2MobileNPCBrain();
         private readonly Line2MobileNPCPlayerKnowledge _knowledge =
             new Line2MobileNPCPlayerKnowledge();
+        private readonly Line2NpcInvestigationProbe _investigationProbe =
+            new Line2NpcInvestigationProbe();
+        private float _nextInvestigationCheckAt;
+        private float _nextEvidenceHintAt;
+        private float _nextSearchDiagnosticAt;
         private readonly Line2MobileNPCLocomotionPolicy _locomotion =
             new Line2MobileNPCLocomotionPolicy();
         private float _nextLegacyArrivalCheckAt;
@@ -1219,6 +1224,20 @@ namespace Unturned2.Line2
                 Vector3? lastKnown;
                 ObserveThreat(player, out visible, out lastKnown);
                 _legacyBrain.Tick(Time.time, visible);
+                // Line1-style search spiral endpoints are hypotheses. Never
+                // send an unsupported rooftop, invalid floor or obstructed
+                // capsule to A* as an actionable waypoint. If the native
+                // route is proven disconnected, advance the finite sweep.
+                if (_legacyBrain.CurrentState ==
+                    Line2MobileNPCBrain.State.Investigating &&
+                    Time.time >= _nextInvestigationCheckAt)
+                {
+                    _nextInvestigationCheckAt = Time.time + 2.0f;
+                    if (_astarFollower != null &&
+                        _astarFollower.Status == "line1-no-connected-route")
+                        _legacyBrain.ReportDestinationReached();
+                    ValidateInvestigationSweep();
+                }
                 bool nearPlayer = player != null &&
                     (player.transform.position - transform.position).sqrMagnitude < 32f * 32f;
                 string validSuggestion = _aiAction != null &&
@@ -1538,6 +1557,8 @@ namespace Unturned2.Line2
                 {
                     _legacyBrain.ReportDestinationReached();
                     _nextLegacyArrivalCheckAt = Time.time + 0.65f;
+                    ValidateInvestigationSweep();
+                    TryPromoteVerifiedEvidenceHint();
                     if (_legacyBrain.HasDestination &&
                         !_tactics.HasTacticalDestination)
                         _goal = _legacyBrain.Destination;
@@ -1548,6 +1569,79 @@ namespace Unturned2.Line2
             _controller.Move((direction * speed +
                               Vector3.up * _verticalVelocity) * Time.deltaTime);
             MonitorTacticalProgress();
+        }
+
+        private void ValidateInvestigationSweep()
+        {
+            if (_legacyBrain.CurrentState !=
+                Line2MobileNPCBrain.State.Investigating)
+                return;
+            // The underlying Line1 state machine has a maximum of three
+            // additional spiral waypoints. We may skip invalid ones now,
+            // but never start a new infinite investigation timer.
+            for (int attempt = 0; attempt < 4 &&
+                _legacyBrain.CurrentState ==
+                    Line2MobileNPCBrain.State.Investigating; attempt++)
+            {
+                Vector3 endpoint;
+                if (_legacyBrain.HasDestination &&
+                    _investigationProbe.TryValidate(
+                        _legacyBrain.Destination, transform.position,
+                        out endpoint))
+                {
+                    _legacyBrain.TrySetInvestigationHint(endpoint, Time.time);
+                    return;
+                }
+                if (Time.time >= _nextSearchDiagnosticAt)
+                {
+                    _nextSearchDiagnosticAt = Time.time + 15f;
+                    ProbeLogger.Log("NPC_SEARCH_POINT_REJECTED: actor=" +
+                        _identity + " proposed=" +
+                        _legacyBrain.Destination.ToString("F1") +
+                        " (no verified same-floor footprint)");
+                }
+                _legacyBrain.ReportDestinationReached();
+            }
+        }
+
+        private void TryPromoteVerifiedEvidenceHint()
+        {
+            if (_disposition != "hostile" || _combatMode == "passive" ||
+                _legacyBrain.CurrentState !=
+                    Line2MobileNPCBrain.State.Investigating ||
+                !_legacyBrain.HasDestination ||
+                _tactics.CurrentGoal != Line2MobileNPCTactics.Goal.None ||
+                _threatVisible || Time.time < _nextEvidenceHintAt)
+                return;
+            _nextEvidenceHintAt = Time.time + 6.0f;
+            Vector3 observed;
+            float confidence, uncertainty;
+            Line2MobileNPCPlayerKnowledge.Sense sense;
+            if (!_knowledge.TryGetEvidence(Time.time, out observed,
+                out confidence, out uncertainty, out sense))
+                return;
+            for (int i = 0; i < 2; ++i)
+            {
+                Vector3 proposed, verified;
+                if (!_knowledge.TrySuggestSearchPoint(Time.time,
+                    out proposed))
+                    return;
+                if (!Line2NpcInvestigationPolicy.MayProbe(
+                    true, true, false, confidence, uncertainty,
+                    observed, proposed, transform.position,
+                    Mathf.Clamp(uncertainty + 3f, 4f, 17f)) ||
+                    !_investigationProbe.TryValidate(proposed,
+                        transform.position, out verified) ||
+                    !_legacyBrain.TrySetInvestigationHint(verified, Time.time))
+                    continue;
+                _knowledge.ConfirmSearchPointAccepted();
+                ProbeLogger.Log("NPC_SEARCH_HYPOTHESIS_ACCEPTED: actor=" +
+                    _identity + " evidence=" + sense +
+                    " uncertainty=" + uncertainty.ToString("F1") +
+                    " goal=" + verified.ToString("F1") +
+                    " (no enemy Transform; A* must prove route)");
+                return;
+            }
         }
 
         private void MonitorTacticalProgress()
