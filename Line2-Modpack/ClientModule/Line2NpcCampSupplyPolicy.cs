@@ -17,7 +17,7 @@ namespace Unturned2.Line2
             float metersFromStorage)
         {
             return localServer && sameLivingGroup &&
-                realSavedNativeStorage && !inCombat &&
+                realSavedNativeStorage && directSight && !inCombat &&
                 resourceIsSurplus && !donorNeedsResource &&
                 !dedicatedVendor &&
                 !float.IsNaN(metersFromStorage) &&
