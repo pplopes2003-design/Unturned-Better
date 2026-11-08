@@ -93,9 +93,17 @@ namespace Unturned2.Line2
         /// </summary>
         public void ObserveSound(Vector3 position, float confidence, float now)
         {
+            TryObserveSound(position, confidence, now);
+        }
+
+        /// <summary>True only when a verified clue changed this NPC's memory.
+        /// Prevents repeated shots/footsteps from restarting a finite search.</summary>
+        public bool TryObserveSound(Vector3 position, float confidence, float now)
+        {
             if (!ShouldAcceptIndirectEvidence(position, confidence, now, Sense.Sound))
-                return;
+                return false;
             AcceptIndirectEvidence(position, Mathf.Clamp01(confidence), now, Sense.Sound);
+            return true;
         }
 
         /// <summary>
@@ -106,10 +114,18 @@ namespace Unturned2.Line2
         /// </summary>
         public void ObserveReport(Vector3 position, float confidence, float now)
         {
+            TryObserveReport(position, confidence, now);
+        }
+
+        /// <summary>Secondhand reports only trigger new search decisions when
+        /// actually accepted by this NPC's bounded sensory memory.</summary>
+        public bool TryObserveReport(Vector3 position, float confidence, float now)
+        {
             if (!ShouldAcceptIndirectEvidence(position, confidence, now, Sense.Report))
-                return;
+                return false;
             AcceptIndirectEvidence(position, Mathf.Min(0.78f, Mathf.Clamp01(confidence)),
                 now, Sense.Report);
+            return true;
         }
 
         private bool ShouldAcceptIndirectEvidence(Vector3 position, float confidence,
