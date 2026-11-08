@@ -400,6 +400,11 @@ internal static class Program
             Console.Error.WriteLine("NPC_CAMP_STOCK_POLICY_FAILED: unauthorized native stockpile delivery.");
             return 36;
         }
+        if (!CampWithdrawalTests.Run())
+        {
+            Console.Error.WriteLine("NPC_CAMP_WITHDRAW_FAILED: invalid native item custody or cross-wall loot.");
+            return 37;
+        }
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
