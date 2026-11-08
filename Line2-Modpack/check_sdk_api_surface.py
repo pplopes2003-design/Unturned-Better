@@ -23,6 +23,9 @@ REQUIREMENTS = (
      ("Line2NpcFloorGeometry.TryFindStaticSupport",
       "leaderGroup.Faction != _group.Faction",
       "_actor.UnderVerifiedSuppression")),
+    ("Line2-Modpack/ClientModule/SteamNpcPrototypeRuntime.cs",
+     ("else if (!Line2NpcCombatTotalPolicy.Enabled(_combatMode)",
+      "TryReceiveVerifiedCombatSquadContact")),
     # Combat Total squad intelligence is real, finite, one-hop and
     # cannot create unseen aim targets or bypass original A* geometry.
     ("Line2-Modpack/ClientModule/Line2NpcCombatTotalSquadPolicy.cs",
