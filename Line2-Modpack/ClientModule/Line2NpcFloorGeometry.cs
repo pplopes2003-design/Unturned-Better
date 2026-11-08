@@ -13,7 +13,7 @@ namespace Unturned2.Line2
     /// </summary>
     internal static class Line2NpcFloorGeometry
     {
-        internal const int SupportMask = RayMasks.GROUND |
+        internal static readonly int SupportMask = RayMasks.GROUND |
             RayMasks.GROUND2 | RayMasks.LARGE | RayMasks.MEDIUM |
             RayMasks.ENVIRONMENT | RayMasks.STRUCTURE;
 
