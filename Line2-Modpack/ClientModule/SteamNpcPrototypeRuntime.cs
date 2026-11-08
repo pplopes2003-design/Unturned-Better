@@ -931,6 +931,8 @@ namespace Unturned2.Line2
         private float _aiValidUntil;
         private Vector3? _lastKnownThreat;
         private float _lastSeenAt;
+        private float _lastSuppressedAt = -100f;
+        private Vector3 _lastVerifiedSuppressingShooter;
         // Vanilla NPC_Client has anatomical ENTITY trigger volumes: a
         // first-hit Physics.Raycast against ~0 can strike our own arm and
         // incorrectly report that the player behind it is invisible.
@@ -987,7 +989,10 @@ namespace Unturned2.Line2
         internal bool IsDead { get { return _vitals != null && _vitals.IsDead; } }
         internal float HealthFraction { get { return _vitals != null ? _vitals.HealthFraction : 1f; } }
         internal bool RecentlyDamaged { get { return _vitals != null && Time.time - _vitals.LastDamageAt < 5f; } }
-        internal bool HasVerifiedCover { get { return RecentlyDamaged && _coverPlanner != null && _coverPlanner.HasCover; } }
+        internal bool HasVerifiedCover { get { return
+            (RecentlyDamaged ||
+             Line2NpcSuppressionPolicy.IsCurrent(Time.time, _lastSuppressedAt)) &&
+             _coverPlanner != null && _coverPlanner.HasCover; } }
         private Vector3 _goal;
         private Vector3 _home;
         private float _nextThink;
@@ -1055,6 +1060,8 @@ namespace Unturned2.Line2
             _aiAction = null;
             _lastKnownThreat = null;
             _lastSeenAt = -100f;
+            _lastSuppressedAt = -100f;
+            _lastVerifiedSuppressingShooter = Vector3.zero;
             _lastGunshotAt = -100f;
             _lastFootstepAt = -100f;
             _lastRadioAt = -100f;
@@ -1247,6 +1254,43 @@ namespace Unturned2.Line2
                 !Level.checkSafeIncludingClipVolumes(verifiedPoint))
                 return false;
             return _tactics.TryStartRaidStaging(verifiedPoint, Time.time);
+        }
+
+        /// <summary>Real NPC gunfire that missed still creates audible,
+        /// short-lived combat pressure. Call ONLY after the native
+        /// inventory has debited a shot against this personally visible
+        /// hostile actor. It cannot deal damage or give us direct sight
+        /// of an enemy we did not see.</summary>
+        internal bool TryRegisterVerifiedSuppressingShot(
+            PrototypeActor shooter, float firedAt)
+        {
+            if (!IsCombatEnabled || IsDead || _combatMode == "passive" ||
+                shooter == null || shooter == this || shooter.IsDead ||
+                !Provider.isServer || Dedicator.IsDedicatedServer ||
+                !Level.isLoaded)
+                return false;
+            Line2NPCCombatPerception sensor =
+                shooter.GetComponent<Line2NPCCombatPerception>();
+            float distance = Vector3.Distance(
+                shooter.transform.position, transform.position);
+            bool verified = sensor != null &&
+                sensor.CanEngageNpcTarget(this) &&
+                sensor.HasVerifiedSight(transform,
+                    Line2NPCCombatPerception.TargetKind.Npc,
+                    Line2NpcSuppressionPolicy.MaximumAudiblePressureDistance);
+            if (!Line2NpcSuppressionPolicy.CanReport(
+                true, verified, true, false, distance,
+                firedAt, _lastSuppressedAt))
+                return false;
+
+            _lastVerifiedSuppressingShooter = shooter.transform.position;
+            _lastSuppressedAt = firedAt;
+            _tactics.ReportIncomingFire(firedAt);
+            // A nearby actual muzzle report interrupts waiting in ambush,
+            // but does not invent an exact future movement/aim point.
+            _ambushVictim = null;
+            _ambushArmedUntil = 0f;
+            return true;
         }
 
         internal void HearVerifiedGunshot(Vector3 position, float heardAt)
@@ -1459,18 +1503,27 @@ namespace Unturned2.Line2
                     (player.transform.position - transform.position).sqrMagnitude < 32f * 32f;
                 string validSuggestion = _aiAction != null &&
                     Time.realtimeSinceStartup <= _aiValidUntil ? _aiAction : null;
+                bool suppressedByVerifiedShot =
+                    Line2NpcSuppressionPolicy.IsCurrent(
+                        Time.time, _lastSuppressedAt);
+                bool hasVerifiedThreatOrigin =
+                    RecentlyDamaged && _vitals != null &&
+                    _vitals.HasVerifiedDamageOrigin;
+                bool shouldDefend = hasVerifiedThreatOrigin ||
+                    suppressedByVerifiedShot;
+                Vector3 defenseSource = hasVerifiedThreatOrigin
+                    ? _vitals.LastDamageOrigin
+                    : _lastVerifiedSuppressingShooter;
                 bool hasCover = false;
                 _hasRetreat = false;
-                if (RecentlyDamaged && _vitals != null &&
-                    _vitals.HasExplosionOrigin && _coverPlanner != null)
+                if (shouldDefend && _coverPlanner != null)
                 {
-                    _coverPlanner.TryGetDefense(_vitals.LastDamageOrigin,
+                    _coverPlanner.TryGetDefense(defenseSource,
                         out _coverGoal, out _retreatGoal);
                     hasCover = _coverPlanner.HasCover;
                     _hasRetreat = _coverPlanner.HasRetreat;
                 }
-                if (RecentlyDamaged && _vitals != null &&
-                    _vitals.HasExplosionOrigin && _combatMode != "passive" &&
+                if (shouldDefend && _combatMode != "passive" &&
                     (_disposition == "hostile" || _disposition == "friendly"))
                 {
                     // A physically blocked point cannot immediately become
@@ -1488,8 +1541,17 @@ namespace Unturned2.Line2
                         (_retreatGoal - _lastFailedTacticalPoint).sqrMagnitude < 5f)
                         _hasRetreat = false;
                     Vector3? coverPoint = hasCover ? (Vector3?)_coverGoal : null;
+                    bool canReturnFire = _rangedExecutor != null &&
+                        _rangedExecutor.HasUsableGun &&
+                        _combatPerception != null &&
+                        _combatPerception.Kind !=
+                            Line2NPCCombatPerception.TargetKind.None &&
+                        _combatPerception.VisibleTarget != null &&
+                        _combatPerception.HasVerifiedSight(
+                            _combatPerception.VisibleTarget,
+                            _combatPerception.Kind, 35f);
                     _tactics.TryChooseDefensiveGoal(transform.position,
-                        coverPoint, _vitals.LastDamageOrigin, Time.time, false);
+                        coverPoint, defenseSource, Time.time, canReturnFire);
                     if (_tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Retreat &&
                         !_tactics.HasTacticalDestination && _hasRetreat)
                         _tactics.ReportValidatedRetreatPoint(_retreatGoal, Time.time);
@@ -1599,7 +1661,7 @@ namespace Unturned2.Line2
                     // geometry, while A* separately owns route feasibility.
                     HasRealHealth = _vitals != null,
                     HealthFraction = HealthFraction,
-                    UnderFire = RecentlyDamaged,
+                    UnderFire = RecentlyDamaged || suppressedByVerifiedShot,
                     HasVerifiedCover = hasCover,
                     RemoteSuggestion = validSuggestion
                 };
