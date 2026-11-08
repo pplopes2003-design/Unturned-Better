@@ -18,6 +18,7 @@ namespace Unturned2.Line2
     internal sealed class Line2NpcCampStockpile : MonoBehaviour
     {
         private const float DeliveryInterval = 7.5f;
+        private const int MaxLineHits = 16;
         private static float _nextWorldTransferAt;
         private PrototypeActor _actor;
         private SteamNpcPrototypeRuntime _runtime;
@@ -28,6 +29,8 @@ namespace Unturned2.Line2
         private Line2NPCCombatPerception _sight;
         private readonly Line2NpcNativeCampRegistry _nativeCamp =
             new Line2NpcNativeCampRegistry();
+        private readonly RaycastHit[] _sightHits =
+            new RaycastHit[MaxLineHits];
         private float _nextAt;
         private float _nextDeliveryTripAt;
 
@@ -68,6 +71,31 @@ namespace Unturned2.Line2
                 (_sight == null ||
                  _sight.Kind == Line2NPCCombatPerception.TargetKind.None ||
                  _sight.VisibleTarget == null);
+        }
+
+        private bool HasPhysicalAccess(Transform storageRoot)
+        {
+            if (storageRoot == null) return false;
+            Vector3 eye = transform.position + Vector3.up * 1.25f;
+            Vector3 point = storageRoot.position + Vector3.up * 0.85f;
+            Vector3 toward = point - eye;
+            float length = toward.magnitude;
+            if (length < 0.12f || length > 4.0f) return false;
+            int hits = Physics.RaycastNonAlloc(eye, toward / length,
+                _sightHits, length,
+                RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+            if (hits >= MaxLineHits) return false;
+            for (int i = 0; i < hits; i++)
+            {
+                Transform hit = _sightHits[i].transform;
+                _sightHits[i] = default(RaycastHit);
+                if (hit == null || hit == transform ||
+                    hit.IsChildOf(transform) ||
+                    hit == storageRoot || hit.IsChildOf(storageRoot))
+                    continue;
+                return false;
+            }
+            return true;
         }
 
         private bool ShouldTransfer(Item item, ItemAsset asset)
@@ -163,7 +191,8 @@ namespace Unturned2.Line2
             bool same = _group.Faction ==
                 Line2NPCFactionPolicy.DefaultForRole(_actor.Disposition);
             if (!Line2NpcCampSupplyPolicy.MayDeliver(Authorized(), same,
-                true, false, true, false, false, distance))
+                true, HasPhysicalAccess(storage.transform),
+                false, true, false, false, distance))
                 return;
 
             for (int i = _inventory.UsedSlots - 1; i >= 0; --i)
