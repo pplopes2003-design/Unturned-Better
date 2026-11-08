@@ -203,11 +203,22 @@ namespace Unturned2.Line2
             Line2NPCGroupMember self = _owner.GetComponent<Line2NPCGroupMember>();
             Line2NPCGroupMember other =
                 candidate.GetComponent<Line2NPCGroupMember>();
-            if (self != null && self.Joined && other != null && other.Joined)
+            bool bothJoined = self != null && self.Joined &&
+                other != null && other.Joined;
+            if (Line2NpcCombatTotalPolicy.Enabled(_owner.CombatMode))
+                return Line2NpcCombatTotalSquadPolicy.CanEngageRival(
+                    true, bothJoined,
+                    self != null ? self.GroupId : 0,
+                    other != null ? other.GroupId : 0,
+                    self != null ? self.Faction :
+                        Line2NPCFactionPolicy.Id.Scavengers,
+                    other != null ? other.Faction :
+                        Line2NPCFactionPolicy.Id.Scavengers);
+            if (bothJoined)
                 return Line2NPCFactionPolicy.AreHostile(
                     self.Faction, other.Faction);
-            // Only a genuinely ungrouped prototype uses the legacy role
-            // fallback; neutral NPCs never become arbitrary targets.
+            // Normal mode only: legacy ungrouped role compatibility.
+            // Combat Total must NEVER attack a missing/invalid group.
             return Line2NPCCombatRules.AreOpposed(
                 _owner.Disposition, candidate.Disposition, _owner.CombatMode);
         }
