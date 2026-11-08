@@ -231,6 +231,7 @@ namespace Unturned2.Line2
             // toward a previously sighted rival NPC may create pressure.
             // A miss cannot silently injure a target or grant omniscient
             // knowledge of the attacker's future location.
+            bool suppressionCommitted = false;
             if (pelletHits == 0 &&
                 kind == Line2NPCCombatPerception.TargetKind.Npc &&
                 target != null)
@@ -238,7 +239,9 @@ namespace Unturned2.Line2
                 PrototypeActor rival =
                     target.GetComponentInParent<PrototypeActor>();
                 if (rival != null && !rival.IsDead)
-                    rival.TryRegisterVerifiedSuppressingShot(_actor, Time.time);
+                    suppressionCommitted =
+                        rival.TryRegisterVerifiedSuppressingShot(
+                            _actor, Time.time);
             }
 
             if (_burstRemaining <= 1)
@@ -272,8 +275,10 @@ namespace Unturned2.Line2
             {
                 ProbeLogger.Log("NPC_RANGED_SHOT: actor=" + _actor.Identity +
                     " nativeGun=" + gun.id + " ammo=" + left +
+                    " firemode=" + nativeMode +
                     " pelletHits=" + pelletHits + "/" + pellets +
-                    " spreadDeg=" + spread.ToString("F1"));
+                    " spreadDeg=" + spread.ToString("F1") +
+                    " nearMissSuppressed=" + suppressionCommitted);
                 _nextLogAt = Time.time + 12f;
             }
         }
