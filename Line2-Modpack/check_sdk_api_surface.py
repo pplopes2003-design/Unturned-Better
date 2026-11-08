@@ -11,6 +11,18 @@ ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "Line2-Modpack" / "ClientModule"
 
 REQUIREMENTS = (
+    # Combat Total cannot engage a team mate or an unknown-group actor,
+    # and ordinary regroup cannot use a non-floor or ignore live fire.
+    ("Line2-Modpack/ClientModule/Line2NPCCombatPerception.cs",
+     ("Line2NpcCombatTotalSquadPolicy.CanEngageRival",
+      "Line2NPCCombatRules.AreOpposed")),
+    ("Line2-Modpack/ClientModule/Line2NpcCombatTotalSquadPolicy.cs",
+     ("CanEngageRival", "ownGroupId != rivalGroupId",
+      "Line2NPCFactionPolicy.AreHostile")),
+    ("Line2-Modpack/ClientModule/Line2NpcSquadRegroup.cs",
+     ("Line2NpcFloorGeometry.TryFindStaticSupport",
+      "leaderGroup.Faction != _group.Faction",
+      "_actor.UnderVerifiedSuppression")),
     # Combat Total squad intelligence is real, finite, one-hop and
     # cannot create unseen aim targets or bypass original A* geometry.
     ("Line2-Modpack/ClientModule/Line2NpcCombatTotalSquadPolicy.cs",
