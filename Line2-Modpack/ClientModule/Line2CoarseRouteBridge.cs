@@ -163,6 +163,7 @@ namespace Unturned2.Line2
             RaycastHit ground;
             if (!Physics.Raycast(estimate + Vector3.up * 2.1f, Vector3.down,
                 out ground, 4.8f, Line2NpcFloorGeometry.SupportMask, QueryTriggerInteraction.Ignore) ||
+                !Line2NpcFloorGeometry.IsStaticFloorCandidate(ground.collider) ||
                 ground.normal.y < 0.70f || !Finite(ground.point))
                 return false;
             // A same-surface coarse planner must not jump to another storey
@@ -243,6 +244,7 @@ namespace Unturned2.Line2
                 if (!Physics.Raycast(expected + Vector3.up * 1.35f,
                     Vector3.down, out ground, 2.75f, Line2NpcFloorGeometry.SupportMask,
                     QueryTriggerInteraction.Ignore) ||
+                    !Line2NpcFloorGeometry.IsStaticFloorCandidate(ground.collider) ||
                     ground.normal.y < 0.70f ||
                     Mathf.Abs(ground.point.y - expected.y) > 0.57f)
                     return false;
