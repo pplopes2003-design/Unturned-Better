@@ -33,6 +33,7 @@ namespace Unturned2.Line2
         private uint _lastDeniedID;
         private float _lastDeniedUntil;
         private uint _observedItemID;
+        private EItemType _observedItemType;
         private Vector3 _observedItemPoint;
         private float _observedGoalExpires;
         private float _nextScavengeSearchAt;
@@ -242,7 +243,8 @@ namespace Unturned2.Line2
         /// establish every reachable path and Player combat preempts search.
         /// No guessed spawn-site loot becomes an item.
         /// </summary>
-        internal bool TryGetObservedScavengeGoal(out Vector3 goal)
+        internal bool TryGetObservedScavengeGoal(out Vector3 goal,
+            bool essentialsOnly = false)
         {
             goal = Vector3.zero;
             if (!CanPlanScavenge())
@@ -253,6 +255,13 @@ namespace Unturned2.Line2
             float now = Time.time;
             if (_observedItemID != 0)
             {
+                if (essentialsOnly && _observedItemType != EItemType.FOOD &&
+                    _observedItemType != EItemType.WATER &&
+                    _observedItemType != EItemType.MEDICAL)
+                {
+                    AbandonObservedGoal();
+                    return false;
+                }
                 if (now >= _observedGoalExpires ||
                     !Line2NpcLootClaims.TryAcquire(
                         _observedItemID, ClaimOwner, now))
@@ -281,6 +290,7 @@ namespace Unturned2.Line2
             Regions.getRegionsInRadius(current,
                 SightScavengeRadius + 2f, _regions);
             uint bestID = 0;
+            EItemType bestType = default(EItemType);
             Vector3 bestPoint = Vector3.zero;
             float highest = 52f;
             int checkedCount = 0;
@@ -311,7 +321,11 @@ namespace Unturned2.Line2
                         Mathf.Abs(displacement.y) > 1.25f) continue;
                     ItemAsset asset = Assets.find(EAssetType.ITEM,
                         item.item.id) as ItemAsset;
-                    if (asset == null || asset.isPro) continue;
+                    if (asset == null || asset.isPro ||
+                        (essentialsOnly && asset.type != EItemType.FOOD &&
+                         asset.type != EItemType.WATER &&
+                         asset.type != EItemType.MEDICAL))
+                        continue;
                     float value = Score(asset) - distance * 1.1f;
                     if (value <= highest) continue;
                     ItemDrop physical;
@@ -320,6 +334,7 @@ namespace Unturned2.Line2
                         !HasFirsthandWorldItemSight(physical.model))
                         continue;
                     bestID = item.instanceID;
+                    bestType = asset.type;
                     bestPoint = item.point;
                     highest = value;
                 }
@@ -328,6 +343,7 @@ namespace Unturned2.Line2
                 !Line2NpcLootClaims.TryAcquire(bestID, ClaimOwner, now))
                 return false;
             _observedItemID = bestID;
+            _observedItemType = bestType;
             _observedItemPoint = bestPoint;
             _observedGoalExpires = now +
                 Mathf.Clamp(Vector3.Distance(current, bestPoint) * 3f +
