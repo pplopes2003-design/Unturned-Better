@@ -32,6 +32,8 @@ namespace Unturned2.Line2
         private float _reloadCompleteAt;
         private float _nextLogAt;
         private int _burstRemaining;
+        private uint _activeGunInstance;
+        private byte _activeGunFiremode;
         private bool _waitingBurstPause;
 
         internal bool HasUsableGun { get; private set; }
@@ -97,6 +99,26 @@ namespace Unturned2.Line2
             if (loadedMagazine == null ||
                 !loadedMagazine.CalibersContainAnyOfIds(gun.magazineCalibers))
                 return;
+
+            // Respect the actual native firemode encoded in this exact
+            // owned gun instance. Safety is not an automatic weapon and
+            // a semi-only rifle cannot magically fire multi-shot bursts.
+            byte nativeMode = owned.state[GunStateIndices.FIREMODE];
+            bool semi = nativeMode == (byte)EFiremode.SEMI && gun.hasSemi;
+            bool burst = nativeMode == (byte)EFiremode.BURST && gun.hasBurst;
+            bool automatic = nativeMode == (byte)EFiremode.AUTO && gun.hasAuto;
+            int cycle = Line2NpcFireModePolicy.ShotsInCycle(
+                semi, burst, automatic, gun.bursts,
+                UnityEngine.Random.Range(2, 6));
+            if (cycle == 0) return;
+            if (_activeGunInstance != gunId ||
+                _activeGunFiremode != nativeMode)
+            {
+                _activeGunInstance = gunId;
+                _activeGunFiremode = nativeMode;
+                _burstRemaining = cycle;
+                _acquiredTarget = null; // New physical gun requires reaction.
+            }
 
             int rounds = owned.state[GunStateIndices.AMMO];
             if (rounds < gun.ammoPerShot)
@@ -212,9 +234,15 @@ namespace Unturned2.Line2
 
             if (_burstRemaining <= 1)
             {
-                _burstRemaining = UnityEngine.Random.Range(2, 6);
+                _burstRemaining = Line2NpcFireModePolicy.ShotsInCycle(
+                    semi, burst, automatic, gun.bursts,
+                    UnityEngine.Random.Range(2, 6));
                 _waitingBurstPause = true;
-                _nextShotAt = Time.time + UnityEngine.Random.Range(0.55f, 1.3f);
+                // Semi mode has a human trigger-reset delay, while
+                // native burst and auto modes regroup between volleys.
+                _nextShotAt = Time.time + (semi
+                    ? UnityEngine.Random.Range(0.38f, 0.82f)
+                    : UnityEngine.Random.Range(0.55f, 1.3f));
             }
             else
             {
