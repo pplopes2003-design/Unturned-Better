@@ -380,6 +380,11 @@ internal static class Program
             Console.Error.WriteLine("NPC_SQUAD_MORALE_FAILED: group death permitted blind retreat.");
             return 32;
         }
+        if (!LootClaimTests.Run())
+        {
+            Console.Error.WriteLine("NPC_LOOT_CLAIM_FAILED: exclusive item target lease / expiry.");
+            return 33;
+        }
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
