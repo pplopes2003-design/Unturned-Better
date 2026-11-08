@@ -11,6 +11,30 @@ ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "Line2-Modpack" / "ClientModule"
 
 REQUIREMENTS = (
+    # Real Steam-safe NPC firearm presentation and fire-control integration.
+    # The original Line 1 model used an INTERNAL ItemTool overload that a
+    # separately compiled module may not invoke.
+    ("Assets/Runtime/Assembly-CSharp/Unturned/Utils/Layerer.cs",
+     ("public static void enemy(Transform target)",)),
+    ("Assets/Runtime/Assembly-CSharp/Unturned/Bundles/ItemAsset.cs",
+     ("public GameObject item =>", "public GameObject equipablePrefab;")),
+    ("Line2-Modpack/ClientModule/Unturned2.Line2.Probe.csproj",
+     ("UnityEngine.AudioModule.dll",)),
+    ("Line2-Modpack/ClientModule/Line2NpcWeaponPresentation.cs",
+     ("Line2MobileNPCInventory", "Right_Hook", "Layerer.enemy",
+      "OnShotFired", "OnReloadStarted", "OnMeleeCommitted",
+      "OneShotAudioParameters", "c.enabled = false")),
+    ("Line2-Modpack/ClientModule/Line2NPCRangedExecutor.cs",
+     ("Line2NpcFireCadencePolicy.RetainTarget",
+      "Line2NpcFireCadencePolicy.MayFire",
+      "ShotFired?.Invoke(gun)", "ReloadStarted?.Invoke(gun)")),
+    ("Line2-Modpack/ClientModule/Line2NPCMeleeExecutor.cs",
+     ("AttackCommitted?.Invoke",)),
+    ("Line2-Modpack/ClientModule/SteamNpcPrototypeRuntime.cs",
+     ("AddComponent<Line2NpcWeaponPresentation>()",
+      "Line2NpcFiringPositionPolicy.ShouldHoldPosition",
+      "Line2NpcFiringPositionPolicy.CanSeekReloadCover",
+      "_tactics.TryStartReloadCover")),
     # Full physical collision includes CLIP and VEHICLE, which native
     # DAMAGE_SERVER intentionally omits. Combat must still respect both.
     ("Assets/Runtime/Assembly-CSharp/Unturned/Utils/RayMasks.cs",
