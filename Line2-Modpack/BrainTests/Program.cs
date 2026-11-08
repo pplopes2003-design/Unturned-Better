@@ -375,6 +375,11 @@ internal static class Program
             Console.Error.WriteLine("NPC_ENCOUNTER_PACING_FAILED: speculative search capacity or map expiry.");
             return 31;
         }
+        if (!SquadMoraleTests.Run())
+        {
+            Console.Error.WriteLine("NPC_SQUAD_MORALE_FAILED: group death permitted blind retreat.");
+            return 32;
+        }
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
