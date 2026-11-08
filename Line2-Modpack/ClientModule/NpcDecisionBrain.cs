@@ -23,6 +23,7 @@ namespace Unturned2.Line2
         internal bool IsHostile;
         internal bool IsFriendly;
         internal bool PassiveMode;
+        internal bool CombatOnlyMode;
         internal bool PlayerNearby;
         internal bool ThreatVisible;
         internal bool HasRecentMemory;
@@ -74,10 +75,12 @@ namespace Unturned2.Line2
                     ? NpcIntent.Follow : NpcIntent.Patrol;
             }
             else if (input.HasRealHealth && input.UnderFire &&
-                     input.HealthFraction < 0.30f)
+                     input.HealthFraction <
+                        (input.CombatOnlyMode ? 0.09f : 0.30f))
             {
-                // A real hit/health interface must be wired before this is
-                // available in Steam. The prototype never fabricates wounds.
+                // Match Line 1 CombatOnly tactical risk appetite:
+                // survive longer under fire (9% critical vs Normal 30%).
+                // Still require real damage and authoritative health.
                 desired = NpcIntent.Retreat;
                 urgent = true;
             }
