@@ -33,6 +33,7 @@ namespace Unturned2.Line2
         private bool _restoreLoaded;
         private bool _saveAllowed;
         private bool _saveSourceVerified;
+        private bool _orphanCampCleanupDone;
         private bool _restoringActor;
         private int _restoreCapacity;
         private float _nextSaveAt;
@@ -108,6 +109,7 @@ namespace Unturned2.Line2
                 _restoreLoaded = false;
                 _saveAllowed = false;
                 _saveSourceVerified = false;
+                _orphanCampCleanupDone = false;
                 _pendingRestore.Clear();
                 _pendingReplacements.Clear();
                 return;
@@ -123,6 +125,7 @@ namespace Unturned2.Line2
                 _restoreLoaded = false;
                 _saveAllowed = false;
                 _saveSourceVerified = false;
+                _orphanCampCleanupDone = false;
                 _pendingRestore.Clear();
                 _pendingReplacements.Clear();
             }
@@ -194,6 +197,7 @@ namespace Unturned2.Line2
                 return;
             }
             if (!_saveAllowed) return;
+            RetireOrphanedSavedCampsAfterRestore();
             if (_natural && _pendingReplacements.Count > 0 &&
                 Time.time >= _nextReplacementAttemptAt)
                 TryProcessReplacement();
@@ -207,6 +211,34 @@ namespace Unturned2.Line2
             if (ActiveCount + _pendingReplacements.Count >= _cap) return;
             string ignored;
             TrySpawn(ChooseNaturalRole(), 1, out ignored);
+        }
+
+        private void RetireOrphanedSavedCampsAfterRestore()
+        {
+            if (_orphanCampCleanupDone || !_saveSourceVerified ||
+                !_saveAllowed || _pendingRestore.Count != 0) return;
+            _orphanCampCleanupDone = true;
+            // Only after ALL saved survivors have had an opportunity to
+            // rejoin their real historical groups can we distinguish
+            // already-extinct camps from still-unloaded living owners.
+            List<Line2NpcPersistence.SettlementRecord> records =
+                Line2NpcSettlementLedger.Capture();
+            int retired = 0;
+            foreach (Line2NpcPersistence.SettlementRecord site in records)
+            {
+                if (site == null || site.groupId <= 0) continue;
+                PrototypeActor member;
+                if (Line2NPCGroupMember.TryGetLivingMember(
+                    site.groupId, out member))
+                    continue;
+                if (Line2NpcSettlementLedger.RetireExtinctGroup(
+                    site.groupId, true))
+                    retired++;
+            }
+            if (retired == 0) return;
+            ProbeLogger.Log("NPC_ORPHAN_CAMP_MANIFESTS_RETIRED: " +
+                retired + " (native structures preserved as ruins)");
+            RequestPriorityCheckpoint();
         }
 
         private float _nextRestoreLogAt;
