@@ -989,6 +989,14 @@ namespace Unturned2.Line2
         internal bool IsDead { get { return _vitals != null && _vitals.IsDead; } }
         internal float HealthFraction { get { return _vitals != null ? _vitals.HealthFraction : 1f; } }
         internal bool RecentlyDamaged { get { return _vitals != null && Time.time - _vitals.LastDamageAt < 5f; } }
+        internal bool UnderVerifiedSuppression
+        {
+            get
+            {
+                return Line2NpcSuppressionPolicy.IsCurrent(
+                    Time.time, _lastSuppressedAt);
+            }
+        }
         internal bool HasVerifiedCover { get { return
             (RecentlyDamaged ||
              Line2NpcSuppressionPolicy.IsCurrent(Time.time, _lastSuppressedAt)) &&
