@@ -30,6 +30,8 @@ internal static class Program
             return 1;
         }
 
+        if (!NativeArrivalTests.Run())
+            return 63;
         if (!SquadRoleTests.Run())
             return 60;
         if (!FireCadenceTests.Run())
