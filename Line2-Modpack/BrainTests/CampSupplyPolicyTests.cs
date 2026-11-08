@@ -20,6 +20,7 @@ internal static class CampSupplyPolicyTests
             May(authorized:false) ||
             May(group:false) ||
             May(storage:false) ||
+            May(sight:false) ||
             May(combat:true) ||
             May(spare:false) ||
             May(needy:true) ||
