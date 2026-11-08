@@ -10,7 +10,7 @@ internal static class CampSupplyPolicyTests
         float meters = 2f)
     {
         return Line2NpcCampSupplyPolicy.MayDeliver(
-            authorized, group, storage, combat, spare,
+            authorized, group, storage, sight, combat, spare,
             needy, vendor, meters);
     }
 
