@@ -151,7 +151,19 @@ namespace Unturned2.Line2
                     false, true, current, point, now, lastAt))
                     continue;
 
-                zombie.alert(point, false); // vanilla point target + Seeker
+                // An incompatible Steam zombie subtype must never be able
+                // to throw out of the native firearm's own event dispatch.
+                try { zombie.alert(point, false); }
+                catch (Exception error)
+                {
+                    if (now >= _nextLogAt)
+                    {
+                        _nextLogAt = now + 12f;
+                        ProbeLogger.Log("ZOMBIE_SOUND_NATIVE_ALERT_REJECTED: " +
+                            error.GetType().Name);
+                    }
+                    continue;
+                }
                 if (!zombie.isHunting) continue;
                 _lastSoundAt[id] = now;
                 if (_active.Count < MaxTracked)
@@ -287,7 +299,23 @@ namespace Unturned2.Line2
                 {
                     // Native Zombie.alert only adopts closer point targets
                     // while already hunting. Policy verifies the range first.
-                    z.alert(better, false);
+                    try { z.alert(better, false); }
+                    catch (Exception error)
+                    {
+                        observation.revisions++;
+                        observation.lastProgressAt = Time.time;
+                        if (observation.revisions >=
+                            Line2ZombieSoundPolicy.MaxRouteRevisions)
+                            _active.Remove(id);
+                        else _active[id] = observation;
+                        if (Time.time >= _nextLogAt)
+                        {
+                            _nextLogAt = Time.time + 12f;
+                            ProbeLogger.Log("ZOMBIE_SOUND_REPATH_FAILED: " +
+                                error.GetType().Name);
+                        }
+                        continue;
+                    }
                     observation.currentGoal = better;
                     observation.lastObserved = actual;
                     observation.lastProgressAt = Time.time;
