@@ -26,6 +26,7 @@ namespace Unturned2.Line2
         private PrototypeActor _actor;
         private Line2NPCGroupMember _group;
         private Line2NpcNeeds _needs;
+        private Line2MobileNPCInjurySystem _injuries;
         private Line2NpcSettlementBuilder _builder;
         private Line2NpcCampStockpile _stockpile;
         private Line2NpcWorldLootCollector _collector;
@@ -67,6 +68,7 @@ namespace Unturned2.Line2
             _actor = actor;
             _group = GetComponent<Line2NPCGroupMember>();
             _needs = GetComponent<Line2NpcNeeds>();
+            _injuries = GetComponent<Line2MobileNPCInjurySystem>();
             _routeFollower = GetComponent<PrototypeAStarFollower>();
             _stockpile = GetComponent<Line2NpcCampStockpile>();
             _hasDestination = false;
@@ -124,9 +126,12 @@ namespace Unturned2.Line2
                 _collector = GetComponent<Line2NpcWorldLootCollector>();
             bool depleted = (_needs != null && _needs.IsUrgent) ||
                 _actor.HealthFraction < 0.38f;
+            bool needsResupply = (_needs != null &&
+                (_needs.Hunger < 48f || _needs.Thirst < 48f)) ||
+                (_injuries != null && _injuries.NeedsMedicalAttention);
             if (_job == Job.FetchEmergencyStock && _hasDestination)
             {
-                if (!depleted)
+                if (!needsResupply)
                     ClearGoal(true);
                 else if (Time.time >= _expiresAt ||
                     ObserveRoutineHealth(current, _destination) ==
@@ -214,6 +219,15 @@ namespace Unturned2.Line2
             }
             if (Time.time < _nextSelectionAt) return false;
             _nextSelectionAt = Time.time + 9f;
+            Vector3 restock;
+            if (_stockpile != null && needsResupply &&
+                _actor.CombatMode != "total" &&
+                _stockpile.TryGetEmergencySupplyGoalServer(out restock))
+            {
+                _job = Job.FetchEmergencyStock;
+                _destination = restock;
+                return Commit(restock, out goal);
+            }
             Vector3 depot;
             if (_stockpile != null && _actor.CombatMode != "total" &&
                 _stockpile.TryGetDeliveryGoalServer(out depot))
