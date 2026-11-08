@@ -176,7 +176,9 @@ namespace Unturned2.Line2
             int tick = ++_tick;
             foreach (PrototypeActor actor in _actors)
             {
-                if (actor == null || !actor.isActiveAndEnabled) continue;
+                if (actor == null || actor.IsDead ||
+                    !actor.isActiveAndEnabled ||
+                    string.IsNullOrEmpty(actor.Identity)) continue;
                 if (_pendingActors.ContainsKey(actor.Identity)) continue;
 
                 bool visible;
@@ -268,7 +270,13 @@ namespace Unturned2.Line2
                 foreach (Decision decision in response.decisions)
                 {
                     PrototypeActor actor = _pendingActors[decision.agent_id];
-                    if (actor == null || !actor.isActiveAndEnabled) continue;
+                    // Restored identities and dead/despawned actors cannot
+                    // inherit a response addressed to the old actor state.
+                    // This is checked on the main thread at application time,
+                    // not merely at HTTP dispatch.
+                    if (actor == null || actor.IsDead ||
+                        !actor.isActiveAndEnabled ||
+                        actor.Identity != decision.agent_id) continue;
                     // TTL starts when this observation was sent, not when
                     // the response arrived. Network/worker latency must not
                     // extend the life of an already aging tactical order.
