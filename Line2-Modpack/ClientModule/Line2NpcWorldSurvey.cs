@@ -15,7 +15,7 @@ namespace Unturned2.Line2
     [DisallowMultipleComponent]
     internal sealed class Line2NpcWorldSurvey : MonoBehaviour
     {
-        internal enum Job { Patrol, ExploreAuthoredSite, GuardGroup, Recover, BuildSettlement }
+        internal enum Job { Patrol, ExploreAuthoredSite, GuardGroup, Recover, BuildSettlement, SeekObservedItem }
         private const int MaxSiteChecks = 80;
         private const int RecentCapacity = 6;
         private const float MinimumDestinationSq = 7f * 7f;
@@ -27,6 +27,9 @@ namespace Unturned2.Line2
         private Line2NPCGroupMember _group;
         private Line2NpcNeeds _needs;
         private Line2NpcSettlementBuilder _builder;
+        private Line2NpcWorldLootCollector _collector;
+        private PrototypeAStarFollower _routeFollower;
+        private float _unreachableLootSince;
         private Vector3 _destination;
         private Job _job;
         private bool _hasDestination;
@@ -38,18 +41,16 @@ namespace Unturned2.Line2
         private float _lastGuardAt;
         internal Job CurrentJob { get { return _job; } }
         private int _verifiedItemsCollected;
-        internal void RecordVerifiedWorldPickup()
+        internal void RecordVerifiedWorldPickup(uint instanceID)
         {
             if (!Provider.isServer || _actor == null || _actor.IsDead) return;
             _verifiedItemsCollected = Mathf.Min(1000000, _verifiedItemsCollected + 1);
-            if (_hasDestination)
-            {
-                // Confirmed native item transfer completes the locally
-                // observed site objective, not an artificial loot report.
-                Remember(_destination);
-                _hasDestination = false;
-                _nextSelectionAt = Time.time + 3f;
-            }
+            // Picking up a different nearby drop must never falsely mark
+            // a still-pending distant scavenging assignment as complete.
+            if (_hasDestination && (_job != Job.SeekObservedItem ||
+                (_collector != null &&
+                 _collector.ObservedItemID == instanceID)))
+                ClearGoal(true);
         }
 
 
@@ -58,6 +59,7 @@ namespace Unturned2.Line2
             _actor = actor;
             _group = GetComponent<Line2NPCGroupMember>();
             _needs = GetComponent<Line2NpcNeeds>();
+            _routeFollower = GetComponent<PrototypeAStarFollower>();
             _hasDestination = false;
             _nextSelectionAt = Time.time + UnityEngine.Random.Range(2.0f, 7.0f);
             _lastGuardAt = Time.time;
@@ -88,6 +90,9 @@ namespace Unturned2.Line2
 
         private void ClearGoal(bool reached)
         {
+            if (_job == Job.SeekObservedItem && _collector != null)
+                _collector.AbandonObservedGoal();
+            _unreachableLootSince = 0f;
             if (_hasDestination)
             {
                 Remember(_destination);
@@ -106,10 +111,51 @@ namespace Unturned2.Line2
                 _actor.IsRecruited || _actor.IsTacticallyRetreating)
                 return false;
             Vector3 current = transform.position;
+            if (_collector == null)
+                _collector = GetComponent<Line2NpcWorldLootCollector>();
             bool depleted = (_needs != null && _needs.IsUrgent) ||
                 _actor.HealthFraction < 0.38f;
+            if (_job == Job.SeekObservedItem && _hasDestination)
+            {
+                Vector3 actual;
+                if (_collector == null ||
+                    !_collector.TryGetObservedScavengeGoal(out actual,
+                        depleted))
+                    ClearGoal(false);
+                else
+                {
+                    // The native A* says no connected path through this
+                    // building; wait briefly for moving doors, then abandon
+                    // the specific item instead of walking into its wall.
+                    bool disconnected = _routeFollower != null &&
+                        _routeFollower.Status == "line1-no-connected-route";
+                    if (disconnected)
+                    {
+                        if (_unreachableLootSince <= 0f)
+                            _unreachableLootSince = Time.time;
+                        if (Time.time - _unreachableLootSince > 4f)
+                            ClearGoal(false);
+                    }
+                    else _unreachableLootSince = 0f;
+                    if (_hasDestination)
+                    {
+                        _destination = actual;
+                        goal = actual;
+                        return true;
+                    }
+                }
+            }
             if (depleted && _actor.CombatMode != "total")
             {
+                Vector3 essential;
+                if (_collector != null &&
+                    _collector.TryGetObservedScavengeGoal(out essential,
+                        true))
+                {
+                    _job = Job.SeekObservedItem;
+                    _destination = essential;
+                    return Commit(essential, out goal);
+                }
                 _job = Job.Recover;
                 // An urgent NPC first returns to its known home. It does not
                 // pretend that supplies are present in a nearby building.
@@ -137,6 +183,14 @@ namespace Unturned2.Line2
             }
             if (Time.time < _nextSelectionAt) return false;
             _nextSelectionAt = Time.time + 9f;
+            Vector3 usefulItem;
+            if (_collector != null &&
+                _collector.TryGetObservedScavengeGoal(out usefulItem))
+            {
+                _job = Job.SeekObservedItem;
+                _destination = usefulItem;
+                return Commit(usefulItem, out goal);
+            }
             if (_builder == null)
                 _builder = GetComponent<Line2NpcSettlementBuilder>();
             if (_builder != null &&
