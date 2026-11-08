@@ -61,6 +61,9 @@ namespace Unturned2.Line2
 
             bool witnessedContact =
                 _perception.ValidateStrike(kind, target, AttackReach);
+            if (witnessedContact &&
+                _actor.ShouldHoldPreparedAmbushShot(target))
+                return;
             if (!Line2NPCCombatRules.MayCommitHit(
                     _actor.Disposition, _actor.CombatMode,
                     !_actor.IsDead, IsLocalAuthorized(), witnessedContact))
