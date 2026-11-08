@@ -98,7 +98,16 @@ namespace Unturned2.Line2
                 Assets.find(EAssetType.ITEM, magazineId) as ItemMagazineAsset;
             if (loadedMagazine == null ||
                 !loadedMagazine.CalibersContainAnyOfIds(gun.magazineCalibers))
+            {
+                // Unloaded native firearms can have MAGAZINE_ID=0 and
+                // AMMO=0. They are still usable after acquiring a genuine
+                // compatible spare; refusing here left a newly looted gun
+                // permanently unable to participate in combat.
+                if (magazineId == 0 &&
+                    owned.state[GunStateIndices.AMMO] == 0)
+                    StartReload(gunId, gun);
                 return;
+            }
 
             // Respect the actual native firemode encoded in this exact
             // owned gun instance. Safety is not an automatic weapon and
