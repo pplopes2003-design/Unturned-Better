@@ -14,7 +14,8 @@ REQUIREMENTS = (
     # Combat Total squad intelligence is real, finite, one-hop and
     # cannot create unseen aim targets or bypass original A* geometry.
     ("Line2-Modpack/ClientModule/Line2NpcCombatTotalSquadPolicy.cs",
-     ("CanBroadcast(", "CanInvestigate(", "MaxContactRange = 35f",
+     ("CanBroadcast(", "CanInvestigate(", "CanInitiateFlank(",
+      "MaxContactRange = 35f",
       "ReportCooldown = 8f")),
     ("Line2-Modpack/ClientModule/Line2NPCRadioOutbox.cs",
      ("Line2NpcCombatTotalSquadPolicy.CanBroadcast",
@@ -25,7 +26,8 @@ REQUIREMENTS = (
       "Line2NpcCombatTotalSquadPolicy.CanInvestigate",
       "Line2NpcRadioReinforcementPolicy.TryPropose",
       "_investigationProbe.TryValidate(",
-      "_tactics.TryStartRadioReinforcement(")),
+      "_tactics.TryStartRadioReinforcement(",
+      "Line2NpcCombatTotalSquadPolicy.CanInitiateFlank(")),
     ("Line2-Modpack/BrainTests/Program.cs",
      ("CombatTotalSquadTests.Run()",)),
     # Combat Total is an opt-in independent sandbox, ported from
