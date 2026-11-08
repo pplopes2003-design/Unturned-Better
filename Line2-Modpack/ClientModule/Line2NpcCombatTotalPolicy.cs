@@ -31,6 +31,20 @@ namespace Unturned2.Line2
             return Enabled(mode) ? "hostile" : requested;
         }
 
+        /// <summary>
+        /// Like Line 1, all Combat Total soldiers are HOSTILE to the
+        /// player, but rival combat groups must not all become one allied
+        /// Raider faction. The stable group ID makes the two rival military
+        /// alignments reproducible after loading a save without inventing a
+        /// new JSON field or changing Normal faction identity.
+        /// </summary>
+        internal static Line2NPCFactionPolicy.Id FactionForGroup(int groupId)
+        {
+            return groupId > 0 && groupId % 2 == 0
+                ? Line2NPCFactionPolicy.Id.Military
+                : Line2NPCFactionPolicy.Id.Raiders;
+        }
+
         internal static bool AllowCivilianWork(string mode)
         {
             return !Enabled(mode);
