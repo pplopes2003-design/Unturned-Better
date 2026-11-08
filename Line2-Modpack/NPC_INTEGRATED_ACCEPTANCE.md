@@ -64,3 +64,21 @@ A branch de modpack recebeu implementações que avançam os critérios acima, *
 - **Zumbis contra NPCs:** a escolha de um NPC em outro andar não consome mais a oportunidade de o mesmo zumbi avaliar um NPC efetivamente alcançável no andar atual.
 
 **Testes disponíveis:** regras puras executadas em `BrainTests`, verificações Python e auditoria textual do SDK via GitHub Actions. A compilação completa contra a versão instalada do Steam, a renderização de arma na mão, a animação nativa de combate, rotas indoor reais, impacto explosivo, transferência segura de itens e raid multietapas **continuam sem comprovação de gameplay**. A aprovação automática não deve ser apresentada como homologação final dos NPCs.
+
+## Integração adicional — combate armado e apresentação Steam (08/11/2026)
+
+A comparação com a branch `feature/release-candidate-cycle-2026-11-04` identificou uma lacuna concreta no módulo Steam: o antigo `MobileNPCRangedPresentation` não estava adaptado para `ClientModule`, e o executor de tiro apagava o alvo durante o próprio cooldown.
+
+**Alterações integradas nesta branch:**
+
+- **Correção crítica do tiro:** conservar alvo confirmado durante o intervalo de recarga/cadência, sem reiniciar indefinidamente a reação inicial. O alvo ainda é abandonado quando desaparece da percepção ou o NPC inicia retirada.
+- **Teste determinístico de rajadas:** simula sucessivos disparos contra o mesmo alvo confirmado, intervalos de reação, perda de contato, retirada e timestamps inválidos.
+- **Apresentação das armas:** o adaptador `Line2NpcWeaponPresentation` usa modelos dos `ItemGunAsset`/`ItemMeleeAsset` efetivamente possuídos, sem criar itens; aplica os pontos nativos de encaixe (mão direita/esquerda, coluna/gancho), desliga colisores do modelo e reproduz o áudio de disparo/recarga apenas quando o executor confirma a ação.
+- **Posicionamento armado:** não perseguir até encostar em alvo atualmente visível quando o NPC já dispõe de uma posição válida de tiro dentro do alcance da arma. Fora do intervalo, perseguir normalmente. Retirada, cobertura, dano recente e falta de arma carregada continuam prioritários.
+- **Cobertura durante recarga:** usar unicamente ameaça confirmada localmente e ponto de cobertura fisicamente verificado; ainda requer A* nativo para alcançar o destino, não cria teletransporte nem obstáculo fictício.
+- **API do módulo:** referência a `UnityEngine.AudioModule` e auditoria de presença de encaixes, eventos, políticas de distância e ligação ao spawn real do NPC.
+- **Robustez localhost:** erro HTTP 413 após corpo ligeiramente excedente é devolvido de forma confiável no Windows, sem ler corpos de tamanho arbitrário (antes, o teste podia sofrer `ConnectionAbortedError`).
+
+**Validação disponível:** testes de políticas C# / Python e auditoria textual do SDK aprovados no GitHub Actions. **Não é uma compilação do módulo C# com as DLLs instaladas do Unturned**, nem demonstra que todo modelo e rig Workshop encaixa corretamente em uma cena Steam.
+
+**Ainda bloqueiam a homologação dos NPCs:** compilação real `ClientModule`; demonstração de tiro, animações e efeitos em gameplay; colisores/portas/janelas/escadas reais; teste de explosões e dano mútuo com zumbis; loot e comércio sem perda/duplicação; persistência após reiniciar mapa; incursões multietapas e A-Life coordenado. Esses itens permanecem sem aprovação até evidência real.
