@@ -23,6 +23,8 @@ namespace Unturned2.Line2
         private Line2NPCCombatPerception _perception;
         private PrototypeActor _actor;
         private PrototypeAnimation _animation;
+        // Visual effects follow authenticated hits, never predicted swings.
+        internal event Action<ushort> AttackCommitted;
         private Line2MobileNPCInventory _inventory;
 
         internal void Initialize(PrototypeActor actor,
@@ -169,6 +171,12 @@ namespace Unturned2.Line2
             _nextAttackAt = Time.time + cadence +
                 UnityEngine.Random.Range(-0.1f, 0.16f);
             if (_animation != null) _animation.PlayMeleeSwing();
+            try { AttackCommitted?.Invoke(armed ? heldWeapon.id : (ushort)0); }
+            catch (Exception error)
+            {
+                ProbeLogger.Log("NPC_MELEE_VISUAL_REJECTED: " +
+                    error.GetType().Name);
+            }
             if (Time.time >= _nextLogAt)
             {
                 ProbeLogger.Log("NPC_MELEE_HIT: actor=" + _actor.Identity +
