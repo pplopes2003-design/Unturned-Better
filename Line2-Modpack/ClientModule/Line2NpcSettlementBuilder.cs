@@ -16,7 +16,7 @@ namespace Unturned2.Line2
     [DisallowMultipleComponent]
     internal sealed class Line2NpcSettlementBuilder : MonoBehaviour
     {
-        private const int MaxPieces = 4;
+        private const int MaxPieces = 5; // 1 central storage + 4 perimeter barricades
         private const int MaxPlacementHits = 48;
         private const float AttemptInterval = 11f;
         private readonly Collider[] _nearby = new Collider[MaxPlacementHits];
@@ -28,6 +28,9 @@ namespace Unturned2.Line2
         private float _nextAt;
         private float _nextPlacementAt;
         private float _nextLog;
+        private float _nextNativeReconcileAt;
+        private readonly Line2NpcNativeCampRegistry _nativeCamp =
+            new Line2NpcNativeCampRegistry();
         internal void Initialize(SteamNpcPrototypeRuntime runtime,
             PrototypeActor actor, Line2NPCCombatPerception sight)
         {
@@ -38,6 +41,9 @@ namespace Unturned2.Line2
             _sight = sight;
             _nextAt = Time.time + UnityEngine.Random.Range(4f, 9f);
             _nextPlacementAt = Time.time + 25f;
+            // Give native BarricadeManager ample time to instantiate all
+            // saved pieces after map load before trying to prune old entries.
+            _nextNativeReconcileAt = Time.time + 45f;
         }
 
         private static bool Authorized()
@@ -59,11 +65,13 @@ namespace Unturned2.Line2
         }
 
         private bool HasOwnedBuildable(out ushort itemID,
-            out ItemBarricadeAsset asset)
+            out ItemBarricadeAsset asset, bool preferStorage)
         {
             itemID = 0;
             asset = null;
             if (_inventory == null) return false;
+            ushort perimeterId = 0;
+            ItemBarricadeAsset perimeter = null;
             for (int slot = 0; slot < _inventory.UsedSlots; slot++)
             {
                 Item item;
@@ -73,29 +81,34 @@ namespace Unturned2.Line2
                     item.id) as ItemBarricadeAsset;
                 if (candidate == null || candidate.barricade == null ||
                     candidate.health == 0 || !candidate.isSaveable ||
-                    candidate.isPro)
-                    continue;
-                // Conservative native ground-camp categories. Doors,
-                // storage, charges, traps, sentries and generators have
-                // extra vanilla owner/placement requirements.
+                    candidate.isPro) continue;
+
+                // A native, actually-carried STORAGE is the first group
+                // construction goal. After one has been registered, do not
+                // spend another container on the defensive perimeter.
+                if (candidate.build == EBuild.STORAGE && preferStorage)
+                {
+                    itemID = item.id;
+                    asset = candidate;
+                    return true;
+                }
                 if (candidate.build != EBuild.BARRICADE &&
                     candidate.build != EBuild.FORTIFICATION &&
                     candidate.build != EBuild.CAMPFIRE)
                     continue;
-                itemID = item.id;
-                asset = candidate;
-                return true;
+                if (perimeter != null) continue;
+                perimeterId = item.id;
+                perimeter = candidate;
             }
-            return false;
+            itemID = perimeterId;
+            asset = perimeter;
+            return asset != null;
         }
 
         internal bool TryGetConstructionGoalServer(out Vector3 goal)
         {
             goal = Vector3.zero;
-            ushort itemID;
-            ItemBarricadeAsset asset;
-            if (!IsSafeRoutine() || !HasOwnedBuildable(out itemID, out asset))
-                return false;
+            if (!IsSafeRoutine()) return false;
             Vector3 site;
             int count;
             if (!Line2NpcSettlementLedger.TryGet(_group.GroupId,
@@ -105,18 +118,35 @@ namespace Unturned2.Line2
                 if (!Line2NPCGroupMember.TryGetLivingMember(
                     _group.GroupId, out leader) || leader != _actor)
                     return false; // One planner claims the first map site.
-                if (!TryFindSafeCamp(out site) ||
+                ushort provisionalID;
+                ItemBarricadeAsset provisionalAsset;
+                if (!HasOwnedBuildable(out provisionalID, out provisionalAsset,
+                    true) || !TryFindSafeCamp(out site) ||
                     !Line2NpcSettlementLedger.TryClaim(
                         _group.GroupId, _actor.Disposition, site))
                     return false;
                 count = 0;
             }
             if (count >= MaxPieces) return false;
+            ushort carriedID;
+            ItemBarricadeAsset carriedAsset;
+            if (!HasOwnedBuildable(out carriedID, out carriedAsset,
+                !Line2NpcSettlementLedger.HasCentralStorage(
+                    _group.GroupId, _actor.Disposition)))
+                return false;
             // Keep the patrol goal anchored at the claimed campsite even
             // when already in range. Otherwise random patrol would walk the
             // worker away before its next bounded native build interval.
             goal = site;
             return true;
+        }
+
+        private bool IsLivingGroupLeader()
+        {
+            PrototypeActor leader;
+            return _group != null && _group.Joined &&
+                Line2NPCGroupMember.TryGetLivingMember(
+                    _group.GroupId, out leader) && leader == _actor;
         }
 
         private bool TryFindSafeCamp(out Vector3 site)
@@ -184,10 +214,38 @@ namespace Unturned2.Line2
         {
             if (Time.time < _nextAt) return;
             _nextAt = Time.time + AttemptInterval;
-            if (!IsSafeRoutine() || Time.time < _nextPlacementAt) return;
+            if (!IsSafeRoutine()) return;
+            Vector3 site;
+            int pieces;
+            bool hasSite = Line2NpcSettlementLedger.TryGet(
+                _group.GroupId, _actor.Disposition, out site, out pieces);
+            if (hasSite && Time.time >= _nextNativeReconcileAt &&
+                (transform.position - site).sqrMagnitude < 12f * 12f &&
+                IsLivingGroupLeader())
+            {
+                _nextNativeReconcileAt = Time.time + 40f;
+                if (Line2NpcSettlementLedger.ReconcileObservedPieces(
+                    _group.GroupId, _actor.Disposition,
+                    part =>
+                    {
+                        BarricadeDrop actual;
+                        return _nativeCamp.TryFindSavedPiece(part, out actual);
+                    }))
+                {
+                    ProbeLogger.Log("NPC_CAMP_RECONCILED: group=" +
+                        _group.GroupId +
+                        " missing destroyed native pieces removed");
+                    if (_runtime != null) _runtime.RequestPriorityCheckpoint();
+                    Line2NpcSettlementLedger.TryGet(_group.GroupId,
+                        _actor.Disposition, out site, out pieces);
+                }
+            }
+            if (Time.time < _nextPlacementAt) return;
+            bool needsStorage = !Line2NpcSettlementLedger.HasCentralStorage(
+                _group.GroupId, _actor.Disposition);
             ushort ownedID;
             ItemBarricadeAsset asset;
-            if (!HasOwnedBuildable(out ownedID, out asset))
+            if (!HasOwnedBuildable(out ownedID, out asset, needsStorage))
             {
                 // This tries ONE real native blueprint per shared cooldown;
                 // never spawns a barricade without owned ingredients.
@@ -196,12 +254,8 @@ namespace Unturned2.Line2
                     _runtime.RequestPriorityCheckpoint();
                 return;
             }
-            Vector3 site;
-            int pieces;
-            if (!Line2NpcSettlementLedger.TryGet(_group.GroupId,
-                _actor.Disposition, out site, out pieces) ||
-                pieces >= MaxPieces) return;
-            if ((transform.position - site).sqrMagnitude > 6f * 6f)
+            if (!hasSite || pieces >= MaxPieces ||
+                (transform.position - site).sqrMagnitude > 6f * 6f)
                 return;
             Vector3[] offsets =
             {
@@ -210,17 +264,38 @@ namespace Unturned2.Line2
                 new Vector3(0f, 0f, 2.75f),
                 new Vector3(0f, 0f, -2.75f)
             };
-            Vector3 requested = site + offsets[pieces];
+            bool placingStorage = asset.build == EBuild.STORAGE;
+            Vector3 requested = site;
+            float yaw = 0f;
+            if (!placingStorage)
+            {
+                // A destroyed perimeter piece leaves a HOLE, not a new
+                // sequential slot. Probe real manifest positions so the
+                // next item repairs an empty cardinal location instead of
+                // rebuilding on top of an existing native barricade.
+                bool foundEmpty = false;
+                for (int i = 0; i < offsets.Length; i++)
+                {
+                    Vector3 slot = site + offsets[i];
+                    if (Line2NpcSettlementLedger.IsPositionOccupied(
+                        _group.GroupId, _actor.Disposition, slot, 1.05f))
+                        continue;
+                    requested = slot;
+                    yaw = Mathf.Atan2(offsets[i].x,
+                        offsets[i].z) * Mathf.Rad2Deg;
+                    foundEmpty = true;
+                    break;
+                }
+                if (!foundEmpty) return;
+            }
             Vector3 position;
             if (!TryGround(requested, out position) ||
                 Mathf.Abs(position.y - site.y) > 0.65f ||
-                !ClearFootprint(position, 0.85f))
+                !ClearFootprint(position, placingStorage ? 1.1f : 0.85f))
             {
                 _nextPlacementAt = Time.time + 20f;
                 return;
             }
-            float yaw = Mathf.Atan2(offsets[pieces].x,
-                offsets[pieces].z) * Mathf.Rad2Deg;
             // Debit exactly ONE real carried buildable before invoking
             // vanilla replication/persistence. On a declined placement
             // return that same item. The NPC has no spoofed Player/SteamID.
@@ -241,15 +316,19 @@ namespace Unturned2.Line2
                     _nextPlacementAt = Time.time + 30f;
                     return;
                 }
-                if (!Line2NpcSettlementLedger.CommitPlaced(
-                    _group.GroupId, _actor.Disposition, ownedID,
-                    placed.position, yaw))
+                uint nativeID;
+                if (!_nativeCamp.TryIdentifyPlaced(placed, ownedID,
+                    out nativeID) ||
+                    !Line2NpcSettlementLedger.CommitPlaced(
+                        _group.GroupId, _actor.Disposition, ownedID,
+                        placed.position, yaw, nativeID, placingStorage))
                     ProbeLogger.Log("NPC_BUILD_LEDGER_MISMATCH: native object " +
-                        "exists; inspect before further placement");
+                        "exists but was not committed; inspect before placement");
                 _nextPlacementAt = Time.time + 95f;
                 if (_runtime != null) _runtime.RequestPriorityCheckpoint();
                 ProbeLogger.Log("NPC_NATIVE_BASE_PLACED: group=" +
                     _group.GroupId + " item=" + ownedID +
+                    " isStorage=" + placingStorage +
                     " slot=" + (pieces + 1) + "/" + MaxPieces +
                     " pos=" + placed.position.ToString("F1"));
             }
