@@ -218,7 +218,19 @@ namespace Unturned2.Line2
                 }
                 delta.y = 0f;
                 if (delta.sqrMagnitude < 0.1f)
+                {
+                    // We are horizontally aligned but on a different
+                    // floor. Do not mistake this for a reached waypoint or
+                    // freeze indefinitely on a zero horizontal heading.
+                    // Discard the route and give the native planner another
+                    // opportunity to find a connected staircase.
+                    _path.Clear();
+                    _walked.Clear();
+                    _waypoint = 0;
+                    _nextRepathAt = Time.time + 1.5f;
+                    _status = "native-vertical-waypoint-unreachable";
                     return Vector3.zero;
+                }
                 return delta.normalized;
             }
 
