@@ -295,6 +295,25 @@ internal static class Program
             Console.Error.WriteLine("NPC_VISUAL_ARC_FAILED: rear target or invalid facing.");
             return 58;
         }
+        // Native ItemMeleeAsset integration: test deterministic quality,
+        // physical reach and rate safety independently of the Steam DLL.
+        if (Math.Abs(Line2NPCCombatRules.MeleeDamage(20f, 0) - 10f) > 0.001f ||
+            Math.Abs(Line2NPCCombatRules.MeleeDamage(20f, 25) - 15f) > 0.001f ||
+            Math.Abs(Line2NPCCombatRules.MeleeDamage(20f, 100) - 20f) > 0.001f ||
+            Line2NPCCombatRules.MeleeDamage(float.NaN, 100) != 0f ||
+            Line2NPCCombatRules.MeleeDamage(50001f, 100) != 0f ||
+            Line2NPCCombatRules.MeleeDamage(-1f, 100) != 0f ||
+            Line2NPCCombatRules.MeleeReach(float.NaN) != 0f ||
+            Line2NPCCombatRules.MeleeReach(0.2f) != 0f ||
+            Math.Abs(Line2NPCCombatRules.MeleeReach(12f) - 3.2f) > 0.001f ||
+            Math.Abs(Line2NPCCombatRules.MeleeCadence(0.5f) - 0.7f) > 0.001f ||
+            Math.Abs(Line2NPCCombatRules.MeleeCadence(float.NaN) - 1.4f) > 0.001f)
+        {
+            Console.Error.WriteLine("NPC_MELEE_WEAPON_POLICY_FAILED: real item damage/reach/cadence.");
+            return 59;
+        }
+        Console.WriteLine("NPC_MELEE_WEAPON_POLICY_OK: native item quality, reach and finite cadence.");
+
         Console.WriteLine("NPC_COMBAT_POLICY_OK: player priority, confirmed sight, " +
             "neutral immunity, faction hostility and passive-mode safety.");
 
