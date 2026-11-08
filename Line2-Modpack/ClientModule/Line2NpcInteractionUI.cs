@@ -13,6 +13,7 @@ namespace Unturned2.Line2
     internal sealed class Line2NpcInteractionUI : MonoBehaviour
     {
         private readonly List<PrototypeActor> _actors = new List<PrototypeActor>(32);
+        private readonly RaycastHit[] _conversationHits = new RaycastHit[16];
         private SteamNpcPrototypeRuntime _runtime;
         private PrototypeActor _selected;
         private bool _show;
@@ -51,7 +52,33 @@ namespace Unturned2.Line2
                 _selected.Disposition == "hostile") return false;
             Player player = Player.player;
             return player != null && player.life != null && !player.life.isDead &&
-                (player.transform.position - _selected.transform.position).sqrMagnitude <= 4.0f * 4.0f;
+                (player.transform.position - _selected.transform.position).sqrMagnitude <= 4.0f * 4.0f &&
+                HasConversationSight(player, _selected);
+        }
+
+        private bool HasConversationSight(Player player, PrototypeActor actor)
+        {
+            if (player == null || actor == null) return false;
+            Vector3 eye = player.transform.position + Vector3.up * 1.45f;
+            Vector3 target = actor.transform.position + Vector3.up * 1.25f;
+            Vector3 delta = target - eye;
+            if (delta.sqrMagnitude < 0.04f) return false;
+            int count = Physics.RaycastNonAlloc(eye, delta.normalized,
+                _conversationHits, delta.magnitude,
+                RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+            if (count >= _conversationHits.Length) return false;
+            for (int i = 0; i < count; ++i)
+            {
+                Transform block = _conversationHits[i].transform;
+                _conversationHits[i] = default(RaycastHit);
+                if (block == null || block == player.transform ||
+                    block.IsChildOf(player.transform) ||
+                    block == actor.transform ||
+                    block.IsChildOf(actor.transform))
+                    continue;
+                return false;
+            }
+            return true;
         }
 
         private void Update()
@@ -175,7 +202,9 @@ namespace Unturned2.Line2
             }
             _itemIndex = Mathf.Clamp(_itemIndex, 0, inventory.UsedSlots - 1);
             Item held;
-            if (!inventory.TryGetItemSnapshot(_itemIndex, out held))
+            uint ownedInstanceID;
+            if (!inventory.TryGetItemSnapshot(
+                _itemIndex, out held, out ownedInstanceID))
             {
                 GUI.Label(new Rect(14, 70, 427, 25), "Estoque indisponível.");
                 return;
@@ -194,13 +223,32 @@ namespace Unturned2.Line2
             if (GUI.Button(new Rect(155, 142, 132, 35), "Próximo"))
                 _itemIndex = (_itemIndex + 1) % inventory.UsedSlots;
             if (GUI.Button(new Rect(295, 142, 146, 35), "Comprar"))
-                _feedback = TryPurchase(actor, _itemIndex, cost);
+                _feedback = TryPurchase(actor, ownedInstanceID, held, cost);
         }
 
-        private static string TryPurchase(PrototypeActor actor, int slot, uint price)
+        private static bool SameSaleSnapshot(Item current, Item expected)
+        {
+            if (current == null || expected == null ||
+                current.id != expected.id ||
+                current.amount != expected.amount ||
+                current.quality != expected.quality)
+                return false;
+            byte[] a = current.state, b = expected.state;
+            if (a == null || b == null)
+                return a == b;
+            if (a.Length != b.Length) return false;
+            for (int i = 0; i < a.Length; ++i)
+                if (a[i] != b[i]) return false;
+            return true;
+        }
+
+        private string TryPurchase(PrototypeActor actor,
+            uint ownedInstanceID, Item expected, uint price)
         {
             if (!Authorized() || actor == null || actor.IsDead ||
-                actor.Disposition == "hostile" || price == 0)
+                actor != _selected || actor.Disposition == "hostile" ||
+                price == 0 || expected == null || ownedInstanceID == 0 ||
+                !CanStillTalk())
                 return "Comércio bloqueado.";
             Player player = Player.player;
             Line2MobileNPCInventory source = actor.Inventory;
@@ -210,8 +258,10 @@ namespace Unturned2.Line2
                 (player.transform.position - actor.transform.position).sqrMagnitude > 16f)
                 return "Sem experiência suficiente ou fora do alcance.";
             Item owned;
-            if (!source.TryGetItemSnapshot(slot, out owned))
-                return "Item não disponível.";
+            if (!source.TryGetOwnedInstanceSnapshotServer(
+                ownedInstanceID, out owned) ||
+                !SameSaleSnapshot(owned, expected))
+                return "Estoque alterado; consulte novamente.";
             ItemAsset actualAsset = Assets.find(EAssetType.ITEM, owned.id) as ItemAsset;
             // The UI's displayed price is not transaction authority:
             // recompute against the actual owned item before withdrawal.
@@ -219,7 +269,8 @@ namespace Unturned2.Line2
                 return "Preço ou estoque alterado; consulte novamente.";
 
             Item transferred;
-            if (!source.TryTakeItemServer(slot, out transferred))
+            if (!source.TryTakeOwnedInstanceServer(
+                ownedInstanceID, out transferred))
                 return "Falha ao reservar item do vendedor.";
             if (!source.TryReserveSlotServer())
             {
