@@ -209,12 +209,13 @@ namespace Unturned2.Line2
                 bool blocked = false;
                 for (int j = 0; j < count; ++j)
                 {
-                    Collider c = _hits[j].collider;
+                    RaycastHit hit = _hits[j];
+                    Collider c = hit.collider;
                     _hits[j] = default(RaycastHit);
                     if (c == null || c.transform == z.transform ||
                         c.transform.IsChildOf(z.transform))
                         continue;
-                    if (_hits[j].distance < length - 0.4f)
+                    if (hit.distance < length - 0.4f)
                     {
                         blocked = true;
                         break;
