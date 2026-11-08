@@ -171,6 +171,42 @@ internal static class Program
             return 15;
         }
 
+        // Out-of-order localhost, radio and visual observations must never
+        // rewind sensory memory or expose a not-yet-observed clue.
+        memory.ObserveSound(new UnityEngine.Vector3(4f, 0f, 4f), 0.9f, 20f);
+        memory.ObserveSight(new UnityEngine.Vector3(99f, 0f, 99f), 19f);
+        memory.ObserveReport(new UnityEngine.Vector3(90f, 0f, 90f), 1f, 18f);
+        if (!memory.TryGetEvidence(20.1f, out observed, out confidence,
+                                    out uncertainty, out sense) ||
+            sense != Line2MobileNPCPlayerKnowledge.Sense.Sound ||
+            Math.Abs(observed.x - 4f) > 0.01f ||
+            memory.TryGetEvidence(19f, out observed, out confidence,
+                                  out uncertainty, out sense) ||
+            memory.TrySuggestSearchPoint(19f, out observed))
+        {
+            Console.Error.WriteLine("NPC_EVIDENCE_ORDER_FAILED: delayed observations or future clues.");
+            return 53;
+        }
+        memory.ObserveSight(new UnityEngine.Vector3(7f, 0f, 3f), 21f);
+        memory.ObserveSound(new UnityEngine.Vector3(200f, 0f, 200f), 1f, 20.5f);
+        if (!memory.TryGetEvidence(21.1f, out observed, out confidence,
+                                    out uncertainty, out sense) ||
+            sense != Line2MobileNPCPlayerKnowledge.Sense.Sight ||
+            Math.Abs(observed.x - 7f) > 0.01f)
+        {
+            Console.Error.WriteLine("NPC_EVIDENCE_ORDER_FAILED: old sound replaced sight.");
+            return 54;
+        }
+        memory.Clear();
+        if (memory.HasEvidence ||
+            memory.TryGetEvidence(22f, out observed, out confidence,
+                                  out uncertainty, out sense))
+        {
+            Console.Error.WriteLine("NPC_EVIDENCE_ORDER_FAILED: stale clue after reset.");
+            return 55;
+        }
+        Console.WriteLine("NPC_EVIDENCE_ORDER_OK: monotonic sensing, future-clue rejection and reset.");
+
         var gait = new Line2MobileNPCLocomotionPolicy();
         var running = new Line2MobileNPCLocomotionPolicy.Situation
         {
