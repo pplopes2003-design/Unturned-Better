@@ -41,6 +41,11 @@ namespace Unturned2.Line2
                 elapsedSinceGuard >= 30f;
         }
 
+        internal static bool PrioritizeSupply(Role role)
+        {
+            return role == Role.Quartermaster;
+        }
+
         internal static bool PrioritizeExploration(Role role)
         {
             return role == Role.Scout;
