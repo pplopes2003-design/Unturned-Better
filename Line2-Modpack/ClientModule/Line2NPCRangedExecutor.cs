@@ -194,6 +194,20 @@ namespace Unturned2.Line2
                     gunRange, gun, length))
                     pelletHits++;
             }
+            // Suppression is NOT damage: only a physically debited shot
+            // toward a previously sighted rival NPC may create pressure.
+            // A miss cannot silently injure a target or grant omniscient
+            // knowledge of the attacker's future location.
+            if (pelletHits == 0 &&
+                kind == Line2NPCCombatPerception.TargetKind.Npc &&
+                target != null)
+            {
+                PrototypeActor rival =
+                    target.GetComponentInParent<PrototypeActor>();
+                if (rival != null && !rival.IsDead)
+                    rival.TryRegisterVerifiedSuppressingShot(_actor, Time.time);
+            }
+
             if (_burstRemaining <= 1)
             {
                 _burstRemaining = UnityEngine.Random.Range(2, 6);
