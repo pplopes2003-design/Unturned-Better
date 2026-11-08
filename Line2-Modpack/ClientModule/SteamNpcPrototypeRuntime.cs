@@ -1254,14 +1254,17 @@ namespace Unturned2.Line2
                 position.y,
                 Mathf.Floor(position.z / 12f) * 12f + 6f);
             _lastGunshotAt = heardAt;
-            _knowledge.ObserveSound(_lastHeardPoint, 0.64f, heardAt);
-            _legacyBrain.ReportNoise(_lastHeardPoint, heardAt, 17f);
+            // A rejected/repeated clue must not reset the finite search.
+            // Real incoming fire is still registered independently.
+            if (_knowledge.TryObserveSound(_lastHeardPoint, 0.64f, heardAt))
+                _legacyBrain.ReportNoise(_lastHeardPoint, heardAt, 17f);
             _tactics.ReportIncomingFire(heardAt);
         }
 
         internal void HearVerifiedFootstep(Vector3 position, float confidence, float at)
         {
             if (_disposition != "hostile" || _combatMode == "passive" ||
+                float.IsNaN(at) || float.IsInfinity(at) || at < 0f ||
                 at - _lastFootstepAt < 0.85f)
                 return;
             // Player displacement was observed by the migrated footstep
@@ -1270,21 +1273,24 @@ namespace Unturned2.Line2
                 Mathf.Floor(position.x / 6f) * 6f + 3f, position.y,
                 Mathf.Floor(position.z / 6f) * 6f + 3f);
             _lastFootstepAt = at;
-            _knowledge.ObserveSound(_lastHeardFootstepPoint, confidence, at);
-            _legacyBrain.ReportNoise(_lastHeardFootstepPoint, at, 8f);
+            if (_knowledge.TryObserveSound(_lastHeardFootstepPoint, confidence, at))
+                _legacyBrain.ReportNoise(_lastHeardFootstepPoint, at, 8f);
         }
 
         internal void ReceiveVerifiedRadioReport(Vector3 sector, float observedAt)
         {
             if (_disposition != "hostile" || _combatMode == "passive" ||
-                IsDead || observedAt - _lastRadioAt < 6f)
+                IsDead || float.IsNaN(observedAt) ||
+                float.IsInfinity(observedAt) || observedAt < 0f ||
+                observedAt - _lastRadioAt < 6f)
                 return;
             _lastRadioAt = observedAt;
             // Faction/group/equipment authorization is verified by
             // Line2NPCRadioOutbox before this is called. The radio only
             // supplies an uncertain sector. Never grant LOS, an aim target,
             // ammo, direct damage rights or a permanent player identity.
-            _knowledge.ObserveReport(sector, 0.58f, observedAt);
+            if (!_knowledge.TryObserveReport(sector, 0.58f, observedAt))
+                return;
             _legacyBrain.ReportNoise(sector, observedAt, 15f);
             Vector3 locallyProposed, validated;
             if (Line2NpcRadioReinforcementPolicy.TryPropose(
