@@ -44,8 +44,8 @@ namespace Unturned2.Line2
         // Backwards-compatible alias: either an observed blast center OR
         // server-validated gun attacker can now provide a defense direction.
         internal bool HasVerifiedDamageOrigin { get { return HasExplosionOrigin; } }
-        internal event Action<float, Vector3> Damaged;
-        internal event Action Died;
+        internal event System.Action<float, Vector3> Damaged;
+        internal event System.Action Died;
 
         public bool IsEligibleForExplosionDamage
         {

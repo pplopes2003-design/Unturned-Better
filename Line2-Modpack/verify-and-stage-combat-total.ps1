@@ -16,7 +16,7 @@ $managed = Join-Path $UnturnedDir 'Unturned_Data\Managed'
 $stage = Join-Path $projectRoot 'build\CombatTotal\Unturned2.Line2'
 $target = Join-Path $UnturnedDir 'Modules\Unturned2.Line2'
 $required = @(
-    'Assembly-CSharp.dll', 'SDG.Framework.dll',
+    'Assembly-CSharp.dll', 'com.rlabrecque.steamworks.net.dll',
     'UnityEngine.CoreModule.dll', 'UnityEngine.PhysicsModule.dll',
     'UnityEngine.JSONSerializeModule.dll',
     'UnityEngine.AnimationModule.dll', 'UnityEngine.AudioModule.dll',

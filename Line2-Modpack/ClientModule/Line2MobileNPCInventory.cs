@@ -2,6 +2,7 @@
 // This file is part of the U3 SDK: https://github.com/smartlydressedgames/u3-sdk/    //
 // Please refer to the included LICENSE.txt for copyright notice and license details. //
 ////////////////////////////////////////////////////////////////////////////////////////
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using SDG.Unturned;
@@ -16,6 +17,46 @@ namespace Unturned2.Line2
 	[DisallowMultipleComponent]
 	public sealed class Line2MobileNPCInventory : MonoBehaviour
 	{
+        // The Steam gameplay config exposes a single Has_Durability toggle.
+        // Resolve the actual runtime member rather than referring to SDK-only
+        // ShouldWeaponTakeDamage / ShouldClothingTakeDamage properties.
+        // Unknown configs fail closed: do not invent item quality loss.
+        private static bool _loggedMissingDurabilityFlag;
+        internal static bool ShouldDegradeDurabilityServer()
+        {
+            if (!Provider.isServer || Provider.modeConfigData == null ||
+                Provider.modeConfigData.Items == null)
+                return false;
+            object settings = Provider.modeConfigData.Items;
+            Type type = settings.GetType();
+            const System.Reflection.BindingFlags flags =
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic |
+                System.Reflection.BindingFlags.Instance;
+            foreach (string name in new[] { "Has_Durability", "HasDurability", "hasDurability" })
+            {
+                var property = type.GetProperty(name, flags);
+                if (property != null && property.PropertyType == typeof(bool) &&
+                    property.GetIndexParameters().Length == 0)
+                {
+                    try { return (bool)property.GetValue(settings, null); }
+                    catch (Exception) { return false; }
+                }
+                var field = type.GetField(name, flags);
+                if (field != null && field.FieldType == typeof(bool))
+                {
+                    try { return (bool)field.GetValue(settings); }
+                    catch (Exception) { return false; }
+                }
+            }
+            if (!_loggedMissingDurabilityFlag)
+            {
+                _loggedMissingDurabilityFlag = true;
+                ProbeLogger.Log("LINE2_DURABILITY_CONFIG_UNAVAILABLE: no wear applied");
+            }
+            return false;
+        }
+
         // Injected per-NPC mode; the original static settings component
         // was part of a modified engine and is absent in Steam.
         internal bool CombatOnly { get; private set; }
@@ -754,7 +795,7 @@ namespace Unturned2.Line2
 		public bool TryWearOwnedMeleeServer(ushort itemID)
 		{
 			if (!Provider.isServer || itemID == 0
-				|| !Provider.modeConfigData.Items.ShouldWeaponTakeDamage)
+				|| !ShouldDegradeDurabilityServer())
 				return false;
 			for (int i = 0; i < slots.Count; ++i)
 			{
@@ -1437,7 +1478,7 @@ namespace Unturned2.Line2
 		public bool TryDegradeWornClothingQualityServer(int slot, ushort expectedID)
 		{
 			if (!Provider.isServer || slot < 0 || slot >= slots.Count
-				|| expectedID == 0 || !Provider.modeConfigData.Items.ShouldClothingTakeDamage)
+				|| expectedID == 0 || !ShouldDegradeDurabilityServer())
 				return false;
 			Item stored = slots[slot];
 			if (stored == null || stored.id != expectedID || stored.quality == 0)

@@ -126,8 +126,10 @@ namespace Unturned2.Line2
                 nextActualOpenAttemptTime = Time.time + 1.5f;
                 // Native reliable LevelObject state replication and
                 // animation. No spoofed Player and no disabled collider.
+                Transform registeredDoor = GetRegisteredMapDoorTransform(mapDoor);
+                if (registeredDoor == null) return false;
                 ObjectManager.forceObjectBinaryState(
-                    mapDoor.owningLevelObject.transform, true);
+                    registeredDoor, true);
                 lastOpenedMapDoor = mapDoor;
                 lastOpenedDoor = null;
                 waitingForDoorAnimationUntil = Time.time + 1.25f;
@@ -335,19 +337,38 @@ namespace Unturned2.Line2
                 || door.objectAsset.interactabilityPower != EObjectInteractabilityPower.NONE
                 || door.objectAsset.interactabilityConditions != null
                     && door.objectAsset.interactabilityConditions.Length > 0
-                || door.owningLevelObject == null
-                || door.owningLevelObject.transform == null)
+                )
                 return false;
-            Transform root = door.owningLevelObject.transform;
-            return Level.checkSafeIncludingClipVolumes(root.position)
-                && ObjectManager.tryGetRegion(root,
-                    out byte x, out byte y, out ushort index)
-                && LevelObjects.objects != null
-                && x < LevelObjects.objects.GetLength(0)
-                && y < LevelObjects.objects.GetLength(1)
-                && index < LevelObjects.objects[x, y].Count
-                && LevelObjects.objects[x, y][index] == door.owningLevelObject
-                && door.owningLevelObject.interactable == door;
+            return GetRegisteredMapDoorTransform(door) != null;
+        }
+
+        private static Transform GetRegisteredMapDoorTransform(
+            InteractableObjectBinaryState door)
+        {
+            if (door == null || door.transform == null ||
+                LevelObjects.objects == null)
+                return null;
+            // The Steam build does not expose owningLevelObject publicly.
+            // Only act on a LevelObject actually registered in the native
+            // region table and whose interactable is this exact door.
+            for (Transform root = door.transform; root != null; root = root.parent)
+            {
+                if (!ObjectManager.tryGetRegion(root,
+                    out byte x, out byte y, out ushort index))
+                    continue;
+                if (x >= LevelObjects.objects.GetLength(0) ||
+                    y >= LevelObjects.objects.GetLength(1))
+                    continue;
+                var objects = LevelObjects.objects[x, y];
+                if (objects == null || index >= objects.Count)
+                    continue;
+                LevelObject entry = objects[index];
+                if (entry != null && entry.transform == root &&
+                    entry.interactable == door &&
+                    Level.checkSafeIncludingClipVolumes(root.position))
+                    return root;
+            }
+            return null;
         }
 
         private static bool IsRegisteredNativeDoor(InteractableDoor door)

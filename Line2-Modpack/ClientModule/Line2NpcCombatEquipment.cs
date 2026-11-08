@@ -88,7 +88,7 @@ namespace Unturned2.Line2
                 Assets.find(EAssetType.ITEM, id) as ItemClothingAsset;
             if (asset == null) return 1f;
             if (Provider.modeConfigData != null &&
-                Provider.modeConfigData.Items.ShouldClothingTakeDamage &&
+                Line2MobileNPCInventory.ShouldDegradeDurabilityServer() &&
                 quality > 0 &&
                 _inventory.TryDegradeWornClothingQualityServer(slot, id))
                 quality--;
