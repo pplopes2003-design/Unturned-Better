@@ -17,7 +17,6 @@ namespace Unturned2.Line2
     internal sealed class Line2NPCRangedExecutor : MonoBehaviour
     {
         private const float HardMaximumRange = 65f;
-        private const float MaximumSpreadDegrees = 12f;
         private const int MaxShotsPerFrame = 3;
         private readonly RaycastHit[] _hits = new RaycastHit[24];
         private static int _lastFrame = -1;
@@ -175,11 +174,10 @@ namespace Unturned2.Line2
             // Same idea as the original Line 1 humanized aim: first-shot
             // reaction, uncertain spread, movement penalty and escalating
             // inaccuracy across bursts. Never calculate guaranteed hits.
-            float spread = Mathf.Clamp(
-                2.8f + (length / 25f) * 0.75f +
-                (HasMovement() ? 2.4f : 0f) +
-                (5 - Mathf.Clamp(_burstRemaining, 1, 5)) * 0.70f,
-                2f, MaximumSpreadDegrees);
+            float spread = Line2NpcAimSpreadPolicy.ComputeDegrees(
+                length, HasMovement(), _burstRemaining,
+                _actor.RecentlyDamaged, _actor.UnderVerifiedSuppression,
+                _actor.HealthFraction);
             // Vanilla magazines may fire multiple pellets per spent shell.
             // Consume ammunition ONCE, then independently trace each pellet.
             // Cap untrusted custom asset data to a bounded hit budget.
@@ -188,8 +186,12 @@ namespace Unturned2.Line2
             for (int pellet = 0; pellet < pellets; pellet++)
             {
                 Vector2 scatter = UnityEngine.Random.insideUnitCircle * spread;
-                Quaternion deviation = Quaternion.Euler(scatter.y, scatter.x, 0f);
-                Vector3 direction = deviation * offset.normalized;
+                // Build the deviation in the actual AIM-LOCAL basis,
+                // never global world axes (which distorted horizontal
+                // spread depending on the NPC's facing direction).
+                Quaternion deviation = Quaternion.LookRotation(offset.normalized) *
+                    Quaternion.Euler(scatter.y, scatter.x, 0f);
+                Vector3 direction = deviation * Vector3.forward;
                 if (TryApplyNativeImpact(kind, target, origin, direction,
                     gunRange, gun, length))
                     pelletHits++;
