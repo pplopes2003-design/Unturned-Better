@@ -203,10 +203,19 @@ namespace Unturned2.Line2
                         continue;
                     debited = _inventory.TryTakeItemServer(slot,
                         out transferred);
-                    if (!debited || transferred == null ||
-                        transferred.id != itemID ||
+                    if (!debited || transferred == null) continue;
+                    if (transferred.id != itemID ||
                         transferred.amount != 1)
+                    {
+                        // The source mutated between snapshot and take.
+                        // Return its exact taken item rather than dropping
+                        // another person's item or losing donor custody.
+                        if (!_inventory.TryStoreTransferredItem(transferred))
+                            ProbeLogger.Log("NPC_SQUAD_TRANSFER_ROLLBACK_FAILED: id=" +
+                                transferred.id + " source=" + _owner.Identity);
+                        debited = false;
                         continue;
+                    }
                     stored = receiver.TryStoreReservedItemServer(transferred);
                     if (!stored)
                     {
