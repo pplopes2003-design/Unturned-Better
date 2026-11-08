@@ -503,6 +503,22 @@ namespace Unturned2.Line2
                     actor.Disposition + " formerGroup=" + formerGroup +
                     " delay=60s");
             }
+            // A nearby groupmate may make a voluntary, physically checked
+            // withdrawal only after genuinely witnessing a VIOLENT casualty.
+            // This is separate from natural replacement and never transfers
+            // the attacker Transform or permits a blind weapon hit.
+            if (formerGroup > 0)
+            {
+                int evaluated = 0;
+                foreach (PrototypeActor teammate in _actors)
+                {
+                    if (++evaluated > 32) break;
+                    if (teammate == null || teammate == actor ||
+                        teammate.IsDead) continue;
+                    teammate.TryReactToWitnessedSquadCasualty(
+                        actor, formerGroup);
+                }
+            }
             // Actor has already been marked dead by native vitals.
             // SaveCheckpoint skips it while retaining other loaded and
             // still-pending survivors, so reloading cannot resurrect it.
@@ -1065,6 +1081,74 @@ namespace Unturned2.Line2
         /// ground only. Damage still requires ammunition/grenade and native
         /// line-of-sight. An AI or a base ledger cannot grant a blind hit.
         /// </summary>
+        internal bool TryReactToWitnessedSquadCasualty(
+            PrototypeActor fallen, int formerGroupId)
+        {
+            if (fallen == null || fallen == this || IsDead ||
+                _combatMode == "passive" || _disposition != fallen._disposition ||
+                fallen._vitals == null || !fallen.IsDead ||
+                !fallen._vitals.HasVerifiedDamageOrigin ||
+                Time.time - fallen._vitals.LastDamageAt > 3f ||
+                _coverPlanner == null)
+                return false;
+            Line2NPCGroupMember member =
+                GetComponent<Line2NPCGroupMember>();
+            bool sameGroup = member != null && member.Joined &&
+                member.GroupId == formerGroupId;
+            Vector3 casualty = fallen.transform.position;
+            Vector3 diff = casualty - transform.position;
+            bool audible = diff.sqrMagnitude <= 8f * 8f;
+            bool visible = false;
+            if (!audible && diff.sqrMagnitude <= 24f * 24f)
+            {
+                Vector3 eye = transform.position + Vector3.up * 1.4f;
+                Vector3 last = casualty + Vector3.up * 1.1f;
+                Vector3 ray = last - eye;
+                RaycastHit[] hits = new RaycastHit[16];
+                int count = Physics.RaycastNonAlloc(eye,
+                    ray.normalized, hits, ray.magnitude, ~0,
+                    QueryTriggerInteraction.Ignore);
+                if (count < hits.Length)
+                {
+                    visible = true;
+                    for (int i = 0; i < count; ++i)
+                    {
+                        Transform touched = hits[i].transform;
+                        if (touched == null || touched == transform ||
+                            touched.IsChildOf(transform) ||
+                            touched == fallen.transform ||
+                            touched.IsChildOf(fallen.transform))
+                            continue;
+                        visible = false;
+                        break;
+                    }
+                }
+            }
+            if (!Line2NpcSquadMoralePolicy.MayWithdraw(
+                    Provider.isServer && !Dedicator.IsDedicatedServer &&
+                        (Provider.clients == null ||
+                         Provider.clients.Count <= 1),
+                    sameGroup, true, audible || visible,
+                    IsTacticallyRetreating,
+                    transform.position, casualty) ||
+                (_tactics.CurrentGoal == Line2MobileNPCTactics.Goal.SeekCover ||
+                 _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Retreat))
+                return false;
+            Vector3 cover, retreat;
+            if (!_coverPlanner.TryGetDefense(
+                fallen._vitals.LastDamageOrigin, out cover, out retreat) ||
+                !_coverPlanner.HasRetreat ||
+                !_tactics.TryStartValidatedSquadWithdrawal(
+                    retreat, Time.time))
+                return false;
+            ProbeLogger.Log("NPC_SQUAD_WITHDRAWAL: actor=" + _identity +
+                " fallen=" + fallen.Identity + " group=" + formerGroupId +
+                " knownBy=" + (audible ? "nearby-audio" : "personal-LOS") +
+                " route=" + retreat.ToString("F1") +
+                " (no inherited enemy target)");
+            return true;
+        }
+
         internal bool TryStageObservedGroupRegroup(Vector3 verifiedPoint)
         {
             if (!Provider.isServer || Dedicator.IsDedicatedServer ||
