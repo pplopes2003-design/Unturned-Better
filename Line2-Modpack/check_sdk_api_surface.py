@@ -21,7 +21,7 @@ REQUIREMENTS = (
       "CanEngageNpcTarget")),
     ("Line2-Modpack/ClientModule/Line2NPCRangedExecutor.cs",
      ("RayMasks.DAMAGE_SERVER | RayMasks.BLOCK_COLLISION",
-      "Line2NPCCombatRules.MayCommitHit" if False else "TryApplyNativeImpact")),
+      "TryApplyNativeImpact")),
     ("Line2-Modpack/ClientModule/Line2MobileNPCDamageBridge.cs",
      ("RayMasks.DAMAGE_SERVER | RayMasks.BLOCK_COLLISION",
       "TryResolvePhysicalServerHit")),
