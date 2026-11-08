@@ -123,6 +123,12 @@ namespace Unturned2.Line2
                 _actor.IsRecruited || _actor.IsTacticallyRetreating)
                 return false;
             Vector3 current = transform.position;
+            // Line 1 CombatOnly uses bounded physical COMBAT PATROLS, not
+            // civilian supplies, settlement building or treasure errands.
+            // Do this before any civilian job can be resumed or assigned.
+            if (Line2NpcCombatTotalPolicy.CanUseCombatPatrol(
+                    _actor.CombatMode))
+                return TryGetCombatPatrolGoal(out goal);
             if (_collector == null)
                 _collector = GetComponent<Line2NpcWorldLootCollector>();
             bool depleted = (_needs != null && _needs.IsUrgent) ||
@@ -321,6 +327,38 @@ namespace Unturned2.Line2
                 return Commit(_destination, out goal);
             _failedChoices = Mathf.Min(4, _failedChoices + 1);
             _nextSelectionAt = Time.time + 6f + 5f * _failedChoices;
+            return false;
+        }
+
+        private bool TryGetCombatPatrolGoal(out Vector3 goal)
+        {
+            goal = Vector3.zero;
+            if (_hasDestination && _job != Job.Patrol)
+                ClearGoal(false);
+            Vector3 current = transform.position;
+            if (_hasDestination)
+            {
+                Vector3 delta = _destination - current;
+                float flatSq = delta.x * delta.x + delta.z * delta.z;
+                if (flatSq <= 3f * 3f && Mathf.Abs(delta.y) < 1.15f)
+                    ClearGoal(true);
+                else if (Time.time >= _expiresAt ||
+                    ObserveRoutineHealth(current, _destination) ==
+                        Line2NpcRoutineRouteHealth.State.Blocked)
+                    ClearGoal(false);
+                else
+                {
+                    goal = _destination;
+                    return true;
+                }
+            }
+            if (Time.time < _nextSelectionAt) return false;
+            _nextSelectionAt = Time.time + 5f;
+            _job = Job.Patrol;
+            if (TryChooseGroundNear(current, 12f, 42f, out _destination))
+                return Commit(_destination, out goal);
+            _failedChoices = Mathf.Min(4, _failedChoices + 1);
+            _nextSelectionAt = Time.time + 6f + 4f * _failedChoices;
             return false;
         }
 
