@@ -64,6 +64,8 @@ namespace Unturned2.Line2
             if (kind == Line2NPCCombatPerception.TargetKind.None || target == null ||
                 !_sight.HasVerifiedSight(target, kind, MaximumRange))
                 return;
+            if (_actor.ShouldHoldPreparedAmbushShot(target))
+                return;
             Vector3 origin = transform.position + Vector3.up * 1.55f +
                 transform.forward * 0.65f;
             Vector3 aim = target.position + Vector3.up * 0.4f;
