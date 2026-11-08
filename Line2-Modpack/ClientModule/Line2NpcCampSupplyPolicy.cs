@@ -12,7 +12,7 @@ namespace Unturned2.Line2
     {
         internal static bool MayDeliver(bool localServer,
             bool sameLivingGroup, bool realSavedNativeStorage,
-            bool inCombat, bool resourceIsSurplus,
+            bool directSight, bool inCombat, bool resourceIsSurplus,
             bool donorNeedsResource, bool dedicatedVendor,
             float metersFromStorage)
         {
