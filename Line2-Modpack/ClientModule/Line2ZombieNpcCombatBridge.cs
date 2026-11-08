@@ -139,10 +139,14 @@ namespace Unturned2.Line2
                     if (collider == null) continue;
                     Zombie zombie = collider.GetComponentInParent<Zombie>();
                     if (zombie == null || zombie.isDead ||
-                        !_visited.Add(zombie.GetInstanceID())) continue;
+                        _visited.Contains(zombie.GetInstanceID())) continue;
                     inspected++;
                     if (HasNativePlayerTarget(zombie) || PlayerHasPriority(zombie) ||
                         !FirsthandView(zombie, actor)) continue;
+                    // Claim only after firsthand sight is confirmed. Otherwise a
+                    // blocked NPC encountered first could prevent this zombie
+                    // from considering another, actually visible NPC this tick.
+                    if (!_visited.Add(zombie.GetInstanceID())) continue;
                     Vector3 delta = actor.transform.position - zombie.transform.position;
                     float horizontalSq = delta.x * delta.x + delta.z * delta.z;
                     if (Mathf.Abs(delta.y) > 2.1f) continue;
