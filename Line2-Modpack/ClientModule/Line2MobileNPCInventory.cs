@@ -1443,6 +1443,36 @@ namespace Unturned2.Line2
 			return true;
 		}
 
+        /// <summary>Read a sale candidate and its stable owner-scoped
+        /// identity together. Indices are not safe transaction IDs because
+        /// other NPC actions may consume or reorder inventory slots.</summary>
+        public bool TryGetItemSnapshot(int slot, out Item snapshot,
+            out uint ownedInstanceID)
+        {
+            snapshot = null;
+            ownedInstanceID = 0;
+            if (!Provider.isServer || slot < 0 ||
+                slot >= slots.Count || slot >= slotInstanceIDs.Count)
+                return false;
+            uint id = slotInstanceIDs[slot];
+            if (id == 0 || !TryGetItemSnapshot(slot, out snapshot))
+                return false;
+            ownedInstanceID = id;
+            return true;
+        }
+
+        /// <summary>Re-read the exact inventory entry immediately before
+        /// a pending sale, even when another item moved into its old slot.</summary>
+        public bool TryGetOwnedInstanceSnapshotServer(uint ownedInstanceID,
+            out Item snapshot)
+        {
+            snapshot = null;
+            if (!Provider.isServer || ownedInstanceID == 0)
+                return false;
+            int slot = FindSlotByInstanceID(ownedInstanceID);
+            return slot >= 0 && TryGetItemSnapshot(slot, out snapshot);
+        }
+
 		/// <summary>Removes and returns one stored slot to a server-side owner.</summary>
 		public bool TryTakeItemServer(int slot, out Item transferredItem)
 		{
