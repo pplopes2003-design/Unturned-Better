@@ -410,6 +410,11 @@ internal static class Program
             Console.Error.WriteLine("ZOMBIE_REAL_SOUND_SEARCH_POLICY_FAILED: invented threat or invalid investigation path.");
             return 37;
         }
+        if (!RaidGroupOrderTests.Run())
+        {
+            Console.Error.WriteLine("NPC_RAID_GROUP_ORDER_FAILED: illegal spoken raid formation or invisible-target authorization.");
+            return 38;
+        }
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
