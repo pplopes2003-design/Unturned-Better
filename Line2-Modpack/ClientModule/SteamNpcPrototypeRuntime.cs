@@ -1418,7 +1418,12 @@ namespace Unturned2.Line2
                     Time.time >= _nextInvestigationCheckAt)
                 {
                     _nextInvestigationCheckAt = Time.time + 2.0f;
+                    // A disconnected route only invalidates the clue when the
+                    // clue actually owns locomotion. A stale A* failure from
+                    // retreat, regroup or another goal must not consume steps
+                    // from this finite investigation.
                     if (_astarFollower != null &&
+                        !_tactics.HasTacticalDestination &&
                         _astarFollower.Status == "line1-no-connected-route" &&
                         (_goal - _legacyBrain.Destination).sqrMagnitude < 2.5f)
                         _legacyBrain.ReportDestinationReached();
