@@ -770,6 +770,7 @@ namespace Unturned2.Line2
                 if (a != null) UnityEngine.Object.Destroy(a.gameObject);
             _actors.Clear();
             Line2NPCGroupMember.ResetSession();
+            Line2NpcEncounterPacing.ResetSession();
             Line2NpcSettlementLedger.ResetSession();
             Line2NPCRadioOutbox.ResetSession();
             _pendingReplacements.Clear();
@@ -1013,6 +1014,7 @@ namespace Unturned2.Line2
                 _travelMemory.ForgetOnDeathServer();
             _legacyBrain.Reset();
             _knowledge.Clear();
+            Line2NpcEncounterPacing.Release(GetInstanceID());
             _ambushVictim = null;
             _ambushArmedUntil = 0f;
             _tactics.ClearGoal();
@@ -1023,6 +1025,7 @@ namespace Unturned2.Line2
 
         private void OnDestroy()
         {
+            Line2NpcEncounterPacing.Release(GetInstanceID());
             if (_vitals != null)
             {
                 _vitals.Damaged -= OnValidatedDamage;
@@ -1041,6 +1044,7 @@ namespace Unturned2.Line2
                 _brain.Reset();
                 _legacyBrain.Reset();
                 _knowledge.Clear();
+                Line2NpcEncounterPacing.Release(GetInstanceID());
                 _ambushVictim = null;
                 _ambushArmedUntil = 0f;
                 _locomotion.Reset();
@@ -1174,6 +1178,7 @@ namespace Unturned2.Line2
                 _lastSeenAt = Time.time;
                 _knowledge.ObserveSight(player.transform.position, Time.time);
                 _legacyBrain.ReportVisibleTarget(player.transform, Time.time);
+                Line2NpcEncounterPacing.Release(GetInstanceID());
             }
             else
             {
@@ -1646,7 +1651,8 @@ namespace Unturned2.Line2
             if (!Line2NpcAmbushPolicy.CanPlan(true,
                 IsCombatEnabled, false, RecentlyDamaged, true,
                 _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.None,
-                confidence, uncertainty, diff.magnitude))
+                confidence, uncertainty, diff.magnitude) ||
+                !TryLeaseOptionalEvidenceSearch())
                 return;
             Vector3 concealed;
             if (!_stalkPlanner.TryPlan(transform.position, clue,
@@ -1707,6 +1713,20 @@ namespace Unturned2.Line2
             return true;
         }
 
+        private bool TryLeaseOptionalEvidenceSearch()
+        {
+            if (_disposition != "hostile" || _combatMode == "passive" ||
+                _threatVisible || RecentlyDamaged ||
+                _legacyBrain.CurrentState !=
+                    Line2MobileNPCBrain.State.Investigating)
+                return false;
+            Line2NPCGroupMember member =
+                GetComponent<Line2NPCGroupMember>();
+            int groupID = member != null ? member.GroupId : 0;
+            return Line2NpcEncounterPacing.TryLease(
+                groupID, GetInstanceID(), Time.time, true);
+        }
+
         private void ValidateInvestigationSweep()
         {
             if (_legacyBrain.CurrentState !=
@@ -1754,7 +1774,8 @@ namespace Unturned2.Line2
             float confidence, uncertainty;
             Line2MobileNPCPlayerKnowledge.Sense sense;
             if (!_knowledge.TryGetEvidence(Time.time, out observed,
-                out confidence, out uncertainty, out sense))
+                out confidence, out uncertainty, out sense) ||
+                !TryLeaseOptionalEvidenceSearch())
                 return;
             for (int i = 0; i < 2; ++i)
             {
