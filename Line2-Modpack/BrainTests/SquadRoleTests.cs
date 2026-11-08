@@ -38,7 +38,11 @@ internal static class SquadRoleTests
             Line2NpcSquadRolePolicy.PrioritizeGuard(
                 Line2NpcSquadRolePolicy.Role.Guard, float.NaN) ||
             !Line2NpcSquadRolePolicy.PrioritizeExploration(
-                Line2NpcSquadRolePolicy.Role.Scout))
+                Line2NpcSquadRolePolicy.Role.Scout) ||
+            !Line2NpcSquadRolePolicy.PrioritizeSupply(
+                Line2NpcSquadRolePolicy.Role.Quartermaster) ||
+            Line2NpcSquadRolePolicy.PrioritizeSupply(
+                Line2NpcSquadRolePolicy.Role.Leader))
         {
             Console.Error.WriteLine("NPC_SQUAD_ROLE_FAILED: task priority or leader succession.");
             return false;
