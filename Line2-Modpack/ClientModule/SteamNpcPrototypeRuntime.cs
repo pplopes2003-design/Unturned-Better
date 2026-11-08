@@ -917,6 +917,12 @@ namespace Unturned2.Line2
             new Line2MobileNPCPlayerKnowledge();
         private readonly Line2NpcInvestigationProbe _investigationProbe =
             new Line2NpcInvestigationProbe();
+        private readonly Line2NpcConcealedApproachPlanner _stalkPlanner =
+            new Line2NpcConcealedApproachPlanner();
+        private float _nextStalkAt;
+        private float _ambushArmedUntil;
+        private float _ambushReleaseAt;
+        private Transform _ambushVictim;
         private float _nextInvestigationCheckAt;
         private float _nextEvidenceHintAt;
         private float _nextSearchDiagnosticAt;
@@ -986,6 +992,11 @@ namespace Unturned2.Line2
         {
             if (_vitals != null)
                 _tactics.ReportDamage(_vitals.Health, 100f, Time.time);
+            // An actual wound interrupts a surprise preparation, never
+            // forcing the actor to wait to defend while being shot.
+            _ambushVictim = null;
+            _ambushArmedUntil = 0f;
+            _ambushReleaseAt = 0f;
         }
 
         private void OnValidatedDeath()
@@ -1002,6 +1013,8 @@ namespace Unturned2.Line2
                 _travelMemory.ForgetOnDeathServer();
             _legacyBrain.Reset();
             _knowledge.Clear();
+            _ambushVictim = null;
+            _ambushArmedUntil = 0f;
             _tactics.ClearGoal();
             _tacticalJourney.Reset();
             _locomotion.Reset();
@@ -1028,6 +1041,8 @@ namespace Unturned2.Line2
                 _brain.Reset();
                 _legacyBrain.Reset();
                 _knowledge.Clear();
+                _ambushVictim = null;
+                _ambushArmedUntil = 0f;
                 _locomotion.Reset();
                 _tactics.ClearGoal();
                 _tacticalJourney.Reset();
@@ -1290,11 +1305,17 @@ namespace Unturned2.Line2
                     (_tactics.CurrentGoal ==
                         Line2MobileNPCTactics.Goal.Regroup ||
                      _tactics.CurrentGoal ==
-                        Line2MobileNPCTactics.Goal.RaidStaging))
+                        Line2MobileNPCTactics.Goal.RaidStaging ||
+                     _tactics.CurrentGoal ==
+                        Line2MobileNPCTactics.Goal.Stalk))
                 {
+                    if (_tactics.CurrentGoal ==
+                        Line2MobileNPCTactics.Goal.Stalk)
+                        _ambushArmedUntil = Time.time + 2.5f;
                     _tactics.ClearGoal();
                     _tacticalJourney.Reset();
                 }
+                TryPlanConcealedApproach();
                 // Line 1 tactical flank is optional and never allowed to
                 // override emergency cover or a committed retreat.
                 if (_tactics.CurrentGoal == Line2MobileNPCTactics.Goal.None &&
@@ -1420,7 +1441,8 @@ namespace Unturned2.Line2
                      _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Retreat ||
                      _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Flank ||
                      _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.RaidStaging ||
-                     _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Regroup) &&
+                     _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Regroup ||
+                     _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Stalk) &&
                     _tactics.HasTacticalDestination &&
                     !(_tactics.IsGoalExpired(Time.time)) &&
                     _combatMode != "passive")
@@ -1474,7 +1496,8 @@ namespace Unturned2.Line2
                 InCover = false,
                 Investigating = _legacyBrain.CurrentState ==
                     Line2MobileNPCBrain.State.Investigating,
-                Stalking = false,
+                Stalking = _tactics.CurrentGoal ==
+                    Line2MobileNPCTactics.Goal.Stalk,
                 Retreating = _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Retreat,
                 Pursuing = _brain.Intent == NpcIntent.Pursue,
                 Flanking = _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Flank,
@@ -1569,6 +1592,91 @@ namespace Unturned2.Line2
             _controller.Move((direction * speed +
                               Vector3.up * _verticalVelocity) * Time.deltaTime);
             MonitorTacticalProgress();
+        }
+
+        private void TryPlanConcealedApproach()
+        {
+            if (_disposition != "hostile" || _combatMode == "passive" ||
+                _tactics.CurrentGoal != Line2MobileNPCTactics.Goal.None ||
+                _legacyBrain.CurrentState !=
+                    Line2MobileNPCBrain.State.Investigating ||
+                _threatVisible || RecentlyDamaged ||
+                Time.time < _nextStalkAt ||
+                (_combatPerception != null &&
+                 _combatPerception.VisibleTarget != null))
+                return;
+            _nextStalkAt = Time.time + 9.0f;
+            Vector3 clue;
+            float confidence, uncertainty;
+            Line2MobileNPCPlayerKnowledge.Sense evidence;
+            if (!_knowledge.TryGetEvidence(Time.time, out clue,
+                out confidence, out uncertainty, out evidence) ||
+                evidence == Line2MobileNPCPlayerKnowledge.Sense.Report)
+                return; // radio bearing alone cannot plan a concealed ambush
+            Vector3 diff = clue - transform.position;
+            diff.y = 0f;
+            if (!Line2NpcAmbushPolicy.CanPlan(true,
+                IsCombatEnabled, false, RecentlyDamaged, true,
+                _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.None,
+                confidence, uncertainty, diff.magnitude))
+                return;
+            Vector3 concealed;
+            if (!_stalkPlanner.TryPlan(transform.position, clue,
+                transform, out concealed) ||
+                !_tactics.TryStartStalk(concealed, Time.time))
+                return;
+            ProbeLogger.Log("NPC_STALK_SHELTERED: actor=" + _identity +
+                " evidence=" + evidence + " uncertainty=" +
+                uncertainty.ToString("F1") + " point=" +
+                concealed.ToString("F1") +
+                " (observed clue only; A* still required)");
+        }
+
+        /// <summary>
+        /// A prepared ambush delays an ordinary shot for at most 0.85 s
+        /// against a target THIS NPC has now personally seen. Does not
+        /// authorize attack; every weapon executor still checks its own
+        /// vanilla sight, faction, distance, angle and finite ammunition.
+        /// </summary>
+        internal bool ShouldHoldPreparedAmbushShot(Transform target)
+        {
+            if (_disposition != "hostile" || _combatMode == "passive" ||
+                target == null || IsDead || RecentlyDamaged ||
+                _combatPerception == null ||
+                _combatPerception.VisibleTarget != target ||
+                _combatPerception.Kind ==
+                    Line2NPCCombatPerception.TargetKind.None)
+                return false;
+
+            if (_ambushVictim != null)
+            {
+                if (_ambushVictim != target)
+                {
+                    _ambushVictim = null;
+                    return false;
+                }
+                bool wait = Line2NpcAmbushPolicy.WithholdPreparedAttack(
+                    true, true, Time.time, _ambushReleaseAt);
+                if (!wait) _ambushVictim = null;
+                return wait;
+            }
+            if (_tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Stalk)
+            {
+                // First confirmed enemy cancels the stalk movement, but
+                // does not create an attack against its remembered location.
+                _tactics.ClearGoal();
+                _tacticalJourney.Reset();
+                _ambushArmedUntil = Time.time + 2.5f;
+            }
+            if (Time.time > _ambushArmedUntil ||
+                !_combatPerception.HasVerifiedSight(target,
+                    _combatPerception.Kind, 18f))
+                return false;
+            _ambushVictim = target;
+            _ambushArmedUntil = 0f;
+            _ambushReleaseAt = Time.time +
+                UnityEngine.Random.Range(0.45f, 0.85f);
+            return true;
         }
 
         private void ValidateInvestigationSweep()
@@ -1668,6 +1776,11 @@ namespace Unturned2.Line2
                     transform.position, Time.time, pathPending);
             if (progress == Line2NpcTacticalJourneyWatchdog.Outcome.Reached)
             {
+                if (current == Line2MobileNPCTactics.Goal.Stalk)
+                {
+                    _ambushArmedUntil = Time.time + 4.0f;
+                    _nextStalkAt = Time.time + 18f;
+                }
                 if (_experience != null &&
                     current == Line2MobileNPCTactics.Goal.SeekCover)
                     _experience.RecordOwnOutcomeServer(
