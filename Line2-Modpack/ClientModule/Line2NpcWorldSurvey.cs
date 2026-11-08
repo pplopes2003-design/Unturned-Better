@@ -219,6 +219,47 @@ namespace Unturned2.Line2
             }
             if (Time.time < _nextSelectionAt) return false;
             _nextSelectionAt = Time.time + 9f;
+            // Current living group membership determines routine duties.
+            // This is a preference between real physically checked tasks,
+            // never authority to bypass danger, hunger or injury.
+            Line2NpcSquadRolePolicy.Role squadRole = _group != null
+                ? _group.Role : Line2NpcSquadRolePolicy.Role.Unassigned;
+            if (!needsResupply && _actor.CombatMode != "total" &&
+                _group != null && _group.Joined &&
+                Line2NpcSquadRolePolicy.PrioritizeGuard(
+                    squadRole, Time.time - _lastGuardAt))
+            {
+                Vector3 guardHome = _actor.HomePosition;
+                PrototypeActor lead;
+                if (Line2NPCGroupMember.TryGetLivingMember(
+                    _group.GroupId, out lead) && lead != null)
+                    guardHome = lead.HomePosition;
+                if (TryChooseGroundNear(guardHome, 5f, 14f, out _destination))
+                {
+                    _lastGuardAt = Time.time;
+                    _job = Job.GuardGroup;
+                    return Commit(_destination, out goal);
+                }
+            }
+            if (!needsResupply && _actor.CombatMode != "total" &&
+                Line2NpcSquadRolePolicy.PrioritizeBuilding(squadRole))
+            {
+                if (_builder == null)
+                    _builder = GetComponent<Line2NpcSettlementBuilder>();
+                if (_builder != null &&
+                    _builder.TryGetConstructionGoalServer(out goal))
+                {
+                    _job = Job.BuildSettlement;
+                    return true;
+                }
+            }
+            if (!needsResupply && _actor.CombatMode != "total" &&
+                Line2NpcSquadRolePolicy.PrioritizeExploration(squadRole) &&
+                TryChooseAuthoredSite(current, out _destination))
+            {
+                _job = Job.ExploreAuthoredSite;
+                return Commit(_destination, out goal);
+            }
             Vector3 restock;
             if (_stockpile != null && needsResupply &&
                 _actor.CombatMode != "total" &&
