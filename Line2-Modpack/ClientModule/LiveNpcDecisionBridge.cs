@@ -269,8 +269,11 @@ namespace Unturned2.Line2
                 {
                     PrototypeActor actor = _pendingActors[decision.agent_id];
                     if (actor == null || !actor.isActiveAndEnabled) continue;
-                    if (actor.TryApplyAiAction(decision.action,
-                          Time.realtimeSinceStartup + decision.valid_ms / 1000f))
+                    // TTL starts when this observation was sent, not when
+                    // the response arrived. Network/worker latency must not
+                    // extend the life of an already aging tactical order.
+                    float expiresAt = _sentAt + decision.valid_ms / 1000f;
+                    if (actor.TryApplyAiAction(decision.action, expiresAt))
                         applied++;
                 }
                 Status = "online; accepted " + applied + "/" + response.decisions.Length + " bounded movement suggestions";
