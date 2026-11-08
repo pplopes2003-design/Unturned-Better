@@ -1574,6 +1574,7 @@ namespace Unturned2.Line2
                     ? _vitals.LastDamageOrigin
                     : _lastVerifiedSuppressingShooter;
                 bool hasCover = false;
+                bool canReturnFire = false;
                 _hasRetreat = false;
                 if (shouldDefend && _coverPlanner != null)
                 {
@@ -1600,7 +1601,7 @@ namespace Unturned2.Line2
                         (_retreatGoal - _lastFailedTacticalPoint).sqrMagnitude < 5f)
                         _hasRetreat = false;
                     Vector3? coverPoint = hasCover ? (Vector3?)_coverGoal : null;
-                    bool canReturnFire = _rangedExecutor != null &&
+                    canReturnFire = _rangedExecutor != null &&
                         _rangedExecutor.HasUsableGun &&
                         _combatPerception != null &&
                         _combatPerception.Kind !=
@@ -1711,7 +1712,15 @@ namespace Unturned2.Line2
                     PassiveMode = _combatMode == "passive",
                     CombatOnlyMode = Line2NpcCombatTotalPolicy.Enabled(_combatMode),
                     PlayerNearby = nearPlayer,
-                    ThreatVisible = visible,
+                    // Only Combat Total promotes independently verified
+                    // rival NPC / zombie sightings into the main decision
+                    // brain. Normal retains its existing mixed A-Life flow.
+                    ThreatVisible = visible ||
+                        (Line2NpcCombatTotalPolicy.Enabled(_combatMode) &&
+                         _combatPerception != null &&
+                         _combatPerception.Kind !=
+                            Line2NPCCombatPerception.TargetKind.None &&
+                         _combatPerception.VisibleTarget != null),
                     HasRecentMemory = lastKnown.HasValue,
                     HeardThreat = Time.time - _lastGunshotAt <= 7f ||
                                   Time.time - _lastFootstepAt <= 4f ||
@@ -1723,6 +1732,7 @@ namespace Unturned2.Line2
                     HealthFraction = HealthFraction,
                     UnderFire = RecentlyDamaged || suppressedByVerifiedShot,
                     HasVerifiedCover = hasCover,
+                    CanReturnFire = canReturnFire,
                     RemoteSuggestion = validSuggestion
                 };
                 NpcIntent intent = _brain.Evaluate(Time.time, facts);
