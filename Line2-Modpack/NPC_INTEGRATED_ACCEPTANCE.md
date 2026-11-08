@@ -82,3 +82,16 @@ A comparação com a branch `feature/release-candidate-cycle-2026-11-04` identif
 **Validação disponível:** testes de políticas C# / Python e auditoria textual do SDK aprovados no GitHub Actions. **Não é uma compilação do módulo C# com as DLLs instaladas do Unturned**, nem demonstra que todo modelo e rig Workshop encaixa corretamente em uma cena Steam.
 
 **Ainda bloqueiam a homologação dos NPCs:** compilação real `ClientModule`; demonstração de tiro, animações e efeitos em gameplay; colisores/portas/janelas/escadas reais; teste de explosões e dano mútuo com zumbis; loot e comércio sem perda/duplicação; persistência após reiniciar mapa; incursões multietapas e A-Life coordenado. Esses itens permanecem sem aprovação até evidência real.
+
+## Integração adicional — pisos nativos, linhas de visão e portas (08/11/2026)
+
+**Correções efetivamente integradas nesta branch:**
+
+- **Suporte físico de construções:** todos os planejadores de navegação, posições de cobertura, pesquisa A-Life, reconhecimento de barricadas e restauração de NPCs passam a procurar apoio em `GROUND`, `GROUND2`, `LARGE`, `MEDIUM`, `ENVIRONMENT` e `STRUCTURE` do SDK nativo, não apenas `GROUND2`.
+- **Andares sobrepostos:** `Line2NpcFloorGeometry.TryFindStaticSupport` verifica no máximo 16 impactos de um raio vertical e seleciona a superfície fisicamente estática de inclinação válida mais próxima do nível esperado. Saturação rejeita a amostra. Piso e teto não podem ser considerados conectados sem a posterior verificação de cápsula, borda e rota A*.
+- **Exclusões:** veículos, atores e corpos rigidbody dinâmicos não são superfícies de sustentação para o planejador.
+- **Visão do jogador:** a percepção do protagonista pela IA ignora os próprios seis colisores anatômicos do NPC, mas considera o primeiro obstáculo físico real, incluindo veículos, `CLIP`, outros atores e estruturas. Também exige alvo vivo, alcance, campo frontal e buffer não saturado.
+- **Portas inacessíveis:** uma porta fechada e sem ação nativa disponível não pode mais fazer o motor esperar indefinidamente nem constituir uma falsa conexão de navegação indoor. Uma espera de animação só vale para abertura realmente iniciada e é limpa no despawn.
+- **Auditoria automatizada:** bloqueia regressões para busca exclusiva em `GROUND2`, exige o amostrador nativo de múltiplas superfícies, a checagem visual física e a autorização nativa de abrir portas.
+
+**Limites ainda não homologados:** cenas Steam reais, clips e assets da Workshop, escadas e janelas com acesso efetivo, navegação por andares com A* ASPFP, build completa do módulo, performance com NPCs + zumbis, gameplay integrado e multiplayer. Nenhum desses itens deve ser descrito como testado apenas pela passagem no CI textual/BrainTests.
