@@ -26,6 +26,7 @@ namespace Unturned2.Line2
         private float _meleeUntil;
         private float _nextRefresh;
         private float _nextHookRetry;
+        private bool _loggedMissingHook;
 
         private void OnEnable()
         {
@@ -101,11 +102,22 @@ namespace Unturned2.Line2
                 ClearVisual();
                 return;
             }
+            // A different gun may have been consumed, traded or broken.
+            // Never keep depicting the old gun while the new item's visual
+            // is unavailable, even if we must retry loading its prefab.
+            if (_model != null && desiredId != _displayedItem)
+                ClearVisual();
             if (Time.time < _nextHookRetry)
                 return;
             if (!FindHandHook())
             {
                 _nextHookRetry = Time.time + MissingHookRetrySeconds;
+                if (!_loggedMissingHook)
+                {
+                    _loggedMissingHook = true;
+                    ProbeLogger.Log("NPC_WEAPON_VISUAL_NO_HAND_HOOK: actor=" +
+                        gameObject.name + " (native skeleton differs)");
+                }
                 return;
             }
 
