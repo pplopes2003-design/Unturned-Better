@@ -118,9 +118,10 @@ namespace Unturned2.Line2
                     // barricade, not the camp centroid. A 9m+ offset from
                     // the centroid left raiders permanently unable to
                     // approach native melee reach after rallying.
-                    if (!TryFindStaging(candidate.position, out staging) ||
-                        !_actor.TryStageObservedRaid(staging))
-                        return;
+                    if (!TryFindStaging(candidate.position, out staging))
+                        continue; // A different observed piece may have safe approach.
+                    if (!_actor.TryStageObservedRaid(staging))
+                        return; // A higher-priority local order now owns motion.
                     _nextReconsider = Time.time + 42f;
                     int followers = InvitePersonallyHeardAllies(staging);
                     if (Time.time >= _nextLogAt)
