@@ -21,6 +21,8 @@
              Link="Line2NPCCombatRules.cs" />
     <Compile Include="UnityValueStubs.cs" />
     <Compile Include="../ClientModule/Line2NpcSquadRegroupPolicy.cs" Link="Line2NpcSquadRegroupPolicy.cs" />
+    <Compile Include="SquadMoraleTests.cs" />
+    <Compile Include="../ClientModule/Line2NpcSquadMoralePolicy.cs" Link="Line2NpcSquadMoralePolicy.cs" />
     <Compile Include="EncounterPacingTests.cs" />
     <Compile Include="../ClientModule/Line2NpcEncounterPacing.cs" Link="Line2NpcEncounterPacing.cs" />
     <Compile Include="RadioReinforcementTests.cs" />
