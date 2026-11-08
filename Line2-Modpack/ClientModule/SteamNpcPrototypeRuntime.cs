@@ -2175,9 +2175,23 @@ namespace Unturned2.Line2
 
         private bool CanSeePlayer(Player player)
         {
+            if (player == null || player.life == null || player.life.isDead)
+                return false;
+            // A clear ray behind the NPC is not firsthand sight. Use the
+            // same frontal angular gate as the NPC/zombie combat sensor.
+            Vector3 flat = player.transform.position - transform.position;
+            flat.y = 0f;
+            Vector3 facing = transform.forward;
+            facing.y = 0f;
+            if (flat.sqrMagnitude < 0.0001f ||
+                facing.sqrMagnitude < 0.0001f ||
+                !Line2NPCCombatRules.WithinVisualArc(
+                    Vector3.Dot(flat.normalized, facing.normalized)))
+                return false;
             Vector3 source = transform.position + Vector3.up * 1.5f;
             Vector3 target = player.transform.position + Vector3.up * 1.3f;
             Vector3 to = target - source;
+            if (to.sqrMagnitude < 0.0001f) return false;
             RaycastHit hit;
             if (!Physics.Raycast(source, to.normalized, out hit, to.magnitude,
                                  ~0, QueryTriggerInteraction.Ignore))
