@@ -166,6 +166,24 @@ namespace Unturned2.Line2
             return true;
         }
 
+        /// <summary>
+        /// A confirmed extinct NPC group ceases to own a settlement SLOT,
+        /// but the actual BarricadeManager objects are left intact as world
+        /// ruins. The caller must prove the full restore queue has no pending
+        /// surviving member, and no living group member remains. Delayed
+        /// replacement tickets inherit only disposition, never a dead camp.
+        /// </summary>
+        internal static bool RetireExtinctGroup(int groupId,
+            bool verifiedNoLivingMembersOrPendingRestore)
+        {
+            if (!Authorized() || groupId <= 0 ||
+                !verifiedNoLivingMembersOrPendingRestore)
+                return false;
+            // Group ID remains historically reserved by the runtime; there
+            // is no right to resurrect a destroyed group's saved property.
+            return _sites.Remove(groupId);
+        }
+
         internal static bool IsPositionOccupied(int groupId, string role,
             Vector3 requested, float radius)
         {
