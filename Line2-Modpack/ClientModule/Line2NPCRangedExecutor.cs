@@ -34,7 +34,6 @@ namespace Unturned2.Line2
         private int _burstRemaining;
         private uint _activeGunInstance;
         private byte _activeGunFiremode;
-        private bool _waitingBurstPause;
 
         internal bool HasUsableGun { get; private set; }
         internal bool Reloading { get { return _pendingReloadGun != 0; } }
@@ -249,7 +248,6 @@ namespace Unturned2.Line2
                 _burstRemaining = Line2NpcFireModePolicy.ShotsInCycle(
                     semi, burst, automatic, gun.bursts,
                     UnityEngine.Random.Range(2, 6));
-                _waitingBurstPause = true;
                 // Semi mode has a human trigger-reset delay, while
                 // native burst and auto modes regroup between volleys.
                 _nextShotAt = Time.time + (semi
@@ -259,7 +257,6 @@ namespace Unturned2.Line2
             else
             {
                 _burstRemaining--;
-                _waitingBurstPause = false;
                 _nextShotAt = Time.time + Mathf.Clamp(
                     (gun.firerate + 1f) / 50f, 0.12f, 1.8f) +
                     UnityEngine.Random.Range(0.035f, 0.14f);
