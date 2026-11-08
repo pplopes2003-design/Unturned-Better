@@ -74,6 +74,27 @@ internal static class CombatDynamicsTests
             return false;
         }
 
+        // The real selected native fire mode determines the pattern.
+        // A semi-only firearm gets one round per trigger; a three-round
+        // burst never silently becomes five-round full auto. Safety
+        // and unsupported gun states never authorize ammunition debit.
+        if (Line2NpcFireModePolicy.ShotsInCycle(
+                true, false, false, 3, 5) != 1 ||
+            Line2NpcFireModePolicy.ShotsInCycle(
+                false, true, false, 3, 5) != 3 ||
+            Line2NpcFireModePolicy.ShotsInCycle(
+                false, false, true, 3, 5) != 5 ||
+            Line2NpcFireModePolicy.ShotsInCycle(
+                false, false, true, 3, 100) != 6 ||
+            Line2NpcFireModePolicy.ShotsInCycle(
+                false, true, false, 0, 5) != 1 ||
+            Line2NpcFireModePolicy.ShotsInCycle(
+                false, false, false, 3, 5) != 0)
+        {
+            Console.Error.WriteLine("NPC_FIREMODE_FAILED: semi, burst, automatic, safety or unsupported gun.");
+            return false;
+        }
+
         Console.WriteLine("NPC_COMBAT_DYNAMICS_OK: finite gun damage, real missed-shot pressure, humanized recoil and injury.");
         return true;
     }
