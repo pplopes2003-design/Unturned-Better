@@ -11,6 +11,32 @@ ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "Line2-Modpack" / "ClientModule"
 
 REQUIREMENTS = (
+    # No false native A* destination completion, no stale backend reuse,
+    # and no routine/tactical progress from repeated wall-corner positions.
+    ("Line2-Modpack/ClientModule/Line2NpcNativeArrivalPolicy.cs",
+     ("HasPhysicallyArrived", "VerticalTolerance", "HorizontalTolerance")),
+    ("Line2-Modpack/ClientModule/PrototypeAStarFollower.cs",
+     ("Line2NpcNativeArrivalPolicy.HasPhysicallyArrived",
+      "native-endpoint-not-actual-arrival",
+      "native-physical-goal-arrived")),
+    ("Line2-Modpack/ClientModule/Line2NativeAStarRouteProvider.cs",
+     ("CancelPendingRequest();", "initialized = false;",
+      "nextInitializationAttemptTime = 0f;",
+      "observedBackendName = \"none\"")),
+    ("Line2-Modpack/ClientModule/Line2NpcPhysicalProgressLedger.cs",
+     ("MaximumSamples = 16", "TryObserveNewPosition",
+      "private void Record(Vector3 point)", "Reset(Vector3 origin)")),
+    ("Line2-Modpack/ClientModule/Line2NpcRoutineRouteHealth.cs",
+     ("Line2NpcPhysicalProgressLedger", "TryObserveNewPosition",
+      "MaxGoalSeconds = 140f", "InvalidRouteGrace = 4f")),
+    ("Line2-Modpack/ClientModule/Line2NpcTacticalJourneyWatchdog.cs",
+     ("Line2NpcPhysicalProgressLedger", "TryObserveNewPosition",
+      "AbsoluteTimeoutSeconds = 45.0f")),
+    ("Line2-Modpack/BrainTests/Program.cs",
+     ("NativeArrivalTests.Run()", "PhysicalProgressTests.Run()")),
+    ("Line2-Modpack/ClientModule/Line2NpcFloorGeometry.cs",
+     ("InteractableStorage", "InteractableBed",
+      "InteractableObjectBinaryState", "TryFindStaticSupport")),
     # Original indoor and outdoor walkable surfaces can be GROUND,
     # GROUND2, level-building LARGE/MEDIUM or player-built STRUCTURE.
     # GROUND2-only casts caused false 'no-connected-route' indoors.
