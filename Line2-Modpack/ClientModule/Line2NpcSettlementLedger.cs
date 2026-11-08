@@ -14,7 +14,7 @@ namespace Unturned2.Line2
     internal static class Line2NpcSettlementLedger
     {
         private const int MaxGroups = 16;
-        private const int MaxPieces = 4;
+        private const int MaxPieces = 5; // central native storage plus four perimeter pieces
         private static readonly Dictionary<int,
             Line2NpcPersistence.SettlementRecord> _sites =
             new Dictionary<int, Line2NpcPersistence.SettlementRecord>(MaxGroups);
@@ -69,6 +69,8 @@ namespace Unturned2.Line2
                 parts[i] = new Line2NpcPersistence.PlacedBarricadeRecord
                 {
                     assetId = old.assetId,
+                    instanceID = old.instanceID,
+                    isStorage = old.isStorage,
                     x = old.x, y = old.y, z = old.z, yaw = old.yaw
                 };
             }
@@ -93,6 +95,75 @@ namespace Unturned2.Line2
             site = record.Anchor;
             pieces = record.placed.Length;
             return true;
+        }
+
+        internal static bool HasCentralStorage(int groupId, string role)
+        {
+            Line2NpcPersistence.SettlementRecord record;
+            if (!Authorized() || !_sites.TryGetValue(groupId, out record) ||
+                record.role != role) return false;
+            foreach (Line2NpcPersistence.PlacedBarricadeRecord part in record.placed)
+                if (part.isStorage) return true;
+            return false;
+        }
+
+        internal static bool TryGetCentralStorage(int groupId, string role,
+            out Line2NpcPersistence.PlacedBarricadeRecord storage)
+        {
+            storage = null;
+            Line2NpcPersistence.SettlementRecord record;
+            if (!Authorized() || !_sites.TryGetValue(groupId, out record) ||
+                record.role != role) return false;
+            foreach (Line2NpcPersistence.PlacedBarricadeRecord part in record.placed)
+                if (part.isStorage)
+                {
+                    storage = new Line2NpcPersistence.PlacedBarricadeRecord
+                    {
+                        assetId = part.assetId,
+                        instanceID = part.instanceID,
+                        isStorage = true,
+                        x = part.x, y = part.y, z = part.z, yaw = part.yaw
+                    };
+                    return true;
+                }
+            return false;
+        }
+
+        /// <summary>
+        /// Remove ONLY individually VERIFIED missing native structures from
+        /// a previously saved camp. Caller is responsible for proving that
+        /// the nearby vanilla BarricadeManager is fully loaded and each
+        /// matching object really does NOT exist. A manifest is not a wall:
+        /// this does not destroy, spawn, or award any native barricade.
+        /// </summary>
+        internal static bool ReconcileObservedPieces(int groupId, string role,
+            Func<Line2NpcPersistence.PlacedBarricadeRecord, bool> stillExists)
+        {
+            Line2NpcPersistence.SettlementRecord record;
+            if (!Authorized() || stillExists == null ||
+                !_sites.TryGetValue(groupId, out record) ||
+                record.role != role || record.placed.Length == 0)
+                return false;
+            var kept = new List<Line2NpcPersistence.PlacedBarricadeRecord>(
+                record.placed.Length);
+            foreach (Line2NpcPersistence.PlacedBarricadeRecord piece in record.placed)
+                if (stillExists(piece)) kept.Add(piece);
+            if (kept.Count == record.placed.Length) return false;
+            record.placed = kept.ToArray();
+            return true;
+        }
+
+        internal static bool IsPositionOccupied(int groupId, string role,
+            Vector3 requested, float radius)
+        {
+            Line2NpcPersistence.SettlementRecord record;
+            if (!Authorized() || !_sites.TryGetValue(groupId, out record) ||
+                record.role != role || radius < 0.1f) return false;
+            float d2 = radius * radius;
+            foreach (Line2NpcPersistence.PlacedBarricadeRecord part in record.placed)
+                if ((new Vector3(part.x, part.y, part.z) - requested)
+                    .sqrMagnitude <= d2) return true;
+            return false;
         }
 
         internal static bool TryClaim(int groupId, string role, Vector3 site)
@@ -124,6 +195,14 @@ namespace Unturned2.Line2
         internal static bool CommitPlaced(int groupId, string role,
             ushort assetId, Vector3 actualSite, float yaw)
         {
+            return CommitPlaced(groupId, role, assetId, actualSite, yaw,
+                0u, false);
+        }
+
+        internal static bool CommitPlaced(int groupId, string role,
+            ushort assetId, Vector3 actualSite, float yaw,
+            uint instanceID, bool isStorage)
+        {
             Vector3 baseSite;
             int used;
             if (!TryGet(groupId, role, out baseSite, out used) ||
@@ -132,15 +211,23 @@ namespace Unturned2.Line2
                 return false;
             Line2NpcPersistence.SettlementRecord record = _sites[groupId];
             foreach (Line2NpcPersistence.PlacedBarricadeRecord old in record.placed)
+            {
+                if (isStorage && old.isStorage)
+                    return false; // Only one central native container.
+                if (instanceID != 0 && old.instanceID == instanceID)
+                    return false; // One native object belongs to one slot.
                 if (new Vector3(old.x - actualSite.x,
                     old.y - actualSite.y, old.z - actualSite.z).sqrMagnitude <
                     0.6f * 0.6f)
                     return false; // Do not double-count the same footprint.
+            }
             var next = new Line2NpcPersistence.PlacedBarricadeRecord[used + 1];
             Array.Copy(record.placed, next, used);
             next[used] = new Line2NpcPersistence.PlacedBarricadeRecord
             {
                 assetId = assetId,
+                instanceID = instanceID,
+                isStorage = isStorage,
                 x = actualSite.x, y = actualSite.y, z = actualSite.z,
                 yaw = yaw
             };
