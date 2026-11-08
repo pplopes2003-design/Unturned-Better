@@ -1253,11 +1253,15 @@ namespace Unturned2.Line2
                 Mathf.Floor(position.x / 12f) * 12f + 6f,
                 position.y,
                 Mathf.Floor(position.z / 12f) * 12f + 6f);
-            _lastGunshotAt = heardAt;
-            // A rejected/repeated clue must not reset the finite search.
-            // Real incoming fire is still registered independently.
+            // An acoustic timestamp is evidence ONLY when the sensory
+            // memory accepts that clue. Rejected noise must not also make
+            // the higher-level brain invent a fresh 'heard threat' intent.
+            // Genuine nearby gunfire still counts as incoming-fire pressure.
             if (_knowledge.TryObserveSound(_lastHeardPoint, 0.64f, heardAt))
+            {
+                _lastGunshotAt = heardAt;
                 _legacyBrain.ReportNoise(_lastHeardPoint, heardAt, 17f);
+            }
             _tactics.ReportIncomingFire(heardAt);
         }
 
@@ -1272,9 +1276,11 @@ namespace Unturned2.Line2
             _lastHeardFootstepPoint = new Vector3(
                 Mathf.Floor(position.x / 6f) * 6f + 3f, position.y,
                 Mathf.Floor(position.z / 6f) * 6f + 3f);
-            _lastFootstepAt = at;
             if (_knowledge.TryObserveSound(_lastHeardFootstepPoint, confidence, at))
+            {
+                _lastFootstepAt = at;
                 _legacyBrain.ReportNoise(_lastHeardFootstepPoint, at, 8f);
+            }
         }
 
         internal void ReceiveVerifiedRadioReport(Vector3 sector, float observedAt)
@@ -1284,13 +1290,13 @@ namespace Unturned2.Line2
                 float.IsInfinity(observedAt) || observedAt < 0f ||
                 observedAt - _lastRadioAt < 6f)
                 return;
-            _lastRadioAt = observedAt;
             // Faction/group/equipment authorization is verified by
             // Line2NPCRadioOutbox before this is called. The radio only
             // supplies an uncertain sector. Never grant LOS, an aim target,
             // ammo, direct damage rights or a permanent player identity.
             if (!_knowledge.TryObserveReport(sector, 0.58f, observedAt))
                 return;
+            _lastRadioAt = observedAt;
             _legacyBrain.ReportNoise(sector, observedAt, 15f);
             Vector3 locallyProposed, validated;
             if (Line2NpcRadioReinforcementPolicy.TryPropose(
