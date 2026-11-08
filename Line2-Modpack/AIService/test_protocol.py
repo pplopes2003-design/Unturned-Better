@@ -84,6 +84,21 @@ class ProtocolTests(unittest.TestCase):
                          ["npc-a", "npc-b"])
         self.assertTrue(all(d["valid_ms"] == 600 for d in response["decisions"]))
 
+    def test_batched_rejects_mixed_ticks(self):
+        def make_agent(identity, tick):
+            return {"protocol": 1, "agent_id": identity, "tick": tick,
+                    "observation": {"kind": "npc", "position": [0, 0, 0],
+                                    "health": 1.0, "threat_visible": False,
+                                    "under_fire": False, "has_cover": False,
+                                    "last_known_threat": None}}
+        with self.assertRaises(HTTPError) as error:
+            self.request(endpoint="/v1/decide_batch", payload={
+                "protocol": 1, "agents": [
+                    make_agent("npc-a", 10), make_agent("npc-b", 11)]})
+        self.assertEqual(error.exception.code, 400)
+        self.assertEqual(
+            json.load(error.exception)["error"], "mixed_batch_ticks")
+
     def test_batched_rejects_duplicates_and_overload(self):
         a = {"protocol": 1, "agent_id": "same", "tick": 1,
              "observation": {"kind": "npc", "position": [0, 0, 0],
