@@ -108,7 +108,7 @@ namespace Unturned2.Line2
                 _startedAt = now;
                 _lastProgressAt = now;
                 _bestDistance = flatDistance;
-                _lastPhysicalProgressPosition = actualPosition;
+                _physicalProgress.Reset(actualPosition);
                 return Outcome.Moving;
             }
             if (_arrived)
@@ -127,7 +127,8 @@ namespace Unturned2.Line2
             if (_bestDistance - flatDistance >= MinimumProgress)
             {
                 _bestDistance = flatDistance;
-                _lastPhysicalProgressPosition = actualPosition;
+                _physicalProgress.TryObserveNewPosition(actualPosition,
+                    MinimumProgress);
                 _lastProgressAt = now;
             }
             else if (_physicalProgress.TryObserveNewPosition(
