@@ -44,6 +44,8 @@ internal static class Program
             return 66;
         if (!CombatTotalTests.Run())
             return 68;
+        if (!CombatTotalSquadTests.Run())
+            return 69;
 
         var brain = new NpcDecisionBrain();
         var noVision = new NpcDecisionInput
