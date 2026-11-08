@@ -33,6 +33,22 @@ namespace Unturned2.Line2
         internal Line2NPCFactionPolicy.Id Faction { get; private set; }
         internal bool Joined { get { return GroupId != 0; } }
 
+        /// <summary>Derived from the currently living roster, not saved
+        /// as an identity. A replacement is a new individual and may take
+        /// a different squad task; a survivor can take over leadership.</summary>
+        internal Line2NpcSquadRolePolicy.Role Role
+        {
+            get
+            {
+                if (!Joined) return Line2NpcSquadRolePolicy.Role.Unassigned;
+                List<Line2NPCGroupMember> roster;
+                if (!Groups.TryGetValue(GroupId, out roster))
+                    return Line2NpcSquadRolePolicy.Role.Unassigned;
+                return Line2NpcSquadRolePolicy.ForLivingSlot(
+                    roster.IndexOf(this), roster.Count);
+            }
+        }
+
         internal void Initialize(PrototypeActor actor,
                                  List<PrototypeActor> existing)
         {
