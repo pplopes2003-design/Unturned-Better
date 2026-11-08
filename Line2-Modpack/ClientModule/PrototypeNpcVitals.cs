@@ -189,13 +189,22 @@ namespace Unturned2.Line2
                 return false;
             bool validAttacker = attacker != null &&
                 Finite(attacker.position);
-            Vector3 origin = validAttacker ? attacker.position : Vector3.zero;
+            // Record ahead of a possibly fatal hit so a Died listener sees
+            // the REAL attacker. If the injury/health owner rejects the
+            // mutation, roll back this tentative attribution.
+            Vector3 previousOrigin = LastDamageOrigin;
+            bool hadOrigin = HasExplosionOrigin;
+            if (validAttacker)
+            {
+                LastDamageOrigin = attacker.position;
+                HasExplosionOrigin = true;
+            }
             bool applied = ApplyDamageToPart(damage, part, causeBleeding,
                 causeFracture, severity, impulse);
-            if (applied && validAttacker)
+            if (!applied && validAttacker)
             {
-                LastDamageOrigin = origin;
-                HasExplosionOrigin = true;
+                LastDamageOrigin = previousOrigin;
+                HasExplosionOrigin = hadOrigin;
             }
             return applied;
         }
