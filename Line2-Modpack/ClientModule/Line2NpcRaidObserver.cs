@@ -203,7 +203,8 @@ namespace Unturned2.Line2
                 if (!Physics.Raycast(estimate + Vector3.up * 1.8f,
                     Vector3.down, out floor, 4.2f,
                     Line2NpcFloorGeometry.SupportMask, QueryTriggerInteraction.Ignore) ||
-                    floor.collider == null || floor.normal.y < 0.77f)
+                    !Line2NpcFloorGeometry.IsStaticFloorCandidate(floor.collider) ||
+                    floor.normal.y < 0.77f)
                     continue;
                 Vector3 point = floor.point + Vector3.up * 0.06f;
                 if (Mathf.Abs(point.y - ally.transform.position.y) > 1.1f ||
@@ -324,6 +325,7 @@ namespace Unturned2.Line2
                 if (!Physics.Raycast(estimated + Vector3.up * 2f,
                     Vector3.down, out ground, 4.2f, Line2NpcFloorGeometry.SupportMask,
                     QueryTriggerInteraction.Ignore) ||
+                    !Line2NpcFloorGeometry.IsStaticFloorCandidate(ground.collider) ||
                     ground.normal.y < 0.75f)
                     continue;
                 Vector3 point = ground.point + Vector3.up * 0.07f;
