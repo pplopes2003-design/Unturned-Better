@@ -20,7 +20,7 @@ namespace Unturned2.Line2
             return difference.x * difference.x +
                 difference.z * difference.z <=
                     HorizontalTolerance * HorizontalTolerance &&
-                Mathf.Abs(difference.y) <= VerticalTolerance;
+                System.Math.Abs(difference.y) <= VerticalTolerance;
         }
 
         private static bool Finite(Vector3 v)
