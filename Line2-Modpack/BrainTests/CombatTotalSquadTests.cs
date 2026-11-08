@@ -68,6 +68,26 @@ internal static class CombatTotalSquadTests
             Console.Error.WriteLine("NPC_TOTAL_SQUAD_REINFORCE_FAILED: authorization, cooldown or floor.");
             return false;
         }
+        // Assigned squad members have distinct combat roles: leader/scout
+        // flank on verified sights, guard/quartermaster hold the gunline.
+        // A lone ungrouped actor can flank and Normal mode is unchanged.
+        if (!Line2NpcCombatTotalSquadPolicy.CanInitiateFlank(true,
+                Line2NpcSquadRolePolicy.Role.Leader) ||
+            !Line2NpcCombatTotalSquadPolicy.CanInitiateFlank(true,
+                Line2NpcSquadRolePolicy.Role.Scout) ||
+            !Line2NpcCombatTotalSquadPolicy.CanInitiateFlank(true,
+                Line2NpcSquadRolePolicy.Role.Unassigned) ||
+            Line2NpcCombatTotalSquadPolicy.CanInitiateFlank(true,
+                Line2NpcSquadRolePolicy.Role.Guard) ||
+            Line2NpcCombatTotalSquadPolicy.CanInitiateFlank(true,
+                Line2NpcSquadRolePolicy.Role.Quartermaster) ||
+            !Line2NpcCombatTotalSquadPolicy.CanInitiateFlank(false,
+                Line2NpcSquadRolePolicy.Role.Guard))
+        {
+            Console.Error.WriteLine("NPC_TOTAL_SQUAD_FLANK_FAILED: role responsibilities.");
+            return false;
+        }
+
         Console.WriteLine("NPC_TOTAL_SQUAD_OK: real firsthand combat radio, live team, bounded sector movement.");
         return true;
     }
