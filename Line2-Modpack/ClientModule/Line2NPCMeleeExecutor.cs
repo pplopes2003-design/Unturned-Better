@@ -117,8 +117,7 @@ namespace Unturned2.Line2
                     PrototypeNpcVitals victim =
                         rival != null ? rival.GetComponent<PrototypeNpcVitals>() : null;
                     if (rival == null || victim == null || victim.IsDead ||
-                        !Line2NPCCombatRules.AreOpposed(
-                            _actor.Disposition, rival.Disposition, _actor.CombatMode))
+                        !_perception.CanEngageNpcTarget(rival))
                         return;
                     // No guessed headshots on melee: a validated torso
                     // strike may cause damage/condition loss once.
