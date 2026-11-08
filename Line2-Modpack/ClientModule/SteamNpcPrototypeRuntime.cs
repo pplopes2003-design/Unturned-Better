@@ -1741,12 +1741,13 @@ namespace Unturned2.Line2
             if (_controller.isGrounded && _verticalVelocity < 0f)
                 _verticalVelocity = -1.0f;
             _verticalVelocity += Physics.gravity.y * Time.deltaTime;
-            // Arrival is handled by MonitorTacticalProgress AFTER the real
-            // CharacterController.Move. A verified retreat point must stay
-            // committed as a temporary refuge, and a flank point as a
-            // firing position, until the original tactic's deadline expires.
-            // The former eager ReportGoalReached() made wounded NPCs turn
-            // straight back toward their attacker.
+            // Complete the actual physics move before interpreting arrival.
+            // The legacy investigation state may advance only from measured
+            // CharacterController position, never from a predicted waypoint.
+            IsMoving = direction.sqrMagnitude > 0.1f;
+            if (_animation != null) _animation.SetMoving(IsMoving);
+            _controller.Move((direction * speed +
+                              Vector3.up * _verticalVelocity) * Time.deltaTime);
             // Arrival is a physical observation, not merely a requested
             // waypoint. The migrated Line 1 brain advances its three-point
             // investigation spiral only when the CharacterController arrives.
@@ -1765,10 +1766,6 @@ namespace Unturned2.Line2
                         _goal = _legacyBrain.Destination;
                 }
             }
-            IsMoving = direction.sqrMagnitude > 0.1f;
-            if (_animation != null) _animation.SetMoving(IsMoving);
-            _controller.Move((direction * speed +
-                              Vector3.up * _verticalVelocity) * Time.deltaTime);
             MonitorTacticalProgress();
         }
 
