@@ -116,7 +116,11 @@ namespace Unturned2.Line2
                 return;
             }
 
-            string map = Line2NpcPersistence.CurrentMapKey;
+            // Combat Total has a separate map-scoped snapshot. Never
+            // restore Normal survivors as hostile fighters or write Total
+            // casualties over existing Normal/Passive history.
+            string map = Line2NpcCombatTotalPolicy.ScopedSaveKey(
+                Line2NpcPersistence.CurrentMapKey, _mode);
             if (string.IsNullOrEmpty(map)) return;
             if (!string.Equals(_saveMap, map, StringComparison.Ordinal))
             {
@@ -261,8 +265,29 @@ namespace Unturned2.Line2
             _enabled = enabled;
             _natural = naturalSpawn;
             _cap = Mathf.Clamp(maxNPCs, 1, 32);
-            _mode = combatMode == "passive" || combatMode == "total"
+            string nextMode = combatMode == "passive" || combatMode == "total"
                 ? combatMode : "normal";
+            bool changedSaveScope =
+                Line2NpcCombatTotalPolicy.Enabled(_mode) !=
+                Line2NpcCombatTotalPolicy.Enabled(nextMode);
+            if (changedSaveScope)
+            {
+                // Save the OLD mode using its OLD key before changing
+                // settings. Never repaint a living civilian as a fighter;
+                // each mode restores its own actual inventory/identities.
+                SaveCheckpoint();
+                ClearActors();
+                _saveMap = null;
+                _restoreLoaded = false;
+                _saveAllowed = false;
+                _saveSourceVerified = false;
+                _orphanCampCleanupDone = false;
+                _pendingRestore.Clear();
+                _pendingReplacements.Clear();
+                ProbeLogger.Log("NPC_COMBAT_TOTAL_SCOPE_CHANGED: isolated save "
+                    + "and fresh mode-specific actor restoration");
+            }
+            _mode = nextMode;
             _nextNaturalAt = Time.time + 18f;
             foreach (PrototypeActor actor in _actors)
                 if (actor != null) actor.SetCombatMode(_mode);
@@ -309,6 +334,8 @@ namespace Unturned2.Line2
                 reason = "Invalid NPC disposition";
                 return false;
             }
+            disposition = Line2NpcCombatTotalPolicy.ResolveNewRole(
+                disposition, _mode);
             int activeCap = _restoringActor
                 ? Mathf.Max(_cap, _restoreCapacity) : _cap;
             if (count < 1 || count > 5 || ActiveCount + count > activeCap)
