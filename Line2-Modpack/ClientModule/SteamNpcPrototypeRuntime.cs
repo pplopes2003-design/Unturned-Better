@@ -1675,10 +1675,12 @@ namespace Unturned2.Line2
             }
 
             Vector3 delta = _goal - transform.position;
-            delta.y = 0;
+            bool requiresVerticalRoute = Mathf.Abs(delta.y) > 1.25f;
+            delta.y = 0f;
+            bool needsRoute = delta.sqrMagnitude > 1.5f || requiresVerticalRoute;
             var locomotion = new Line2MobileNPCLocomotionPolicy.Situation
             {
-                HasDestination = delta.sqrMagnitude > 1.5f,
+                HasDestination = needsRoute,
                 TargetVisible = _threatVisible,
                 Swimming = false, // Separate native water traversal adapter required.
                 UnderFire = RecentlyDamaged,
@@ -1702,10 +1704,11 @@ namespace Unturned2.Line2
                 speed *= Mathf.Clamp(_injuries.MovementMultiplier, 0.1f, 1f);
             Vector3 direction = delta.sqrMagnitude > 1.5f && speed > 0f
                 ? delta.normalized : Vector3.zero;
-            // Use bounded side-steering instead of repeatedly stopping in
-            // front of the same wall. This does not open doors or navigate
-            // entire buildings: a proper door-aware graph is still required.
-            if (direction.sqrMagnitude > 0 && _astarFollower != null)
+            // Vertical goals on another floor have zero horizontal delta.
+            // Still consult native A* for a real staircase rather than
+            // becoming idle directly below the destination. Do not invent
+            // vertical movement or force the CharacterController upward.
+            if (needsRoute && speed > 0f && _astarFollower != null)
                 direction = _astarFollower.GetHeading(_goal);
             else if (direction.sqrMagnitude > 0 && _navigation != null)
                 direction = _navigation.GetHeading(direction, _goal);
