@@ -16,6 +16,10 @@ namespace Unturned2.Line2
         private const float Radius = 3.0f;
         private const int MaximumChecked = 100;
         private const float TickSeconds = 3.8f;
+        private const float SightScavengeRadius = 19f;
+        private const int MaximumFarItemsExamined = 120;
+        private const int MaximumSightHits = 16;
+        private static readonly float DestinationSearchCooldown = 6f;
         private readonly List<RegionCoordinate> _regions =
             new List<RegionCoordinate>(9);
         private PrototypeActor _actor;
@@ -28,6 +32,15 @@ namespace Unturned2.Line2
         private float _nextAt;
         private uint _lastDeniedID;
         private float _lastDeniedUntil;
+        private uint _observedItemID;
+        private Vector3 _observedItemPoint;
+        private float _observedGoalExpires;
+        private float _nextScavengeSearchAt;
+        private float _nextClaimValidationAt;
+        private readonly RaycastHit[] _scavengeHits =
+            new RaycastHit[MaximumSightHits];
+        private int ClaimOwner { get { return GetInstanceID(); } }
+        internal uint ObservedItemID { get { return _observedItemID; } }
 
         internal void Initialize(SteamNpcPrototypeRuntime runtime,
             PrototypeActor actor, Line2NPCCombatPerception perception)
@@ -107,6 +120,229 @@ namespace Unturned2.Line2
             }
         }
 
+        /// <summary>
+        /// Drop an OPTIONAL navigation assignment. The game inventory does
+        /// not change; ItemManager still owns the real pickup and world item.
+        /// A blocked house or expired observation cannot hold a claim forever.
+        /// </summary>
+        internal void AbandonObservedGoal()
+        {
+            if (_observedItemID != 0)
+                Line2NpcLootClaims.Release(_observedItemID, ClaimOwner);
+            _observedItemID = 0;
+            _observedGoalExpires = 0f;
+            _nextScavengeSearchAt = Mathf.Max(
+                _nextScavengeSearchAt, Time.time + 6f);
+        }
+
+        private void OnDisable()
+        {
+            Line2NpcLootClaims.ReleaseOwner(ClaimOwner);
+            _observedItemID = 0;
+        }
+
+        private bool CanPlanScavenge()
+        {
+            return LocalAuthority() && _actor != null &&
+                !_actor.IsDead && !_actor.IsRecruited &&
+                _inventory != null && _inventory.HasSpace &&
+                !_actor.IsTacticallyRetreating &&
+                (_perception == null ||
+                 _perception.Kind ==
+                    Line2NPCCombatPerception.TargetKind.None ||
+                 _perception.VisibleTarget == null);
+        }
+
+        private static bool TryFindMatchingNativeDrop(
+            ItemRegion region, ItemData data, out ItemDrop drop)
+        {
+            drop = null;
+            if (region == null || region.drops == null ||
+                data == null || data.item == null) return false;
+            for (int i = 0; i < region.drops.Count; ++i)
+            {
+                ItemDrop candidate = region.drops[i];
+                if (candidate == null ||
+                    candidate.instanceID != data.instanceID) continue;
+                if (drop != null) return false; // malformed duplicate
+                drop = candidate;
+            }
+            return drop != null && drop.model != null &&
+                drop.interactableItem != null &&
+                drop.interactableItem.item != null &&
+                drop.interactableItem.item.id == data.item.id &&
+                (drop.model.position - data.point).sqrMagnitude < 9f;
+        }
+
+        private bool HasFirsthandWorldItemSight(Transform target)
+        {
+            if (target == null) return false;
+            Vector3 eye = transform.position + Vector3.up * 1.38f;
+            Vector3 aim = target.position + Vector3.up * 0.25f;
+            Vector3 delta = aim - eye;
+            float length = delta.magnitude;
+            if (length <= 0.2f || length > SightScavengeRadius + 1f)
+                return false;
+            int count = Physics.RaycastNonAlloc(
+                eye, delta / length, _scavengeHits, length,
+                RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+            if (count >= _scavengeHits.Length) return false;
+            for (int i = 0; i < count; ++i)
+            {
+                Transform hit = _scavengeHits[i].transform;
+                _scavengeHits[i] = default(RaycastHit);
+                if (hit == null || hit == transform ||
+                    hit.IsChildOf(transform) ||
+                    hit == target || hit.IsChildOf(target))
+                    continue;
+                return false;
+            }
+            return true;
+        }
+
+        private bool HasActualWorldItem(uint instanceID,
+            out Vector3 physicalPoint)
+        {
+            physicalPoint = Vector3.zero;
+            _regions.Clear();
+            Regions.getRegionsInRadius(transform.position,
+                SightScavengeRadius + 3f, _regions);
+            for (int r = 0; r < _regions.Count; r++)
+            {
+                RegionCoordinate c = _regions[r];
+                if (c.x >= ItemManager.regions.GetLength(0) ||
+                    c.y >= ItemManager.regions.GetLength(1))
+                    continue;
+                ItemRegion region = ItemManager.regions[c.x, c.y];
+                if (region == null || region.items == null) continue;
+                foreach (ItemData item in region.items)
+                {
+                    if (item == null || item.instanceID != instanceID)
+                        continue;
+                    ItemDrop drop;
+                    if (!TryFindMatchingNativeDrop(region, item, out drop))
+                        return false;
+                    Vector3 here = transform.position;
+                    Vector3 p = drop.model.position;
+                    if (Mathf.Abs(p.y - here.y) > 1.25f ||
+                        (p - here).sqrMagnitude >
+                            SightScavengeRadius * SightScavengeRadius)
+                        return false;
+                    physicalPoint = item.point;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// A-Life objective: physically SEE a valuable actual native drop
+        /// between 3 and 19m away, claim its instanceID, and walk toward its
+        /// original ground position. The existing Steam A* still has to
+        /// establish every reachable path and Player combat preempts search.
+        /// No guessed spawn-site loot becomes an item.
+        /// </summary>
+        internal bool TryGetObservedScavengeGoal(out Vector3 goal)
+        {
+            goal = Vector3.zero;
+            if (!CanPlanScavenge())
+            {
+                AbandonObservedGoal();
+                return false;
+            }
+            float now = Time.time;
+            if (_observedItemID != 0)
+            {
+                if (now >= _observedGoalExpires ||
+                    !Line2NpcLootClaims.TryAcquire(
+                        _observedItemID, ClaimOwner, now))
+                {
+                    AbandonObservedGoal();
+                    return false;
+                }
+                if (now >= _nextClaimValidationAt)
+                {
+                    _nextClaimValidationAt = now + 1.5f;
+                    Vector3 real;
+                    if (!HasActualWorldItem(_observedItemID, out real))
+                    {
+                        AbandonObservedGoal();
+                        return false;
+                    }
+                    _observedItemPoint = real;
+                }
+                goal = _observedItemPoint;
+                return true;
+            }
+            if (now < _nextScavengeSearchAt) return false;
+            _nextScavengeSearchAt = now + DestinationSearchCooldown;
+            Vector3 current = transform.position;
+            _regions.Clear();
+            Regions.getRegionsInRadius(current,
+                SightScavengeRadius + 2f, _regions);
+            uint bestID = 0;
+            Vector3 bestPoint = Vector3.zero;
+            float highest = 52f;
+            int checkedCount = 0;
+            for (int r = 0; r < _regions.Count &&
+                checkedCount < MaximumFarItemsExamined; r++)
+            {
+                RegionCoordinate c = _regions[r];
+                if (c.x >= ItemManager.regions.GetLength(0) ||
+                    c.y >= ItemManager.regions.GetLength(1)) continue;
+                ItemRegion region = ItemManager.regions[c.x, c.y];
+                if (region == null || region.items == null) continue;
+                int stride = Mathf.Max(1,
+                    Mathf.CeilToInt(region.items.Count / 50f));
+                for (int i = 0; i < region.items.Count &&
+                    checkedCount < MaximumFarItemsExamined; i += stride)
+                {
+                    checkedCount++;
+                    ItemData item = region.items[i];
+                    if (item == null || item.item == null ||
+                        item.item.id == 0 || item.instanceID == 0 ||
+                        (item.instanceID == _lastDeniedID &&
+                         now < _lastDeniedUntil))
+                        continue;
+                    Vector3 displacement = item.point - current;
+                    float distance = displacement.magnitude;
+                    if (distance <= 3.8f ||
+                        distance > SightScavengeRadius ||
+                        Mathf.Abs(displacement.y) > 1.25f) continue;
+                    ItemAsset asset = Assets.find(EAssetType.ITEM,
+                        item.item.id) as ItemAsset;
+                    if (asset == null || asset.isPro) continue;
+                    float value = Score(asset) - distance * 1.1f;
+                    if (value <= highest) continue;
+                    ItemDrop physical;
+                    if (!TryFindMatchingNativeDrop(region, item,
+                        out physical) ||
+                        !HasFirsthandWorldItemSight(physical.model))
+                        continue;
+                    bestID = item.instanceID;
+                    bestPoint = item.point;
+                    highest = value;
+                }
+            }
+            if (bestID == 0 ||
+                !Line2NpcLootClaims.TryAcquire(bestID, ClaimOwner, now))
+                return false;
+            _observedItemID = bestID;
+            _observedItemPoint = bestPoint;
+            _observedGoalExpires = now +
+                Mathf.Clamp(Vector3.Distance(current, bestPoint) * 3f +
+                    14f, 18f, 65f);
+            _nextClaimValidationAt = now + 1.5f;
+            goal = bestPoint;
+            ProbeLogger.Log("NPC_LOOT_ROUTE_ASSIGNED: actor=" +
+                _actor.Identity + " instance=" + bestID +
+                " value=" + highest.ToString("F1") +
+                " distance=" +
+                Vector3.Distance(current, bestPoint).ToString("F1") +
+                " (physical sight + native A* required)");
+            return true;
+        }
+
         private void Update()
         {
             if (Time.time < _nextAt) return;
@@ -165,7 +401,10 @@ namespace Unturned2.Line2
             if (_inventory.TryPickupWorldItemServer(bestID, here,
                 Radius + 0.35f, out reason))
             {
-                if (_survey != null) _survey.RecordVerifiedWorldPickup();
+                if (_survey != null)
+                    _survey.RecordVerifiedWorldPickup(bestID);
+                if (_observedItemID == bestID)
+                    AbandonObservedGoal();
                 if (_runtime != null) _runtime.RequestPriorityCheckpoint();
                 ProbeLogger.Log("NPC_WORLD_PICKUP_COMMITTED: actor=" +
                     _actor.Identity + " instance=" + bestID +
