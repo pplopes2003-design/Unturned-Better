@@ -51,3 +51,16 @@ O escopo acima representa **critérios de aceitação**, não funcionalidades j�
 ## Etapa atual (2026-11-06)
 
 A Auto 32 foi confirmada funcional no Steam pelo usuário. O Modpack Manager GUI também passou na instalação local e leitura da Workshop. C# ainda não compilado por falta de SDK na máquina do usuário, então NPCs móveis/combate e hordas **não estão prontos para a bateria final**. O script `scripts/build_diagnostics_windows.cmd` permite executar a etapa de build/instalação sem política de scripts PowerShell. Não apresentar F10/F12 como NPCs jogáveis.
+
+## Integração adicional — 08/11/2026 (linha 2)
+
+A branch de modpack recebeu implementações que avançam os critérios acima, **sem liberar os gates Steam**:
+
+- **Combate corpo a corpo com equipamento real:** o executor seleciona um `ItemMeleeAsset` efetivamente possuído, aplica alcance, dano por tipo de alvo, qualidade, desgaste e cadência limitada. Soco continua sendo o fallback sem arma. São testados multiplicadores finitos, qualidade e limite de alcance.
+- **Combate físico e percepção:** os três adaptadores (visão do NPC, tiro do NPC e hit suplementar do jogador contra NPC) incluem `RayMasks.BLOCK_COLLISION` para respeitar também veículos e volumes `CLIP`, omitidos pela máscara de dano nativa.
+- **Locomoção real:** animação de caminhada e penalidade por movimento no tiro decorrem da posição física após `CharacterController.Move`; uma intenção bloqueada por parede não conta como deslocamento.
+- **Investigação:** som, pegadas e relatórios de rádio só renovam o último ponto conhecido e o relógio de ameaça se forem aceitos pela memória sensorial, evitando buscas reiniciadas por pistas descartadas.
+- **Coordenação viva de esquadrões:** a ordem do elenco de até quatro integrantes atribui papéis de líder, guarda, intendente e explorador. A morte de líder promove um sobrevivente, sem reciclar sua identidade ou conhecimento privado. Os papéis influenciam construção, patrulha defensiva, locais authored e entrega presencial de suprimentos.
+- **Zumbis contra NPCs:** a escolha de um NPC em outro andar não consome mais a oportunidade de o mesmo zumbi avaliar um NPC efetivamente alcançável no andar atual.
+
+**Testes disponíveis:** regras puras executadas em `BrainTests`, verificações Python e auditoria textual do SDK via GitHub Actions. A compilação completa contra a versão instalada do Steam, a renderização de arma na mão, a animação nativa de combate, rotas indoor reais, impacto explosivo, transferência segura de itens e raid multietapas **continuam sem comprovação de gameplay**. A aprovação automática não deve ser apresentada como homologação final dos NPCs.
