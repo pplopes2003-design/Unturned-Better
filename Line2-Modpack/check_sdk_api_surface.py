@@ -11,6 +11,23 @@ ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "Line2-Modpack" / "ClientModule"
 
 REQUIREMENTS = (
+    # Combat Total squad intelligence is real, finite, one-hop and
+    # cannot create unseen aim targets or bypass original A* geometry.
+    ("Line2-Modpack/ClientModule/Line2NpcCombatTotalSquadPolicy.cs",
+     ("CanBroadcast(", "CanInvestigate(", "MaxContactRange = 35f",
+      "ReportCooldown = 8f")),
+    ("Line2-Modpack/ClientModule/Line2NPCRadioOutbox.cs",
+     ("Line2NpcCombatTotalSquadPolicy.CanBroadcast",
+      "TryReceiveVerifiedCombatSquadContact",
+      "Line2NPCRadioRules.MayRelay(")),
+    ("Line2-Modpack/ClientModule/SteamNpcPrototypeRuntime.cs",
+     ("TryReceiveVerifiedCombatSquadContact",
+      "Line2NpcCombatTotalSquadPolicy.CanInvestigate",
+      "Line2NpcRadioReinforcementPolicy.TryPropose",
+      "_investigationProbe.TryValidate(",
+      "_tactics.TryStartRadioReinforcement(")),
+    ("Line2-Modpack/BrainTests/Program.cs",
+     ("CombatTotalSquadTests.Run()",)),
     # Combat Total is an opt-in independent sandbox, ported from
     # MobileNPCCombatOnlyPolicy. Normal save/roles must never change.
     ("Line2-Modpack/ClientModule/Line2NpcCombatTotalPolicy.cs",
@@ -544,8 +561,8 @@ REQUIREMENTS = (
     ("Line2-Modpack/ClientModule/Line2NpcInvestigationPolicy.cs",
      ("MayProbe(", "confidence < 0.23f", "Math.Abs(proposed.y - ownPosition.y)")),
     ("Line2-Modpack/ClientModule/Line2NpcInvestigationProbe.cs",
-     ("RayMasks.GROUND2", "Physics.CheckCapsule(",
-      "TryValidate(Vector3 estimate")),
+     ("Line2NpcFloorGeometry.TryFindStaticSupport",
+      "Physics.CheckCapsule(", "TryValidate(Vector3 estimate")),
     ("Line2-Modpack/ClientModule/Line2NpcAmbushPolicy.cs",
      ("CanPlan(", "WithholdPreparedAttack(",
       "releaseAt - now <= 0.9f")),
