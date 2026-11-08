@@ -95,3 +95,16 @@ A comparação com a branch `feature/release-candidate-cycle-2026-11-04` identif
 - **Auditoria automatizada:** bloqueia regressões para busca exclusiva em `GROUND2`, exige o amostrador nativo de múltiplas superfícies, a checagem visual física e a autorização nativa de abrir portas.
 
 **Limites ainda não homologados:** cenas Steam reais, clips e assets da Workshop, escadas e janelas com acesso efetivo, navegação por andares com A* ASPFP, build completa do módulo, performance com NPCs + zumbis, gameplay integrado e multiplayer. Nenhum desses itens deve ser descrito como testado apenas pela passagem no CI textual/BrainTests.
+
+## Integração adicional — progresso físico, A* e anti-oscilação (08/11/2026)
+
+**Implementado na branch `line2/modpack-framework`:**
+
+- Rotas A-Life e táticas reconhecem deslocamento **real do CharacterController**, inclusive quando um corredor exige afastamento temporário do objetivo. Os limites absolutos permanecem 140 s (rotina) e 45 s (manobra).
+- Um histórico circular de 16 posições físicas impede que retornar repetidamente aos mesmos dois pontos de uma esquina renove os prazos de rota. O sistema não confia na velocidade pedida pelo cérebro, mas nas posições observadas.
+- Um caminho ASPFP cujo **último nó** é alcançado, mas cujo destino solicitado continua distante ou em outro andar, não é mais rotulado como sucesso. Apenas chegada física 3D validada conclui a viagem; caso contrário, uma nova rota pode ser solicitada sem gerar teletransporte.
+- O provedor nativo A* invalida a associação ao backend Seeker ao ser desativado, para redescobrir o backend ativo após reativação e troca de mapa.
+- Candidatos de piso rejeitam camas, armazenamento, sentrys, manequins e portas: superfícies de mobília não são promovidas a pisos arquitetônicos.
+- `BrainTests` recebeu regressões de flanqueamento com desvios, patrulhas que contornam construções, tempo máximo, chegada ao andar correto e oscilação em paredes. O auditor textual exige as integrações ativas no runtime.
+
+**Não comprovado por CI:** a execução das rotas nativas no mapa Washington, acesso real por portas/janelas/escadas com assets instalados, conclusão de missões A-Life, coordenação total da facção, compilação contra DLLs da versão Steam e teste de gameplay unificado. CI verde não remove estas pendências.
