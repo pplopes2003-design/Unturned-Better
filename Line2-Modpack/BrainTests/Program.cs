@@ -405,6 +405,11 @@ internal static class Program
             Console.Error.WriteLine("NPC_CAMP_WITHDRAW_FAILED: invalid native item custody or cross-wall loot.");
             return 37;
         }
+        if (!ZombieSoundPolicyTests.Run())
+        {
+            Console.Error.WriteLine("ZOMBIE_REAL_SOUND_SEARCH_POLICY_FAILED: invented threat or invalid investigation path.");
+            return 37;
+        }
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
