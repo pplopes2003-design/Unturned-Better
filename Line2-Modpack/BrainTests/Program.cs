@@ -395,6 +395,11 @@ internal static class Program
             Console.Error.WriteLine("NPC_SQUAD_SUPPLY_POLICY_FAILED: illegal resource sharing conditions.");
             return 35;
         }
+        if (!CampSupplyPolicyTests.Run())
+        {
+            Console.Error.WriteLine("NPC_CAMP_STOCK_POLICY_FAILED: unauthorized native stockpile delivery.");
+            return 36;
+        }
         Console.WriteLine("BrainTests PASSED: source C# state machine and perception safety.");
         Console.WriteLine("Not a Steam game compilation or NPC combat test.");
         return 0;
