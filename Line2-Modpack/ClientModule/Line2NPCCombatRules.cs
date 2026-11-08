@@ -37,6 +37,35 @@ namespace Unturned2.Line2
                 (role == "hostile" || role == "friendly" || role == "neutral");
         }
 
+        /// <summary>Native weak melee impact scaled by the quality of a real
+        /// owned weapon. Reject corrupt Workshop multipliers instead of
+        /// producing NaN, negative or effectively unbounded damage.</summary>
+        internal static float MeleeDamage(float nativeSpineDamage, byte quality)
+        {
+            if (float.IsNaN(nativeSpineDamage) ||
+                float.IsInfinity(nativeSpineDamage) ||
+                nativeSpineDamage <= 0f || nativeSpineDamage > 50000f)
+                return 0f;
+            float q = System.Math.Min(quality, (byte)100) / 100f;
+            return nativeSpineDamage * (q < 0.5f ? 0.5f + q : 1f);
+        }
+
+        internal static float MeleeReach(float nativeRange)
+        {
+            if (float.IsNaN(nativeRange) || float.IsInfinity(nativeRange) ||
+                nativeRange < 0.5f) return 0f;
+            return System.Math.Max(1f, System.Math.Min(nativeRange, 3.2f));
+        }
+
+        internal static float MeleeCadence(float nativeWeakSeconds)
+        {
+            if (float.IsNaN(nativeWeakSeconds) ||
+                float.IsInfinity(nativeWeakSeconds) ||
+                nativeWeakSeconds <= 0f) return 1.4f;
+            return System.Math.Max(0.65f,
+                System.Math.Min(nativeWeakSeconds + 0.2f, 1.9f));
+        }
+
         internal static bool MayCommitHit(string role, string mode, bool alive,
                                           bool serverAuthorized, bool witnessedContact)
         {
