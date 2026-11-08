@@ -11,6 +11,21 @@ ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "Line2-Modpack" / "ClientModule"
 
 REQUIREMENTS = (
+    # Full physical collision includes CLIP and VEHICLE, which native
+    # DAMAGE_SERVER intentionally omits. Combat must still respect both.
+    ("Assets/Runtime/Assembly-CSharp/Unturned/Utils/RayMasks.cs",
+     ("public static readonly int BLOCK_COLLISION = CLIP",
+      "| VEHICLE | BARRICADE | STRUCTURE;")),
+    ("Line2-Modpack/ClientModule/Line2NPCCombatPerception.cs",
+     ("RayMasks.DAMAGE_SERVER | RayMasks.BLOCK_COLLISION",
+      "CanEngageNpcTarget")),
+    ("Line2-Modpack/ClientModule/Line2NPCRangedExecutor.cs",
+     ("RayMasks.DAMAGE_SERVER | RayMasks.BLOCK_COLLISION",
+      "Line2NPCCombatRules.MayCommitHit" if False else "TryApplyNativeImpact")),
+    ("Line2-Modpack/ClientModule/Line2MobileNPCDamageBridge.cs",
+     ("RayMasks.DAMAGE_SERVER | RayMasks.BLOCK_COLLISION",
+      "TryResolvePhysicalServerHit")),
+
     ("Assets/Runtime/Assembly-CSharp/Unturned/Useable/UseableGun.cs",
      ("public static event BulletSpawnedHandler onBulletSpawned",
       "public override bool startPrimary()",
