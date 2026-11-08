@@ -988,6 +988,7 @@ namespace Unturned2.Line2
         private Vector3 _home;
         private float _nextThink;
         private float _nextFlankAt;
+        private float _nextReloadCoverAt;
         private float _blockedSince;
         private float _verticalVelocity;
         private readonly NpcDecisionBrain _brain = new NpcDecisionBrain();
@@ -1514,6 +1515,40 @@ namespace Unturned2.Line2
                     _tacticalJourney.Reset();
                 }
                 TryPlanConcealedApproach();
+                // Port Line 1 reload-cover behavior without treating a
+                // magazine change as incoming fire. This NPC must personally
+                // see a living threat and the geometry must offer real cover.
+                if (_rangedExecutor != null && _coverPlanner != null &&
+                    Time.time >= _nextReloadCoverAt &&
+                    _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.None &&
+                    _combatPerception != null &&
+                    _combatPerception.VisibleTarget != null &&
+                    !RecentlyDamaged &&
+                    Line2NpcFiringPositionPolicy.CanSeekReloadCover(
+                        _rangedExecutor.Reloading,
+                        _combatPerception.HasVerifiedSight(
+                            _combatPerception.VisibleTarget,
+                            _combatPerception.Kind, 45f),
+                        false,
+                        Vector3.Distance(transform.position,
+                            _combatPerception.LastVisiblePosition)))
+                {
+                    _nextReloadCoverAt = Time.time + 5f;
+                    Vector3 actualCover, escape;
+                    if (_coverPlanner.TryGetDefense(
+                            _combatPerception.LastVisiblePosition,
+                            out actualCover, out escape) &&
+                        _coverPlanner.HasCover &&
+                        Level.checkSafeIncludingClipVolumes(actualCover) &&
+                        !(_lastFailedTacticalKind ==
+                            Line2MobileNPCTactics.Goal.SeekCover &&
+                          Time.time < _tacticalRetryAfter &&
+                          (actualCover - _lastFailedTacticalPoint).sqrMagnitude < 5f) &&
+                        _tactics.TryStartReloadCover(actualCover, Time.time))
+                        ProbeLogger.Log("NPC_RELOAD_COVER: actor=" + _identity +
+                            " point=" + actualCover.ToString("F1") +
+                            " (verified real solid shielding; A* still required)");
+                }
                 // Line 1 tactical flank is optional and never allowed to
                 // override emergency cover or a committed retreat.
                 if (_tactics.CurrentGoal == Line2MobileNPCTactics.Goal.None &&
@@ -1683,6 +1718,38 @@ namespace Unturned2.Line2
                     // overrides an actual visible enemy or defensive escape.
                     _goal = player.transform.position -
                         player.transform.forward * 3.5f;
+                }
+
+                // A survivor who can actually fire from a validated lane
+                // should not sprint into melee range. Never freeze a search,
+                // an unarmed NPC, a retreat, or an occluded target. Native
+                // weapon range and a current local sensor determine the hold.
+                if (_tactics.CurrentGoal == Line2MobileNPCTactics.Goal.None &&
+                    _combatMode != "passive" && !RecentlyDamaged &&
+                    HasUsableGun && _inventory != null &&
+                    _combatPerception != null &&
+                    _combatPerception.Kind !=
+                        Line2NPCCombatPerception.TargetKind.None &&
+                    _combatPerception.VisibleTarget != null)
+                {
+                    uint ownedGunInstance;
+                    Item actualGun;
+                    ItemGunAsset gunAsset;
+                    if (_inventory.TryGetBestGun(out ownedGunInstance,
+                            out actualGun, out gunAsset) &&
+                        gunAsset != null)
+                    {
+                        Transform enemy = _combatPerception.VisibleTarget;
+                        float firingDistance = Vector3.Distance(
+                            transform.position, enemy.position);
+                        bool sightNow = _combatPerception.HasVerifiedSight(
+                            enemy, _combatPerception.Kind,
+                            Mathf.Min(65f, gunAsset.range));
+                        if (Line2NpcFiringPositionPolicy.ShouldHoldPosition(
+                            sightNow, true, false, RecentlyDamaged,
+                            firingDistance, gunAsset.range))
+                            _goal = transform.position;
+                    }
                 }
             }
 
