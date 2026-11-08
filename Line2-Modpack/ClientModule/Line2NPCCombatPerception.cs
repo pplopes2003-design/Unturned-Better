@@ -93,7 +93,7 @@ namespace Unturned2.Line2
             foreach (PrototypeActor candidate in _actors)
             {
                 if (candidate == null || candidate == _owner || candidate.IsDead ||
-                    !CanEngageNPC(candidate))
+                    !CanEngageNpcTarget(candidate))
                     continue;
                 Vector3 d = candidate.transform.position - transform.position;
                 float sq = d.sqrMagnitude;
@@ -189,9 +189,13 @@ namespace Unturned2.Line2
             Clear();
         }
 
-        private bool CanEngageNPC(PrototypeActor candidate)
+        // Combat executors must use the same authoritative faction gate as
+        // perception. Recheck immediately before applying health mutations
+        // because a target may change group after the last scan.
+        internal bool CanEngageNpcTarget(PrototypeActor candidate)
         {
-            if (candidate == null || _owner == null ||
+            if (candidate == null || candidate.IsDead || _owner == null ||
+                _owner.IsDead || !_owner.IsCombatEnabled ||
                 _owner.CombatMode == "passive") return false;
             // Both actors have authoritative group/faction memberships.
             // Do not regress to a generic role check when they are actually
@@ -317,7 +321,7 @@ namespace Unturned2.Line2
             if (kind == TargetKind.Npc)
             {
                 PrototypeActor other = target.GetComponentInParent<PrototypeActor>();
-                if (other == null || other.IsDead || !CanEngageNPC(other))
+                if (other == null || other.IsDead || !CanEngageNpcTarget(other))
                     return false;
             }
             if (kind == TargetKind.Zombie)
