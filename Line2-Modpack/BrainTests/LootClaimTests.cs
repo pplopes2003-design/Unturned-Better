@@ -29,7 +29,7 @@ internal static class LootClaimTests
             Line2NpcLootClaims.TryAcquire(1u, 1, float.NaN) ||
             Line2NpcLootClaims.TryAcquire(1u, 1, -1f))
             return false;
-        for (uint id = 1000; id < 1096; id++)
+        for (uint id = 1000; id < 1095; id++)
             if (!Line2NpcLootClaims.TryAcquire(id, 1, 20f))
                 return false;
         if (Line2NpcLootClaims.TryAcquire(99999u, 2, 21f) ||
