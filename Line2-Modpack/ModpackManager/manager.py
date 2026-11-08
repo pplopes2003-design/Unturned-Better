@@ -86,21 +86,25 @@ class Manager:
             return {"schema": 2, "active": "default", "profiles": {"default": {"local": [], "local_maps": [], "modules": [], "workshop": []}}}
         return json.loads(self.profiles.read_text(encoding="utf-8"))
 
-    def workshop_items(self):
+    def workshop_items(self, include_size=True):
+        """List available downloads. The GUI never hashes entire Workshop packs."""
         if self.workshop is None or not self.workshop.is_dir():
             return []
         items = []
         for item in sorted(self.workshop.iterdir(), key=lambda p: p.name):
             if item.is_dir() and not item.is_symlink() and SAFE_ID.fullmatch(item.name):
-                items.append({"id": item.name, "path": str(item), "size": fingerprint(item)["bytes"]})
+                items.append({"id": item.name, "path": str(item),
+                              "size": fingerprint(item)["bytes"] if include_size else None})
         return items
 
-    def local_items(self):
+    def local_items(self, include_size=True):
+        """List staged packages without reading their contents when only names are needed."""
         self.staging.mkdir(parents=True, exist_ok=True)
         result = []
         for p in sorted(self.staging.iterdir()):
             if p.is_dir() and not p.is_symlink() and SAFE_NAME.fullmatch(p.name):
-                result.append({"name": p.name, "size": fingerprint(p)["bytes"]})
+                result.append({"name": p.name,
+                               "size": fingerprint(p)["bytes"] if include_size else None})
         return result
 
     def import_local(self, source: Path, name: str):

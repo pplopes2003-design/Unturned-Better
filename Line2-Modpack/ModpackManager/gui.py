@@ -1,5 +1,6 @@
 """Minimal Vortex-inspired dashboard; no external GUI dependencies."""
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 from manager import Manager
@@ -14,6 +15,10 @@ class App(tk.Tk):
         self.data_var = tk.StringVar(value=str(Path.home() / "Unturned2-ModpackManager"))
         self.status_var = tk.StringVar(value="Select the Unturned installation to begin.")
         self.mgr = None
+        self._scan_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="u2m-scan")
+        self._scan_future = None
+        self._scan_generation = 0
+        self.protocol("WM_DELETE_WINDOW", self._close)
         paths = ttk.Frame(self, padding=12)
         paths.pack(fill="x")
         for label, variable, row in (("Game", self.game_var, 0),
@@ -64,24 +69,63 @@ class App(tk.Tk):
         if folder:
             var.set(folder)
 
+    def _close(self):
+        self._scan_generation += 1
+        self._scan_executor.shutdown(wait=False, cancel_futures=True)
+        self.destroy()
+
+    @staticmethod
+    def _scan_snapshot(game, data, workshop):
+        mgr = Manager(game, data, workshop)
+        return (mgr,
+                [item["id"] for item in mgr.workshop_items(include_size=False)],
+                [item["name"] for item in mgr.local_items(include_size=False)],
+                sorted(mgr.state()["installed"]))
+
     def refresh(self):
+        if self._scan_future is not None and not self._scan_future.done():
+            self.status_var.set("Scan already running; please wait.")
+            return
+        game = Path(self.game_var.get())
+        if not game.is_dir():
+            messagebox.showerror("Scan error", "Choose the real Unturned folder.")
+            return
+        wk = Path(self.workshop_var.get()) if self.workshop_var.get().strip() else None
+        data = Path(self.data_var.get())
+        self._scan_generation += 1
+        generation = self._scan_generation
+        self.status_var.set("Scanning package names (no content hashing)...")
+        self._scan_future = self._scan_executor.submit(
+            self._scan_snapshot, game, data, wk)
+        self.after(80, lambda: self._finish_refresh(generation))
+
+    def _finish_refresh(self, generation):
+        if generation != self._scan_generation:
+            return
+        future = self._scan_future
+        if future is None:
+            return
+        if not future.done():
+            self.after(80, lambda: self._finish_refresh(generation))
+            return
+        self._scan_future = None
         try:
-            game = Path(self.game_var.get())
-            if not game.is_dir():
-                raise ValueError("Choose the real Unturned folder.")
-            wk = Path(self.workshop_var.get()) if self.workshop_var.get().strip() else None
-            self.mgr = Manager(game, Path(self.data_var.get()), wk)
+            mgr, workshop, local, installed = future.result()
+            self.mgr = mgr
             self.workshop_list.delete(0, "end")
-            for item in self.mgr.workshop_items():
-                self.workshop_list.insert("end", item["id"])
+            for item_id in workshop:
+                self.workshop_list.insert("end", item_id)
             self.local_list.delete(0, "end")
-            for item in self.mgr.local_items():
-                self.local_list.insert("end", item["name"])
+            for name in local:
+                self.local_list.insert("end", name)
             self.installed_list.delete(0, "end")
-            for key in sorted(self.mgr.state()["installed"]):
+            for key in installed:
                 self.installed_list.insert("end", key)
-            self.status_var.set("Scan completed. Workshop items remain Steam-managed.")
+            self.status_var.set(
+                f"Scan completed: {len(workshop)} Workshop, "
+                f"{len(local)} staged, {len(installed)} managed installs.")
         except Exception as exc:
+            self.status_var.set("Scan failed.")
             messagebox.showerror("Scan error", str(exc))
 
     def require_manager(self):

@@ -1,5 +1,6 @@
 """Regression tests with temporary fake Steam/Unturned trees; do not touch actual game."""
 import json
+from unittest.mock import patch
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -24,6 +25,17 @@ class ManagerTests(unittest.TestCase):
 
     def test_workshop_discovery(self):
         self.assertEqual([x["id"] for x in self.mgr.workshop_items()], ["1234567890"])
+
+    def test_fast_scan_does_not_hash_large_packages(self):
+        self.mgr.staging.mkdir(parents=True, exist_ok=True)
+        (self.mgr.staging / "Auto32").mkdir()
+        with patch("manager.fingerprint", side_effect=AssertionError("unexpected full hash")):
+            workshop = self.mgr.workshop_items(include_size=False)
+            local = self.mgr.local_items(include_size=False)
+        self.assertEqual([x["id"] for x in workshop], ["1234567890"])
+        self.assertEqual([x["name"] for x in local], ["Auto32"])
+        self.assertIsNone(workshop[0]["size"])
+        self.assertIsNone(local[0]["size"])
 
     def test_deploy_and_restore_without_touching_sources(self):
         self.mgr.import_local(self.source, "MyMod")
