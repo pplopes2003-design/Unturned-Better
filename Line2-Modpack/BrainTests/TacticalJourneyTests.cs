@@ -81,6 +81,46 @@ internal static class TacticalJourneyTests
                 new Vector3(), new Vector3(), 10f, false) !=
                 Line2NpcTacticalJourneyWatchdog.Outcome.None)
             return false;
+        // A genuine lateral route to flank or retreat can increase direct
+        // distance for several seconds. Measured displacement, not just
+        // progress toward the geometric goal, preserves the maneuver.
+        var detour = new Line2NpcTacticalJourneyWatchdog();
+        if (Observe(detour, flank, 0f, 0f) !=
+                Line2NpcTacticalJourneyWatchdog.Outcome.Moving ||
+            Observe(detour, flank, -1.2f, 4f) !=
+                Line2NpcTacticalJourneyWatchdog.Outcome.Moving ||
+            Observe(detour, flank, -2.4f, 8f) !=
+                Line2NpcTacticalJourneyWatchdog.Outcome.Moving ||
+            Observe(detour, flank, -3.6f, 12f) !=
+                Line2NpcTacticalJourneyWatchdog.Outcome.Moving ||
+            Observe(detour, flank, -3.6f, 17.2f) !=
+                Line2NpcTacticalJourneyWatchdog.Outcome.Blocked)
+        {
+            Console.Error.WriteLine("NPC_TACTICAL_DETOUR_FAILED: actual progress or stalled flank.");
+            return false;
+        }
+
+        // A moving actor must not renew the absolute 45-second deadline.
+        var finiteDetour = new Line2NpcTacticalJourneyWatchdog();
+        if (Observe(finiteDetour, flank, 0f, 0f) !=
+                Line2NpcTacticalJourneyWatchdog.Outcome.Moving)
+            return false;
+        for (int i = 1; i <= 11; ++i)
+        {
+            if (Observe(finiteDetour, flank, -1.1f * i,
+                    4f * i) != Line2NpcTacticalJourneyWatchdog.Outcome.Moving)
+            {
+                Console.Error.WriteLine("NPC_TACTICAL_DETOUR_FAILED: moving A* route aborted.");
+                return false;
+            }
+        }
+        if (Observe(finiteDetour, flank, -13f, 45.1f) !=
+                Line2NpcTacticalJourneyWatchdog.Outcome.Blocked)
+        {
+            Console.Error.WriteLine("NPC_TACTICAL_DETOUR_FAILED: maximum journey limit.");
+            return false;
+        }
+
         Console.WriteLine("NPC_TACTICAL_JOURNEY_OK: verified movement, pending path timeout, no progress, floor mismatch, invalid coordinates and goal changes.");
         return true;
     }
