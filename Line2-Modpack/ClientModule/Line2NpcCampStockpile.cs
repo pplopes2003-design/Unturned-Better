@@ -250,7 +250,8 @@ namespace Unturned2.Line2
         /// throw, inspect the ACTUAL ItemJar membership before rollback.
         /// The original InteractableStorage remains vanilla-persisted.
         /// </summary>
-        private bool TryWithdrawNeededSupply(InteractableStorage storage)
+        private bool TryWithdrawNeededSupply(
+            InteractableStorage storage, Transform verifiedNativeRoot)
         {
             if (Time.time < _nextWithdrawalAt || storage == null ||
                 storage.items == null || _inventory == null ||
@@ -269,7 +270,7 @@ namespace Unturned2.Line2
                      _sight.VisibleTarget != null);
                 if (!Line2NpcCampWithdrawalPolicy.MayWithdraw(
                     Authorized(), _group != null && _group.Joined,
-                    true, true, HasPhysicalAccess(storage.transform),
+                    true, true, HasPhysicalAccess(verifiedNativeRoot),
                     IsNeededSupply(jar.item), !threatened,
                     _inventory.HasSpace, storage.items.containsItem(jar),
                     distance))
@@ -360,17 +361,26 @@ namespace Unturned2.Line2
             if (!_nativeCamp.TryGetRealStorage(record, out storage) ||
                 storage.items == null) return;
 
+            // Access the exact registered native root. On some vanilla
+            // prefabs InteractableStorage is a CHILD, while the physical
+            // box collider lives on its parent BarricadeDrop.model. Treat
+            // that model as the legitimate target, without ignoring walls
+            // belonging to unrelated world objects.
+            BarricadeDrop verifiedDrop;
+            if (!_nativeCamp.TryFindSavedPiece(record, out verifiedDrop) ||
+                verifiedDrop.model == null)
+                return;
             float distance = Vector3.Distance(transform.position,
                 storage.transform.position);
             bool same = _group.Faction ==
                 Line2NPCFactionPolicy.DefaultForRole(_actor.Disposition);
             if (!Line2NpcCampSupplyPolicy.MayDeliver(Authorized(), same,
-                true, HasPhysicalAccess(storage.transform),
+                true, HasPhysicalAccess(verifiedDrop.model),
                 false, true, false, false, distance))
                 return;
             // A genuinely wounded or thirsty member must retrieve its own
             // group's emergency rations BEFORE donating a spare supply.
-            if (TryWithdrawNeededSupply(storage))
+            if (TryWithdrawNeededSupply(storage, verifiedDrop.model))
                 return;
             if (_inventory.UsedSlots < 2) return;
 
