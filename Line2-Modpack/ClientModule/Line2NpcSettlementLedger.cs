@@ -146,8 +146,21 @@ namespace Unturned2.Line2
                 return false;
             var kept = new List<Line2NpcPersistence.PlacedBarricadeRecord>(
                 record.placed.Length);
-            foreach (Line2NpcPersistence.PlacedBarricadeRecord piece in record.placed)
-                if (stillExists(piece)) kept.Add(piece);
+            try
+            {
+                foreach (Line2NpcPersistence.PlacedBarricadeRecord piece in record.placed)
+                    if (stillExists(piece)) kept.Add(piece);
+            }
+            catch (Exception error)
+            {
+                // If a native registration lookup unexpectedly throws, we
+                // lack positive evidence of a destroyed structure. Keep
+                // EVERY saved piece; otherwise a partial scan could delete
+                // the group's real base and incorrectly reuse its slot.
+                ProbeLogger.Log("NPC_CAMP_RECONCILE_DEFERRED: " +
+                    error.GetType().Name + " group=" + groupId);
+                return false;
+            }
             if (kept.Count == record.placed.Length) return false;
             record.placed = kept.ToArray();
             return true;
