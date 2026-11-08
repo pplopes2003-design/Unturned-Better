@@ -160,6 +160,33 @@ namespace Unturned2.Line2
 			return true;
 		}
 
+        /// <summary>
+        /// Claim an exact owned slot ID for an external two-phase native
+        /// storage withdrawal. Its unique ID, unlike an inventory index,
+        /// remains stable if unrelated callbacks reorder earlier slots.
+        /// </summary>
+        public bool TryStoreReservedItemServer(Item item,
+            out uint ownedInstanceID)
+        {
+            ownedInstanceID = 0;
+            if (!TryStoreReservedItemServer(item) ||
+                slotInstanceIDs.Count == 0)
+                return false;
+            ownedInstanceID = slotInstanceIDs[slotInstanceIDs.Count - 1];
+            return ownedInstanceID != 0;
+        }
+
+        public bool TryTakeOwnedInstanceServer(uint ownedInstanceID,
+            out Item transferredItem)
+        {
+            transferredItem = null;
+            if (!Provider.isServer || ownedInstanceID == 0)
+                return false;
+            int slot = FindSlotByInstanceID(ownedInstanceID);
+            return slot >= 0 && TryTakeItemServer(slot,
+                out transferredItem);
+        }
+
 		public void ReleaseReservedSlotServer()
 		{
 			if (Provider.isServer && reservedSlots > 0)
