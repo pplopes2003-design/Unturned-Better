@@ -114,7 +114,11 @@ namespace Unturned2.Line2
                         return;
                     }
                     Vector3 staging;
-                    if (!TryFindStaging(camp.Anchor, out staging) ||
+                    // Stage relative to the EXACT visually confirmed
+                    // barricade, not the camp centroid. A 9m+ offset from
+                    // the centroid left raiders permanently unable to
+                    // approach native melee reach after rallying.
+                    if (!TryFindStaging(candidate.position, out staging) ||
                         !_actor.TryStageObservedRaid(staging))
                         return;
                     _nextReconsider = Time.time + 42f;
@@ -310,7 +314,10 @@ namespace Unturned2.Line2
             away.Normalize();
             for (int step = 0; step < 3; step++)
             {
-                float r = 9f + step * 2.5f;
+                // Stand just outside the observed obstacle, never inside
+                // its collider. Physical floor/capsule and the native
+                // pathfinder must still accept the exact candidate.
+                float r = 2.2f + step * 1.1f;
                 Vector3 estimated = camp + away * r;
                 RaycastHit ground;
                 if (!Physics.Raycast(estimated + Vector3.up * 2f,
