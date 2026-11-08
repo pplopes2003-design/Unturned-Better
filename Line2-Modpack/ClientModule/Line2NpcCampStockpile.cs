@@ -259,7 +259,20 @@ namespace Unturned2.Line2
             for (int i = 0; i < count; ++i)
             {
                 ItemJar jar = storage.items.getItem((byte)i);
-                if (jar == null || !IsNeededSupply(jar.item))
+                if (jar == null) continue;
+                float distance = Vector3.Distance(transform.position,
+                    storage.transform.position);
+                bool threatened = _actor == null ||
+                    _actor.IsDead || _actor.IsTacticallyRetreating ||
+                    (_sight != null &&
+                     _sight.Kind != Line2NPCCombatPerception.TargetKind.None &&
+                     _sight.VisibleTarget != null);
+                if (!Line2NpcCampWithdrawalPolicy.MayWithdraw(
+                    Authorized(), _group != null && _group.Joined,
+                    true, true, HasPhysicalAccess(storage.transform),
+                    IsNeededSupply(jar.item), !threatened,
+                    _inventory.HasSpace, storage.items.containsItem(jar),
+                    distance))
                     continue;
                 Item realItem = jar.item;
                 Item copy = new Item(realItem.id, realItem.amount,
