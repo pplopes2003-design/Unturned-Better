@@ -117,6 +117,12 @@ namespace Unturned2.Line2
 
             List<Zombie> all = ZombieManager.AllZombies;
             if (all == null || all.Count == 0) return;
+            // Confirm native ground/navigation ONCE per actual discharge.
+            // Previously a 24-round automatic burst could issue up to
+            // ninety-six redundant floor probes every dispatch.
+            Vector3 groundedShot;
+            if (!TrySupportedPoint(origin, origin, out groundedShot))
+                return;
             int inspected = Mathf.Min(MaxInspected, all.Count);
             int assigned = 0;
             for (int i = 0; i < inspected &&
@@ -132,8 +138,9 @@ namespace Unturned2.Line2
                     Line2ZombieSoundPolicy.MaxHearingMeters *
                     Line2ZombieSoundPolicy.MaxHearingMeters)
                     continue;
-                Vector3 point;
-                if (!TrySupportedPoint(origin, current, out point))
+                Vector3 point = groundedShot;
+                if (Mathf.Abs(current.y - point.y) >
+                    Line2ZombieSoundPolicy.MaxFloorGap)
                     continue;
                 int id = zombie.GetInstanceID();
                 float lastAt;
@@ -241,6 +248,8 @@ namespace Unturned2.Line2
             if (!Authorized() || NativePlayer == null)
             {
                 _active.Clear();
+                _lastSoundAt.Clear();
+                _cursor = 0;
                 return;
             }
             if (_active.Count == 0) return;
