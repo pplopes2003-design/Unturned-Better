@@ -63,6 +63,7 @@ namespace Unturned2.Line2
                 RaycastHit hit;
                 if (!Physics.Raycast(ground, Vector3.down, out hit, 5f,
                                      Line2NpcFloorGeometry.SupportMask, QueryTriggerInteraction.Ignore) ||
+                    !Line2NpcFloorGeometry.IsStaticFloorCandidate(hit.collider) ||
                     hit.normal.y < 0.72f ||
                     Mathf.Abs(hit.point.y - transform.position.y) > 1.4f)
                     continue;
