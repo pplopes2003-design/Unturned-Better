@@ -245,8 +245,8 @@ namespace Unturned2.Line2
             float falloffEnd = gun.range * gun.damageFalloffMaxRange;
             float falloff = Mathf.Lerp(1f, gun.damageFalloffMultiplier,
                 Mathf.InverseLerp(falloffStart, falloffEnd, nearest));
-            if (float.IsNaN(falloff) || float.IsInfinity(falloff) ||
-                falloff <= 0f) return false;
+            if (!Line2NpcGunDamagePolicy.IsValidFalloff(falloff))
+                return false;
 
             if (kind == Line2NPCCombatPerception.TargetKind.Player)
             {
@@ -266,7 +266,8 @@ namespace Unturned2.Line2
                     falloff;
                 damage.respectArmor = true;
                 EPlayerKill kill;
-                if (damage.damage <= 0f) return false;
+                if (!Line2NpcGunDamagePolicy.IsValid(damage.damage))
+                    return false;
                 DamageTool.damagePlayer(damage, out kill);
                 return true;
             }
@@ -279,8 +280,8 @@ namespace Unturned2.Line2
                     return false;
                 float damage = gun.zombieOrPlayerDamageMultiplier.multiply(ELimb.SPINE) *
                     falloff * victim.getBulletResistance();
-                if (damage <= 0f || float.IsNaN(damage) ||
-                    float.IsInfinity(damage)) return false;
+                if (!Line2NpcGunDamagePolicy.IsValid(damage))
+                    return false;
                 ushort applied = (ushort)Mathf.Clamp(Mathf.RoundToInt(damage),
                     1, ushort.MaxValue);
                 EPlayerKill kill;
@@ -305,6 +306,8 @@ namespace Unturned2.Line2
                 ELimb limb = part == Line2MobileNPCInjurySystem.BodyPart.Head
                     ? ELimb.SKULL : ELimb.SPINE;
                 float amount = gun.playerDamageMultiplier.multiply(limb) * falloff;
+                if (!Line2NpcGunDamagePolicy.IsValid(amount))
+                    return false;
                 return vitals.ApplyDamageToPart(amount, part, false, false,
                     Line2MobileNPCInjurySystem.BleedingSeverity.None,
                     direction, transform);
