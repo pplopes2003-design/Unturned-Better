@@ -134,6 +134,33 @@ internal static class Program
             Console.Error.WriteLine("Imported Line 1 tactical cover policy FAILED.");
             return 6;
         }
+        // Regression: a wounded Combat Total gunner with no visible cover
+        // may still retreat ONLY if an independent physical ground candidate
+        // was validated. This prevents endless firing in an exposed spot.
+        var exposed = new Line2MobileNPCTactics { CombatOnlyMode = true };
+        exposed.ReportDamage(82f, 100f, 20f);
+        if (exposed.TryChooseDefensiveGoal(
+                new UnityEngine.Vector3(0f, 0f, 0f), null,
+                new UnityEngine.Vector3(4f, 0f, 0f), 20.2f,
+                true, false) ||
+            exposed.CurrentGoal == Line2MobileNPCTactics.Goal.Retreat)
+        {
+            Console.Error.WriteLine("NPC_TAC_EVASION_FAILED: unvalidated retreat.");
+            return 84;
+        }
+        if (!exposed.TryChooseDefensiveGoal(
+                new UnityEngine.Vector3(0f, 0f, 0f), null,
+                new UnityEngine.Vector3(4f, 0f, 0f), 20.3f,
+                true, true) ||
+            exposed.CurrentGoal != Line2MobileNPCTactics.Goal.Retreat ||
+            exposed.HasTacticalDestination ||
+            !exposed.ReportValidatedRetreatPoint(
+                new UnityEngine.Vector3(-6f, 0f, 0f), 20.4f))
+        {
+            Console.Error.WriteLine("NPC_TAC_EVASION_FAILED: wounded verified retreat.");
+            return 85;
+        }
+        Console.WriteLine("NPC_TAC_EVASION_OK: real wound escapes with validated retreat; no invented route.");
         Console.WriteLine("NPC_TACTICS_SELFTEST_OK: real wound withdrawal and verified-cover commitment.");
         // Exact original Line 1 pursuit/search code, not a reimplementation:
         // vision loss must NOT track an invisible live Transform.
