@@ -21,7 +21,7 @@ namespace Unturned2.Line2
         private bool _natural;
         private int _cap = 8;
         private string _mode = "normal";
-        private float _nextNaturalAt;
+        private Line2NpcPopulationDirector _populationDirector;
         private bool _missingPrefabLogged;
         private readonly List<Line2NpcPersistence.ActorRecord> _pendingRestore =
             new List<Line2NpcPersistence.ActorRecord>(32);
@@ -211,11 +211,14 @@ namespace Unturned2.Line2
                 _nextSaveAt = Time.time + SaveIntervalSeconds;
                 SaveCheckpoint();
             }
-            if (!_natural || Time.time < _nextNaturalAt) return;
-            _nextNaturalAt = Time.time + 18f;
-            if (ActiveCount + _pendingReplacements.Count >= _cap) return;
-            string ignored;
-            TrySpawn(ChooseNaturalRole(), 1, out ignored);
+            if (_natural && ActiveCount + _pendingReplacements.Count < _cap)
+            {
+                if (_populationDirector == null)
+                    _populationDirector =
+                        GetComponent<Line2NpcPopulationDirector>();
+                if (_populationDirector != null)
+                    _populationDirector.TickNaturalPopulation();
+            }
         }
 
         private void RetireOrphanedSavedCampsAfterRestore()
@@ -247,6 +250,33 @@ namespace Unturned2.Line2
         }
 
         private float _nextRestoreLogAt;
+
+        // Only the population director can request this native-anchor
+        // birth. Manual spawn, restoration and replacement retain their
+        // original independently verified ownership/permissions.
+        internal bool TryDirectorNaturalSpawn(Vector3 anchor)
+        {
+            if (!_enabled || !_natural || !IsAuthorized() ||
+                !_restoreLoaded || !_saveAllowed ||
+                _pendingRestore.Count != 0 ||
+                ActiveCount + _pendingReplacements.Count >= _cap ||
+                !Level.checkSafeIncludingClipVolumes(anchor))
+                return false;
+            bool previousAnchor = _useSpawnAnchor;
+            Vector3 previousPosition = _spawnAnchor;
+            _useSpawnAnchor = true;
+            _spawnAnchor = anchor;
+            try
+            {
+                string message;
+                return TrySpawn(ChooseNaturalRole(), 1, out message);
+            }
+            finally
+            {
+                _useSpawnAnchor = previousAnchor;
+                _spawnAnchor = previousPosition;
+            }
+        }
 
         private string ChooseNaturalRole()
         {
@@ -288,7 +318,10 @@ namespace Unturned2.Line2
                     + "and fresh mode-specific actor restoration");
             }
             _mode = nextMode;
-            _nextNaturalAt = Time.time + 18f;
+            if (_populationDirector == null)
+                _populationDirector = GetComponent<Line2NpcPopulationDirector>();
+            if (_populationDirector != null)
+                _populationDirector.Defer(18f);
             foreach (PrototypeActor actor in _actors)
                 if (actor != null) actor.SetCombatMode(_mode);
             // Disable only after saving all restored survivors, avoiding stale snapshots.

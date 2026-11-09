@@ -21,6 +21,18 @@ namespace Unturned2.Line2
 
         private const int MaxGroups = 48;
         private const int MaxOptionalPerGroup = 2;
+        private static int _optionalGroupLimit = MaxOptionalPerGroup;
+        private static float _respiteUntil;
+
+        // The world-level encounter director can restrict ONLY optional
+        // evidence searches. All firsthand senses, defensive moves and
+        // legitimate investigations remain independent.
+        internal static void Configure(int optionalLimit, float respiteUntil)
+        {
+            _optionalGroupLimit = Math.Max(0,
+                Math.Min(MaxOptionalPerGroup, optionalLimit));
+            _respiteUntil = float.IsNaN(respiteUntil) ? 0f : respiteUntil;
+        }
         private const float LeaseSeconds = 8f;
         private static readonly Dictionary<string, List<Lease>> Leases =
             new Dictionary<string, List<Lease>>(MaxGroups);
@@ -30,6 +42,8 @@ namespace Unturned2.Line2
         {
             Leases.Clear();
             Empty.Clear();
+            _optionalGroupLimit = MaxOptionalPerGroup;
+            _respiteUntil = 0f;
         }
 
         private static string Key(int groupId, int owner)
@@ -54,7 +68,8 @@ namespace Unturned2.Line2
         internal static bool TryLease(int groupId, int ownerId,
             float now, bool personallyInvestigating)
         {
-            if (!personallyInvestigating || ownerId == 0 ||
+            if (!personallyInvestigating || now < _respiteUntil ||
+                _optionalGroupLimit == 0 || ownerId == 0 ||
                 float.IsNaN(now) || float.IsInfinity(now) || now < 0f)
                 return false;
             Prune(now);
@@ -76,7 +91,7 @@ namespace Unturned2.Line2
                     };
                     return true;
                 }
-            if (active.Count >= MaxOptionalPerGroup)
+            if (active.Count >= _optionalGroupLimit)
                 return false;
             active.Add(new Lease
             {

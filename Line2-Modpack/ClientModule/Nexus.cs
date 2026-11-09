@@ -30,6 +30,8 @@ namespace Unturned2.Line2
             _host.AddComponent<Line2AdminControl>();
             _host.AddComponent<GunApiDiscovery>();
             _host.AddComponent<SteamNpcPrototypeRuntime>();
+            _host.AddComponent<Line2NpcPopulationDirector>();
+            _host.AddComponent<Line2NpcEncounterDirector>();
             _host.AddComponent<Line2NpcInteractionUI>();
             _host.AddComponent<LiveNpcDecisionBridge>();
             _host.AddComponent<NpcAcousticSensorBridge>();
