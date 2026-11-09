@@ -29,6 +29,12 @@ class LegendaryItemTests(unittest.TestCase):
             (p/"Asset.dat").write_text(content, encoding="utf-8")
         self.output=root/"LegendaryPack"
         self.auto=root/"Auto32"
+        # Real installed native visual fixture. Generation must never
+        # silently emit a zero-effect incendiary magazine.
+        native_effect = self.game/"Bundles"/"Effects"/"Explosion_Standard"
+        native_effect.mkdir(parents=True)
+        (native_effect/"Asset.dat").write_text(
+            "Type Effect\nID 990\n", encoding="utf-8")
 
     def test_legendary_eagle_and_incendiary_compatibility(self):
         build_legendaries(self.game,self.output)
@@ -42,7 +48,11 @@ class LegendaryItemTests(unittest.TestCase):
         self.assertEqual(shell["rarity"],"Legendary")
         self.assertEqual(shell["caliber_0"],"8")
         self.assertEqual(shell["pellets"],"1")
-        self.assertEqual(shell["range"],"1.25")
+        self.assertEqual(shell["range"],"2.75")
+        self.assertEqual(shell["player_damage"],"18")
+        self.assertEqual(shell["zombie_damage"],"38")
+        self.assertEqual(shell["explosion"],"990")
+        self.assertEqual(shell["explosion_plays_impact_effects"],"true")
         self.assertIn("Explosive", (self.output/"Items/Ammo/Legendary_Incendiary_12Gauge/Asset.dat").read_text().splitlines())
         loot=parse_dat(self.output/"Spawns/LegendaryLootPool/Asset.dat")
         self.assertEqual(loot["type"],"Spawn")
@@ -76,6 +86,18 @@ class LegendaryItemTests(unittest.TestCase):
         ammo=parse_dat(self.output/"Items/Ammo/Legendary_Incendiary_12Gauge/Asset.dat")
         self.assertEqual(result["effect_id"],991)
         self.assertEqual(ammo["explosion"],"991")
+
+    def test_refuses_missing_visual_asset(self):
+        import shutil
+        shutil.rmtree(self.game/"Bundles"/"Effects")
+        with self.assertRaisesRegex(ValueError, "No installed native explosion"):
+            build_legendaries(self.game,self.output)
+        self.assertFalse(self.output.exists())
+
+    def test_refuses_invalid_effect_id(self):
+        with self.assertRaisesRegex(ValueError, "Effect ID must be"):
+            build_legendaries(self.game,self.output,impact_effect_id=0)
+        self.assertFalse(self.output.exists())
 
     def test_id_collision_rejected(self):
         conflict=self.game.parent/"workshop"/"bad"
