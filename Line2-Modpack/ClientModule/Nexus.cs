@@ -36,6 +36,7 @@ namespace Unturned2.Line2
             _host.AddComponent<LiveNpcDecisionBridge>();
             _host.AddComponent<NpcAcousticSensorBridge>();
             _host.AddComponent<Line2NpcNativeGunHitBridge>();
+            _host.AddComponent<Line2ThrowerAcidGrenadeBridge>();
             _host.AddComponent<Line2MobileNPCPlayerFootstepSensor>();
             _host.AddComponent<RepeatingBurstGameBridge>();
             Level.onLevelLoaded += OnLevelLoaded;
