@@ -1067,6 +1067,10 @@ namespace Unturned2.Line2
         private float _nextThink;
         private readonly RaycastHit[] _flankFloorHits = new RaycastHit[16];
         private float _nextFlankAt;
+        private float _nextFiringRepositionAt;
+        private float _nextMovementAuditAt;
+        private float _lastMovementAuditAt;
+        private Vector3 _lastMovementAuditPosition;
         private float _nextReloadCoverAt;
         private float _blockedSince;
         private float _verticalVelocity;
@@ -1151,6 +1155,11 @@ namespace Unturned2.Line2
             _blockedSince = Time.time;
             _lastMotorProgress = transform.position;
             _lastMotorProgressAt = Time.time;
+            _lastMovementAuditPosition = transform.position;
+            _lastMovementAuditAt = Time.time;
+            _nextMovementAuditAt = Time.time + 7f;
+            _nextFiringRepositionAt = Time.time +
+                UnityEngine.Random.Range(5f, 8f);
             _nextVaultAt = Time.time + 4f;
         }
 
@@ -1982,7 +1991,36 @@ namespace Unturned2.Line2
                         if (Line2NpcFiringPositionPolicy.ShouldHoldPosition(
                             sightNow, true, false, RecentlyDamaged,
                             firingDistance, gunAsset.range))
-                            _goal = transform.position;
+                        {
+                            // Line 1: a long static firing lane needs a
+                            // physically traversable lateral improvement,
+                            // not indefinite stationary target practice.
+                            bool relocated = false;
+                            if (Time.time >= _nextFiringRepositionAt &&
+                                _tacticalRouteGate != null &&
+                                !UnderVerifiedSuppression)
+                            {
+                                Vector3 candidate;
+                                if (TryFindVerifiedFlank(enemy.position,
+                                        out candidate) &&
+                                    _tacticalRouteGate.IsVerified(candidate) &&
+                                    _tactics.TryStartFlank(candidate, Time.time))
+                                {
+                                    relocated = true;
+                                    _nextFiringRepositionAt = Time.time + 18f;
+                                    ProbeLogger.Log("NPC_FIRING_REPOSITION: actor=" +
+                                        _identity + " point=" +
+                                        candidate.ToString("F1") +
+                                        " (native Astar-connected)");
+                                }
+                                else
+                                    _nextFiringRepositionAt = Time.time + 2.5f;
+                            }
+                            if (relocated)
+                                _goal = _tactics.TacticalDestination;
+                            else
+                                _goal = transform.position;
+                        }
                     }
                 }
             }
@@ -2124,6 +2162,28 @@ namespace Unturned2.Line2
                 }
             }
             MonitorTacticalProgress();
+            // Log the actor's actual displacement, tactical ownership and
+            // native backend state together; do not infer motion from intent.
+            if (Time.time >= _nextMovementAuditAt)
+            {
+                float elapsed = Mathf.Max(0.01f, Time.time - _lastMovementAuditAt);
+                float actualDistance = Vector3.Distance(
+                    transform.position, _lastMovementAuditPosition);
+                string routeStatus = _astarFollower != null
+                    ? _astarFollower.Status : "missing-follower";
+                ProbeLogger.Log("NPC_MOVEMENT_AUDIT: actor=" + _identity +
+                    " intent=" + _brain.Intent +
+                    " tactic=" + _tactics.CurrentGoal +
+                    " destination=" + _goal.ToString("F1") +
+                    " moved=" + actualDistance.ToString("F2") +
+                    " in=" + elapsed.ToString("F1") +
+                    "s nativeRoute=" + routeStatus +
+                    " tacticalPreflight=" + (_tacticalRouteGate != null
+                        ? _tacticalRouteGate.Status : "missing"));
+                _lastMovementAuditPosition = transform.position;
+                _lastMovementAuditAt = Time.time;
+                _nextMovementAuditAt = Time.time + 7f;
+            }
         }
 
         private void TryPlanConcealedApproach()

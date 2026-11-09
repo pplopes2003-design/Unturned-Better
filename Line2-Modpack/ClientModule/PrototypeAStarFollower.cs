@@ -237,7 +237,24 @@ namespace Unturned2.Line2
                     _status = "native-vertical-waypoint-unreachable";
                     return Vector3.zero;
                 }
-                return delta.normalized;
+                // ASPFP owns the route. A short, bounded collision
+                // correction may steer around a temporary nearby object,
+                // but must not generate an alternative map-wide path.
+                Vector3 nativeHeading = delta.normalized;
+                if (_fallback != null)
+                {
+                    Vector3 adjusted = _fallback.GetHeading(
+                        nativeHeading, p);
+                    if (adjusted.sqrMagnitude > 0.01f &&
+                        Vector3.Dot(adjusted, nativeHeading) > 0.05f)
+                        return adjusted;
+                    if (adjusted.sqrMagnitude <= 0.01f)
+                    {
+                        _status = "native-route-local-obstacle-blocked";
+                        return Vector3.zero;
+                    }
+                }
+                return nativeHeading;
             }
 
             // Consuming the ASPFP vectorPath proves only that the LAST
