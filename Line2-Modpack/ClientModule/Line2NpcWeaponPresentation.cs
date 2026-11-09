@@ -318,11 +318,12 @@ namespace Unturned2.Line2
                 state.AddMixingTransform(_leftShoulder, true);
                 state.layer = 1;
                 state.blendMode = AnimationBlendMode.Blend;
-                int score = string.Equals(clip.name, "Aim", StringComparison.OrdinalIgnoreCase)
-                    ? 4 : string.Equals(clip.name, "Aim_Idle", StringComparison.OrdinalIgnoreCase)
+                // Only truly sustained poses can loop. "Aim" and "Equip"
+                // are transitions on native weapons: looping them repeatedly
+                // snaps the hands back to the start of the animation.
+                int score = string.Equals(clip.name, "Aim_Idle", StringComparison.OrdinalIgnoreCase)
                     ? 3 : string.Equals(clip.name, "Idle", StringComparison.OrdinalIgnoreCase)
-                    ? 2 : string.Equals(clip.name, "Equip", StringComparison.OrdinalIgnoreCase)
-                    ? 1 : 0;
+                    ? 2 : 0;
                 if (score > priority) { selected = stateName; priority = score; }
             }
             if (selected != null)
