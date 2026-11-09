@@ -31,6 +31,9 @@ namespace Unturned2.Line2
         private int _waypoint;
         private float _nextRepathAt;
         private float _routeReceivedAt;
+        private Vector3 _lastNativeProgressPosition;
+        private float _lastNativeProgressAt;
+        private float _nextBlockedLog;
         private float _failedUntil;
         private float _nextDiagnosticsAt;
         private string _status = "uninitialized";
@@ -229,12 +232,39 @@ namespace Unturned2.Line2
                 StartJourney(current);
                 _waypoint = 1;
                 _routeReceivedAt = Time.time;
+                _lastNativeProgressPosition = current;
+                _lastNativeProgressAt = Time.time;
                 _nextRepathAt = Time.time + 1.0f;
                 _status = "native-Astar-route-active";
                 LogOnce();
             }
 
             ObserveActualMovement(current);
+            // A valid ASPFP route can become physically obstructed by
+            // doors, vehicles or geometry changes. Never retain a route
+            // forever when the CharacterController has not advanced.
+            if ((current - _lastNativeProgressPosition).sqrMagnitude > 0.25f)
+            {
+                _lastNativeProgressPosition = current;
+                _lastNativeProgressAt = Time.time;
+            }
+            else if (Time.time - _lastNativeProgressAt > 4.8f)
+            {
+                _path.Clear();
+                _walked.Clear();
+                _waypoint = 0;
+                _nextRepathAt = Time.time + 1.2f;
+                _status = "native-physical-stall-repath";
+                if (Time.time >= _nextBlockedLog)
+                {
+                    _nextBlockedLog = Time.time + 10f;
+                    ProbeLogger.Log("NPC_NATIVE_ASTAR_STALLED: actor=" +
+                        gameObject.name + " actual=" + current.ToString("F1") +
+                        " goal=" + goal.ToString("F1") +
+                        " (repath requested; never teleport)");
+                }
+                return Vector3.zero;
+            }
             // Native waypoints may have vertical offsets from graph snapping,
             // but the humanoid CharacterController handles gravity itself.
             while (_waypoint < _path.Count)
