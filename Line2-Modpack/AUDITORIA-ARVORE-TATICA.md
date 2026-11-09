@@ -2,6 +2,25 @@
 
 **Escopo:** comparação de código entre `feature/release-candidate-cycle-2026-11-04` e `line2/modpack-framework`, após os patches de ragdoll, tiros, postura armada e reação defensiva. **Não é validação de execução em Steam.**
 
+## Atualização de implementação: migração nativa A* (8 nov 2026)
+
+A auditoria original acima era o diagnóstico **anterior** às correções abaixo. Foram adicionados:
+
+- `Line2NpcTacticalRouteGate`: candidato de cobertura/recuo/flanco só se torna elegível após confirmação de conectividade por `Line2NativeAStarRouteProvider` (ASPFP da Steam), com um `Seeker` dedicado para não cancelar o caminho de deslocamento do NPC.
+- `PrototypeCoverPlanner`: a pontuação de proteção continua verificando geometria, mas agora rejeita candidatos sem caminho A* confirmado. Locais muito próximos também exigem passagem corporal desobstruída.
+- `PrototypeActor`: reposicionamento lateral periódico de gunners com visão confirmada, destino validado e sem conflito com cobertura ou recuo. Telemetria periódica do objetivo, posição e estado das rotas.
+- `PrototypeAStarFollower`: rotas ativas não são descartadas após apenas 5s; solicitações pendentes mantêm o mesmo destino frente a pequenas mudanças do alvo; bloqueio físico solicita novo caminho nativo. `PrototypeObstacleNavigator` só faz desvio próximo de uma rota A* e usa camadas reais de colisão.
+- `Line2MobileNPCTactics`: evita criar um recuo comum eternamente pendente quando não existe destino aprovado.
+- Arquivos gerados e compilação nunca substituem a validação dos trajetos dentro do jogo.
+
+**Ainda não comprovado:** conectividade de todos os interiores/andares com o grafo ASPFP real; comportamento com portas e janelas específicas de Workshop; flanqueamento sem visão usando apenas último local observado; equivalência integral com o motor de 6842 linhas da Linha 1; performance e animações em gameplay Steam. O fallback coarse continua complementar, não é um novo NavMesh obrigatório.
+
+### Evidência exigida nos próximos testes
+
+Filtre `probe.log` por `NPC_TACTICAL_ROUTE_VERIFIED`, `NPC_TACTICAL_ROUTE_REJECTED`, `NPC_NATIVE_ASTAR_ROUTE_OK`, `NPC_NATIVE_ASTAR_STALLED`, `NPC_FIRING_REPOSITION`, `NPC_MOVEMENT_AUDIT` e `NPC_TACTICAL_ROUTE_BLOCKED`. A presença do código/resultado determinístico não prova que o backend ASPFP respondeu num mapa real.
+
+---
+
 ## Veredito
 
 **Paridade integral: NÃO.** A Linha 2 transferiu muitos contratos e políticas, mas o motor físico e o controlador tático não são equivalentes ao conjunto `MobileNPCBrainDriver + MobileNPCTacticalCombatBehavior + MobileNPCHumanoidMotor` da Linha 1.
