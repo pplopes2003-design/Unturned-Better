@@ -35,8 +35,38 @@ namespace Unturned2.Line2
                 return;
 
             Grenade native = obj.GetComponent<Grenade>();
-            if (native == null || obj.GetComponent<Line2ThrowerAcidGrenadeField>() != null)
+            if (native == null)
+            {
+                ProbeLogger.Log("ACID_GRENADE_NO_NATIVE_EXPLOSION: item=" +
+                    CustomAcidGrenadeId + " isExplosive=" +
+                    useable.equippedThrowableAsset.isExplosive +
+                    " (regenerate/reinstall asset; no fuse or splash component)");
                 return;
+            }
+            if (obj.GetComponent<Line2ThrowerAcidGrenadeField>() != null)
+                return;
+
+            // Resolve the actual Thrower effect against the running Steam
+            // asset registry. The base grenade may have inherited a missing
+            // Explosion reference from a stale/old staging package.
+            Guid acidEffect = new Guid("ae477aac40b64d3c8ce8e538daffecf5");
+            EffectAsset resolvedEffect = Assets.FindEffectAssetByGuidOrLegacyId(acidEffect, 0);
+            if (resolvedEffect != null &&
+                Assets.FindEffectAssetByGuidOrLegacyId(
+                    native.explosionEffectGuid, native.explosion) == null)
+            {
+                native.explosionEffectGuid = acidEffect;
+                native.explosion = 0;
+                ProbeLogger.Log("ACID_GRENADE_EFFECT_RESTORED: native Thrower effect available");
+            }
+            else if (resolvedEffect == null)
+            {
+                ProbeLogger.Log("ACID_GRENADE_EFFECT_UNAVAILABLE: Thrower effect GUID not loaded");
+            }
+            ProbeLogger.Log("ACID_GRENADE_NATIVE_CONFIG: radius=" +
+                native.range.ToString("F1") + " zombieDamage=" +
+                native.zombieDamage.ToString("F1") + " fuse=" +
+                native.fuseLength.ToString("F1"));
             // The vanilla Grenade.Explode() still performs the initial
             // 3m splash + native visual. Leave its server object in place
             // until three delayed pulses complete, then clean it up.
