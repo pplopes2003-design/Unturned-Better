@@ -33,6 +33,7 @@ namespace Unturned2.Line2
         private Line2NPCCombatPerception _combatPerception;
         private PrototypeNpcVitals _vitals;
         private Animation _weaponAnimation;
+        private Transform _barrel;
         private readonly System.Collections.Generic.List<string> _itemStates =
             new System.Collections.Generic.List<string>(8);
         private float _nextPoseDiagnostic;
@@ -268,6 +269,13 @@ namespace Unturned2.Line2
             _rightGrip = _spine.Find("Right_Shoulder/Right_Arm/Right_Hand");
             _leftGrip = _spine.Find("Left_Shoulder/Left_Arm/Left_Hand");
             _weaponAnimation = GetComponentInChildren<Animation>(true);
+            _barrel = null;
+            if (_model != null)
+            {
+                foreach (Transform part in _model.GetComponentsInChildren<Transform>(true))
+                    if (part != null && part.name == "Barrel")
+                    { _barrel = part; break; }
+            }
             if (_weaponAnimation == null || _rightShoulder == null ||
                 _leftShoulder == null) return;
             AnimationClip[] clips = null;
@@ -336,6 +344,7 @@ namespace Unturned2.Line2
                     _weaponAnimation.RemoveClip(name);
                 }
             _itemStates.Clear();
+            _barrel = null;
         }
 
         private static void RotateShoulderToward(Transform shoulder,
@@ -379,11 +388,36 @@ namespace Unturned2.Line2
                 (facing - right * 0.12f + Vector3.down * 0.08f).normalized);
             RotateShoulderToward(_leftShoulder, _leftGrip,
                 (facing + right * 0.15f + Vector3.down * 0.12f).normalized);
+            // Line 1's verified muzzle alignment fix. A raised hand does
+            // not prove that the actual mounted barrel points forward:
+            // the original Steam NPC rig can hold the rifle sideways.
+            // Only rotate the right shoulder of a Right_Hook-mounted gun.
+            if (_barrel != null && _model.parent == _rightHand)
+            {
+                Vector3 bore = _barrel.position - _model.position;
+                if (bore.sqrMagnitude > 0.04f)
+                {
+                    float angularError = Vector3.Angle(bore.normalized, facing);
+                    if (angularError > 4f && angularError < 165f)
+                    {
+                        Quaternion desired = Quaternion.FromToRotation(
+                            bore.normalized, facing) * _rightShoulder.rotation;
+                        _rightShoulder.rotation = Quaternion.RotateTowards(
+                            _rightShoulder.rotation, desired,
+                            Mathf.Min(angularError, 65f));
+                    }
+                }
+            }
             if (Time.time >= _nextPoseDiagnostic)
             {
                 _nextPoseDiagnostic = Time.time + 12f;
+                Vector3 bore = _barrel != null
+                    ? _barrel.position - _model.position : Vector3.zero;
+                float alignment = bore.sqrMagnitude > 0.04f
+                    ? Vector3.Dot(bore.normalized, facing.normalized) : -2f;
                 ProbeLogger.Log("NPC_WEAPON_POSE_ACTIVE: actor=" + gameObject.name +
-                    " targetVisible=" + (opponent != null));
+                    " targetVisible=" + (opponent != null) +
+                    " barrelForwardDot=" + alignment.ToString("F2"));
             }
         }
 
