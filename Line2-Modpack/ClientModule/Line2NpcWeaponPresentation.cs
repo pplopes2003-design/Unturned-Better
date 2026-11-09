@@ -29,12 +29,21 @@ namespace Unturned2.Line2
         private float _nextRefresh;
         private float _nextHookRetry;
         private bool _loggedMissingHook;
+        private Transform _rightShoulder, _leftShoulder, _rightGrip, _leftGrip;
+        private Line2NPCCombatPerception _combatPerception;
+        private PrototypeNpcVitals _vitals;
+        private Animation _weaponAnimation;
+        private readonly System.Collections.Generic.List<string> _itemStates =
+            new System.Collections.Generic.List<string>(8);
+        private float _nextPoseDiagnostic;
 
         private void OnEnable()
         {
             _inventory = GetComponent<Line2MobileNPCInventory>();
             _ranged = GetComponent<Line2NPCRangedExecutor>();
             _melee = GetComponent<Line2NPCMeleeExecutor>();
+            _combatPerception = GetComponent<Line2NPCCombatPerception>();
+            _vitals = GetComponent<PrototypeNpcVitals>();
             if (_ranged != null)
             {
                 _ranged.ShotFired += OnShotFired;
@@ -59,6 +68,7 @@ namespace Unturned2.Line2
             _leftHand = null;
             _spineHook = null;
             _spine = null;
+            _rightShoulder = _leftShoulder = _rightGrip = _leftGrip = null;
         }
 
         private void Update()
@@ -184,6 +194,8 @@ namespace Unturned2.Line2
                 ClearVisual();
                 _model = visual;
                 _displayedItem = desiredId;
+                if (desired is ItemGunAsset)
+                    BindNativeRiflePose(desired);
                 created = null;
             }
             catch (Exception error)
@@ -239,10 +251,140 @@ namespace Unturned2.Line2
 
         private void ClearVisual()
         {
+            UnbindNativeRiflePose();
             if (_model != null)
                 Destroy(_model.gameObject);
             _model = null;
             _displayedItem = 0;
+        }
+
+        // Port Line 1's native item animation and bounded aiming behavior.
+        // Presentation only; never modifies damage, movement or line of sight.
+        private void BindNativeRiflePose(ItemAsset asset)
+        {
+            if (_spine == null || asset == null) return;
+            _rightShoulder = _spine.Find("Right_Shoulder");
+            _leftShoulder = _spine.Find("Left_Shoulder");
+            _rightGrip = _spine.Find("Right_Shoulder/Right_Arm/Right_Hand");
+            _leftGrip = _spine.Find("Left_Shoulder/Left_Arm/Left_Hand");
+            _weaponAnimation = GetComponentInChildren<Animation>(true);
+            if (_weaponAnimation == null || _rightShoulder == null ||
+                _leftShoulder == null) return;
+            AnimationClip[] clips = null;
+            try
+            {
+                const System.Reflection.BindingFlags flags =
+                    System.Reflection.BindingFlags.Public |
+                    System.Reflection.BindingFlags.NonPublic |
+                    System.Reflection.BindingFlags.Instance;
+                var member = asset.GetType().GetProperty("animations", flags);
+                if (member != null)
+                    clips = member.GetValue(asset, null) as AnimationClip[];
+                if (clips == null)
+                {
+                    var field = asset.GetType().GetField("animations", flags);
+                    if (field != null) clips = field.GetValue(asset) as AnimationClip[];
+                }
+            }
+            catch (Exception error)
+            {
+                ProbeLogger.Log("NPC_NATIVE_ITEM_ANIM_UNAVAILABLE: " +
+                    error.GetType().Name);
+            }
+            if (clips == null) return;
+            string selected = null;
+            int priority = 0;
+            for (int i = 0; i < clips.Length; ++i)
+            {
+                AnimationClip clip = clips[i];
+                if (clip == null || !clip.legacy || string.IsNullOrEmpty(clip.name))
+                    continue;
+                string stateName = "Line2_Item_" + asset.id + "_" + i;
+                if (_weaponAnimation[stateName] != null)
+                    _weaponAnimation.RemoveClip(stateName);
+                _weaponAnimation.AddClip(clip, stateName);
+                _itemStates.Add(stateName);
+                AnimationState state = _weaponAnimation[stateName];
+                if (state == null) continue;
+                state.AddMixingTransform(_rightShoulder, true);
+                state.AddMixingTransform(_leftShoulder, true);
+                state.layer = 1;
+                state.blendMode = AnimationBlendMode.Blend;
+                int score = string.Equals(clip.name, "Aim", StringComparison.OrdinalIgnoreCase)
+                    ? 4 : string.Equals(clip.name, "Aim_Idle", StringComparison.OrdinalIgnoreCase)
+                    ? 3 : string.Equals(clip.name, "Idle", StringComparison.OrdinalIgnoreCase)
+                    ? 2 : string.Equals(clip.name, "Equip", StringComparison.OrdinalIgnoreCase)
+                    ? 1 : 0;
+                if (score > priority) { selected = stateName; priority = score; }
+            }
+            if (selected != null)
+            {
+                _weaponAnimation[selected].wrapMode = WrapMode.Loop;
+                _weaponAnimation.Blend(selected, 1f, 0.15f);
+                ProbeLogger.Log("NPC_NATIVE_WEAPON_POSE: actor=" + gameObject.name +
+                    " item=" + asset.id + " clip=" + selected);
+            }
+        }
+
+        private void UnbindNativeRiflePose()
+        {
+            if (_weaponAnimation != null)
+                foreach (string name in _itemStates)
+                {
+                    if (_weaponAnimation[name] == null) continue;
+                    _weaponAnimation.Stop(name);
+                    _weaponAnimation.RemoveClip(name);
+                }
+            _itemStates.Clear();
+        }
+
+        private static void RotateShoulderToward(Transform shoulder,
+            Transform grip, Vector3 direction)
+        {
+            if (shoulder == null || grip == null ||
+                direction.sqrMagnitude < 0.5f) return;
+            Vector3 current = grip.position - shoulder.position;
+            if (current.sqrMagnitude < 0.03f) return;
+            Quaternion requested =
+                Quaternion.FromToRotation(current.normalized, direction.normalized)
+                * shoulder.rotation;
+            shoulder.rotation = Quaternion.RotateTowards(
+                shoulder.rotation, requested, 63f);
+        }
+
+        private void LateUpdate()
+        {
+            if (_model == null || _rightShoulder == null ||
+                _leftShoulder == null || _rightGrip == null ||
+                _leftGrip == null || _vitals == null || _vitals.IsDead ||
+                Time.time < _meleeUntil ||
+                !Provider.isServer || Dedicator.IsDedicatedServer)
+                return;
+            Vector3 facing = transform.forward;
+            Transform opponent = _combatPerception != null
+                ? _combatPerception.VisibleTarget : null;
+            if (opponent != null && _combatPerception.Kind !=
+                    Line2NPCCombatPerception.TargetKind.None &&
+                _combatPerception.HasVerifiedSight(opponent,
+                    _combatPerception.Kind, 45f))
+            {
+                Vector3 toOpponent = opponent.position + Vector3.up * 1.15f
+                    - (_rightShoulder.position + _leftShoulder.position) * 0.5f;
+                if (toOpponent.sqrMagnitude > 0.2f)
+                    facing = toOpponent.normalized;
+            }
+            // Acoustic clues never grant aim at invisible actors.
+            Vector3 right = transform.right;
+            RotateShoulderToward(_rightShoulder, _rightGrip,
+                (facing - right * 0.12f + Vector3.down * 0.08f).normalized);
+            RotateShoulderToward(_leftShoulder, _leftGrip,
+                (facing + right * 0.15f + Vector3.down * 0.12f).normalized);
+            if (Time.time >= _nextPoseDiagnostic)
+            {
+                _nextPoseDiagnostic = Time.time + 12f;
+                ProbeLogger.Log("NPC_WEAPON_POSE_ACTIVE: actor=" + gameObject.name +
+                    " targetVisible=" + (opponent != null));
+            }
         }
 
         private void OnShotFired(ItemGunAsset gun)
