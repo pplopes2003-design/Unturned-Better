@@ -339,7 +339,7 @@ class App(tk.Tk):
                 "\nRare spawn table ID " + str(result["spawn_id"]) +
                 "\nThrower acid EffectAsset " + str(result["effect"]) +
                 "\nWashington loot root " + str(result["root_id"]) +
-                "\nNative effect is VISUAL, not a persistent damage field. "
+                "\nThree corrosion pulses require installing updated Line2 C# module. "
                 "Review README_TESTING.txt before installing.")
         except Exception as exc:
             self.status_var.set("Acid grenade generation failed.")
@@ -369,7 +369,7 @@ class App(tk.Tk):
                 "The explosion is weaker than a fragmentation grenade, "
                 "uses the original Thrower acid effect, and joins the "
                 "verified Washington loot table at a low relative weight.\n"
-                "It does NOT yet create lingering corrosive damage."):
+                "The updated Line2 C# module adds 3 weak corrosion pulses."):
                 return
             target = mgr.staging / "ThrowerAcidGrenade"
             if target.exists() or target.is_symlink():
