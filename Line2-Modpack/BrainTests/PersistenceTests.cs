@@ -26,6 +26,26 @@ internal static class PersistenceTests
                 bleedingSeverity = 2, bleedingPart = 4
             },
             homeX = 118f, homeY = 14f, homeZ = -1f,
+            experiences = new[] {
+                new Line2MobileNPCAdaptiveMemory.ExperienceRecord {
+                    kind = 4, sectorX = 6, sectorZ = 3,
+                    positiveEvidence = 3f, negativeEvidence = 1f,
+                    directObservations = 2, heardObservations = 1
+                }
+            },
+            learnedRoutes = new[] {
+                new Line2MobileNPCTravelMemory.LearnedRoute {
+                    start = new UnityEngine.Vector3(0f, 0f, 0f),
+                    destination = new UnityEngine.Vector3(4.5f, 0f, 0f),
+                    footsteps = new List<UnityEngine.Vector3> {
+                        new UnityEngine.Vector3(0f, 0f, 0f),
+                        new UnityEngine.Vector3(1.5f, 0f, 0f),
+                        new UnityEngine.Vector3(3f, 0f, 0f),
+                        new UnityEngine.Vector3(4.5f, 0f, 0f)
+                    },
+                    successes = 2
+                }
+            },
             items = new[] { new Line2NpcPersistence.ItemRecord
             {
                 id = 32610, amount = 1, quality = 95, state = new byte[] { 1, 2, 3 }
@@ -44,7 +64,31 @@ internal static class PersistenceTests
             loaded[0].injuries == null ||
             !loaded[0].injuries.leftLegFractured ||
             loaded[0].injuries.bleedingSeverity != 2 ||
-            loaded[0].injuries.condition[4] != 39f)
+            loaded[0].injuries.condition[4] != 39f ||
+            loaded[0].experiences == null ||
+            loaded[0].experiences.Length != 1 ||
+            loaded[0].experiences[0].positiveEvidence != 3f ||
+            loaded[0].learnedRoutes == null ||
+            loaded[0].learnedRoutes.Length != 1 ||
+            loaded[0].learnedRoutes[0].footsteps.Count != 4)
+            return false;
+
+        // Malformed memory must never overwrite a known-good survivor.
+        survivor.experiences[0].positiveEvidence = float.NaN;
+        if (Line2NpcPersistence.TryWrite(map,
+            new List<Line2NpcPersistence.ActorRecord> { survivor }, out reason))
+            return false;
+        survivor.experiences[0].positiveEvidence = 3f;
+        survivor.learnedRoutes[0].footsteps[2] =
+            new UnityEngine.Vector3(float.NaN, 0f, 0f);
+        if (Line2NpcPersistence.TryWrite(map,
+            new List<Line2NpcPersistence.ActorRecord> { survivor }, out reason))
+            return false;
+        survivor.learnedRoutes[0].footsteps[2] =
+            new UnityEngine.Vector3(3f, 0f, 0f);
+        if (!Line2NpcPersistence.TryRead(map, out loaded, out reason) ||
+            loaded[0].experiences[0].positiveEvidence != 3f ||
+            loaded[0].learnedRoutes[0].footsteps.Count != 4)
             return false;
 
         // Delayed respawn tickets survive a save/load without reviving

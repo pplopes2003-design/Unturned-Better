@@ -13,7 +13,7 @@ namespace Unturned2.Line2
     internal static class Line2NpcPersistence
     {
         private const int Schema = 1;
-        private const int MaximumBytes = 131072;
+        private const int MaximumBytes = 1048576; // bounded 32-survivor memory snapshots
         [Serializable]
         internal sealed class ItemRecord
         {
@@ -36,6 +36,9 @@ namespace Unturned2.Line2
             public Line2MobileNPCInjurySystem.InjurySnapshot injuries;
             public float x, y, z, homeX, homeY, homeZ;
             public ItemRecord[] items;
+            // Optional schema-one fields: old saves have null arrays.
+            public Line2MobileNPCAdaptiveMemory.ExperienceRecord[] experiences;
+            public Line2MobileNPCTravelMemory.LearnedRoute[] learnedRoutes;
             internal Vector3 Position { get { return new Vector3(x, y, z); } }
             internal Vector3 Home { get { return new Vector3(homeX, homeY, homeZ); } }
         }
@@ -201,6 +204,70 @@ namespace Unturned2.Line2
                         item.quality < 0 || item.quality > byte.MaxValue ||
                         item.state == null || item.state.Length > 2048)
                         throw new InvalidDataException("invalid item");
+                ValidateActorMemories(a);
+            }
+        }
+
+        private static void ValidateActorMemories(ActorRecord actor)
+        {
+            if (actor.experiences != null)
+            {
+                if (actor.experiences.Length > 48)
+                    throw new InvalidDataException("too many learned experiences");
+                var known = new HashSet<string>(StringComparer.Ordinal);
+                foreach (Line2MobileNPCAdaptiveMemory.ExperienceRecord entry in
+                    actor.experiences)
+                {
+                    if (entry == null || entry.kind < 0 || entry.kind > 5 ||
+                        entry.sectorX <= -50000 || entry.sectorX >= 50000 ||
+                        entry.sectorZ <= -50000 || entry.sectorZ >= 50000 ||
+                        !Finite(entry.positiveEvidence) ||
+                        !Finite(entry.negativeEvidence) ||
+                        entry.positiveEvidence < 0f || entry.positiveEvidence > 12f ||
+                        entry.negativeEvidence < 0f || entry.negativeEvidence > 12f ||
+                        entry.directObservations < 0 || entry.directObservations > 10000 ||
+                        entry.heardObservations < 0 || entry.heardObservations > 10000 ||
+                        !known.Add(entry.kind + ":" + entry.sectorX + ":" + entry.sectorZ))
+                        throw new InvalidDataException("invalid learned experience");
+                }
+            }
+            if (actor.learnedRoutes != null)
+            {
+                if (actor.learnedRoutes.Length > 8)
+                    throw new InvalidDataException("too many learned routes");
+                foreach (Line2MobileNPCTravelMemory.LearnedRoute route in
+                    actor.learnedRoutes)
+                {
+                    if (route == null || route.footsteps == null ||
+                        route.footsteps.Count < 3 || route.footsteps.Count > 36 ||
+                        !Finite(route.start.x) || !Finite(route.start.y) ||
+                        !Finite(route.start.z) || !Finite(route.destination.x) ||
+                        !Finite(route.destination.y) || !Finite(route.destination.z) ||
+                        route.successes < 1 || route.successes > 20 ||
+                        route.failedReuses < 0 || route.failedReuses > 3 ||
+                        Vector3.Distance(route.start, route.footsteps[0]) > 0.35f ||
+                        Vector3.Distance(route.destination,
+                            route.footsteps[route.footsteps.Count - 1]) > 2f)
+                        throw new InvalidDataException("invalid learned route");
+                    float walked = 0f;
+                    for (int i = 0; i < route.footsteps.Count; i++)
+                    {
+                        Vector3 point = route.footsteps[i];
+                        if (!Finite(point.x) || !Finite(point.y) ||
+                            !Finite(point.z))
+                            throw new InvalidDataException("invalid learned waypoint");
+                        if (i > 0)
+                        {
+                            float step = Vector3.Distance(
+                                route.footsteps[i - 1], point);
+                            if (step < 0.01f || step > 2.6f)
+                                throw new InvalidDataException("invalid learned segment");
+                            walked += step;
+                        }
+                    }
+                    if (walked < 3.5f || walked > 80f)
+                        throw new InvalidDataException("invalid learned journey");
+                }
             }
         }
 

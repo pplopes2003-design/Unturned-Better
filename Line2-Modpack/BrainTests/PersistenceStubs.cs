@@ -37,6 +37,24 @@ namespace Unturned2.Line2
         }
     }
 
+    public sealed class Line2MobileNPCAdaptiveMemory
+    {
+        [System.Serializable] public sealed class ExperienceRecord
+        {
+            public int kind, sectorX, sectorZ, directObservations, heardObservations;
+            public float positiveEvidence, negativeEvidence;
+        }
+    }
+    public sealed class Line2MobileNPCTravelMemory
+    {
+        [System.Serializable] public sealed class LearnedRoute
+        {
+            public UnityEngine.Vector3 start, destination;
+            public System.Collections.Generic.List<UnityEngine.Vector3> footsteps =
+                new System.Collections.Generic.List<UnityEngine.Vector3>();
+            public int successes, failedReuses;
+        }
+    }
     internal sealed class Line2MobileNPCInjurySystem
     {
         [System.Serializable]

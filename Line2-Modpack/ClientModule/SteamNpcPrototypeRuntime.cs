@@ -769,6 +769,8 @@ namespace Unturned2.Line2
                     return;
                 }
                 Line2NPCGroupMember group = actor.GetComponent<Line2NPCGroupMember>();
+                var experience = actor.GetComponent<Line2MobileNPCAdaptiveMemory>();
+                var travel = actor.GetComponent<Line2MobileNPCTravelMemory>();
                 Vector3 p = actor.transform.position;
                 Vector3 h = actor.HomePosition;
                 records.Add(new Line2NpcPersistence.ActorRecord
@@ -785,7 +787,11 @@ namespace Unturned2.Line2
                     injuries = injuries != null ? injuries.ExportSnapshotServer() : null,
                     x = p.x, y = p.y, z = p.z,
                     homeX = h.x, homeY = h.y, homeZ = h.z,
-                    items = items
+                    items = items,
+                    experiences = experience != null
+                        ? experience.ExportSnapshotServer().ToArray() : null,
+                    learnedRoutes = travel != null
+                        ? travel.ExportSnapshotServer().ToArray() : null
                 });
             }
             string detail;
@@ -872,6 +878,25 @@ namespace Unturned2.Line2
                 }
                 if (saved.injuries != null)
                     injuries.RestoreSnapshotServer(saved.injuries);
+                // Restoration follows the ORIGINAL individual's identity,
+                // never the dead NPC's group replacement ticket. Both are
+                // verified on load; older schema-one saves have null arrays.
+                var experience = actor.GetComponent<Line2MobileNPCAdaptiveMemory>();
+                var travel = actor.GetComponent<Line2MobileNPCTravelMemory>();
+                if (experience == null || travel == null)
+                    throw new InvalidOperationException(
+                        "restored NPC missing individual memory modules");
+                experience.RestoreSnapshotServer(
+                    saved.experiences != null
+                        ? new List<Line2MobileNPCAdaptiveMemory.ExperienceRecord>(
+                            saved.experiences) : null);
+                travel.RestoreSnapshotServer(
+                    saved.learnedRoutes != null
+                        ? new List<Line2MobileNPCTravelMemory.LearnedRoute>(
+                            saved.learnedRoutes) : null);
+                ProbeLogger.Log("NPC_MEMORY_RESTORED: actor=" + actor.Identity +
+                    " experiences=" + experience.RecordCount +
+                    " routes=" + travel.RouteCount);
                 controller.enabled = false;
                 actor.transform.position = destination;
                 controller.enabled = true;
