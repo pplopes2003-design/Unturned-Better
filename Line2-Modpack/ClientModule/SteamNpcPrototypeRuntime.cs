@@ -1684,7 +1684,8 @@ namespace Unturned2.Line2
                             _combatPerception.VisibleTarget,
                             _combatPerception.Kind, 35f);
                     _tactics.TryChooseDefensiveGoal(transform.position,
-                        coverPoint, defenseSource, Time.time, canReturnFire);
+                        coverPoint, defenseSource, Time.time,
+                        canReturnFire, _hasRetreat);
                     if (_tactics.CurrentGoal == Line2MobileNPCTactics.Goal.Retreat &&
                         !_tactics.HasTacticalDestination && _hasRetreat)
                         _tactics.ReportValidatedRetreatPoint(_retreatGoal, Time.time);
@@ -1945,6 +1946,7 @@ namespace Unturned2.Line2
                 // weapon range and a current local sensor determine the hold.
                 if (_tactics.CurrentGoal == Line2MobileNPCTactics.Goal.None &&
                     _combatMode != "passive" && !RecentlyDamaged &&
+                    !UnderVerifiedSuppression &&
                     HasUsableGun && _inventory != null &&
                     _combatPerception != null &&
                     _combatPerception.Kind !=

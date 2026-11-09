@@ -82,7 +82,7 @@ namespace Unturned2.Line2
 		/// This is intentionally a small behavior-tree selector rather than a
 		/// competing controller. Host movement and cover validation remain intact.
 		/// </summary>
-		public bool TryChooseDefensiveGoal(Vector3 currentPosition, Vector3? validatedCoverPoint, Vector3 threatPosition, float now, bool canReturnFire = false)
+		public bool TryChooseDefensiveGoal(Vector3 currentPosition, Vector3? validatedCoverPoint, Vector3 threatPosition, float now, bool canReturnFire = false, bool validatedRetreat = false)
 		{
 			bool underFire = now - lastShotAt <= 2.5f;
 			bool damaged = now - lastDamageAt <= 3f;
@@ -148,8 +148,21 @@ namespace Unturned2.Line2
 				goalDeadline = now + CoverDuration;
 				return true;
 			}
-			if (returnFireUtility >= 0f && healthFraction > 0.38f)
-				return false;
+			// Port Line 1's wounded under-fire displacement. A soldier hit
+            // in the open may use an independently verified retreat point,
+            // even when still able to fire; otherwise Combat Total gunners
+            // stand stationary indefinitely after receiving damage.
+            // Never request retreat without a real candidate: pending
+            // retreat without a route forces the actor to freeze.
+            if (damaged && validatedRetreat && !validatedCoverPoint.HasValue)
+            {
+                currentGoal = Goal.Retreat;
+                hasTacticalDestination = false;
+                goalDeadline = now + RetreatDuration;
+                return true;
+            }
+            if (returnFireUtility >= 0f && healthFraction > 0.38f)
+                return false;
 
 			// Selector child 4: no safe cover or viable shot; request retreat.
 			// A second stimulus must not restart an unfinished decision.
