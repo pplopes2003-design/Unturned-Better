@@ -279,7 +279,7 @@ class App(tk.Tk):
                 "Staging: " + result["path"] +
                 "\nEaglefire ID " + str(result["eaglefire"]) +
                 "\nIncendiary 12G ID " + str(result["incendiary"]) +
-                "\nVisual burner effect: " + str(result["effect_id"] or "not found") +
+                "\nNative explosion effect ID: " + str(result["effect_id"] or "not found") +
                 "\nWashington loot root: " +
                 ("attached" if result["washington_root_attached"] else "not found") +
                 "\nReview README_TESTING.txt before deployment.")
@@ -306,7 +306,7 @@ class App(tk.Tk):
             if not messagebox.askyesno("Experimental Legendary Pack",
                 "Generate two items into staging only?\n"
                 "Eaglefire: semi, 3-round burst and full-auto\n"
-                "12 Gauge: small-area explosive shot, NOT verified Burner ignition.\n"
+                "12 Gauge: native 2.75m splash + installed visual effect, no burning DoT.\n"
                 "Natural spawns need map loot-table integration."):
                 return
             target = mgr.staging / "LegendaryPack"
