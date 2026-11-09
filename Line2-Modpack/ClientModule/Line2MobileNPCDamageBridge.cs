@@ -54,29 +54,49 @@ namespace Unturned2.Line2
             // block fallback player bullets too, not just map geometry.
             int mask = RayMasks.DAMAGE_SERVER | RayMasks.BLOCK_COLLISION
                 | RayMasks.ENTITY | RayMasks.PLAYER | RayMasks.ENEMY;
-            if (!Physics.Raycast(origin, difference / length,
-                out RaycastHit hit, Mathf.Min(length + 0.75f, maximumRange + 1f),
-                mask, QueryTriggerInteraction.Collide))
+            // The native NPC locomotion CharacterController (AGENT layer)
+            // can be closer than its anatomical trigger volumes. A single
+            // Physics.Raycast then rejects every firearm hit even though the
+            // six original bone colliders are correctly installed.
+            // Sort all contacts and skip ONLY this same NPC's root motor;
+            // never skip map obstacles, other NPCs, players or vehicles.
+            RaycastHit[] contacts = Physics.RaycastAll(
+                origin, difference / length,
+                Mathf.Min(length + 0.75f, maximumRange + 1f),
+                mask, QueryTriggerInteraction.Collide);
+            if (contacts == null || contacts.Length == 0)
                 return false;
-
-            // The vanilla client can classify our custom trigger as NONE,
-            // then report the world collision BEHIND the NPC. Requiring the
-            // points to match wrongly makes the NPC immune to firearms.
-            // The first authoritative server ray hit must instead be the
-            // NPC hitbox itself: a prior wall, vehicle or other entity
-            // blocks the shot. Never apply to an NPC behind an obstruction.
-            if (hit.collider == null ||
-                hit.distance > length + 0.75f ||
-                hit.collider.GetComponent<Line2MobileNPCBodyHitbox>() == null)
-                return false;
-            PrototypeNpcVitals victim =
-                hit.collider.GetComponentInParent<PrototypeNpcVitals>();
-            if (victim == null || victim.IsDead)
-                return false;
-
-            physicalHitDistance = hit.distance;
-            hitTransform = hit.collider.transform;
-            return true;
+            System.Array.Sort(contacts, (left, right) =>
+                left.distance.CompareTo(right.distance));
+            PrototypeNpcVitals firstNpc = null;
+            for (int i = 0; i < contacts.Length; ++i)
+            {
+                RaycastHit contact = contacts[i];
+                Collider candidate = contact.collider;
+                if (candidate == null || contact.distance > length + 0.75f)
+                    return false;
+                PrototypeNpcVitals owner =
+                    candidate.GetComponentInParent<PrototypeNpcVitals>();
+                if (owner == null || owner.IsDead)
+                    return false; // a real obstruction, never shoot through it
+                if (firstNpc != null && firstNpc != owner)
+                    return false; // another actor cannot be transparent
+                if (firstNpc == null)
+                    firstNpc = owner;
+                if (candidate.GetComponent<Line2MobileNPCBodyHitbox>() != null)
+                {
+                    physicalHitDistance = contact.distance;
+                    hitTransform = candidate.transform;
+                    return true;
+                }
+                // Only the actor's own movement collider is transparent
+                // to the bone-volume search. Other arbitrary unmarked
+                // colliders are physical obstructions.
+                if (!(candidate is CharacterController) ||
+                    candidate.gameObject != owner.gameObject)
+                    return false;
+            }
+            return false;
         }
 
 		public static bool TryApplyValidatedHit(Collider hitCollider, float damage,
