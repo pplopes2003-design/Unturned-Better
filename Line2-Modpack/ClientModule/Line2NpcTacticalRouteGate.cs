@@ -42,7 +42,21 @@ namespace Unturned2.Line2
             Vector3 current = transform.position;
             if (Vector3.Distance(current, point) < 1.7f &&
                 Mathf.Abs(current.y - point.y) < 0.85f)
-                return true;
+            {
+                // Near does not imply connected: opposite sides of a
+                // thin wall can be within 1.7m. Require actual unobstructed
+                // body clearance before accepting a nearby defensive spot.
+                Vector3 delta = point - current;
+                delta.y = 0f;
+                if (delta.sqrMagnitude < 0.09f)
+                    return true;
+                RaycastHit obstacle;
+                if (!Physics.SphereCast(current + Vector3.up * 1.0f,
+                        0.29f, delta.normalized, out obstacle,
+                        delta.magnitude, RayMasks.BLOCK_COLLISION,
+                        QueryTriggerInteraction.Ignore))
+                    return true;
+            }
 
             if (Time.time < _successUntil &&
                 (point - _lastSuccess).sqrMagnitude < 0.5f &&
