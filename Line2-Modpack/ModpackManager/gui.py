@@ -51,6 +51,7 @@ class App(tk.Tk):
         ttk.Button(weapons, text="Upgrade Auto32 to 24", command=self.upgrade_auto24).pack(side="left", padx=4)
         ttk.Button(weapons, text="Tune Auto recoil", command=self.tune_auto32).pack(side="left", padx=4)
         ttk.Button(weapons, text="Generate Legendary Pack", command=self.generate_legendary_pack).pack(side="left", padx=4)
+        ttk.Button(weapons, text="Generate Thrower Acid Grenade", command=self.generate_acid_grenade).pack(side="left", padx=4)
         ttk.Button(advanced, text="Check conflicts", command=self.show_conflicts).pack(side="left", padx=4)
         ttk.Button(advanced, text="Apply profile", command=self.apply_profile).pack(side="left", padx=4)
         ttk.Button(advanced, text="Install C# module", command=self.install_module).pack(side="left", padx=4)
@@ -321,6 +322,67 @@ class App(tk.Tk):
             self.after(100, lambda: self._finish_legendary_generation(future))
         except Exception as exc:
             messagebox.showerror("Legendary pack failed", str(exc))
+
+    def _finish_acid_grenade(self, future):
+        if self._generation_future is not future:
+            return
+        if not future.done():
+            self.after(100, lambda: self._finish_acid_grenade(future))
+            return
+        self._generation_future = None
+        try:
+            result = future.result()
+            self.refresh()
+            messagebox.showinfo("Acid grenade staged",
+                "Staging: " + result["path"] +
+                "\nGrenade ID " + str(result["grenade_id"]) +
+                "\nRare spawn table ID " + str(result["spawn_id"]) +
+                "\nThrower acid EffectAsset " + str(result["effect"]) +
+                "\nWashington loot root " + str(result["root_id"]) +
+                "\nNative effect is VISUAL, not a persistent damage field. "
+                "Review README_TESTING.txt before installing.")
+        except Exception as exc:
+            self.status_var.set("Acid grenade generation failed.")
+            messagebox.showerror("Acid grenade failed", str(exc))
+
+    def generate_acid_grenade(self):
+        try:
+            from build_acid_grenade import build_acid_grenade
+            mgr = self.require_manager()
+            if self._generation_future is not None and not self._generation_future.done():
+                self.status_var.set("Item generation already running.")
+                return
+            if self._scan_future is not None and not self._scan_future.done():
+                raise ValueError("Wait for Scan / Refresh to finish.")
+            gid = simpledialog.askinteger("Thrower Acid Grenade",
+                "Custom grenade legacy ID:", initialvalue=32615,
+                minvalue=1, maxvalue=65535)
+            if gid is None:
+                return
+            sid = simpledialog.askinteger("Thrower Acid Loot",
+                "Custom spawn-table legacy ID:", initialvalue=32616,
+                minvalue=1, maxvalue=65535)
+            if sid is None:
+                return
+            if not messagebox.askyesno("Rare Thrower acid grenade",
+                "Generate a staging-only grenade using installed vanilla assets?\n"
+                "The explosion is weaker than a fragmentation grenade, "
+                "uses the original Thrower acid effect, and joins the "
+                "verified Washington loot table at a low relative weight.\n"
+                "It does NOT yet create lingering corrosive damage."):
+                return
+            target = mgr.staging / "ThrowerAcidGrenade"
+            if target.exists() or target.is_symlink():
+                raise FileExistsError("Staging already exists: " + str(target))
+            extras = [mgr.workshop] if mgr.workshop else []
+            self.status_var.set("Generating rare Thrower acid grenade; checking native assets and loot...")
+            future = self._scan_executor.submit(
+                build_acid_grenade, mgr.game, target,
+                grenade_id=gid, spawn_id=sid, extra_roots=extras)
+            self._generation_future = future
+            self.after(100, lambda: self._finish_acid_grenade(future))
+        except Exception as exc:
+            messagebox.showerror("Acid grenade failed", str(exc))
 
     def upgrade_auto24(self):
         try:
