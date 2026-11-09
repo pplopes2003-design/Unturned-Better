@@ -20,20 +20,48 @@ DEFAULT_LOOT_TABLE_ID = 32614
 WASHINGTON_SPECIAL_SPAWN_ID = "346"  # Verify in installed game; do not blindly attach
 
 def discover_burner_effect(bundle_root: Path):
-    """Only use an unmistakable locally installed Burner explosion effect."""
+    """Select one real, installed native explosion EffectAsset.
+
+    Prefer explicitly named Burner fire explosions. Otherwise use a clear
+    explosion/fire impact effect as a *visual fallback*, never an invented ID.
+    The returned legacy ID is required: emitting a silent/no-effect ammo
+    would mislead the player again. Unturned must still load the asset.
+    """
     effects = bundle_root / "Effects"
     if not effects.is_dir():
         return None
-    matches = []
+    ranked = []
     for p in enumerate_dat(effects):
-        parts = "/".join(x.lower() for x in p.parts[-4:])
-        if "burner" not in parts or not any(k in parts for k in ("explosion", "explode")):
-            continue
         meta = parse_dat(p)
         value = meta.get("id", "")
-        if value.isdigit() and 1 <= int(value) <= 65535:
-            matches.append(int(value))
-    return matches[0] if len(matches) == 1 else None
+        if meta.get("type", "").lower() != "effect" or not value.isdigit():
+            continue
+        number = int(value)
+        if not (1 <= number <= 65535):
+            continue
+        parts = "/".join(x.lower() for x in p.parts[-5:])
+        if any(word in parts for word in ("muzzle", "shell", "reload",
+                                          "footstep", "blood", "smoke_grenade")):
+            continue
+        has_burner = "burner" in parts
+        has_fire = any(x in parts for x in ("fire", "flame", "incendiary", "burn"))
+        has_blast = any(x in parts for x in ("explosion", "explode", "impact"))
+        if not has_blast:
+            continue
+        score = (100 if has_burner and has_blast else
+                 80 if has_fire and has_blast else
+                 20 if "explosion" in parts else 0)
+        if score:
+            ranked.append((score, number, p.as_posix()))
+    if not ranked:
+        return None
+    ranked.sort(key=lambda row: (-row[0], row[1], row[2]))
+    # An effect ID is only safe when it refers to a single installed asset.
+    top_score = ranked[0][0]
+    top_id = ranked[0][1]
+    if len({path for score, number, path in ranked if number == top_id}) > 1:
+        return None
+    return top_id
 
 
 def build_legendaries(game: Path, staging: Path, *, eagle_id=DEFAULT_EAGLE_ID,
@@ -61,9 +89,15 @@ def build_legendaries(game: Path, staging: Path, *, eagle_id=DEFAULT_EAGLE_ID,
     if impact_effect_id is None:
         impact_effect_id = discover_burner_effect(root)
     if impact_effect_id is not None and (
-        type(impact_effect_id) is not int or impact_effect_id < 0 or impact_effect_id > 65535
+        type(impact_effect_id) is not int or impact_effect_id < 1 or impact_effect_id > 65535
     ):
-        raise ValueError("Effect ID must be 0..65535")
+        raise ValueError("Effect ID must be 1..65535")
+    if impact_effect_id is None:
+        raise ValueError(
+            "No installed native explosion/fire EffectAsset found under Bundles/Effects. "
+            "Legendary 12G not generated: configure --impact-effect-id with a verified "
+            "local EffectAsset ID instead of silently creating invisible ammo."
+        )
     staging = Path(staging)
     if staging.exists() or staging.is_symlink():
         raise FileExistsError("Staging directory already exists: " + str(staging))
@@ -90,18 +124,17 @@ def build_legendaries(game: Path, staging: Path, *, eagle_id=DEFAULT_EAGLE_ID,
         # Small area hit effect is NOT a literal Burner infection/DoT.
         "Explosive":None,
         "Pellets":1,  # One small effect per shot; avoids shotgun pellet explosion spam.
-        "Range":1.25,
-        "Player_Damage":3,
-        "Zombie_Damage":9,
-        "Animal_Damage":3,
+        "Range":2.75,
+        "Player_Damage":18,
+        "Zombie_Damage":38,
+        "Animal_Damage":18,
         "Barricade_Damage":0,
         "Structure_Damage":0,
         "Vehicle_Damage":0,
         "Resource_Damage":0,
-        "Explosion_Plays_Impact_Effects":"false",
+        "Explosion_Plays_Impact_Effects":"true",
     }
-    if impact_effect_id is not None:
-        shell_updates["Explosion"] = impact_effect_id
+    shell_updates["Explosion"] = impact_effect_id
     shells = replace_metadata(original_shells.read_text(encoding="utf-8-sig"),shell_updates,
         {"Exclude_From_Master_Bundle", "Bundle_Path_Include_Filename"})
 
@@ -115,7 +148,7 @@ def build_legendaries(game: Path, staging: Path, *, eagle_id=DEFAULT_EAGLE_ID,
         encoding="utf-8")
     (m / "Asset.dat").write_text(shells,encoding="utf-8")
     (m / "English.dat").write_text(
-        "Name 12 Gauge Incendiaria (Legendary)\nDescription Experimental small-area impact ammunition.\n",
+        "Name 12 Gauge Incendiaria (Legendary)\nDescription Native 2.75m impact explosion with fire-themed effect. No lingering burn damage.\n",
         encoding="utf-8")
     # Washington root is attached only when official Spawn ID 346 is present
     # and identifies the Washington Special America loot table. This is not
@@ -145,9 +178,9 @@ def build_legendaries(game: Path, staging: Path, *, eagle_id=DEFAULT_EAGLE_ID,
         "EXPERIMENTAL Legendary pack, requires Unturned Steam validation.\n"
         "Eaglefire ID: "+str(eagle_id)+"\nIncendiary 12 Gauge ID: "+str(fire_id)+"\n"
         "Munitions copy original 12G caliber fields for compatibility.\n"
-        "Explosive/Range is a small damage area, NOT the actual Burner zombie ignite effect.\n"
-        "Burner visual effect ID: "+str(impact_effect_id or "NONE FOUND")+"\n"
-        "The effect is visual only; NO persistent burning or status effects.\n"
+        "Explosive/Range triggers native 2.75m splash damage; NOT persistent burning/DoT.\n"
+        "Native explosion visual effect ID: "+str(impact_effect_id)+"\n"
+        "Explosion effect uses an installed native EffectAsset. NO burn status/DoT.\n"
         "Washington loot root: " + (washington_root or "NOT FOUND/NOT ATTACHED") + "\n"
         "Natural loot requires valid map use of this root. Relative spawn weight=1; actual odds vary.\n"
         "Do not deploy until conflicts and C# runtime tests pass.\n",
