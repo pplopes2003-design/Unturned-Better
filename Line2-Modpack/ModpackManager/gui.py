@@ -212,34 +212,58 @@ class App(tk.Tk):
         except Exception as exc:
             messagebox.showerror("Profile error", str(exc))
 
-    def generate_auto32(self):
+    def _finish_auto32_generation(self, future):
+        if self._generation_future is not future:
+            return
+        if not future.done():
+            self.after(100, lambda: self._finish_auto32_generation(future))
+            return
+        self._generation_future = None
         try:
-            from build_auto32 import create_auto32
-            mgr = self.require_manager()
-            gun_id = simpledialog.askinteger("Auto 32 (experimental)",
-                "Gun legacy ID (must not conflict):", initialvalue=32610,
-                minvalue=1, maxvalue=65535)
-            if gun_id is None: return
-            magazine_id = simpledialog.askinteger("Auto 32 (experimental)",
-                "Magazine legacy ID:", initialvalue=32611,
-                minvalue=1, maxvalue=65535)
-            if magazine_id is None: return
-            target = mgr.staging / "Auto32"
-            extra = [mgr.workshop] if mgr.workshop else []
-            if not messagebox.askyesno("Generate experimental mod",
-                "Generate a staging-only Auto 32 gun and magazine using your installed Bluntforce models?\n\n"
-                "This does not install the mod or modify vanilla files. "
-                "The 4-round incremental reload is NOT implemented."):
-                return
-            result = create_auto32(mgr.game, target, gun_id=gun_id,
-                                   magazine_id=magazine_id, other_roots=extra)
+            result = future.result()
             self.refresh()
-            messagebox.showinfo("Auto 32 generated",
+            messagebox.showinfo("Auto 24 generated",
                 "Staging only. IDs: " + str(result["gun_id"]) + ", " +
                 str(result["magazine_id"]) +
                 "\nReview BUILD_NOTES.txt and scan for conflicts before installation.")
         except Exception as exc:
-            messagebox.showerror("Auto 32 generation failed", str(exc))
+            self.status_var.set("Auto 24 generation failed.")
+            messagebox.showerror("Auto 24 generation failed", str(exc))
+
+    def generate_auto32(self):
+        try:
+            from build_auto32 import create_auto32
+            mgr = self.require_manager()
+            if self._generation_future is not None and not self._generation_future.done():
+                self.status_var.set("Item generation already running.")
+                return
+            if self._scan_future is not None and not self._scan_future.done():
+                raise ValueError("Wait for Scan / Refresh to finish.")
+            target = mgr.staging / "Auto32"
+            if target.exists() or target.is_symlink():
+                raise FileExistsError("Staging directory already exists: " + str(target))
+            gun_id = simpledialog.askinteger("Auto 24 (experimental)",
+                "Gun legacy ID (must not conflict):", initialvalue=32610,
+                minvalue=1, maxvalue=65535)
+            if gun_id is None: return
+            magazine_id = simpledialog.askinteger("Auto 24 (experimental)",
+                "Magazine legacy ID:", initialvalue=32611,
+                minvalue=1, maxvalue=65535)
+            if magazine_id is None: return
+            extra = [mgr.workshop] if mgr.workshop else []
+            if not messagebox.askyesno("Generate experimental mod",
+                "Generate a staging-only Auto 24 gun and magazine using your installed Bluntforce models?\n\n"
+                "This does not install the mod or modify vanilla files. "
+                "The 4-round incremental reload is NOT implemented."):
+                return
+            self.status_var.set("Generating Auto 24 in background; checking game and Workshop item IDs...")
+            future = self._scan_executor.submit(
+                create_auto32, mgr.game, target,
+                gun_id=gun_id, magazine_id=magazine_id, other_roots=extra)
+            self._generation_future = future
+            self.after(100, lambda: self._finish_auto32_generation(future))
+        except Exception as exc:
+            messagebox.showerror("Auto 24 generation failed", str(exc))
 
     def tune_auto32(self):
         try:
