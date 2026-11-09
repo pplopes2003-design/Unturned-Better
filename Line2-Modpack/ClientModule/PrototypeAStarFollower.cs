@@ -163,7 +163,13 @@ namespace Unturned2.Line2
             // when the brain's observed destination changes materially.
             bool stale = (goal - _pathGoal).sqrMagnitude > 1.0f * 1.0f
                 || Mathf.Abs(goal.y - _pathGoal.y) > 0.45f
-                || Time.time - _routeReceivedAt > 5.0f;
+                // Native paths around houses can take well over five
+                // seconds. The former hard 5s timer destroyed a still-valid
+                // route at precisely the moment the NPC reached the corner,
+                // causing repeated path requests and apparent paralysis.
+                // Real movement progress and the tactical watchdog own
+                // earlier invalidation of blocked paths.
+                || Time.time - _routeReceivedAt > 25.0f;
             if (stale)
             {
                 _walked.Clear();
