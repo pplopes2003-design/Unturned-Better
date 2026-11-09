@@ -26,6 +26,8 @@ namespace Unturned2.Line2
         private bool _journeyInvalid;
         private readonly List<Vector3> _path = new List<Vector3>(96);
         private Vector3 _pathGoal;
+        private Vector3 _requestedRouteGoal;
+        private bool _requestedRoutePending;
         private int _waypoint;
         private float _nextRepathAt;
         private float _routeReceivedAt;
@@ -42,6 +44,7 @@ namespace Unturned2.Line2
             _provider = provider;
             _fallback = fallback;
             _path.Clear();
+            _requestedRoutePending = false;
             _waypoint = 0;
             _status = provider == null ? "missing-native-provider" : "waiting-for-native-Astar";
             _nextRepathAt = Time.time;
@@ -161,7 +164,7 @@ namespace Unturned2.Line2
             // Doorways and building corners may be less than 2.5m apart.
             // Do not keep following a route to the other side of a wall
             // when the brain's observed destination changes materially.
-            bool stale = (goal - _pathGoal).sqrMagnitude > 1.0f * 1.0f
+            bool stale = (goal - _pathGoal).sqrMagnitude > 3.0f * 3.0f
                 || Mathf.Abs(goal.y - _pathGoal.y) > 0.45f
                 // Native paths around houses can take well over five
                 // seconds. The former hard 5s timer destroyed a still-valid
@@ -185,20 +188,36 @@ namespace Unturned2.Line2
                 if (Time.time < _nextRepathAt)
                     return Vector3.zero;
 
-                bool ready = _provider.TryGetRoute(current, goal, _path);
+                // Commit the pending destination while native Seeker works.
+                // A moving player can update the high-level goal every
+                // 0.45s. Passing that micro-change into StartPath cancels
+                // the ongoing request repeatedly, freezing the NPC.
+                // Large changes (>3m) still allow deliberate replanning.
+                if (_requestedRoutePending &&
+                    (goal - _requestedRouteGoal).sqrMagnitude > 9f)
+                    _requestedRoutePending = false;
+                Vector3 requestGoal = _requestedRoutePending
+                    ? _requestedRouteGoal : goal;
+                bool ready = _provider.TryGetRoute(current, requestGoal, _path);
                 if (!ready)
                 {
                     _status = _provider.DiagnosticStatus;
                     if (_provider.LastPathFailed)
                     {
+                        _requestedRoutePending = false;
                         _failedUntil = Time.time + 2.0f;
                         _nextRepathAt = Time.time + 2.0f;
                         return UseCoarseOrSteer(toward, goal);
                     }
-                    // Wait for the actual A* route; never treat a pending
-                    // path as proof the door or wall is traversable.
+                    if (!_requestedRoutePending)
+                    {
+                        _requestedRouteGoal = requestGoal;
+                        _requestedRoutePending = true;
+                    }
+                    // A pending path never proves a traversable doorway.
                     return Vector3.zero;
                 }
+                _requestedRoutePending = false;
                 if (_path.Count < 2 || _path.Count > 128)
                 {
                     _path.Clear();
@@ -206,7 +225,7 @@ namespace Unturned2.Line2
                     _nextRepathAt = Time.time + 2f;
                     return Vector3.zero;
                 }
-                _pathGoal = goal;
+                _pathGoal = requestGoal;
                 StartJourney(current);
                 _waypoint = 1;
                 _routeReceivedAt = Time.time;
@@ -297,6 +316,7 @@ namespace Unturned2.Line2
         {
             _walked.Clear();
             _path.Clear();
+            _requestedRoutePending = false;
         }
     }
 }
