@@ -17,6 +17,7 @@ class App(tk.Tk):
         self.mgr = None
         self._scan_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="u2m-scan")
         self._scan_future = None
+        self._generation_future = None
         self._scan_generation = 0
         self.protocol("WM_DELETE_WINDOW", self._close)
         paths = ttk.Frame(self, padding=12)
@@ -83,6 +84,9 @@ class App(tk.Tk):
                 sorted(mgr.state()["installed"]))
 
     def refresh(self):
+        if self._generation_future is not None and not self._generation_future.done():
+            self.status_var.set("Generating items in background; refresh later.")
+            return
         if self._scan_future is not None and not self._scan_future.done():
             self.status_var.set("Scan already running; please wait.")
             return
@@ -261,10 +265,37 @@ class App(tk.Tk):
         except Exception as exc:
             messagebox.showerror("Auto 32 recoil adjustment failed", str(exc))
 
+    def _finish_legendary_generation(self, future):
+        if self._generation_future is not future:
+            return
+        if not future.done():
+            self.after(100, lambda: self._finish_legendary_generation(future))
+            return
+        self._generation_future = None
+        try:
+            result = future.result()
+            self.refresh()
+            messagebox.showinfo("Legendary pack generated",
+                "Staging: " + result["path"] +
+                "\nEaglefire ID " + str(result["eaglefire"]) +
+                "\nIncendiary 12G ID " + str(result["incendiary"]) +
+                "\nVisual burner effect: " + str(result["effect_id"] or "not found") +
+                "\nWashington loot root: " +
+                ("attached" if result["washington_root_attached"] else "not found") +
+                "\nReview README_TESTING.txt before deployment.")
+        except Exception as exc:
+            self.status_var.set("Legendary pack generation failed.")
+            messagebox.showerror("Legendary pack failed", str(exc))
+
     def generate_legendary_pack(self):
         try:
             from build_legendary_items import build_legendaries
             mgr = self.require_manager()
+            if self._generation_future is not None and not self._generation_future.done():
+                self.status_var.set("Legendary pack generation already running.")
+                return
+            if self._scan_future is not None and not self._scan_future.done():
+                raise ValueError("Wait for Scan / Refresh to finish.")
             eagle_id = simpledialog.askinteger("Legendary Eaglefire",
                 "Eaglefire legacy item ID:", initialvalue=32612, minvalue=1, maxvalue=65535)
             if eagle_id is None: return
@@ -278,17 +309,16 @@ class App(tk.Tk):
                 "12 Gauge: small-area explosive shot, NOT verified Burner ignition.\n"
                 "Natural spawns need map loot-table integration."):
                 return
+            target = mgr.staging / "LegendaryPack"
+            if target.exists() or target.is_symlink():
+                raise FileExistsError("Staging directory already exists: " + str(target))
             extras = [mgr.workshop] if mgr.workshop else []
-            result = build_legendaries(mgr.game, mgr.staging / "LegendaryPack",
-                                      eagle_id=eagle_id, fire_id=fire_id,
-                                      extra_roots=extras)
-            self.refresh()
-            messagebox.showinfo("Legendary pack generated",
-                "Staging: " + result["path"] + "\nEaglefire ID " + str(eagle_id) +
-                "\nIncendiary 12G ID " + str(fire_id) +
-                "\nVisual burner effect: " + str(result["effect_id"] or "not found") +
-                "\nWashington loot root: " + ("attached" if result["washington_root_attached"] else "not found") +
-                "\nReview README_TESTING.txt before deployment.")
+            self.status_var.set("Generating Legendary Pack in background; checking game and Workshop assets...")
+            future = self._scan_executor.submit(
+                build_legendaries, mgr.game, target,
+                eagle_id=eagle_id, fire_id=fire_id, extra_roots=extras)
+            self._generation_future = future
+            self.after(100, lambda: self._finish_legendary_generation(future))
         except Exception as exc:
             messagebox.showerror("Legendary pack failed", str(exc))
 
