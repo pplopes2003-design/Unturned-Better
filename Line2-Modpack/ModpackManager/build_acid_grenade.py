@@ -98,7 +98,7 @@ def build_acid_grenade(game: Path, staging: Path, *, grenade_id=DEFAULT_GRENADE_
     (grenade_folder / "Asset.dat").write_text(data, encoding="utf-8")
     (grenade_folder / "English.dat").write_text(
         "Name Granada de Acido Thrower\n"
-        "Description Granada experimental com explosao leve e efeito de acido do Thrower.\n",
+        "Description Explosao leve, acido azul e 3 pulsos corrosivos com modulo Line2.\n",
         encoding="utf-8")
     # Low insertion weight into a known parent. Not a probability claim:
     # the final chance depends on the parent loot table weights and map.
@@ -111,9 +111,9 @@ def build_acid_grenade(game: Path, staging: Path, *, grenade_id=DEFAULT_GRENADE_
         f"Spawn table ID: {spawn_id}; verified Washington root: {root_id}\n"
         f"Native Thrower acid effect: {effect}\n"
         "Explosion: 3m, player 18, zombie 24, animal 18, other 0.\n"
-        "The effect is a native visual, NOT a persistent corrosive zone.\n"
+        "With Line2 C# module active: 3 corrosive pulses after the weak blast.\n"
         "Low relative loot weight 1. Actual spawn rate depends on installed map table.\n"
-        "Requires Unturned Steam singleplayer test and regenerated installation.\n",
+        "Without Line2 C# module: initial blast + native acid visual only.\nRequires Unturned Steam singleplayer test and regenerated installation.\n",
         encoding="utf-8")
     return {"grenade_id":grenade_id, "spawn_id":spawn_id,
             "effect":effect, "root_id":root_id, "path":str(staging)}
