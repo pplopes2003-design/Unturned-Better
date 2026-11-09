@@ -547,6 +547,8 @@ namespace Unturned2.Line2
                     raid.Initialize(this, actor);
                     var radio = instance.AddComponent<Line2NPCRadioOutbox>();
                     radio.Initialize(this, actor, combatSight, ownedInventory);
+                    var exchange = instance.AddComponent<Line2NpcExperienceExchange>();
+                    exchange.Initialize(this, actor);
                     if (Line2NpcCombatTotalPolicy.Enabled(_mode))
                     {
                         // Worn native armor is owned inventory, with actual
