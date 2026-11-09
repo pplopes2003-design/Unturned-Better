@@ -164,7 +164,17 @@ namespace Unturned2.Line2
             if (returnFireUtility >= 0f && healthFraction > 0.38f)
                 return false;
 
-			// Selector child 4: no safe cover or viable shot; request retreat.
+			// Selector child 4: an ordinary under-fire withdrawal cannot
+            // enter an infinite pending state without an accessible,
+            // native-Astar-verified escape point. The high-level brain
+            // keeps its genuine observed pursuit/search goal instead.
+            // Critical injuries remain defensive and retry ground checks.
+            if (!validatedRetreat)
+            {
+                if (currentGoal == Goal.Retreat && !hasTacticalDestination)
+                    ClearGoal();
+                return false;
+            }
 			// A second stimulus must not restart an unfinished decision.
 			if (currentGoal != Goal.Retreat || now >= goalDeadline)
 			{

@@ -160,6 +160,17 @@ internal static class Program
             Console.Error.WriteLine("NPC_TAC_EVASION_FAILED: wounded verified retreat.");
             return 85;
         }
+        var exposedUnarmed = new Line2MobileNPCTactics { CombatOnlyMode = true };
+        exposedUnarmed.ReportIncomingFire(31f);
+        if (exposedUnarmed.TryChooseDefensiveGoal(
+                new UnityEngine.Vector3(0f, 0f, 0f), null,
+                new UnityEngine.Vector3(5f, 0f, 0f), 31.2f,
+                false, false) ||
+            exposedUnarmed.CurrentGoal != Line2MobileNPCTactics.Goal.None)
+        {
+            Console.Error.WriteLine("NPC_TAC_EVASION_FAILED: endless unreachable pending retreat.");
+            return 86;
+        }
         Console.WriteLine("NPC_TAC_EVASION_OK: real wound escapes with validated retreat; no invented route.");
         Console.WriteLine("NPC_TACTICS_SELFTEST_OK: real wound withdrawal and verified-cover commitment.");
         // Exact original Line 1 pursuit/search code, not a reimplementation:
