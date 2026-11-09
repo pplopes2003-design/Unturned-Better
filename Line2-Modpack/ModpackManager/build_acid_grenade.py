@@ -19,38 +19,18 @@ RESERVED = {32610, 32611, 32612, 32613, 32614}
 WASHINGTON_SPECIAL_ID = "346"
 
 
+# Exact official effect ref used by Zombie.askAcid() in the base U3 code.
+# Zombie_3_Ref = 121 (regular blue acid); avoid Nuclear Acid GUID/ID 149.
+THROWER_ACID_EFFECT_GUID = "ae477aac40b64d3c8ce8e538daffecf5"
+
+
 def find_thrower_acid_effect(bundle_root: Path):
-    candidates = []
-    effects = bundle_root / "Effects"
-    for p in enumerate_dat(effects):
-        dat = parse_dat(p)
-        if dat.get("type", "").lower() != "effect":
-            continue
-        path = p.parent.name.lower().replace("-", "_").replace(" ", "_")
-        # Zombie_3 is the effect ref used by Zombie.askAcid().
-        # Also accept unmistakable Thrower acid effect filenames.
-        exact = path in ("zombie_3", "zombie_acid", "thrower_acid",
-                         "acid_0", "acid_spit", "acid_explosion")
-        specific = ("acid" in path and any(word in path
-                    for word in ("thrower", "zombie", "spit", "explosion")))
-        if not (exact or specific):
-            continue
-        guid = dat.get("guid", "")
-        effect_id = dat.get("id", "")
-        if (len(guid) == 32 and all(c in "0123456789abcdefABCDEF" for c in guid)):
-            value = guid
-        elif effect_id.isdigit() and 1 <= int(effect_id) <= 65535:
-            value = effect_id
-        else:
-            continue
-        candidates.append((0 if path == "zombie_3" else 1, str(p), value))
-    if not candidates:
-        raise ValueError("Thrower acid EffectAsset was not found in installed Bundles/Effects. "
-                         "No fake visual will be generated. Verify Zombie_3 or acid effect files.")
-    candidates.sort()
-    if len(candidates) > 1 and candidates[0][0] == candidates[1][0]:
-        raise ValueError("Ambiguous Thrower acid effects: select a unique installed asset.")
-    return candidates[0][2]
+    """Use the source-grounded GUID so packed assets need no local .dat scan.
+
+    A GUID is more stable than relying on the file structure of a Steam
+    installation. Runtime availability still needs validation in Unturned.
+    """
+    return THROWER_ACID_EFFECT_GUID
 
 
 def find_verified_spawn_root(bundle_root: Path):
