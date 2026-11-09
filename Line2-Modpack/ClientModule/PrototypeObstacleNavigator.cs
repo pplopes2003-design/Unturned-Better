@@ -1,4 +1,5 @@
 using System;
+using SDG.Unturned;
 using UnityEngine;
 
 namespace Unturned2.Line2
@@ -111,7 +112,10 @@ namespace Unturned2.Line2
             if (direction.sqrMagnitude < 0.2f) return false;
             Vector3 origin = transform.position + Vector3.up * 1.0f;
             int found = Physics.SphereCastNonAlloc(origin, BodyRadius, direction,
-                _hits, ForwardRange, ~0, QueryTriggerInteraction.Ignore);
+                _hits, ForwardRange,
+                RayMasks.BLOCK_COLLISION | RayMasks.AGENT |
+                RayMasks.PLAYER | RayMasks.ENEMY,
+                QueryTriggerInteraction.Ignore);
             bool blocked = found == HitLimit; // avoid treating truncated buffer as clear
             for (int i = 0; i < found; i++)
             {
