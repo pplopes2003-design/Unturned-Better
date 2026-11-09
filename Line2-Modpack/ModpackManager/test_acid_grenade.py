@@ -45,18 +45,19 @@ class AcidGrenadeTests(unittest.TestCase):
         self.assertEqual(asset["player_damage"], "18")
         self.assertEqual(asset["zombie_damage"], "24")
         self.assertEqual(asset["structure_damage"], "0")
-        self.assertEqual(asset["explosion"], "33333333333333333333333333333333")
+        self.assertEqual(asset["explosion"], "ae477aac40b64d3c8ce8e538daffecf5")
         self.assertEqual(asset["bundle_override_path"], "/Items/Throwables/Grenade")
         self.assertEqual(loot["table_0_asset_id"], "32615")
         self.assertEqual(loot["root_0_spawn_id"], "346")
         self.assertEqual(loot["root_0_weight"], "1")
 
-    def test_refuses_unverified_effect(self):
+    def test_effect_reference_does_not_require_unpacked_dat(self):
         import shutil
         shutil.rmtree(self.game / "Bundles" / "Effects")
-        with self.assertRaisesRegex(ValueError, "Thrower acid EffectAsset"):
-            build_acid_grenade(self.game, self.out)
-        self.assertFalse(self.out.exists())
+        result = build_acid_grenade(self.game, self.out)
+        asset = parse_dat(self.out / "Items/Throwables/Thrower_Acid_Grenade/Asset.dat")
+        self.assertEqual(result["effect"], "ae477aac40b64d3c8ce8e538daffecf5")
+        self.assertEqual(asset["explosion"], result["effect"])
 
     def test_refuses_unverified_spawn_root(self):
         import shutil
