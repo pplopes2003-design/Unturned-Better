@@ -44,7 +44,6 @@ namespace Unturned2.Line2
                                  InputInfo hit, ref bool shouldAllow)
         {
             if (!shouldAllow || gun == null || bullet == null || hit == null ||
-                hit.type != ERaycastInfoType.NONE ||
                 !Provider.isServer || Dedicator.IsDedicatedServer ||
                 !Provider.hasCheats || !Level.isLoaded ||
                 (Provider.clients != null && Provider.clients.Count > 1) ||
@@ -71,8 +70,10 @@ namespace Unturned2.Line2
             // the actual bullet origin. This rejects claimed hits behind
             // walls, barricades, vehicles and other blocking targets.
             Transform realHit;
+            float physicalDistance;
             if (!Line2MobileNPCDamageBridge.TryResolvePhysicalServerHit(
-                start, reported, asset.range, out realHit))
+                start, reported, asset.range, out realHit,
+                out physicalDistance))
                 return;
             Line2MobileNPCInjurySystem.BodyPart part;
             if (!Line2MobileNPCBodyHitbox.TryResolve(realHit, out part))
@@ -96,7 +97,7 @@ namespace Unturned2.Line2
                 float times = (float)raw;
                 float startFalloff = asset.range * asset.damageFalloffRange;
                 float endFalloff = asset.range * asset.damageFalloffMaxRange;
-                float alpha = Mathf.InverseLerp(startFalloff, endFalloff, distance);
+                float alpha = Mathf.InverseLerp(startFalloff, endFalloff, physicalDistance);
                 times *= Mathf.Lerp(1.0f, asset.damageFalloffMultiplier, alpha);
                 if (float.IsNaN(times) || float.IsInfinity(times) || times <= 0f)
                     return;
@@ -137,8 +138,11 @@ namespace Unturned2.Line2
                         " (server ray, no native damage duplication)");
                     _nextLogAt = Time.time + 5f;
                 }
-                // Never change shouldAllow: native bullet processing still
-                // handles world collisions and other vanilla targets.
+                // NPC collider was the FIRST authoritative physical hit.
+                // Prevent the native hit report (potentially a wall/player
+                // behind this custom trigger) from applying a SECOND hit.
+                if (applied)
+                    shouldAllow = false;
             }
             catch (Exception ex)
             {

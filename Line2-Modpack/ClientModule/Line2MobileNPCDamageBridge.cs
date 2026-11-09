@@ -31,7 +31,17 @@ namespace Unturned2.Line2
         public static bool TryResolvePhysicalServerHit(Vector3 origin,
             Vector3 reportedPoint, float maximumRange, out Transform hitTransform)
         {
+            float unused;
+            return TryResolvePhysicalServerHit(origin, reportedPoint,
+                maximumRange, out hitTransform, out unused);
+        }
+
+        public static bool TryResolvePhysicalServerHit(Vector3 origin,
+            Vector3 reportedPoint, float maximumRange, out Transform hitTransform,
+            out float physicalHitDistance)
+        {
             hitTransform = null;
+            physicalHitDistance = 0f;
             if (!Provider.isServer || !Level.isLoaded || maximumRange <= 0f)
                 return false;
             Vector3 difference = reportedPoint - origin;
@@ -49,17 +59,22 @@ namespace Unturned2.Line2
                 mask, QueryTriggerInteraction.Collide))
                 return false;
 
-            // If a wall/fence is in front of the NPC, the FIRST physics hit
-            // is that geometry, not an NPC. The incoming point must match.
-            if (hit.collider == null
-                || (hit.point - reportedPoint).sqrMagnitude > 1.25f * 1.25f
-                || hit.collider.GetComponent<Line2MobileNPCBodyHitbox>() == null)
+            // The vanilla client can classify our custom trigger as NONE,
+            // then report the world collision BEHIND the NPC. Requiring the
+            // points to match wrongly makes the NPC immune to firearms.
+            // The first authoritative server ray hit must instead be the
+            // NPC hitbox itself: a prior wall, vehicle or other entity
+            // blocks the shot. Never apply to an NPC behind an obstruction.
+            if (hit.collider == null ||
+                hit.distance > length + 0.75f ||
+                hit.collider.GetComponent<Line2MobileNPCBodyHitbox>() == null)
                 return false;
             PrototypeNpcVitals victim =
                 hit.collider.GetComponentInParent<PrototypeNpcVitals>();
             if (victim == null || victim.IsDead)
                 return false;
 
+            physicalHitDistance = hit.distance;
             hitTransform = hit.collider.transform;
             return true;
         }
