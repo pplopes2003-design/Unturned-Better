@@ -432,6 +432,7 @@ namespace Unturned2.Line2
                     // DamageTool.explode discovers IExplosionDamageable
                     // through the root Agent CharacterController collider.
                     instance.AddComponent<PrototypeNpcVitals>();
+                    instance.AddComponent<Line2NpcCorpseRagdoll>();
                     var ownedInventory = instance.AddComponent<Line2MobileNPCInventory>();
                     instance.AddComponent<Line2NpcDeathLoot>();
                     instance.AddComponent<Line2MobileNPCInjurySystem>();

@@ -274,9 +274,15 @@ namespace Unturned2.Line2
             if (_controller != null) _controller.enabled = false;
             foreach (Collider collider in GetComponentsInChildren<Collider>())
                 collider.enabled = false;
+            // Port the verified Line 1 native skeleton death presentation.
+            // Do this after removing live hitbox collisions, but while the
+            // visual/skeleton is still alive and before corpse cleanup.
+            Line2NpcCorpseRagdoll ragdoll = GetComponent<Line2NpcCorpseRagdoll>();
+            if (ragdoll != null)
+                ragdoll.OnAuthoritativeDeath(direction);
             Died?.Invoke();
             ProbeLogger.Log("NPC_PROTOTYPE_DIED: actor=" + gameObject.name +
-                " (no native corpse/loot/persistence yet)");
+                " (native corpse physics attempted)");
             Destroy(gameObject, CorpseSeconds);
             return true;
         }
