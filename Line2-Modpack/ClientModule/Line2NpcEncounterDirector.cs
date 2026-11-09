@@ -110,6 +110,66 @@ namespace Unturned2.Line2
                 _pressure >= 32f ? 1 : 2, _respiteUntil);
         }
 
+        /// <summary>
+        /// Line 1 novice geographic prior: selects only an approximate
+        /// BEARING toward map-authored loot sectors. No information about
+        /// whether anything actually spawned, no target identity, and
+        /// no approved route. The individual NPC must validate ground
+        /// and ask native ASPFP to walk there.
+        /// </summary>
+        internal static bool TrySuggestNoviceBearing(PrototypeActor actor,
+            Vector3 origin, out Vector3 bearing)
+        {
+            bearing = Vector3.zero;
+            if (!Provider.isServer || Dedicator.IsDedicatedServer ||
+                !Level.isLoaded || actor == null || actor.IsDead ||
+                actor.IsRecruited || actor.CombatMode == "total" ||
+                actor.PlayerVisible || LevelItems.spawns == null)
+                return false;
+            Line2MobileNPCAdaptiveMemory experience =
+                actor.GetComponent<Line2MobileNPCAdaptiveMemory>();
+            Line2MobileNPCTravelMemory traveled =
+                actor.GetComponent<Line2MobileNPCTravelMemory>();
+            if (experience != null && experience.RecordCount > 0 ||
+                traveled != null && traveled.RouteCount > 1)
+                return false;
+            var regions = new List<RegionCoordinate>(9);
+            Regions.getRegionsInRadius(origin, 138f, regions);
+            int sampled = 0;
+            int eligible = 0;
+            Vector3 chosen = Vector3.zero;
+            for (int r = 0; r < regions.Count && sampled < 144; r++)
+            {
+                RegionCoordinate region = regions[r];
+                if (region.x >= LevelItems.spawns.GetLength(0) ||
+                    region.y >= LevelItems.spawns.GetLength(1))
+                    continue;
+                List<ItemSpawnpoint> points =
+                    LevelItems.spawns[region.x, region.y];
+                if (points == null || points.Count == 0) continue;
+                int stride = Mathf.Max(1, points.Count / 16);
+                for (int i = 0; i < points.Count && sampled < 144; i += stride)
+                {
+                    sampled++;
+                    ItemSpawnpoint spawn = points[i];
+                    if (spawn == null) continue;
+                    Vector3 offset = spawn.point - origin;
+                    offset.y = 0f;
+                    if (offset.sqrMagnitude < 36f * 36f ||
+                        offset.sqrMagnitude > 138f * 138f)
+                        continue;
+                    if (UnityEngine.Random.Range(0, ++eligible) == 0)
+                        chosen = offset;
+                }
+            }
+            if (eligible == 0) return false;
+            bearing = Quaternion.AngleAxis(
+                UnityEngine.Random.Range(-30f, 30f), Vector3.up) *
+                chosen.normalized;
+            bearing.y = 0f;
+            return bearing.sqrMagnitude > 0.2f;
+        }
+
         private void OnDisable()
         {
             _actors.Clear();

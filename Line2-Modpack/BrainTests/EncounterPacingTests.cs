@@ -27,6 +27,17 @@ internal static class EncounterPacingTests
         if (Line2NpcEncounterPacing.TryLease(7, 0, 12f, true) ||
             Line2NpcEncounterPacing.TryLease(7, 106, float.NaN, true))
             return false;
+        // Encounter director may reduce bonus search concurrency
+        // while pressure is high, without inventing enemy knowledge.
+        Line2NpcEncounterPacing.ResetSession();
+        Line2NpcEncounterPacing.Configure(1, 0f);
+        if (!Line2NpcEncounterPacing.TryLease(5, 801, 1f, true) ||
+            Line2NpcEncounterPacing.TryLease(5, 802, 1f, true))
+            return false;
+        Line2NpcEncounterPacing.Configure(2, 12f);
+        if (Line2NpcEncounterPacing.TryLease(8, 803, 7f, true) ||
+            !Line2NpcEncounterPacing.TryLease(8, 803, 13f, true))
+            return false;
         Line2NpcEncounterPacing.ResetSession();
         if (!Line2NpcEncounterPacing.TryLease(7, 110, 0f, true))
             return false; // Reloading a map never inherits old reservations.

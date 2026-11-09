@@ -320,6 +320,27 @@ namespace Unturned2.Line2
                 _job = Job.ExploreAuthoredSite;
                 return Commit(_destination, out goal);
             }
+            // Newly arrived civilians can use the Line 1 encounter
+            // director's approximate map-sector bearing when ordinary
+            // needs, authored-site goals and observed loot were all
+            // unavailable. This is NOT an item location or path; the
+            // same per-actor ground and native Astar checks still apply.
+            if (_actor.CombatMode != "total" && _failedChoices == 0)
+            {
+                Vector3 bearing;
+                if (Line2NpcEncounterDirector.TrySuggestNoviceBearing(
+                        _actor, current, out bearing) &&
+                    TryChooseGroundNear(current + bearing * 22f,
+                        3f, 8f, out _destination))
+                {
+                    _job = Job.ExploreAuthoredSite;
+                    ProbeLogger.Log("NPC_NOVICE_BEARING: actor=" +
+                        _actor.Identity + " approximate=" +
+                        bearing.ToString("F2") +
+                        " (not a loot location)");
+                    return Commit(_destination, out goal);
+                }
+            }
             _job = Job.Patrol;
             if (TryChooseGroundNear(current, 9f,
                 _actor.CombatMode == "total" ? 40f : 28f,
