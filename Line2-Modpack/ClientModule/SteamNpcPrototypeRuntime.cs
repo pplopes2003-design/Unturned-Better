@@ -428,6 +428,14 @@ namespace Unturned2.Line2
                     var nativePath = instance.AddComponent<Line2NativeAStarRouteProvider>();
                     var follower = instance.AddComponent<PrototypeAStarFollower>();
                     follower.Initialize(nativePath, navigation);
+                    // Tactical candidates use their OWN Seeker so cover/
+                    // flank checks cannot cancel the actor's walking path.
+                    GameObject tacticalSeeker = new GameObject("Line2_TacticalNativeAStar");
+                    tacticalSeeker.transform.SetParent(instance.transform, false);
+                    tacticalSeeker.transform.localPosition = Vector3.zero;
+                    var tacticalNative = tacticalSeeker.AddComponent<Line2NativeAStarRouteProvider>();
+                    var tacticalGate = instance.AddComponent<Line2NpcTacticalRouteGate>();
+                    tacticalGate.Initialize(tacticalNative);
                     instance.AddComponent<PrototypeCoverPlanner>();
                     // DamageTool.explode discovers IExplosionDamageable
                     // through the root Agent CharacterController collider.
@@ -1016,6 +1024,7 @@ namespace Unturned2.Line2
         private Line2MobileNPCTravelMemory _travelMemory;
         private Line2NpcWorldSurvey _worldSurvey;
         private PrototypeCoverPlanner _coverPlanner;
+        private Line2NpcTacticalRouteGate _tacticalRouteGate;
         private Line2NPCCombatPerception _combatPerception;
         private Line2NPCRangedExecutor _rangedExecutor;
         internal bool IsMoving { get; private set; }
@@ -1115,7 +1124,9 @@ namespace Unturned2.Line2
                 _tactics.ReportHealth(_vitals.Health, 100f);
             }
             _coverPlanner = GetComponent<PrototypeCoverPlanner>();
-            if (_coverPlanner != null) _coverPlanner.Initialize(_experience);
+            _tacticalRouteGate = GetComponent<Line2NpcTacticalRouteGate>();
+            if (_coverPlanner != null)
+                _coverPlanner.Initialize(_experience, _tacticalRouteGate);
             _identity = identity;
             _aiAction = null;
             _lastKnownThreat = null;
@@ -1773,6 +1784,8 @@ namespace Unturned2.Line2
                     if (_combatPerception.HasVerifiedSight(opponent,
                         _combatPerception.Kind, 45f) &&
                         TryFindVerifiedFlank(opponent.position, out flank) &&
+                        _tacticalRouteGate != null &&
+                        _tacticalRouteGate.IsVerified(flank) &&
                         !(_lastFailedTacticalKind ==
                             Line2MobileNPCTactics.Goal.Flank &&
                           Time.time < _tacticalRetryAfter &&

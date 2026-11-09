@@ -14,9 +14,12 @@ namespace Unturned2.Line2
         private const int CandidatesPerSearch = 6;
         private const float SearchCooldown = 2.5f;
         private Line2MobileNPCAdaptiveMemory _experience;
-        internal void Initialize(Line2MobileNPCAdaptiveMemory experience)
+        private Line2NpcTacticalRouteGate _routeGate;
+        internal void Initialize(Line2MobileNPCAdaptiveMemory experience,
+                                 Line2NpcTacticalRouteGate routeGate)
         {
             _experience = experience;
+            _routeGate = routeGate;
         }
 
         private readonly RaycastHit[] _floorHits = new RaycastHit[16];
@@ -71,6 +74,11 @@ namespace Unturned2.Line2
                          point + Vector3.up * 1.55f, 0.32f,
                          RayMasks.BLOCK_COLLISION,
                          QueryTriggerInteraction.Ignore))
+                    continue;
+                // A safe patch of ground is NOT proof of an accessible
+                // journey. Let the game's own ASPFP verify connectivity
+                // before selecting either cover or retreat.
+                if (_routeGate == null || !_routeGate.IsVerified(point))
                     continue;
 
                 Vector3 candidateEye = point + Vector3.up * 1.3f;
