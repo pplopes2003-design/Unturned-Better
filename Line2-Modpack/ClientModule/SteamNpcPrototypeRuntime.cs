@@ -2136,9 +2136,11 @@ namespace Unturned2.Line2
             if (_stance != null)
                 _stance.Apply(gait == Line2MobileNPCLocomotionPolicy.Gait.Sneak ||
                     locomotion.InCover);
-            float speed = gait == Line2MobileNPCLocomotionPolicy.Gait.Sprint ? 3.0f
+            // Match the proven Line 1 humanoid motor's movement speeds.
+            // Sprint should be visibly faster than normal walking.
+            float speed = gait == Line2MobileNPCLocomotionPolicy.Gait.Sprint ? 4.0f
                 : gait == Line2MobileNPCLocomotionPolicy.Gait.Sneak ? 1.15f
-                : gait == Line2MobileNPCLocomotionPolicy.Gait.Hold ? 0f : 1.8f;
+                : gait == Line2MobileNPCLocomotionPolicy.Gait.Hold ? 0f : 2.2f;
             if (_injuries != null)
                 speed *= Mathf.Clamp(_injuries.MovementMultiplier, 0.1f, 1f);
             Vector3 direction = delta.sqrMagnitude > 1.5f && speed > 0f
