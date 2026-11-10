@@ -453,7 +453,9 @@ namespace Unturned2.Line2
             if (opponent != null && _combatPerception.Kind !=
                     Line2NPCCombatPerception.TargetKind.None &&
                 _combatPerception.HasVerifiedSight(opponent,
-                    _combatPerception.Kind, 45f))
+                    _combatPerception.Kind,
+                    _actor != null ? Mathf.Max(45f,
+                        _actor.EffectiveVisualRange) : 45f))
             {
                 Vector3 toOpponent = opponent.position + Vector3.up * 1.15f
                     - (_rightShoulder.position + _leftShoulder.position) * 0.5f;
