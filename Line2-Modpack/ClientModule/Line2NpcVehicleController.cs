@@ -13,7 +13,7 @@ namespace Unturned2.Line2
     [DisallowMultipleComponent]
     internal sealed class Line2NpcVehicleController : MonoBehaviour
     {
-        internal enum State { Idle, Approaching, AtDoor, Invalid }
+        internal enum State { Idle, Approaching, AtDoor, DrivingTest, Invalid }
         private static readonly Line2NpcVehicleReservation Reservations =
             new Line2NpcVehicleReservation();
         private Line2NpcVehicleDiscovery _discovery;
@@ -23,6 +23,8 @@ namespace Unturned2.Line2
         private int _owner;
         private uint _id;
         private State _state;
+        private bool _driveTestRequested;
+        private Line2NpcCarWheelDriveTest _wheelTest;
 
         internal State CurrentState { get { return _state; } }
         internal Vector3 ApproachDestination { get { return _approach; } }
@@ -57,8 +59,24 @@ namespace Unturned2.Line2
             return true;
         }
 
+        internal bool TryBeginDriveTest(Vector3 npcPosition)
+        {
+            if (!TryBeginApproach(npcPosition)) return false;
+            // Never enabled for natural spawns or real tactical pursuit:
+            // this is a local admin-only 18m four-wheel physics trial.
+            _driveTestRequested = true;
+            return true;
+        }
+
         internal void ReportMovement(Vector3 npcPosition, bool nativeRouteValid)
         {
+            if (_state == State.DrivingTest)
+            {
+                if (_wheelTest == null || !_wheelTest.IsRunning ||
+                    !Authorized() || !Valid(_vehicle))
+                    Cancel("wheel physics test finished/invalid");
+                return;
+            }
             if (_state == State.AtDoor)
             {
                 if (Time.time >= _expiresAt ||
@@ -77,6 +95,27 @@ namespace Unturned2.Line2
             if ((npcPosition - _approach).sqrMagnitude > 2.25f)
                 return;
             _state = State.AtDoor;
+            if (_driveTestRequested)
+            {
+                var actor = GetComponent<PrototypeActor>();
+                if (_vehicle != null && actor != null)
+                {
+                    _wheelTest = _vehicle.GetComponent<Line2NpcCarWheelDriveTest>();
+                    if (_wheelTest == null)
+                        _wheelTest = _vehicle.gameObject.AddComponent<
+                            Line2NpcCarWheelDriveTest>();
+                    string failure;
+                    if (_wheelTest.TryStart(_vehicle, actor, out failure))
+                    {
+                        _state = State.DrivingTest;
+                        ProbeLogger.Log("NPC_CAR_DRIVING_TEST_ACTIVE: actor=" +
+                            actor.Identity + " car=" + _id);
+                        return;
+                    }
+                    Cancel("wheel physics unavailable: " + failure);
+                    return;
+                }
+            }
             // A missing native driver adapter should not hold a seat
             // reservation for the original 50-second approach budget.
             _expiresAt = Mathf.Min(_expiresAt, Time.time + 4f);
@@ -91,6 +130,10 @@ namespace Unturned2.Line2
 
         internal void Cancel(string reason)
         {
+            if (_wheelTest != null && _wheelTest.IsRunning)
+                _wheelTest.Stop(reason);
+            _wheelTest = null;
+            _driveTestRequested = false;
             if (_id != 0) Reservations.Release(_id, _owner);
             if (_state != State.Idle)
                 ProbeLogger.Log("NPC_VEHICLE_RELEASE: npc=" + name +
