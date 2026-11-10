@@ -44,6 +44,8 @@ internal static class Program
             return 96;
         if (!VehicleObservationTests.Run())
             return 98;
+        if (!VehicleWheelTestGateTests.Run())
+            return 99;
         if (!SniperExperienceTests.Run())
             return 97;
         if (!NativeArrivalTests.Run())
