@@ -2094,10 +2094,18 @@ namespace Unturned2.Line2
                 HasDestination = needsRoute,
                 TargetVisible = _threatVisible,
                 Swimming = false, // Separate native water traversal adapter required.
-                UnderFire = RecentlyDamaged,
+                UnderFire = RecentlyDamaged || UnderVerifiedSuppression,
                 Injured = HealthFraction < 0.55f,
                 NearTarget = delta.sqrMagnitude < 5f * 5f,
-                InCover = false,
+                // This is a destination arrival signal, not mere possession
+                // of a planned cover point. Cover must be currently verified
+                // and the actor actually near its protected endpoint.
+                InCover = _tactics.CurrentGoal ==
+                    Line2MobileNPCTactics.Goal.SeekCover &&
+                    _tactics.HasTacticalDestination &&
+                    _coverPlanner != null && _coverPlanner.HasCover &&
+                    (transform.position - _tactics.TacticalDestination)
+                        .sqrMagnitude < 2.25f,
                 Investigating = _legacyBrain.CurrentState ==
                     Line2MobileNPCBrain.State.Investigating,
                 Stalking = _tactics.CurrentGoal ==
