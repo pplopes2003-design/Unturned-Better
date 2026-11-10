@@ -14,7 +14,11 @@ namespace Unturned2.Line2
         private string _walk;
         private string _run;
         private string _sneak;
+        private string _crouchIdle;
+        private string _medical;
         private string _melee;
+        private float _medicalUntil;
+        private bool _medicalClipMissingLogged;
         private float _meleeUntil;
         private string _current;
 
@@ -45,6 +49,15 @@ namespace Unturned2.Line2
                     (name.IndexOf("crouch", StringComparison.OrdinalIgnoreCase) >= 0 ||
                      name.IndexOf("sneak", StringComparison.OrdinalIgnoreCase) >= 0))
                     _sneak = name;
+                if (_crouchIdle == null &&
+                    (name.IndexOf("Idle_Crouch", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     name.IndexOf("Crouch_Idle", StringComparison.OrdinalIgnoreCase) >= 0))
+                    _crouchIdle = name;
+                if (_medical == null &&
+                    (name.IndexOf("Bandage", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     name.IndexOf("Medical", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     name.IndexOf("Heal", StringComparison.OrdinalIgnoreCase) >= 0))
+                    _medical = name;
                 if (_melee == null &&
                     (name.IndexOf("punch", StringComparison.OrdinalIgnoreCase) >= 0 ||
                      name.IndexOf("melee", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -69,21 +82,52 @@ namespace Unturned2.Line2
             _meleeUntil = Time.time + Mathf.Clamp(attack.length, 0.15f, 1.2f);
         }
 
+        internal void PlayMedicalTreatment(float duration)
+        {
+            if (_legacy == null || !_legacy.enabled) return;
+            if (_medical == null)
+            {
+                if (!_medicalClipMissingLogged)
+                {
+                    ProbeLogger.Log("NPC_MEDICAL_ANIMATION_UNAVAILABLE: native visual has no medical clip");
+                    _medicalClipMissingLogged = true;
+                }
+                return;
+            }
+            AnimationState action = _legacy[_medical];
+            if (action == null) return;
+            action.wrapMode = WrapMode.Once;
+            _legacy.CrossFade(_medical, 0.12f);
+            _current = _medical;
+            _medicalUntil = Time.time + Mathf.Min(Mathf.Max(duration, 0.1f),
+                Mathf.Max(0.2f, action.length));
+        }
+
         internal void SetMoving(bool moving)
         {
-            SetGait(Line2MobileNPCLocomotionPolicy.Gait.Walk, moving);
+            SetGait(Line2MobileNPCLocomotionPolicy.Gait.Walk, moving, false);
         }
 
         internal void SetGait(Line2MobileNPCLocomotionPolicy.Gait gait, bool moving)
         {
+            SetGait(gait, moving, gait == Line2MobileNPCLocomotionPolicy.Gait.Sneak);
+        }
+
+        internal void SetGait(Line2MobileNPCLocomotionPolicy.Gait gait,
+            bool moving, bool physicallyCrouched)
+        {
             if (_legacy == null || !_legacy.enabled) return;
-            if (Time.time < _meleeUntil) return;
-            string requested = !moving ? (_idle ?? _walk)
-                : gait == Line2MobileNPCLocomotionPolicy.Gait.Sprint
-                    ? (_run ?? _walk ?? _idle)
-                : gait == Line2MobileNPCLocomotionPolicy.Gait.Sneak
-                    ? (_sneak ?? _walk ?? _idle)
-                : (_walk ?? _idle);
+            if (Time.time < _meleeUntil || Time.time < _medicalUntil) return;
+            string requested;
+            if (physicallyCrouched)
+                requested = moving ? (_sneak ?? _walk ?? _idle)
+                    : (_crouchIdle ?? _idle ?? _walk);
+            else if (!moving)
+                requested = _idle ?? _walk;
+            else if (gait == Line2MobileNPCLocomotionPolicy.Gait.Sprint)
+                requested = _run ?? _walk ?? _idle;
+            else
+                requested = _walk ?? _idle;
             if (requested == null || requested == _current) return;
             AnimationState state = _legacy[requested];
             if (state == null) return;
