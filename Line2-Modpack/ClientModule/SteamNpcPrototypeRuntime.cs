@@ -294,7 +294,11 @@ namespace Unturned2.Line2
             Vector3 playerPosition = Player.player.transform.position;
             int start = UnityEngine.Random.Range(0, spawns.Count);
             int inspected = Mathf.Min(spawns.Count, 32);
-            float near = Line2NpcVehicleMissionPolicy.DistantDeploymentMeters;
+            // Spawn placement offsets the map anchor by as much as 15.5m,
+            // so leave an 18m margin to guarantee the actual NPC birth
+            // point still qualifies for the minimum 200m roll.
+            float near = Line2NpcVehicleMissionPolicy.DistantDeploymentMeters +
+                18f;
             const float far = 420f;
             for (int i = 0; i < inspected; ++i)
             {
