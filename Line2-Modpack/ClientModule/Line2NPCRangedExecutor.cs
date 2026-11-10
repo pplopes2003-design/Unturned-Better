@@ -328,7 +328,8 @@ namespace Unturned2.Line2
                     victim.life == null || victim.life.isDead ||
                     !Line2NPCCombatRules.CanEngagePlayer(_actor.Disposition,
                         _actor.CombatMode, _actor.PlayerVisible,
-                        (victim.transform.position - transform.position).sqrMagnitude))
+                        (victim.transform.position - transform.position).sqrMagnitude,
+                        _actor.EffectiveVisualRange))
                     return false;
                 var damage = new DamagePlayerParameters(victim);
                 damage.cause = EDeathCause.GUN;
