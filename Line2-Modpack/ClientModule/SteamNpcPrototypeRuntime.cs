@@ -2783,7 +2783,19 @@ namespace Unturned2.Line2
                         Vector3.Dot(flat.normalized, facing.normalized))))
                 return false;
             Vector3 source = transform.position + Vector3.up * 1.5f;
-            Vector3 target = player.transform.position + Vector3.up * 1.3f;
+            // Vision uses the player's actual native stance: the ray should
+            // aim at the visible body, not at standing head-height when
+            // crouched/prone behind a fence or low window sill.
+            float targetHeight = 1.3f;
+            if (player.stance != null)
+            {
+                if (player.stance.stance == EPlayerStance.CROUCH)
+                    targetHeight = 0.95f;
+                else if (player.stance.stance == EPlayerStance.PRONE)
+                    targetHeight = 0.40f;
+            }
+            Vector3 target = player.transform.position +
+                Vector3.up * targetHeight;
             Vector3 to = target - source;
             float distance = to.magnitude;
             if (distance < 0.15f || distance > ThreatRadius + 0.5f)
