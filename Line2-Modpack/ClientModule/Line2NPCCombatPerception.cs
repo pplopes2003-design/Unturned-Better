@@ -168,7 +168,7 @@ namespace Unturned2.Line2
                     float sq = (candidate.transform.position - transform.position).sqrMagnitude;
                     if (sq >= bestZombieSq ||
                         !HasVerifiedSight(candidate.transform, TargetKind.Zombie,
-                            MaxZombieSight))
+                            zombieSight))
                         continue;
                     bestZombieSq = sq;
                     best = candidate;
