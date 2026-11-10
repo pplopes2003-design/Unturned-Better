@@ -36,6 +36,17 @@ namespace Unturned2.Line2
         private byte _activeGunFiremode;
         private readonly Line2NpcShotCorrectionMemory _shotMemory =
             new Line2NpcShotCorrectionMemory();
+        private readonly Line2NpcSniperExperience _lifetimePractice =
+            new Line2NpcSniperExperience();
+        internal Line2NpcSniperExperience.Record[] ExportSniperExperience()
+        {
+            return _lifetimePractice.Export();
+        }
+        internal bool RestoreSniperExperience(
+            Line2NpcSniperExperience.Record[] data)
+        {
+            return _lifetimePractice.Restore(data);
+        }
 
         internal bool HasUsableGun { get; private set; }
         internal bool Reloading { get { return _pendingReloadGun != 0; } }
@@ -254,9 +265,14 @@ namespace Unturned2.Line2
                 _actor.RecentlyDamaged, _actor.UnderVerifiedSuppression,
                 _actor.HealthFraction);
             if (sniper)
+            {
                 spread = Line2NpcSniperPolicy.PrecisionSpread(
                     length, _actor.RecentlyDamaged ||
                         _actor.HealthFraction < 0.60f, spread);
+                spread *= _lifetimePractice.SpreadMultiplier(gun.id, length);
+                // Even experienced soldiers have nonzero angular error.
+                spread = Mathf.Max(0.28f, spread);
+            }
             // Vanilla magazines may fire multiple pellets per spent shell.
             // Consume ammunition ONCE, then independently trace each pellet.
             // Cap untrusted custom asset data to a bounded hit budget.
@@ -299,6 +315,9 @@ namespace Unturned2.Line2
                             " vertical=" + _shotMemory.Vertical.ToString("F2"));
                 }
             }
+            if (sniper)
+                _lifetimePractice.Observe(gun.id, length, true,
+                    pelletHits > 0);
             // Suppression is NOT damage: only a physically debited shot
             // toward a previously sighted rival NPC may create pressure.
             // A miss cannot silently injure a target or grant omniscient
