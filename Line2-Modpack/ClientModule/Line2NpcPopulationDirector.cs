@@ -52,7 +52,7 @@ namespace Unturned2.Line2
             // The local Player position is used solely to select a birth
             // region. Native ground and loaded-region checks must still pass.
             float minimum = _runtime.CombatTotalMode
-                ? Line2NpcVehicleMissionPolicy.DistantDeploymentMeters
+                ? Line2NpcVehicleMissionPolicy.DistantDeploymentMeters + 18f
                 : MinDistanceFromPlayer;
             // Compare only a bounded number of real map-authored anchors;
             // do not synthesize an omniscient world destination or use NPC
