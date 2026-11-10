@@ -21,10 +21,19 @@ namespace Unturned2.Line2
         }
 
         internal static bool CanEngagePlayer(string role, string mode,
-                                             bool verifiedVisible, float sqrDistance)
+                                             bool verifiedVisible, float sqrDistance,
+                                             float maxDistance = 20f)
         {
+            // The caller MUST already have firsthand physical LOS.
+            // Long-range engagement is reserved for externally validated
+            // precision-weapon sensing; an ordinary NPC stays at 20m.
             return role == "hostile" && mode != "passive" &&
-                verifiedVisible && sqrDistance >= 0f && sqrDistance <= 400f;
+                verifiedVisible && sqrDistance >= 0f &&
+                !float.IsNaN(sqrDistance) && !float.IsInfinity(sqrDistance) &&
+                !float.IsNaN(maxDistance) && !float.IsInfinity(maxDistance) &&
+                maxDistance > 0f &&
+                maxDistance <= Line2NpcSniperPolicy.MaximumRange &&
+                sqrDistance <= maxDistance * maxDistance;
         }
 
         internal static bool AreOpposed(string role, string otherRole, string mode)
