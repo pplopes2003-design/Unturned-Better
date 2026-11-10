@@ -279,6 +279,59 @@ namespace Unturned2.Line2
             }
         }
 
+        // Controlled manual test for genuine remote Combat Total spawns.
+        // Never creates ground or NPCs in an unloaded/invalid region; a
+        // failure is reported, not silently replaced with a nearby spawn.
+        internal bool TrySpawnDistantCombatUnit(int count, out string reason)
+        {
+            reason = "Distant Combat Total spawn unavailable";
+            if (!IsAuthorized() || !_enabled || _mode != "total" ||
+                _restoringActor || !_restoreLoaded || !_saveAllowed ||
+                count < 1 || count > 5 || Player.player == null ||
+                LevelPlayers.spawns == null || LevelPlayers.spawns.Count == 0)
+                return false;
+            var spawns = LevelPlayers.spawns;
+            Vector3 playerPosition = Player.player.transform.position;
+            int start = UnityEngine.Random.Range(0, spawns.Count);
+            int inspected = Mathf.Min(spawns.Count, 32);
+            float near = Line2NpcVehicleMissionPolicy.DistantDeploymentMeters;
+            const float far = 420f;
+            for (int i = 0; i < inspected; ++i)
+            {
+                PlayerSpawnpoint anchor = spawns[(start + i) % spawns.Count];
+                if (anchor == null) continue;
+                Vector3 position = anchor.point;
+                Vector3 horizontal = position - playerPosition;
+                horizontal.y = 0f;
+                if (horizontal.sqrMagnitude < near * near ||
+                    horizontal.sqrMagnitude > far * far ||
+                    !Level.checkSafeIncludingClipVolumes(position))
+                    continue;
+                bool old = _useSpawnAnchor;
+                Vector3 oldPosition = _spawnAnchor;
+                _useSpawnAnchor = true;
+                _spawnAnchor = position;
+                try
+                {
+                    if (TrySpawn("hostile", count, out reason))
+                    {
+                        ProbeLogger.Log("NPC_DISTANT_COMBAT_SPAWN: count=" +
+                            count + " anchorDistance=" +
+                            Mathf.Sqrt(horizontal.sqrMagnitude).ToString("F1") +
+                            "m (vehicle mission rolled independently)");
+                        return true;
+                    }
+                }
+                finally
+                {
+                    _useSpawnAnchor = old;
+                    _spawnAnchor = oldPosition;
+                }
+            }
+            reason = "No safe loaded map spawn 200–420m away; no NPC created";
+            return false;
+        }
+
         private string ChooseNaturalRole()
         {
             if (_mode == "total") return "hostile";
