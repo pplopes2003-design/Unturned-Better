@@ -1,6 +1,6 @@
 # Linha 2 — ADR: NPC brain and vehicle controller are separate
 
-Status: **Accepted design decision** (2026-11-10). Implementation of NPC vehicle driving remains pending.
+Status: **Accepted, partially implemented** (2026-11-10). The controller, car discovery, reservation, native A* approach, local test command and pure driving decisions are implemented. NPC seating, ignition, physics authorization and replication remain pending.
 
 ## Ownership
 
@@ -17,7 +17,7 @@ Status: **Accepted design decision** (2026-11-10). Implementation of NPC vehicle
 - Produces status/progress/failure to the NPC brain; never creates a fake SteamPlayer.
 - Does not select enemies, invent player coordinates or decide squad strategy.
 
-## Contract (design; NOT wired to game yet)
+## Contract (partially implemented; no native driving yet)
 
 Request:
 `{ npcId, vehicleInstanceId, operation: approach|board|drive|stop|exit|cancel, destination?, expiresAt, squadId? }`
@@ -45,3 +45,13 @@ The controller must reject stale requests and only commit if server authority, v
 - Driving adds no per-frame full-map vehicle scan.
 
 Related source: `ClientModule/Line2NpcVehicleDiscovery.cs` is currently read-only; `Passenger.player` is SteamPlayer in game source. This ADR does not claim functional NPC driving.
+
+## Current game-side prototype and acceptance steps
+
+- `Line2NpcVehicleDiscovery` selects an existing, unlocked, fueled, undriven native `EEngine.CAR` with a free verified driver seat. Modified vehicles using the same native engine may be selected, but **not** assumed drivable until a capability adapter is validated.
+- `Line2NpcVehicleReservation` provides exclusive expiring claims. `Line2NpcVehicleController` reserves, checks the vehicle every tick and releases on cancellation/despawn, invalidated vehicle or expiry. `PrototypeActor` alone sends the approach waypoint to native A*; incoming fire always preempts boarding.
+- From the existing F7 singleplayer admin panel or local `!u2` command, enter `car approach` to request the nearest NPC within 30m to approach a real parked car. It **does not board or drive** yet; `NPC_VEHICLE_AT_DOOR` confirms the correct first-stage result and logs the unavailable native adapter.
+- `Line2NpcVehicleSteeringPolicy` calculates bounded throttle/steering/brake/reverse based on verified waypoints/obstacles for a future physics adapter. It is not currently connected to a Rigidbody or the game's native driving loop.
+- Why no direct seat hack: `Passenger.player` is `SteamPlayer`, `InteractableVehicle.isDriven` uses it, ignition is tied to the driver and native `simulate` assumes a real networked player. Calling `simulate` or overwriting `Passenger.player` would violate those invariants. A separate native-authority/replication solution and real Workshop capability inspection are prerequisites.
+
+Tests: `BrainTests/VehicleReservationTests.cs` and `BrainTests/VehicleSteeringTests.cs`; run with `dotnet run --project Line2-Modpack/BrainTests/BrainTests.csproj -c Release`. Windows Steam DLL compile/gameplay still required.
