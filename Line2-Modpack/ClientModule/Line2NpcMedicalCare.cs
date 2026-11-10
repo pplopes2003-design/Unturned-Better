@@ -24,6 +24,7 @@ namespace Unturned2.Line2
         private Treatment _pending;
         private ushort _itemId;
         private float _healing;
+        private float _nextNoSupplyLog;
 
         internal void Initialize(PrototypeActor actor, Line2NPCCombatPerception sight)
         {
@@ -129,6 +130,19 @@ namespace Unturned2.Line2
             }
             if (_vitals.HealthFraction < 0.55f && dressing != 0)
                 Begin(Treatment.Heal, dressing, DressingHeal(dressing));
+            else if (Time.time >= _nextNoSupplyLog &&
+                     (_vitals.HealthFraction < 0.55f ||
+                      _injuries.HasFracturedLeg ||
+                      _injuries.CurrentBleeding !=
+                          Line2MobileNPCInjurySystem.BleedingSeverity.None))
+            {
+                _nextNoSupplyLog = Time.time + 30f;
+                ProbeLogger.Log("NPC_MEDICAL_NO_SUPPLIES: actor=" +
+                    _actor.Identity + " health=" +
+                    _vitals.Health.ToString("F1") +
+                    " dressing=" + dressing +
+                    " splint=" + Carries(96));
+            }
         }
 
         private void Begin(Treatment type, ushort itemID, float healing)
