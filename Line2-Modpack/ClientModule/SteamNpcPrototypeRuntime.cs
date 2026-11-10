@@ -1175,6 +1175,22 @@ namespace Unturned2.Line2
         private Line2NPCCombatPerception _combatPerception;
         private Line2NPCRangedExecutor _rangedExecutor;
         internal bool IsMoving { get; private set; }
+        internal bool TryRequestCarDriveTest()
+        {
+            return !IsDead && IsCombatEnabled && _vehicleDriver != null &&
+                _vehicleDriver.TryBeginDriveTest(transform.position);
+        }
+
+        internal bool TryStopCarDriveTest()
+        {
+            if (_vehicleDriver == null ||
+                _vehicleDriver.CurrentState ==
+                    Line2NpcVehicleController.State.Idle)
+                return false;
+            _vehicleDriver.Cancel("local admin test stop");
+            return true;
+        }
+
         internal bool TryRequestCarApproach()
         {
             // The real driver seat and vehicle physics are still native
@@ -1913,6 +1929,16 @@ namespace Unturned2.Line2
         private void Update()
         {
             if (_controller == null || IsDead || !Provider.isServer || !Level.isLoaded) return;
+            if (_vehicleDriver != null &&
+                _vehicleDriver.CurrentState ==
+                    Line2NpcVehicleController.State.DrivingTest)
+            {
+                // Native seat/collider is physically attached to the
+                // vehicle during this explicit test. Do not issue humanoid
+                // locomotion, rotation or firing-position commands.
+                _vehicleDriver.ReportMovement(transform.position, true);
+                return;
+            }
             Player player = Player.player;
             if (Time.time >= _nextThink)
             {
