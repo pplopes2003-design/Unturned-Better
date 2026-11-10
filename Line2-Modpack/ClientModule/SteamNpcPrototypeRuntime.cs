@@ -473,6 +473,8 @@ namespace Unturned2.Line2
                     // DamageTool.explode discovers IExplosionDamageable
                     // through the root Agent CharacterController collider.
                     instance.AddComponent<PrototypeNpcVitals>();
+                    var stance = instance.AddComponent<Line2NpcStanceController>();
+                    stance.Initialize(movement);
                     instance.AddComponent<Line2NpcCorpseRagdoll>();
                     var ownedInventory = instance.AddComponent<Line2MobileNPCInventory>();
                     instance.AddComponent<Line2NpcDeathLoot>();
@@ -1065,6 +1067,7 @@ namespace Unturned2.Line2
         private bool _threatVisible;
         private string _displayName;
         private PrototypeAnimation _animation;
+        private Line2NpcStanceController _stance;
         private PrototypeObstacleNavigator _navigation;
         private PrototypeAStarFollower _astarFollower;
         private PrototypeNpcVitals _vitals;
@@ -1171,6 +1174,7 @@ namespace Unturned2.Line2
             _disposition = disposition;
             _controller = controller;
             _animation = GetComponent<PrototypeAnimation>();
+            _stance = GetComponent<Line2NpcStanceController>();
             _navigation = GetComponent<PrototypeObstacleNavigator>();
             _astarFollower = GetComponent<PrototypeAStarFollower>();
             _vitals = GetComponent<PrototypeNpcVitals>();
@@ -2116,6 +2120,9 @@ namespace Unturned2.Line2
                 DestinationDistance = Mathf.Sqrt(delta.sqrMagnitude)
             };
             var gait = _locomotion.Decide(locomotion, Time.time);
+            if (_stance != null)
+                _stance.Apply(gait == Line2MobileNPCLocomotionPolicy.Gait.Sneak ||
+                    locomotion.InCover);
             float speed = gait == Line2MobileNPCLocomotionPolicy.Gait.Sprint ? 3.0f
                 : gait == Line2MobileNPCLocomotionPolicy.Gait.Sneak ? 1.15f
                 : gait == Line2MobileNPCLocomotionPolicy.Gait.Hold ? 0f : 1.8f;
@@ -2204,7 +2211,9 @@ namespace Unturned2.Line2
             IsMoving = Time.deltaTime > 0f &&
                 actualStep.sqrMagnitude > (Time.deltaTime * 0.12f) *
                     (Time.deltaTime * 0.12f);
-            if (_animation != null) _animation.SetGait(gait, IsMoving);
+            if (_animation != null)
+                _animation.SetGait(gait, IsMoving,
+                    _stance != null && _stance.IsCrouched);
             // Arrival is a physical observation, not merely a requested
             // waypoint. The migrated Line 1 brain advances its three-point
             // investigation spiral only when the CharacterController arrives.
