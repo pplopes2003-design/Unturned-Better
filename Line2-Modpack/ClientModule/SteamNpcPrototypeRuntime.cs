@@ -1072,6 +1072,7 @@ namespace Unturned2.Line2
         private string _displayName;
         private PrototypeAnimation _animation;
         private Line2NpcStanceController _stance;
+        private Line2NpcVehicleController _vehicleDriver;
         private PrototypeObstacleNavigator _navigation;
         private PrototypeAStarFollower _astarFollower;
         private PrototypeNpcVitals _vitals;
@@ -1095,6 +1096,15 @@ namespace Unturned2.Line2
         private Line2NPCCombatPerception _combatPerception;
         private Line2NPCRangedExecutor _rangedExecutor;
         internal bool IsMoving { get; private set; }
+        internal bool TryRequestCarApproach()
+        {
+            // The real driver seat and vehicle physics are still native
+            // SteamPlayer-only; this command tests actual A* approach and
+            // exclusive reservation. It does NOT claim the car can drive.
+            return !IsDead && IsCombatEnabled &&
+                _vehicleDriver != null &&
+                _vehicleDriver.TryBeginApproach(transform.position);
+        }
         internal Line2MobileNPCLocomotionPolicy.Gait CurrentGait { get; private set; }
         private float _nextPrecisionSightRefresh;
         private float _cachedPrecisionSightRange = 20f;
@@ -1214,6 +1224,7 @@ namespace Unturned2.Line2
             _controller = controller;
             _animation = GetComponent<PrototypeAnimation>();
             _stance = GetComponent<Line2NpcStanceController>();
+            _vehicleDriver = GetComponent<Line2NpcVehicleController>();
             _navigation = GetComponent<PrototypeObstacleNavigator>();
             _astarFollower = GetComponent<PrototypeAStarFollower>();
             _vitals = GetComponent<PrototypeNpcVitals>();
@@ -2246,6 +2257,27 @@ namespace Unturned2.Line2
                 (transform.position - _coverHoldPoint).sqrMagnitude < 3.24f;
             if (holdingVerifiedCover && !RecentlyDamaged)
                 _goal = _coverHoldPoint;
+            if (_vehicleDriver != null &&
+                _vehicleDriver.CurrentState ==
+                    Line2NpcVehicleController.State.Approaching)
+            {
+                if (RecentlyDamaged || UnderVerifiedSuppression ||
+                    (_combatPerception != null &&
+                     _combatPerception.VisibleTarget != null))
+                    _vehicleDriver.Cancel("verified combat takes priority");
+                else
+                {
+                    // Normal native A* is the only movement executor.
+                    // A failed/disconnected path cancels the vehicle plan.
+                    bool routeValid = _astarFollower == null ||
+                        _astarFollower.Status != "line1-no-connected-route";
+                    _vehicleDriver.ReportMovement(transform.position,
+                        routeValid);
+                    if (_vehicleDriver.CurrentState ==
+                        Line2NpcVehicleController.State.Approaching)
+                        _goal = _vehicleDriver.ApproachDestination;
+                }
+            }
             Vector3 delta = _goal - transform.position;
             bool requiresVerticalRoute = Mathf.Abs(delta.y) > 1.25f;
             delta.y = 0f;
