@@ -26,6 +26,7 @@ namespace Unturned2.Line2
         private readonly HashSet<BulletInfo> _processed = new HashSet<BulletInfo>();
         private float _nextResetAt;
         private float _nextLogAt;
+        private float _nextEventLogAt;
 
         private void OnEnable()
         {
@@ -53,6 +54,15 @@ namespace Unturned2.Line2
                 Player.player.equipment.useable != gun ||
                 NativeBulletMultiplier == null)
                 return;
+
+            // Distinguishes missing native callbacks from rejected hitbox rays
+            // on the installed Steam version; no damage is applied here.
+            if (Time.time >= _nextEventLogAt)
+            {
+                ProbeLogger.Log("NPC_GUN_EVENT_RECEIVED: rayType=" +
+                    hit.type + " point=" + hit.point.ToString("F1"));
+                _nextEventLogAt = Time.time + 10f;
+            }
 
             var asset = Player.player.equipment.asset as ItemGunAsset;
             if (asset == null || asset.playerDamageMultiplier == null ||
