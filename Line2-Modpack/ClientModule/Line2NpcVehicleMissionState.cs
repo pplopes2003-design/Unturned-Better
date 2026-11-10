@@ -14,10 +14,12 @@ namespace Unturned2.Line2
         private PrototypeActor _actor;
         private float _nextObserveAt;
         private bool _wantsRoadDeployment;
+        private bool _wantsArmoredSupport;
         private readonly Line2NpcVehicleObservationMemory _escape =
             new Line2NpcVehicleObservationMemory();
         private bool _playerVehicleObserved;
         internal bool WantsRoadDeployment { get { return _wantsRoadDeployment; } }
+        internal bool WantsArmoredSupport { get { return _wantsArmoredSupport; } }
         internal bool HasObservedVehicleEscape
         {
             get
@@ -38,7 +40,22 @@ namespace Unturned2.Line2
                 actor != null && actor.Disposition == "hostile",
                 freshSpawn, distanceFromPlayer, Random.value);
             _wantsRoadDeployment = selected;
-            if (selected)
+            _wantsArmoredSupport =
+                Line2NpcVehicleMissionPolicy.RollArmoredSupport(
+                    actor != null && actor.CombatMode == "total",
+                    actor != null && actor.Disposition == "hostile",
+                    freshSpawn, distanceFromPlayer, Random.value);
+            if (_wantsArmoredSupport)
+            {
+                // Heavy vehicle requires independent genuine driver,
+                // turret and track/road adapters; absent on Steam today.
+                ProbeLogger.Log("NPC_ARMORED_DEPLOYMENT_DEFERRED: npc=" +
+                    actor.Identity + " distance=" +
+                    distanceFromPlayer.ToString("F0") +
+                    "m chance=2pct; native driver/turret unsupported");
+                _wantsRoadDeployment = false;
+            }
+            if (_wantsRoadDeployment)
             {
                 // NEVER create a free unmanned vehicle. Current Steam
                 // driver path only works with SteamPlayer, so deployment
@@ -72,7 +89,7 @@ namespace Unturned2.Line2
             if (observed == null || observed.isDead ||
                 observed.isExploded || observed.isEmpty)
                 return;
-            bool newEscape = !_playerVehicleObserved;
+            bool newEscape = !HasObservedVehicleEscape;
             if (!_escape.Observe(Time.time, observed.instanceID,
                     true, observed.transform.position.x,
                     observed.transform.position.z))
