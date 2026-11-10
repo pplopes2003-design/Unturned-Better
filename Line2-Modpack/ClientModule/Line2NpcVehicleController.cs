@@ -59,6 +59,13 @@ namespace Unturned2.Line2
 
         internal void ReportMovement(Vector3 npcPosition, bool nativeRouteValid)
         {
+            if (_state == State.AtDoor)
+            {
+                if (Time.time >= _expiresAt ||
+                    !Authorized() || !Valid(_vehicle))
+                    Cancel("at-door reservation timed out or car vanished");
+                return;
+            }
             if (_state != State.Approaching) return;
             if (!Authorized() || !Valid(_vehicle) ||
                 !Reservations.Owns(_id, _owner, Time.time) ||
