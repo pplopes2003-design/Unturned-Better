@@ -34,8 +34,13 @@ namespace Unturned2.Line2
             float dt = _lastSampleAt < 0f ? 0.1f
                 : Math.Max(0f, Math.Min(0.5f, now - _lastSampleAt));
             _lastSampleAt = now;
-            bool candidate = lineOfSight && forwardDot >= 0.5f &&
-                forwardDot <= 1f && distance <= 20f;
+            // Peripheral motion can be noticed to the side, but does not
+            // identify a target. Only central, sustained LOS can confirm.
+            bool central = forwardDot >= 0.5f && forwardDot <= 1f;
+            bool peripheral = forwardDot >= 0.15f && forwardDot < 0.5f &&
+                observedSpeed >= 1.25f;
+            bool candidate = lineOfSight && (central || peripheral) &&
+                distance <= 20f;
             if (!candidate)
             {
                 _evidence = Math.Max(0f, _evidence - 1.6f * dt);
@@ -49,6 +54,16 @@ namespace Unturned2.Line2
             float light = Math.Max(0.2f, Math.Min(1f, illumination));
             float rate = (0.32f + angleQuality * 0.85f +
                 proximity * 0.75f + motion * 0.4f) * light;
+            if (peripheral)
+            {
+                // Seeing movement in the corner of one's eye is a clue
+                // only. Never let repeated lateral movement grant exact
+                // target identity or attack permission.
+                _evidence = Math.Min(0.44f, _evidence +
+                    (0.20f + motion * 0.45f) * light * dt);
+                return _evidence >= 0.22f
+                    ? Recognition.Suspicious : Recognition.None;
+            }
             _evidence = Math.Min(1.5f, _evidence + rate * dt);
 
             // Continue tracking a recently confirmed *visible* actor with
