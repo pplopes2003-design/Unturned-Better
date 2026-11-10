@@ -121,16 +121,15 @@ namespace Unturned2.Line2
             float pitch = Mathf.Atan2(direction.y,
                 horizontal.magnitude) * Mathf.Rad2Deg;
             pitch = Mathf.Clamp(pitch, -25f, 25f);
-            Vector3 limitedDirection = Quaternion.AngleAxis(
-                yaw, Vector3.up) * facing.normalized;
-            limitedDirection = Quaternion.AngleAxis(
-                -pitch, Vector3.Cross(Vector3.up, limitedDirection)) *
-                limitedDirection;
-            if (limitedDirection.sqrMagnitude < 0.5f) return;
-            Quaternion delta = Quaternion.FromToRotation(
-                _skull.forward, limitedDirection.normalized);
-            _skull.rotation = Quaternion.Slerp(_skull.rotation,
-                delta * _skull.rotation, _attentionBlend);
+            // Apply bounded world-space yaw/pitch as an ADDITIVE
+            // adjustment to the native animated skull pose. NPC_Client's
+            // authored Skull.forward is not guaranteed to represent its
+            // anatomical gaze axis, so do not LookRotation at the bone.
+            Quaternion additive =
+                Quaternion.AngleAxis(yaw * _attentionBlend, Vector3.up) *
+                Quaternion.AngleAxis(-pitch * _attentionBlend,
+                    transform.right);
+            _skull.rotation = additive * _skull.rotation;
         }
 
         internal void PlayMeleeSwing()
