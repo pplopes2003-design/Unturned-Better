@@ -1091,6 +1091,7 @@ namespace Unturned2.Line2
         private Line2NPCCombatPerception _combatPerception;
         private Line2NPCRangedExecutor _rangedExecutor;
         internal bool IsMoving { get; private set; }
+        internal Line2MobileNPCLocomotionPolicy.Gait CurrentGait { get; private set; }
         internal bool HasUsableGun
         {
             get { return _rangedExecutor != null && _rangedExecutor.HasUsableGun; }
@@ -2133,6 +2134,7 @@ namespace Unturned2.Line2
                 DestinationDistance = Mathf.Sqrt(delta.sqrMagnitude)
             };
             var gait = _locomotion.Decide(locomotion, Time.time);
+            CurrentGait = gait;
             if (_stance != null)
                 _stance.Apply(gait == Line2MobileNPCLocomotionPolicy.Gait.Sneak ||
                     locomotion.InCover);
