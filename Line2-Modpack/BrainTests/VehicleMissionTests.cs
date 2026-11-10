@@ -5,15 +5,20 @@ internal static class VehicleMissionTests
 {
     internal static bool Run()
     {
-        if (!Line2NpcVehicleMissionPolicy.RollDistantDeployment(
-                true, true, true, 120f, 0.49f) ||
+        // 200 yards = 182.88 m; the selected game threshold rounds UP
+        // to 200 m, independent of random chance.
+        if (Line2NpcVehicleMissionPolicy.DistantDeploymentMeters != 200f ||
+            !Line2NpcVehicleMissionPolicy.RollDistantDeployment(
+                true, true, true, 200f, 0.49f) ||
             Line2NpcVehicleMissionPolicy.RollDistantDeployment(
-                true, true, true, 120f, 0.50f) ||
+                true, true, true, 199.9f, 0.10f) ||
             Line2NpcVehicleMissionPolicy.RollDistantDeployment(
-                true, true, true, 40f, 0.10f) ||
+                true, true, true, 250f, 0.50f) ||
             Line2NpcVehicleMissionPolicy.RollDistantDeployment(
-                true, true, false, 120f, 0.10f))
-            return Fail("50pct distant spawn assignment");
+                true, true, false, 250f, 0.10f) ||
+            Line2NpcVehicleMissionPolicy.RollDistantDeployment(
+                false, true, true, 250f, 0.10f))
+            return Fail("50pct roll beyond 200m only");
 
         if (!Line2NpcVehicleMissionPolicy.MayPursueVehicle(
                 true, true, true, true, true, 80f, false) ||
