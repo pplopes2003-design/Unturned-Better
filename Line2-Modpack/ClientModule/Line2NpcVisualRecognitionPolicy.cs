@@ -6,8 +6,9 @@ namespace Unturned2.Line2
     /// Bounded per-NPC recognition accumulator. Physics and target identity
     /// are verified by the caller BEFORE any sample is applied.
     /// Suspicion never grants a combat target, exact coordinates or damage.
-    /// This policy intentionally does not guess ambient light from time of day.
-    /// A measured illumination factor can be supplied in a later adapter.
+    /// Illumination and native player posture are supplied by the local
+    /// perception adapter. This pure policy never reads player coordinates,
+    /// weather, clock, weapon state, or game objects on its own.
     /// </summary>
     internal sealed class Line2NpcVisualRecognitionPolicy
     {
