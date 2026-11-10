@@ -9,17 +9,23 @@ namespace Unturned2.Line2
     {
         internal static bool ShouldHoldPosition(bool firsthandSight,
             bool loadedRealGun, bool higherPriorityGoal,
-            bool underFire, float targetDistance, float nativeWeaponRange)
+            bool underFire, float targetDistance, float nativeWeaponRange,
+            bool precision = false)
         {
             if (!firsthandSight || !loadedRealGun || higherPriorityGoal ||
                 underFire || !Finite(targetDistance) ||
                 !Finite(nativeWeaponRange) || nativeWeaponRange < 8f)
                 return false;
 
-            float minimum = Clamp(nativeWeaponRange * 0.12f, 4f, 9f);
-            float maximum = System.Math.Min(
-                Clamp(nativeWeaponRange * 0.68f, 13f, 32f),
-                nativeWeaponRange * 0.92f);
+            float minimum = precision
+                ? Clamp(nativeWeaponRange * 0.22f, 15f, 28f)
+                : Clamp(nativeWeaponRange * 0.12f, 4f, 9f);
+            float maximum = precision
+                ? System.Math.Min(Line2NpcSniperPolicy.MaximumRange,
+                    nativeWeaponRange * 0.90f)
+                : System.Math.Min(
+                    Clamp(nativeWeaponRange * 0.68f, 13f, 32f),
+                    nativeWeaponRange * 0.92f);
             return targetDistance >= minimum &&
                 targetDistance <= maximum;
         }
