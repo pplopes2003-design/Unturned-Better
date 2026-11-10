@@ -1,0 +1,28 @@
+name: Line 2 NPC Brain Tests
+
+on:
+  push:
+    branches:
+      - line2/modpack-framework
+    paths:
+      - 'Line2-Modpack/BrainTests/**'
+      - 'Line2-Modpack/ClientModule/**'
+      - '.github/workflows/line2-brain-tests.yml'
+  pull_request:
+    paths:
+      - 'Line2-Modpack/BrainTests/**'
+      - 'Line2-Modpack/ClientModule/**'
+      - '.github/workflows/line2-brain-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  deterministic-brain-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Run standalone NPC brain, combat, sniper and sensor tests
+        run: dotnet run --project Line2-Modpack/BrainTests/BrainTests.csproj --configuration Release
