@@ -1468,6 +1468,8 @@ namespace Unturned2.Line2
             // Genuine nearby gunfire still counts as incoming-fire pressure.
             if (_knowledge.TryObserveSound(heardSector, 0.64f, heardAt))
             {
+                if (_animation != null)
+                    _animation.AttendTo(heardSector + Vector3.up * 1.3f, 1.6f);
                 _lastHeardPoint = heardSector;
                 _lastGunshotAt = heardAt;
                 _legacyBrain.ReportNoise(heardSector, heardAt, 17f);
@@ -1488,6 +1490,8 @@ namespace Unturned2.Line2
                 Mathf.Floor(position.z / 6f) * 6f + 3f);
             if (_knowledge.TryObserveSound(heardFootstepSector, confidence, at))
             {
+                if (_animation != null)
+                    _animation.AttendTo(heardFootstepSector + Vector3.up * 1.3f, 1.2f);
                 _lastHeardFootstepPoint = heardFootstepSector;
                 _lastFootstepAt = at;
                 _legacyBrain.ReportNoise(heardFootstepSector, at, 8f);
@@ -1656,6 +1660,18 @@ namespace Unturned2.Line2
                 _visualRecognition.Sample(Time.time, clearSight, dot,
                     bearing.magnitude, observedSpeed,
                     ambientRecognition, silhouette);
+            if (clearSight && player != null && _animation != null &&
+                recognition ==
+                    Line2NpcVisualRecognitionPolicy.Recognition.Suspicious)
+            {
+                // Peripheral observations turn the head to the approximate
+                // region, not the player's live exact location.
+                Vector3 coarse = new Vector3(
+                    Mathf.Floor(player.transform.position.x / 12f) * 12f + 6f,
+                    transform.position.y + 1.4f,
+                    Mathf.Floor(player.transform.position.z / 12f) * 12f + 6f);
+                _animation.AttendTo(coarse, 1.2f);
+            }
             if (recognition ==
                 Line2NpcVisualRecognitionPolicy.Recognition.Suspicious &&
                 Time.time >= _nextVisualSuspicionLogAt)
@@ -1687,6 +1703,9 @@ namespace Unturned2.Line2
             {
                 visible = true;
                 _threatVisible = true;
+                if (_animation != null)
+                    _animation.AttendTo(
+                        player.transform.position + Vector3.up * 1.3f, 0.8f);
                 _lastKnownThreat = player.transform.position;
                 _lastSeenAt = Time.time;
                 _knowledge.ObserveSight(player.transform.position, Time.time);
