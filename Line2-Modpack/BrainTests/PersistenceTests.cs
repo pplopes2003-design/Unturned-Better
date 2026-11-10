@@ -29,7 +29,8 @@ internal static class PersistenceTests
             sniperExperience = new[] {
                 new Line2NpcSniperExperience.Record {
                     weaponId = 297, distanceBand = 2,
-                    shots = 90, strikes = 23
+                    shots = 90, strikes = 23,
+                    lateralBias = -0.18f, verticalBias = 0.12f
                 }
             },
             experiences = new[] {
@@ -75,6 +76,8 @@ internal static class PersistenceTests
             loaded[0].sniperExperience.Length != 1 ||
             loaded[0].sniperExperience[0].weaponId != 297 ||
             loaded[0].sniperExperience[0].shots != 90 ||
+            Math.Abs(loaded[0].sniperExperience[0].lateralBias + 0.18f) > 0.001f ||
+            Math.Abs(loaded[0].sniperExperience[0].verticalBias - 0.12f) > 0.001f ||
             loaded[0].experiences == null ||
             loaded[0].experiences.Length != 1 ||
             loaded[0].experiences[0].positiveEvidence != 3f ||
