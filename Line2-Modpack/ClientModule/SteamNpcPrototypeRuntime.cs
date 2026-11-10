@@ -1645,10 +1645,26 @@ namespace Unturned2.Line2
                 Time.time >= _nextVisualSuspicionLogAt)
             {
                 _nextVisualSuspicionLogAt = Time.time + 12f;
+                // A glimpse may initiate a finite investigation in a
+                // coarse, 12-metre sector, never a pursuit of the live
+                // player Transform. Existing active searches are not
+                // restarted by repeated peripheral movement.
+                if (clearSight && player != null &&
+                    _legacyBrain.CurrentState !=
+                        Line2MobileNPCBrain.State.Investigating &&
+                    _tactics.CurrentGoal ==
+                        Line2MobileNPCTactics.Goal.None)
+                {
+                    Vector3 coarse = new Vector3(
+                        Mathf.Floor(player.transform.position.x / 12f) * 12f + 6f,
+                        transform.position.y,
+                        Mathf.Floor(player.transform.position.z / 12f) * 12f + 6f);
+                    _legacyBrain.ReportNoise(coarse, Time.time, 5f);
+                }
                 ProbeLogger.Log("NPC_VISUAL_SUSPICION: actor=" + _identity +
                     " confidence=" +
                     _visualRecognition.Evidence.ToString("F2") +
-                    " (not a combat target; no live coordinate transfer)");
+                    " (coarse search sector only, never a combat target)");
             }
             if (clearSight && recognition ==
                 Line2NpcVisualRecognitionPolicy.Recognition.Confirmed)
