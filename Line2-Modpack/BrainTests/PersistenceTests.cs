@@ -26,6 +26,12 @@ internal static class PersistenceTests
                 bleedingSeverity = 2, bleedingPart = 4
             },
             homeX = 118f, homeY = 14f, homeZ = -1f,
+            sniperExperience = new[] {
+                new Line2NpcSniperExperience.Record {
+                    weaponId = 297, distanceBand = 2,
+                    shots = 90, strikes = 23
+                }
+            },
             experiences = new[] {
                 new Line2MobileNPCAdaptiveMemory.ExperienceRecord {
                     kind = 4, sectorX = 6, sectorZ = 3,
@@ -65,6 +71,10 @@ internal static class PersistenceTests
             !loaded[0].injuries.leftLegFractured ||
             loaded[0].injuries.bleedingSeverity != 2 ||
             loaded[0].injuries.condition[4] != 39f ||
+            loaded[0].sniperExperience == null ||
+            loaded[0].sniperExperience.Length != 1 ||
+            loaded[0].sniperExperience[0].weaponId != 297 ||
+            loaded[0].sniperExperience[0].shots != 90 ||
             loaded[0].experiences == null ||
             loaded[0].experiences.Length != 1 ||
             loaded[0].experiences[0].positiveEvidence != 3f ||
