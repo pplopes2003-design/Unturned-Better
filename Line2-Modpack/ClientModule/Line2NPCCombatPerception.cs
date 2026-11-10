@@ -80,7 +80,8 @@ namespace Unturned2.Line2
                 !player.life.isDead &&
                 Line2NPCCombatRules.CanEngagePlayer(
                     _owner.Disposition, _owner.CombatMode, _owner.PlayerVisible,
-                    (player.transform.position - transform.position).sqrMagnitude))
+                    (player.transform.position - transform.position).sqrMagnitude,
+                    _owner.EffectiveVisualRange))
             {
                 SetTarget(TargetKind.Player, player.transform);
                 return;
@@ -92,7 +93,9 @@ namespace Unturned2.Line2
             // Neutrals remain uninvolved rather than guessing alliances.
             _runtime.CopyLiveActors(_actors, 32);
             PrototypeActor bestNpc = null;
-            float bestNpcSq = MaxNpcSight * MaxNpcSight;
+            float npcSight = Mathf.Max(MaxNpcSight,
+                _owner.EffectiveVisualRange);
+            float bestNpcSq = npcSight * npcSight;
             foreach (PrototypeActor candidate in _actors)
             {
                 if (candidate == null || candidate == _owner || candidate.IsDead ||
@@ -101,7 +104,7 @@ namespace Unturned2.Line2
                 Vector3 d = candidate.transform.position - transform.position;
                 float sq = d.sqrMagnitude;
                 if (sq >= bestNpcSq || !HasVerifiedSight(
-                        candidate.transform, TargetKind.Npc, MaxNpcSight))
+                        candidate.transform, TargetKind.Npc, npcSight))
                     continue;
                 bestNpcSq = sq;
                 bestNpc = candidate;
@@ -123,9 +126,11 @@ namespace Unturned2.Line2
             // One native navigation region, with the original zombie list
             // supplied by the game. No FindObjectsOfType scans per actor.
             ZombieManager.getZombiesInRadius(transform.position,
-                MaxZombieSight * MaxZombieSight, _zombies);
+                zombieSight * zombieSight, _zombies);
             Zombie best = null;
-            float bestZombieSq = MaxZombieSight * MaxZombieSight;
+            float zombieSight = Mathf.Max(MaxZombieSight,
+                _owner.EffectiveVisualRange);
+            float bestZombieSq = zombieSight * zombieSight;
             int checkedCount = 0;
             foreach (Zombie candidate in _zombies)
             {
@@ -179,9 +184,9 @@ namespace Unturned2.Line2
                 Zombie prior = VisibleTarget.GetComponentInParent<Zombie>();
                 if (prior != null && !prior.isDead &&
                     (prior.transform.position - transform.position).sqrMagnitude <=
-                        MaxZombieSight * MaxZombieSight &&
+                        zombieSight * zombieSight &&
                     HasVerifiedSight(prior.transform, TargetKind.Zombie,
-                        MaxZombieSight))
+                        zombieSight))
                     best = prior;
             }
             if (best != null)
@@ -341,7 +346,8 @@ namespace Unturned2.Line2
             if (kind == TargetKind.Player &&
                 !Line2NPCCombatRules.CanEngagePlayer(_owner.Disposition,
                     _owner.CombatMode, _owner.PlayerVisible,
-                    (target.position - transform.position).sqrMagnitude))
+                    (target.position - transform.position).sqrMagnitude,
+                    _owner.EffectiveVisualRange))
                 return false;
             if (kind == TargetKind.Npc)
             {
