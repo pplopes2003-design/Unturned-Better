@@ -12,6 +12,8 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="VisualRecognitionTests.cs" />
+    <Compile Include="SniperTests.cs" />
+    <Compile Include="../ClientModule/Line2NpcSniperPolicy.cs" Link="Line2NpcSniperPolicy.cs" />
     <Compile Include="../ClientModule/Line2NpcVisualRecognitionPolicy.cs" Link="Line2NpcVisualRecognitionPolicy.cs" />
     <Compile Include="ZombieSoundPolicyTests.cs" />
     <Compile Include="../ClientModule/Line2ZombieSoundPolicy.cs" Link="Line2ZombieSoundPolicy.cs" />
