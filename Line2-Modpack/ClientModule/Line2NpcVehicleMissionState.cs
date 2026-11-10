@@ -14,9 +14,20 @@ namespace Unturned2.Line2
         private PrototypeActor _actor;
         private float _nextObserveAt;
         private bool _wantsRoadDeployment;
+        private readonly Line2NpcVehicleObservationMemory _escape =
+            new Line2NpcVehicleObservationMemory();
         private bool _playerVehicleObserved;
         internal bool WantsRoadDeployment { get { return _wantsRoadDeployment; } }
-        internal bool HasObservedVehicleEscape { get { return _playerVehicleObserved; } }
+        internal bool HasObservedVehicleEscape
+        {
+            get
+            {
+                uint vehicleId;
+                float x, z;
+                return _escape.TryRecall(Time.time, out vehicleId,
+                    out x, out z);
+            }
+        }
 
         internal void Initialize(PrototypeActor actor, bool freshSpawn,
             float distanceFromPlayer)
@@ -50,7 +61,10 @@ namespace Unturned2.Line2
             _nextObserveAt = Time.time + 1.5f;
             if (!_actor.PlayerVisible || Player.player == null ||
                 Player.player.movement == null)
+            {
+                _playerVehicleObserved = HasObservedVehicleEscape;
                 return;
+            }
             // No omniscient car-pursuit signal: the actor must currently
             // identify the actual local player before recording their car.
             InteractableVehicle observed =
@@ -58,13 +72,26 @@ namespace Unturned2.Line2
             if (observed == null || observed.isDead ||
                 observed.isExploded || observed.isEmpty)
                 return;
-            if (!_playerVehicleObserved)
-            {
-                _playerVehicleObserved = true;
+            bool newEscape = !_playerVehicleObserved;
+            if (!_escape.Observe(Time.time, observed.instanceID,
+                    true, observed.transform.position.x,
+                    observed.transform.position.z))
+                return;
+            _playerVehicleObserved = true;
+            if (newEscape)
                 ProbeLogger.Log("NPC_VEHICLE_ESCAPE_OBSERVED: npc=" +
                     _actor.Identity + " vehicle=" + observed.instanceID +
-                    " (pursuit intent recorded; native driving unavailable)");
-            }
+                    " (approximate 20m sector, expires after 8s out of sight)");
+            // Actual high-speed pursuit requires a validated NPC-owned
+            // operating car and a safe road route. This adapter cannot
+            // invent either; no direct pursuit or vehicle spawn occurs.
+            if (!Line2NpcVehicleMissionPolicy.MayPursueVehicle(
+                    true, _actor.Disposition == "hostile", true,
+                    false, false,
+                    Vector3.Distance(_actor.transform.position,
+                        observed.transform.position),
+                    _actor.RecentlyDamaged))
+                return;
         }
     }
 }
