@@ -151,6 +151,10 @@ namespace Unturned2.Line2
             _itemId = itemID;
             _healing = healing;
             _finishesAt = Time.time + 2f;
+            // The medical action is presentation-only. The consumable is
+            // still debited exclusively by CommitTreatment after 2 seconds.
+            PrototypeAnimation visual = GetComponent<PrototypeAnimation>();
+            if (visual != null) visual.PlayMedicalTreatment(2f);
             ProbeLogger.Log("NPC_MEDICAL_BEGIN: actor=" + _actor.Identity +
                 " item=" + itemID + " care=" + type);
         }
