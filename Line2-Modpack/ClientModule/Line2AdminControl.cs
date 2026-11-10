@@ -162,7 +162,7 @@ namespace Unturned2.Line2
             {
                 case "help":
                     _feedback = "status | npc on/off | natural on/off | max 1..32 | " +
-                        "combat passive/normal/total | hordes on/off | zombies on/off | server | population | spawn friendly/neutral/hostile [1..5] | car approach | save. " +
+                        "combat passive/normal/total | hordes on/off | zombies on/off | server | population | spawn friendly/neutral/hostile [1..5] | car approach / car audit | save. " +
                         "Steam NPC combat, radio, dialogue and local saves are EXPERIMENTAL; " +
                         "multiplayer NPC replication and safe ground-loot transfer remain unavailable.";
                     break;
@@ -237,9 +237,28 @@ namespace Unturned2.Line2
                         count + " " + args[1] + ": " + spawnReason;
                     break;
                 case "car":
+                    if (args.Length == 2 && args[1] == "audit")
+                    {
+                        // Scan only a local radius of REAL instantiated
+                        // vehicles. Do not spawn or reparent any Workshop asset.
+                        var vehicles = new List<InteractableVehicle>(16);
+                        VehicleManager.getVehiclesInRadius(
+                            Player.player.transform.position,
+                            65f * 65f, vehicles);
+                        _feedback = "Nearby native cars=" + vehicles.Count +
+                            ". See Line2 probe.log for profiles.";
+                        int scanned = 0;
+                        foreach (InteractableVehicle vehicle in vehicles)
+                        {
+                            if (++scanned > 12) break;
+                            ProbeLogger.Log("NPC_VEHICLE_ASSET_AUDIT: " +
+                                Line2NpcVehicleCapabilityAudit.Describe(vehicle));
+                        }
+                        break;
+                    }
                     if (args.Length != 2 || args[1] != "approach")
                     {
-                        _feedback = "Use car approach (experimental: NPC walks to parked car, does not drive).";
+                        _feedback = "Use car approach / car audit. Actual NPC driving remains unavailable.";
                         break;
                     }
                     var runtime = GetComponent<SteamNpcPrototypeRuntime>();
