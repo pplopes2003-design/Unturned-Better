@@ -218,12 +218,18 @@ namespace Unturned2.Line2
                 offset += Vector3.up * correction;
             }
             int targetId = target.GetInstanceID();
-            if (sniper && _shotMemory.CanApply(Time.time, gunId, targetId))
+            if (sniper)
             {
                 Vector3 lateral = Vector3.Cross(Vector3.up,
                     new Vector3(offset.x, 0f, offset.z).normalized);
-                offset += lateral * _shotMemory.Lateral +
-                    Vector3.up * _shotMemory.Vertical;
+                float practicedSide, practicedVertical;
+                if (_lifetimePractice.TryGetBallisticBias(gun.id, length,
+                    out practicedSide, out practicedVertical))
+                    offset += lateral * practicedSide +
+                        Vector3.up * practicedVertical;
+                if (_shotMemory.CanApply(Time.time, gunId, targetId))
+                    offset += lateral * _shotMemory.Lateral +
+                        Vector3.up * _shotMemory.Vertical;
             }
             if (sniper && !Line2NpcSniperPolicy.MayTakePrecisionShot(
                     true, true, HasMovement(),
@@ -305,6 +311,8 @@ namespace Unturned2.Line2
                     Vector3 lateral = Vector3.Cross(Vector3.up,
                         new Vector3(offset.x, 0f, offset.z).normalized);
                     float sideways = Vector3.Dot(error, lateral);
+                    _lifetimePractice.ObserveImpact(gun.id, length,
+                        true, true, sideways, error.y, error.magnitude);
                     if (_shotMemory.Observe(Time.time, gunId, targetId,
                         true, true, true, hit, sideways, error.y,
                         error.magnitude) && Time.time >= _nextLogAt)
