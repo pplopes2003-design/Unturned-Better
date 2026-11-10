@@ -73,7 +73,7 @@ namespace Unturned2.Line2
             // or has a verified enemy in sight. In particular critical health
             // is a reason to seek safety, not permission to heal in the open.
             if (_actor != null && (_actor.IsTacticallyRetreating ||
-                _actor.RecentlyDamaged))
+                _actor.RecentlyDamaged || _actor.UnderVerifiedSuppression))
                 return true;
             return _sight != null &&
                 _sight.Kind != Line2NPCCombatPerception.TargetKind.None &&
