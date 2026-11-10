@@ -176,9 +176,31 @@ namespace Unturned2.Line2
                 return;
 
             Vector3 origin = transform.position + Vector3.up * 1.45f;
-            Vector3 offset = target.position + Vector3.up * 1.0f - origin;
+            float aimHeight = kind ==
+                Line2NPCCombatPerception.TargetKind.Zombie ? 0.95f : 1.0f;
+            if (kind == Line2NPCCombatPerception.TargetKind.Player)
+            {
+                Player victim = target.GetComponentInParent<Player>();
+                if (victim != null && victim.stance != null)
+                {
+                    if (victim.stance.stance == EPlayerStance.CROUCH)
+                        aimHeight = 0.80f;
+                    else if (victim.stance.stance == EPlayerStance.PRONE)
+                        aimHeight = 0.34f;
+                }
+            }
+            Vector3 offset = target.position + Vector3.up * aimHeight - origin;
             float length = offset.magnitude;
             if (length < 1f || length > gunRange) return;
+            if (sniper && Provider.modeConfigData != null &&
+                Provider.modeConfigData.Gameplay.Ballistics)
+            {
+                float gravity = Mathf.Abs(Physics.gravity.y *
+                    gun.bulletGravityMultiplier);
+                float correction = Line2NpcSniperPolicy.VerticalDropCompensation(
+                    length, gun.muzzleVelocity, gravity);
+                offset += Vector3.up * correction;
+            }
             if (sniper && !Line2NpcSniperPolicy.MayTakePrecisionShot(
                     true, true, HasMovement(),
                     _actor.IsTacticallyRetreating,
