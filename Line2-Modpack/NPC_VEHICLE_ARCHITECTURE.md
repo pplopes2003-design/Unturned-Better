@@ -60,7 +60,7 @@ Tests: `BrainTests/VehicleReservationTests.cs` and `BrainTests/VehicleSteeringTe
 
 The tactical vehicle subsystem has **three separately tested intents**, not a universal rule that every NPC grabs a car.
 
-1. **Distant deployment:** newly spawned hostile Combat Total soldiers at least **85 meters** from the player's position get a **50% independent vehicle-mission assignment**. Existing cars are considered before creating new ones. This roll is wired to fresh spawns in `SteamNpcPrototypeRuntime`. Until there is a native NPC driver adapter, the game logs `NPC_VEHICLE_DEPLOYMENT_DEFERRED` and **does not actually spawn a car**. This avoids accumulating vehicles without capable occupants.
+1. **Distant deployment:** newly spawned hostile Combat Total soldiers at least **200 meters** from the player's position get a **50% independent vehicle-mission assignment**. Existing cars are considered before creating new ones. This roll is wired to fresh spawns in `SteamNpcPrototypeRuntime`. Until there is a native NPC driver adapter, the game logs `NPC_VEHICLE_DEPLOYMENT_DEFERRED` and **does not actually spawn a car**. This avoids accumulating vehicles without capable occupants.
 2. **Pursuit:** only when the hostile NPC has personally and currently identified the player inside a real vehicle may a pursuit intent be recorded. A chase requires an NPC-operated car, a verified drivable road route, separation >=25m and <=180m, and no overriding incoming-fire retreat. Current code records `NPC_VEHICLE_ESCAPE_OBSERVED`; the driving action is not yet enabled.
 3. **Armored assault:** tanks and other heavy tracked Workshop vehicles need a supported wheel/track physics profile, real NPC driver authority, independently validated turret operator, accessible spawn route, and a rare authorized deployment slot. The `Line2NpcVehicleMissionPolicy.MayDeployArmoredSupport` gate ensures no tank spawns without all these capabilities. A turret must use the original vehicle ammunition and hit validation, not apply script damage by pretending to be a player.
 
@@ -70,10 +70,18 @@ The tactical vehicle subsystem has **three separately tested intents**, not a un
 
 ## Progress: tactical missions wired to live Combat Total NPCs
 
-`Line2NpcVehicleMissionState` is attached to fresh Combat Total fighters by `SteamNpcPrototypeRuntime` and performs the 50% distant deployment roll at >=85m. It records the selected NPC identity, never invents an actual car, and logs `NPC_VEHICLE_DEPLOYMENT_DEFERRED` because the Steam native driver adapter is not implemented. This makes the **policy and its wiring** testable without littering the world with empty vehicles.
+`Line2NpcVehicleMissionState` is attached to fresh Combat Total fighters by `SteamNpcPrototypeRuntime` and performs the 50% distant deployment roll >=200m. It records the selected NPC identity, never invents an actual car, and logs `NPC_VEHICLE_DEPLOYMENT_DEFERRED` because the Steam native driver adapter is not implemented. This makes the **policy and its wiring** testable without littering the world with empty vehicles.
 
 The state checks `PrototypeActor.PlayerVisible` plus the *actual* current `PlayerMovement.getVehicle()` to log `NPC_VEHICLE_ESCAPE_OBSERVED` if the player drives away under observation. This is an observed car, **not** persistent GPS tracking.
 
 `Line2NpcVehicleMissionPolicy` has independently tested rules for road pursuit, the 50% deployment roll and gated tank/armed vehicle deployment. An armored unit needs **both** validated native driver capability and weapon/turret capability before any heavy asset can be spawned. Vehicle spawn and actual pursuit are not wired until these gates are satisfied.
 
 Vehicles and drivers should have their own identity and finite spawn budget in future work so a failed reinforcement wave or NPC death never creates duplicate cars.
+
+## Revision: farther Combat Total deployments (2026-11-10)
+
+**200 yards = 182.88 metres.** The minimum is rounded UP to **200m** in `Line2NpcVehicleMissionPolicy.DistantDeploymentMeters`. The map-anchored spawn director selects *actual authored* spawnpoints with at least an 18m placement margin (218–420m anchor separation), so the physically verified character's final spawn is still >=200m away. A distant NPC rolls the 50% vehicle intent only **after** actual spawn placement.
+
+The original manual `spawn hostile` still creates NPCs near the user intentionally. For a deliberate remote test, issue **`spawn distant 1`** in Combat Total from the F7 console (or the local chat command wrapper). If no map spawnpoints and physics are loaded at this distance, the command fails rather than substituting a nearby spawn. Natural remote spawning likewise defers until a real safe anchor is eligible.
+
+Vehicle sightings no longer create permanent tracking: `Line2NpcVehicleObservationMemory` stores an approximate 20m sector for at most 8 seconds after firsthand visual contact. Engine-authorized road driving and tank/turret use remain blocked until they can be represented without fake player seats and without bypassing multiplayer state.
