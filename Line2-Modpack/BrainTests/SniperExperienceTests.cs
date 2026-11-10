@@ -16,11 +16,25 @@ internal static class SniperExperienceTests
         if (novice.SpreadMultiplier(129, 85f) != 1f ||
             novice.SpreadMultiplier(297, 25f) != 1f)
             return Fail("practice leaked across weapon or distance");
+        float side, elevation;
+        if (novice.TryGetBallisticBias(297, 85f, out side, out elevation))
+        {
+            // Newly learned shots without physically verified impact
+            // cannot yet create a non-zero drift.
+            if (side != 0f || elevation != 0f)
+                return Fail("invented ballistic experience");
+        }
+        novice.ObserveImpact(297, 85f, true, true, 1.0f, -0.5f, 1.2f);
+        if (!novice.TryGetBallisticBias(297, 85f, out side,
+                out elevation) || side >= 0f || elevation <= 0f)
+            return Fail("physical impact did not calibrate lifetime bias");
         var save = novice.Export();
         var restored = new Line2NpcSniperExperience();
         if (!restored.Restore(save) ||
             Math.Abs(restored.SpreadMultiplier(297, 85f) -
-                experienced) > 0.0001f)
+                experienced) > 0.0001f ||
+            !restored.TryGetBallisticBias(297, 85f, out side,
+                out elevation) || side >= 0f || elevation <= 0f)
             return Fail("individual experience not restorable");
         if (restored.Restore(new [] {
                 new Line2NpcSniperExperience.Record {
