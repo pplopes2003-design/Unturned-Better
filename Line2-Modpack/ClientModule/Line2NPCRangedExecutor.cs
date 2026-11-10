@@ -34,6 +34,8 @@ namespace Unturned2.Line2
         private int _burstRemaining;
         private uint _activeGunInstance;
         private byte _activeGunFiremode;
+        private readonly Line2NpcShotCorrectionMemory _shotMemory =
+            new Line2NpcShotCorrectionMemory();
 
         internal bool HasUsableGun { get; private set; }
         internal bool Reloading { get { return _pendingReloadGun != 0; } }
@@ -126,6 +128,7 @@ namespace Unturned2.Line2
                 _activeGunFiremode = nativeMode;
                 _burstRemaining = cycle;
                 _acquiredTarget = null; // New physical gun requires reaction.
+                _shotMemory.Reset();
             }
 
             int rounds = owned.state[GunStateIndices.AMMO];
@@ -148,12 +151,14 @@ namespace Unturned2.Line2
                     target != null, _actor.IsTacticallyRetreating))
             {
                 _acquiredTarget = null;
+                _shotMemory.Reset();
                 return;
             }
 
             if (target != _acquiredTarget)
             {
                 _acquiredTarget = target;
+                _shotMemory.Reset();
                 _acquiredAt = Time.time;
                 _nextShotAt = Time.time + UnityEngine.Random.Range(0.30f, 0.85f);
                 return; // Original Line 1 reaction delay before the FIRST shot.
@@ -200,6 +205,14 @@ namespace Unturned2.Line2
                 float correction = Line2NpcSniperPolicy.VerticalDropCompensation(
                     length, gun.muzzleVelocity, gravity);
                 offset += Vector3.up * correction;
+            }
+            int targetId = target.GetInstanceID();
+            if (sniper && _shotMemory.CanApply(Time.time, gunId, targetId))
+            {
+                Vector3 lateral = Vector3.Cross(Vector3.up,
+                    new Vector3(offset.x, 0f, offset.z).normalized);
+                offset += lateral * _shotMemory.Lateral +
+                    Vector3.up * _shotMemory.Vertical;
             }
             if (sniper && !Line2NpcSniperPolicy.MayTakePrecisionShot(
                     true, true, HasMovement(),
@@ -258,9 +271,33 @@ namespace Unturned2.Line2
                 Quaternion deviation = Quaternion.LookRotation(offset.normalized) *
                     Quaternion.Euler(scatter.y, scatter.x, 0f);
                 Vector3 direction = deviation * Vector3.forward;
-                if (TryApplyNativeImpact(kind, target, origin, direction,
-                    gunRange, gun, length))
-                    pelletHits++;
+                Vector3 observedImpact;
+                bool hit = TryApplyNativeImpact(kind, target, origin, direction,
+                    gunRange, gun, length, out observedImpact);
+                if (hit) pelletHits++;
+                if (sniper && pellets == 1 && observedImpact != Vector3.zero &&
+                    !_actor.IsMoving && _perception.Kind == kind &&
+                    _perception.VisibleTarget == target &&
+                    _perception.HasVerifiedSight(target, kind, gunRange))
+                {
+                    // Learn only a genuine, FIRST physical impact within
+                    // six metres of the currently seen target. An empty
+                    // ray or a distant wall cannot provide feedback.
+                    Vector3 trueAim = target.position +
+                        Vector3.up * aimHeight;
+                    Vector3 error = observedImpact - trueAim;
+                    Vector3 lateral = Vector3.Cross(Vector3.up,
+                        new Vector3(offset.x, 0f, offset.z).normalized);
+                    float sideways = Vector3.Dot(error, lateral);
+                    if (_shotMemory.Observe(Time.time, gunId, targetId,
+                        true, true, true, hit, sideways, error.y,
+                        error.magnitude) && Time.time >= _nextLogAt)
+                        ProbeLogger.Log("NPC_SNIPER_FEEDBACK: actor=" +
+                            _actor.Identity + " samples=" +
+                            _shotMemory.Samples +
+                            " lateral=" + _shotMemory.Lateral.ToString("F2") +
+                            " vertical=" + _shotMemory.Vertical.ToString("F2"));
+                }
             }
             // Suppression is NOT damage: only a physically debited shot
             // toward a previously sighted rival NPC may create pressure.
@@ -329,12 +366,14 @@ namespace Unturned2.Line2
         private bool TryApplyNativeImpact(
             Line2NPCCombatPerception.TargetKind kind, Transform intended,
             Vector3 origin, Vector3 direction, float range,
-            ItemGunAsset gun, float intendedDistance)
+            ItemGunAsset gun, float intendedDistance,
+            out Vector3 observedImpact)
         {
+            observedImpact = Vector3.zero;
             Transform first;
             float nearest;
             if (!TryTraceFirstImpact(origin, direction, range, gun,
-                out first, out nearest)) return false;
+                out first, out nearest, out observedImpact)) return false;
             
             float falloffStart = gun.range * gun.damageFalloffRange;
             float falloffEnd = gun.range * gun.damageFalloffMaxRange;
@@ -420,10 +459,11 @@ namespace Unturned2.Line2
         /// </summary>
         private bool TryTraceFirstImpact(Vector3 origin, Vector3 direction,
             float range, ItemGunAsset gun, out Transform first,
-            out float distance)
+            out float distance, out Vector3 observedImpact)
         {
             first = null;
             distance = 0f;
+            observedImpact = Vector3.zero;
             // DAMAGE_SERVER omits CLIP and VEHICLE in the original
             // Unturned mask. Always include physical motor blockers so a
             // valid target behind an invisible clip or car is not exposed.
@@ -457,6 +497,7 @@ namespace Unturned2.Line2
                 if (count >= _hits.Length) return false;
                 float closest = float.PositiveInfinity;
                 Transform candidate = null;
+                Vector3 impact = Vector3.zero;
                 for (int index = 0; index < count; ++index)
                 {
                     Transform hit = _hits[index].transform;
@@ -466,10 +507,12 @@ namespace Unturned2.Line2
                     {
                         closest = _hits[index].distance;
                         candidate = hit;
+                        impact = _hits[index].point;
                     }
                 }
                 if (candidate != null)
                 {
+                    observedImpact = impact;
                     first = candidate;
                     distance = traveled + closest;
                     return true;
