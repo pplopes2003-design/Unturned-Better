@@ -39,6 +39,8 @@ namespace Unturned2.Line2
             // Optional schema-one fields: old saves have null arrays.
             public Line2MobileNPCAdaptiveMemory.ExperienceRecord[] experiences;
             public Line2MobileNPCTravelMemory.LearnedRoute[] learnedRoutes;
+            // Individual sniper practice; null in legacy saves.
+            public Line2NpcSniperExperience.Record[] sniperExperience;
             internal Vector3 Position { get { return new Vector3(x, y, z); } }
             internal Vector3 Home { get { return new Vector3(homeX, homeY, homeZ); } }
         }
@@ -210,6 +212,13 @@ namespace Unturned2.Line2
 
         private static void ValidateActorMemories(ActorRecord actor)
         {
+            if (actor.sniperExperience != null)
+            {
+                // The same strict validation used by the live executor.
+                var practice = new Line2NpcSniperExperience();
+                if (!practice.Restore(actor.sniperExperience))
+                    throw new InvalidDataException("invalid sniper experience");
+            }
             if (actor.experiences != null)
             {
                 if (actor.experiences.Length > 48)
