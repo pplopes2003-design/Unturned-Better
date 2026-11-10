@@ -162,7 +162,7 @@ namespace Unturned2.Line2
             {
                 case "help":
                     _feedback = "status | npc on/off | natural on/off | max 1..32 | " +
-                        "combat passive/normal/total | hordes on/off | zombies on/off | server | population | spawn friendly/neutral/hostile [1..5] | car approach / car audit | save. " +
+                        "combat passive/normal/total | hordes on/off | zombies on/off | server | population | spawn friendly/neutral/hostile [1..5] | car approach / car audit / car drive-test / car stop-test | save. " +
                         "Steam NPC combat, radio, dialogue and local saves are EXPERIMENTAL; " +
                         "multiplayer NPC replication and safe ground-loot transfer remain unavailable.";
                     break;
@@ -279,9 +279,13 @@ namespace Unturned2.Line2
                         }
                         break;
                     }
-                    if (args.Length != 2 || args[1] != "approach")
+                    if (args.Length != 2 ||
+                        (args[1] != "approach" &&
+                         args[1] != "drive-test" &&
+                         args[1] != "stop-test"))
                     {
-                        _feedback = "Use car approach / car audit. Actual NPC driving remains unavailable.";
+                        _feedback = "Use car approach / audit / drive-test / stop-test. " +
+                            "Only drive-test applies local experimental wheel physics.";
                         break;
                     }
                     var runtime = GetComponent<SteamNpcPrototypeRuntime>();
@@ -302,10 +306,19 @@ namespace Unturned2.Line2
                             nearestActor = candidate;
                         }
                     }
-                    _feedback = nearestActor != null &&
-                        nearestActor.TryRequestCarApproach()
-                        ? "Nearest NPC reserved a real parked car and is approaching by A*. Native NPC driving is NOT enabled."
-                        : "No eligible nearby NPC or parked unlocked car with empty driver seat.";
+                    bool accepted = nearestActor != null &&
+                        (args[1] == "drive-test"
+                            ? nearestActor.TryRequestCarDriveTest()
+                            : args[1] == "stop-test"
+                                ? nearestActor.TryStopCarDriveTest()
+                                : nearestActor.TryRequestCarApproach());
+                    _feedback = accepted
+                        ? (args[1] == "drive-test"
+                            ? "NPC walking to actual parked car; explicit SINGLEPLAYER 18m WheelCollider drive test requested. Not native occupancy or multiplayer."
+                            : args[1] == "stop-test"
+                                ? "Car wheel-physics test cancelled"
+                                : "NPC reserved a real parked car and is approaching by A*; native driver not yet integrated")
+                        : "No eligible nearby NPC or compatible parked four-wheel car, or current action denied.";
                     break;
                 case "save":
                     Save();
