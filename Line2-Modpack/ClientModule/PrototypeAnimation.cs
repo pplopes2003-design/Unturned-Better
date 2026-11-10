@@ -12,6 +12,8 @@ namespace Unturned2.Line2
         private Animation _legacy;
         private string _idle;
         private string _walk;
+        private string _run;
+        private string _sneak;
         private string _melee;
         private float _meleeUntil;
         private string _current;
@@ -35,6 +37,14 @@ namespace Unturned2.Line2
                     (name.IndexOf("walk", StringComparison.OrdinalIgnoreCase) >= 0 ||
                      name.IndexOf("move", StringComparison.OrdinalIgnoreCase) >= 0))
                     _walk = name;
+                if (_run == null &&
+                    (name.IndexOf("sprint", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     name.IndexOf("run", StringComparison.OrdinalIgnoreCase) >= 0))
+                    _run = name;
+                if (_sneak == null &&
+                    (name.IndexOf("crouch", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     name.IndexOf("sneak", StringComparison.OrdinalIgnoreCase) >= 0))
+                    _sneak = name;
                 if (_melee == null &&
                     (name.IndexOf("punch", StringComparison.OrdinalIgnoreCase) >= 0 ||
                      name.IndexOf("melee", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -42,7 +52,10 @@ namespace Unturned2.Line2
                     _melee = name;
             }
             _legacy.enabled = true;
-            SetMoving(false);
+            SetGait(Line2MobileNPCLocomotionPolicy.Gait.Hold, false);
+            ProbeLogger.Log("NPC_LOCOMOTION_CLIPS: run=" + (_run ?? "absent") +
+                " sneak=" + (_sneak ?? "absent") + " walk=" + (_walk ?? "absent"));
+
         }
 
         internal void PlayMeleeSwing()
@@ -58,9 +71,19 @@ namespace Unturned2.Line2
 
         internal void SetMoving(bool moving)
         {
+            SetGait(Line2MobileNPCLocomotionPolicy.Gait.Walk, moving);
+        }
+
+        internal void SetGait(Line2MobileNPCLocomotionPolicy.Gait gait, bool moving)
+        {
             if (_legacy == null || !_legacy.enabled) return;
             if (Time.time < _meleeUntil) return;
-            string requested = moving ? (_walk ?? _idle) : (_idle ?? _walk);
+            string requested = !moving ? (_idle ?? _walk)
+                : gait == Line2MobileNPCLocomotionPolicy.Gait.Sprint
+                    ? (_run ?? _walk ?? _idle)
+                : gait == Line2MobileNPCLocomotionPolicy.Gait.Sneak
+                    ? (_sneak ?? _walk ?? _idle)
+                : (_walk ?? _idle);
             if (requested == null || requested == _current) return;
             AnimationState state = _legacy[requested];
             if (state == null) return;
@@ -68,5 +91,6 @@ namespace Unturned2.Line2
             _legacy.CrossFade(requested, 0.12f);
             _current = requested;
         }
+
     }
 }
