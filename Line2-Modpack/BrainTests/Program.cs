@@ -403,8 +403,8 @@ internal static class Program
         // Player visibility must respect body orientation as well as local
         // physics LOS: a transparent ray behind the NPC is not eyesight.
         if (!Line2NPCCombatRules.WithinVisualArc(1f) ||
-            !Line2NPCCombatRules.WithinVisualArc(0.15f) ||
-            Line2NPCCombatRules.WithinVisualArc(0.14f) ||
+            !Line2NPCCombatRules.WithinVisualArc(0.5f) ||
+            Line2NPCCombatRules.WithinVisualArc(0.49f) ||
             Line2NPCCombatRules.WithinVisualArc(-1f) ||
             Line2NPCCombatRules.WithinVisualArc(float.NaN) ||
             Line2NPCCombatRules.WithinVisualArc(float.PositiveInfinity))
