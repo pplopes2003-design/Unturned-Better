@@ -13,7 +13,7 @@ namespace Unturned2.Line2
         [Serializable]
         internal sealed class Record
         {
-            public ushort weaponId;
+            public int weaponId; // Unity JsonUtility-compatible primitive
             public int distanceBand; // 0=short, 1=medium, 2=long
             public int shots;
             public int strikes;
@@ -92,7 +92,8 @@ namespace Unturned2.Line2
             if (snapshot != null)
             {
                 foreach (Record r in snapshot)
-                    if (r == null || r.weaponId == 0 ||
+                    if (r == null || r.weaponId < 1 ||
+                        r.weaponId > ushort.MaxValue ||
                         r.distanceBand < 0 || r.distanceBand > 2 ||
                         r.shots < 0 || r.shots > 400 ||
                         r.strikes < 0 || r.strikes > r.shots)
