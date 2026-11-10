@@ -25,6 +25,7 @@ namespace Unturned2.Line2
         private readonly List<PrototypeActor> _actors = new List<PrototypeActor>(32);
         private SteamNpcPrototypeRuntime _runtime;
         private PrototypeActor _owner;
+        private PrototypeAnimation _headPresentation;
         private float _nextScan;
         private float _nextLogAt;
         private int _globalZombieCursor;
@@ -37,6 +38,8 @@ namespace Unturned2.Line2
         {
             _runtime = runtime;
             _owner = owner;
+            _headPresentation = owner != null
+                ? owner.GetComponent<PrototypeAnimation>() : null;
             _nextScan = Time.time + UnityEngine.Random.Range(0.05f, 0.3f);
             Clear();
         }
@@ -236,6 +239,13 @@ namespace Unturned2.Line2
             Kind = kind;
             VisibleTarget = target;
             LastVisiblePosition = target.position;
+            // NPC and zombie contacts are verified by physical LOS before
+            // SetTarget. React with native head movement, but never let a
+            // delayed player-sighting snapshot provide exact unseen gaze.
+            if (kind != TargetKind.Player && _headPresentation != null)
+                _headPresentation.AttendTo(target.position +
+                    Vector3.up * (kind == TargetKind.Zombie ? 0.95f : 1.05f),
+                    0.45f);
         }
 
         internal bool HasVerifiedSight(Transform target, TargetKind kind,
