@@ -21,6 +21,10 @@ namespace Unturned2.Line2
         private bool _medicalClipMissingLogged;
         private float _meleeUntil;
         private string _current;
+        private Transform _skull;
+        private Vector3 _attentionPoint;
+        private float _attentionUntil;
+        private float _attentionBlend;
 
         internal void Initialize(GameObject visual)
         {
@@ -65,10 +69,68 @@ namespace Unturned2.Line2
                     _melee = name;
             }
             _legacy.enabled = true;
+            foreach (Transform bone in visual.GetComponentsInChildren<Transform>(true))
+                if (bone != null && bone.name == "Skull")
+                {
+                    _skull = bone;
+                    break;
+                }
             SetGait(Line2MobileNPCLocomotionPolicy.Gait.Hold, false);
             ProbeLogger.Log("NPC_LOCOMOTION_CLIPS: run=" + (_run ?? "absent") +
                 " sneak=" + (_sneak ?? "absent") + " walk=" + (_walk ?? "absent"));
 
+        }
+
+        // The calling sensor guarantees either firsthand physical sight
+        // or a previously quantized auditory/suspicion sector. This
+        // component never reads Player.player or guesses unseen positions.
+        internal void AttendTo(Vector3 observedPoint, float seconds)
+        {
+            if (_skull == null || seconds <= 0f ||
+                float.IsNaN(observedPoint.x) || float.IsInfinity(observedPoint.x) ||
+                float.IsNaN(observedPoint.y) || float.IsInfinity(observedPoint.y) ||
+                float.IsNaN(observedPoint.z) || float.IsInfinity(observedPoint.z))
+                return;
+            _attentionPoint = observedPoint;
+            _attentionUntil = Time.time + Mathf.Min(seconds, 2f);
+        }
+
+        private void LateUpdate()
+        {
+            if (_skull == null || _legacy == null || !_legacy.enabled) return;
+            bool attentive = Time.time < _attentionUntil &&
+                Time.time >= _medicalUntil && Time.time >= _meleeUntil;
+            _attentionBlend = Mathf.MoveTowards(_attentionBlend,
+                attentive ? 0.65f : 0f, 3f * Time.deltaTime);
+            if (_attentionBlend < 0.005f) return;
+
+            Vector3 direction = _attentionPoint - _skull.position;
+            if (direction.sqrMagnitude < 0.25f) return;
+            // The skeleton's real Skull pivot is rotated after legacy
+            // animation evaluation. Never twist the neck backward: yaw is
+            // restricted to 50 degrees either side of the torso.
+            Vector3 horizontal = Vector3.ProjectOnPlane(
+                direction, Vector3.up);
+            Vector3 facing = Vector3.ProjectOnPlane(
+                transform.forward, Vector3.up);
+            if (horizontal.sqrMagnitude < 0.01f ||
+                facing.sqrMagnitude < 0.01f) return;
+            float yaw = Vector3.SignedAngle(
+                facing, horizontal, Vector3.up);
+            yaw = Mathf.Clamp(yaw, -50f, 50f);
+            float pitch = Mathf.Atan2(direction.y,
+                horizontal.magnitude) * Mathf.Rad2Deg;
+            pitch = Mathf.Clamp(pitch, -25f, 25f);
+            Vector3 limitedDirection = Quaternion.AngleAxis(
+                yaw, Vector3.up) * facing.normalized;
+            limitedDirection = Quaternion.AngleAxis(
+                -pitch, Vector3.Cross(Vector3.up, limitedDirection)) *
+                limitedDirection;
+            if (limitedDirection.sqrMagnitude < 0.5f) return;
+            Quaternion delta = Quaternion.FromToRotation(
+                _skull.forward, limitedDirection.normalized);
+            _skull.rotation = Quaternion.Slerp(_skull.rotation,
+                delta * _skull.rotation, _attentionBlend);
         }
 
         internal void PlayMeleeSwing()
