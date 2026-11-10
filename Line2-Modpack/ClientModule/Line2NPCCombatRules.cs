@@ -13,8 +13,11 @@ namespace Unturned2.Line2
         /// normalized flat forward/target dot product, not remote AI data.</summary>
         internal static bool WithinVisualArc(float forwardDot)
         {
+            // 120-degree horizontal human-like visual cone (60 degrees
+            // either side). Previously dot >= 0.15 allowed ~163 degrees,
+            // effectively sensing targets far outside the NPC's gaze.
             return !float.IsNaN(forwardDot) && !float.IsInfinity(forwardDot) &&
-                forwardDot >= 0.15f && forwardDot <= 1f;
+                forwardDot >= 0.5f && forwardDot <= 1f;
         }
 
         internal static bool CanEngagePlayer(string role, string mode,
