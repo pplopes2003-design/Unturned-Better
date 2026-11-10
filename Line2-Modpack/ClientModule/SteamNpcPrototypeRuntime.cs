@@ -1131,6 +1131,8 @@ namespace Unturned2.Line2
         private readonly RaycastHit[] _flankFloorHits = new RaycastHit[16];
         private float _nextFlankAt;
         private float _nextFiringRepositionAt;
+        private float _coverHoldUntil;
+        private Vector3 _coverHoldPoint;
         private float _nextMovementAuditAt;
         private float _lastMovementAuditAt;
         private Vector3 _lastMovementAuditPosition;
@@ -2089,6 +2091,16 @@ namespace Unturned2.Line2
                 }
             }
 
+            // Arriving at actual validated cover must produce a short
+            // physical crouch/observation interval rather than instantly
+            // clearing SeekCover and sprinting out of the same position.
+            // Emergency retreat, newly assigned tactics and reacquired
+            // player pursuit can preempt this optional hold.
+            bool holdingVerifiedCover = Time.time < _coverHoldUntil &&
+                _tactics.CurrentGoal == Line2MobileNPCTactics.Goal.None &&
+                (transform.position - _coverHoldPoint).sqrMagnitude < 3.24f;
+            if (holdingVerifiedCover && !RecentlyDamaged)
+                _goal = _coverHoldPoint;
             Vector3 delta = _goal - transform.position;
             bool requiresVerticalRoute = Mathf.Abs(delta.y) > 1.25f;
             delta.y = 0f;
@@ -2104,12 +2116,13 @@ namespace Unturned2.Line2
                 // This is a destination arrival signal, not mere possession
                 // of a planned cover point. Cover must be currently verified
                 // and the actor actually near its protected endpoint.
-                InCover = _tactics.CurrentGoal ==
-                    Line2MobileNPCTactics.Goal.SeekCover &&
+                InCover = holdingVerifiedCover || (
+                    _tactics.CurrentGoal ==
+                        Line2MobileNPCTactics.Goal.SeekCover &&
                     _tactics.HasTacticalDestination &&
                     _coverPlanner != null && _coverPlanner.HasCover &&
                     (transform.position - _tactics.TacticalDestination)
-                        .sqrMagnitude < 2.25f,
+                        .sqrMagnitude < 2.25f),
                 Investigating = _legacyBrain.CurrentState ==
                     Line2MobileNPCBrain.State.Investigating,
                 Stalking = _tactics.CurrentGoal ==
@@ -2476,6 +2489,13 @@ namespace Unturned2.Line2
                 {
                     _ambushArmedUntil = Time.time + 4.0f;
                     _nextStalkAt = Time.time + 18f;
+                }
+                if (current == Line2MobileNPCTactics.Goal.SeekCover)
+                {
+                    _coverHoldPoint = destination;
+                    _coverHoldUntil = Time.time + 3.5f;
+                    ProbeLogger.Log("NPC_COVER_HOLD: actor=" + _identity +
+                        " duration=3.5s at=" + destination.ToString("F1"));
                 }
                 if (_experience != null &&
                     current == Line2MobileNPCTactics.Goal.SeekCover)
