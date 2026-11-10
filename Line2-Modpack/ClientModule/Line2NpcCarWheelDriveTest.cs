@@ -21,6 +21,9 @@ namespace Unturned2.Line2
         private readonly WheelCollider[] _wheels = new WheelCollider[4];
         private readonly bool[] _powered = new bool[4];
         private readonly bool[] _front = new bool[4];
+        private readonly float[] _initialMotor = new float[4];
+        private readonly float[] _initialBrake = new float[4];
+        private readonly float[] _initialSteer = new float[4];
         private InteractableVehicle _car;
         private PrototypeActor _driver;
         private CharacterController _character;
@@ -71,6 +74,9 @@ namespace Unturned2.Line2
                     return false;
                 }
                 _wheels[i] = wheel.wheel;
+                _initialMotor[i] = wheel.wheel.motorTorque;
+                _initialBrake[i] = wheel.wheel.brakeTorque;
+                _initialSteer[i] = wheel.wheel.steerAngle;
                 _powered[i] = wheel.isPowered;
                 if (_powered[i]) powered++;
                 float z = car.transform.InverseTransformPoint(
@@ -259,12 +265,19 @@ namespace Unturned2.Line2
             {
                 WheelCollider wheel = _wheels[i];
                 if (wheel == null) continue;
-                wheel.motorTorque = 0f;
-                wheel.steerAngle = 0f;
-                wheel.brakeTorque = Mathf.Min(4500f,
-                    _car != null && _car.rootRigidbody != null
-                        ? Mathf.Max(800f, _car.rootRigidbody.mass * 1.2f)
-                        : 1200f);
+                // Never leave permanent steering/brake/torque changes
+                // on a car after the experiment is stopped or interrupted.
+                wheel.motorTorque = _initialMotor[i];
+                wheel.steerAngle = _initialSteer[i];
+                wheel.brakeTorque = _initialBrake[i];
+            }
+            // Stop the small controlled 18m test without leaving an
+            // unoccupied, coasting vehicle to collide with the dismount.
+            if (_car != null && _car.rootRigidbody != null &&
+                !_car.rootRigidbody.isKinematic)
+            {
+                _car.rootRigidbody.velocity = Vector3.zero;
+                _car.rootRigidbody.angularVelocity = Vector3.zero;
             }
             if (_driver != null)
             {
