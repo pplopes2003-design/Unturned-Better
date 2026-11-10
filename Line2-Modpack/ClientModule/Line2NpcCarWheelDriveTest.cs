@@ -18,6 +18,7 @@ namespace Unturned2.Line2
         private const float MaximumSeconds = 25f;
         private const float MaxSafeSpeed = 9f;
         private readonly RaycastHit[] _obstacles = new RaycastHit[12];
+        private readonly RaycastHit[] _groundHits = new RaycastHit[16];
         private readonly WheelCollider[] _wheels = new WheelCollider[4];
         private readonly bool[] _powered = new bool[4];
         private readonly bool[] _front = new bool[4];
@@ -28,6 +29,7 @@ namespace Unturned2.Line2
         private PrototypeActor _driver;
         private CharacterController _character;
         private Vector3 _destination;
+        private Vector3 _initialSafePosition;
         private float _endAt;
         private float _nextFuelAt;
         private float _nextLogAt;
@@ -109,6 +111,7 @@ namespace Unturned2.Line2
             }
             _car = car;
             _driver = driver;
+            _initialSafePosition = driver.transform.position;
             _destination = ground.point;
             _endAt = Time.time + MaximumSeconds;
             _nextFuelAt = Time.time + 8f;
@@ -255,6 +258,54 @@ namespace Unturned2.Line2
             }
         }
 
+        private bool TryFindSafeExit(out Vector3 exit)
+        {
+            exit = Vector3.zero;
+            if (_car == null) return false;
+            Vector3 basePoint = _car.transform.position;
+            for (int i = 0; i < 8; i++)
+            {
+                // Try both vehicle sides and front/rear corners, at least
+                // 3m from the body, before resorting to test-only recovery.
+                float side = (i & 1) == 0 ? -1f : 1f;
+                float fore = (i & 2) == 0 ? -1f : 1f;
+                float radius = i < 4 ? 3.0f : 4.5f;
+                Vector3 sample = basePoint +
+                    _car.transform.right * side * radius +
+                    _car.transform.forward * fore * 1.3f +
+                    Vector3.up * 3.5f;
+                int count = Physics.RaycastNonAlloc(sample,
+                    Vector3.down, _groundHits, 8f,
+                    RayMasks.BLOCK_COLLISION | RayMasks.ENTITY,
+                    QueryTriggerInteraction.Ignore);
+                if (count == 0 || count >= _groundHits.Length) continue;
+                float nearest = float.PositiveInfinity;
+                Vector3 candidate = Vector3.zero;
+                for (int n = 0; n < count; n++)
+                {
+                    Collider collider = _groundHits[n].collider;
+                    if (collider == null || collider.transform == _car.transform ||
+                        collider.transform.IsChildOf(_car.transform) ||
+                        _groundHits[n].normal.y < 0.72f ||
+                        _groundHits[n].distance >= nearest)
+                        continue;
+                    nearest = _groundHits[n].distance;
+                    candidate = _groundHits[n].point + Vector3.up * 0.08f;
+                }
+                if (nearest == float.PositiveInfinity ||
+                    Mathf.Abs(candidate.y - basePoint.y) > 3f ||
+                    !Level.checkSafeIncludingClipVolumes(candidate) ||
+                    Physics.CheckCapsule(candidate + Vector3.up * 0.50f,
+                        candidate + Vector3.up * 1.65f, 0.33f,
+                        RayMasks.BLOCK_COLLISION,
+                        QueryTriggerInteraction.Ignore))
+                    continue;
+                exit = candidate;
+                return true;
+            }
+            return false;
+        }
+
         internal void Stop(string reason)
         {
             if (!_active) return;
@@ -281,18 +332,16 @@ namespace Unturned2.Line2
             }
             if (_driver != null)
             {
-                Vector3 world = _driver.transform.position;
-                Vector3 exit = world;
-                if (_car != null)
+                Vector3 exit;
+                bool safeExit = TryFindSafeExit(out exit);
+                if (!safeExit)
                 {
-                    Vector3 approximate = _car.transform.position -
-                        _car.transform.right * 2.4f;
-                    RaycastHit ground;
-                    if (Physics.Raycast(approximate + Vector3.up * 3f,
-                            Vector3.down, out ground, 7f,
-                            RayMasks.BLOCK_COLLISION,
-                            QueryTriggerInteraction.Ignore))
-                        exit = ground.point + Vector3.up * 0.1f;
+                    // Last-resort TEST-ONLY recovery to the original
+                    // already verified A* boarding position. Never spawn
+                    // a new occupant inside an unverified collider.
+                    exit = _initialSafePosition;
+                    ProbeLogger.Log("NPC_CAR_TEST_EXIT_FALLBACK: no safe " +
+                        "current dismount; restored original boarding position");
                 }
                 _driver.transform.SetParent(null, true);
                 _driver.transform.position = exit;
