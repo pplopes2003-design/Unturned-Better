@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Collections.Generic;
 using System.IO;
 using SDG.Unturned;
 using UnityEngine;
@@ -161,7 +162,7 @@ namespace Unturned2.Line2
             {
                 case "help":
                     _feedback = "status | npc on/off | natural on/off | max 1..32 | " +
-                        "combat passive/normal/total | hordes on/off | zombies on/off | server | population | spawn friendly/neutral/hostile [1..5] | save. " +
+                        "combat passive/normal/total | hordes on/off | zombies on/off | server | population | spawn friendly/neutral/hostile [1..5] | car approach | save. " +
                         "Steam NPC combat, radio, dialogue and local saves are EXPERIMENTAL; " +
                         "multiplayer NPC replication and safe ground-loot transfer remain unavailable.";
                     break;
@@ -234,6 +235,35 @@ namespace Unturned2.Line2
                     bool spawned = Line2NpcRuntimeRegistry.TrySpawn(args[1], count, out spawnReason);
                     _feedback = (spawned ? "PROTOTYPE_SPAWN_OK: " : "SPAWN_UNAVAILABLE: ") +
                         count + " " + args[1] + ": " + spawnReason;
+                    break;
+                case "car":
+                    if (args.Length != 2 || args[1] != "approach")
+                    {
+                        _feedback = "Use car approach (experimental: NPC walks to parked car, does not drive).";
+                        break;
+                    }
+                    var runtime = GetComponent<SteamNpcPrototypeRuntime>();
+                    var candidates = new List<PrototypeActor>(32);
+                    if (runtime != null)
+                        runtime.CopyLiveActors(candidates, 32);
+                    PrototypeActor nearestActor = null;
+                    float nearestDistance = 30f * 30f;
+                    Vector3 operatorPosition = Player.player.transform.position;
+                    foreach (PrototypeActor candidate in candidates)
+                    {
+                        if (candidate == null || candidate.IsDead) continue;
+                        float sq = (candidate.transform.position -
+                            operatorPosition).sqrMagnitude;
+                        if (sq < nearestDistance)
+                        {
+                            nearestDistance = sq;
+                            nearestActor = candidate;
+                        }
+                    }
+                    _feedback = nearestActor != null &&
+                        nearestActor.TryRequestCarApproach()
+                        ? "Nearest NPC reserved a real parked car and is approaching by A*. Native NPC driving is NOT enabled."
+                        : "No eligible nearby NPC or parked unlocked car with empty driver seat.";
                     break;
                 case "save":
                     Save();
