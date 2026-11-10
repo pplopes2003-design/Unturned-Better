@@ -77,6 +77,9 @@ namespace Unturned2.Line2
             if ((npcPosition - _approach).sqrMagnitude > 2.25f)
                 return;
             _state = State.AtDoor;
+            // A missing native driver adapter should not hold a seat
+            // reservation for the original 50-second approach budget.
+            _expiresAt = Mathf.Min(_expiresAt, Time.time + 4f);
             // IMPORTANT: no fake SteamPlayer can be inserted in Passenger.
             // No isEngineOn mutation, Rigidbody forces, seat teleport or
             // simulated driving commands are issued. The next adapter must
