@@ -59,7 +59,13 @@ namespace Unturned2.Line2
             else if (situation.Stalking)
                 desired = Gait.Sneak;
             else if (situation.Investigating && !situation.TargetVisible)
-                desired = Gait.Sneak;
+                // Approach a distant last-heard clue promptly, then slow down
+                // for the actual local search. Sneaking all the way across a
+                // town at 1.15 m/s made investigations appear unresponsive.
+                // Do not sprint while injured or while stalking.
+                desired = situation.DestinationDistance > 18f
+                    ? Gait.Sprint : situation.DestinationDistance > 7f
+                    ? Gait.Walk : Gait.Sneak;
             else if (situation.Pursuing && !situation.TargetVisible && situation.NearTarget)
                 desired = Gait.Walk;
             else if (situation.InCover && !situation.TargetVisible)
