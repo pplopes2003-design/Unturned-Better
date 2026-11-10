@@ -86,9 +86,14 @@ namespace Unturned2.Line2
                 frontMost = Mathf.Max(frontMost, z);
                 backMost = Mathf.Min(backMost, z);
             }
-            if (powered < 2 || frontMost - backMost < 0.7f)
+            if (!Line2NpcCarWheelTestGate.CanStart(
+                    Authorized(), !car.isDead && !car.isExploded,
+                    seat.player == null, car.asset.engine == EEngine.CAR,
+                    !car.rootRigidbody.isKinematic,
+                    nativeWheels.Length, powered, frontMost - backMost,
+                    car.rootRigidbody.mass, car.fuel))
             {
-                reason = "powered/steering wheel geometry unsupported";
+                reason = "unsupported four-wheel test topology/mass/authority";
                 return false;
             }
             float mid = (frontMost + backMost) * 0.5f;
