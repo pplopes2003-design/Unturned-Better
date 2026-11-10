@@ -2233,6 +2233,7 @@ namespace Unturned2.Line2
                     ? _astarFollower.Status : "missing-follower";
                 ProbeLogger.Log("NPC_MOVEMENT_AUDIT: actor=" + _identity +
                     " intent=" + _brain.Intent +
+                    " gait=" + gait + " speed=" + speed.ToString("F2") +
                     " tactic=" + _tactics.CurrentGoal +
                     " destination=" + _goal.ToString("F1") +
                     " moved=" + actualDistance.ToString("F2") +
