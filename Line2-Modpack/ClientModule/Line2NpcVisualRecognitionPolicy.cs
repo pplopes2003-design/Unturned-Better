@@ -27,11 +27,13 @@ namespace Unturned2.Line2
 
         internal Recognition Sample(float now, bool lineOfSight,
             float forwardDot, float distance, float observedSpeed,
-            float illumination, float silhouette = 1f)
+            float illumination, float silhouette = 1f,
+            float maximumVisualRange = 20f)
         {
             if (!Finite(now) || !Finite(forwardDot) || !Finite(distance) ||
                 !Finite(observedSpeed) || !Finite(illumination) ||
-                !Finite(silhouette) || distance < 0f)
+                !Finite(silhouette) || !Finite(maximumVisualRange) ||
+                maximumVisualRange < 1f || distance < 0f)
                 return Recognition.None;
             float dt = _lastSampleAt < 0f ? 0.1f
                 : Math.Max(0f, Math.Min(0.5f, now - _lastSampleAt));
@@ -42,7 +44,7 @@ namespace Unturned2.Line2
             bool peripheral = forwardDot >= 0.15f && forwardDot < 0.5f &&
                 observedSpeed >= 1.25f;
             bool candidate = lineOfSight && (central || peripheral) &&
-                distance <= 20f;
+                distance <= maximumVisualRange;
             if (!candidate)
             {
                 _evidence = Math.Max(0f, _evidence - 1.6f * dt);
@@ -51,14 +53,16 @@ namespace Unturned2.Line2
 
             float angleQuality = Math.Max(0f, Math.Min(1f,
                 (forwardDot - 0.5f) / 0.5f));
-            float proximity = Math.Max(0f, Math.Min(1f, 1f - distance / 20f));
+            float proximity = Math.Max(0f, Math.Min(1f,
+                1f - distance / maximumVisualRange));
             float motion = Math.Max(0f, Math.Min(1f, observedSpeed / 5f));
             float light = Math.Max(0.2f, Math.Min(1f, illumination));
             // A crouched or prone target is harder to recognize at a
             // distance, but posture never negates a verified close-up LOS.
             float posture = Math.Max(0.35f, Math.Min(1f, silhouette));
             float posturePenalty = 1f - (1f - posture) *
-                Math.Max(0f, Math.Min(1f, distance / 20f));
+                Math.Max(0f, Math.Min(1f,
+                    distance / maximumVisualRange));
             float rate = (0.32f + angleQuality * 0.85f +
                 proximity * 0.75f + motion * 0.4f) * light;
             if (peripheral)
