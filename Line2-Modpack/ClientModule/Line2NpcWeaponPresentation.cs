@@ -37,6 +37,10 @@ namespace Unturned2.Line2
         private readonly System.Collections.Generic.List<string> _itemStates =
             new System.Collections.Generic.List<string>(8);
         private float _nextPoseDiagnostic;
+        private PrototypeActor _actor;
+        private string _weaponHoldState;
+        private Vector3 _smoothedAimDirection;
+        private float _lastPoseBlend;
         private float _medicalPoseUntil;
         private bool _medicalModelHidden;
 
@@ -47,6 +51,7 @@ namespace Unturned2.Line2
             _melee = GetComponent<Line2NPCMeleeExecutor>();
             _combatPerception = GetComponent<Line2NPCCombatPerception>();
             _vitals = GetComponent<PrototypeNpcVitals>();
+            _actor = GetComponent<PrototypeActor>();
             if (_ranged != null)
             {
                 _ranged.ShotFired += OnShotFired;
@@ -332,6 +337,8 @@ namespace Unturned2.Line2
             }
             if (selected != null)
             {
+                _weaponHoldState = selected;
+                _lastPoseBlend = 1f;
                 _weaponAnimation[selected].wrapMode = WrapMode.Loop;
                 _weaponAnimation.Blend(selected, 1f, 0.15f);
                 ProbeLogger.Log("NPC_NATIVE_WEAPON_POSE: actor=" + gameObject.name +
@@ -349,6 +356,8 @@ namespace Unturned2.Line2
                     _weaponAnimation.RemoveClip(name);
                 }
             _itemStates.Clear();
+            _weaponHoldState = null;
+            _smoothedAimDirection = Vector3.zero;
             _barrel = null;
         }
 
@@ -417,6 +426,27 @@ namespace Unturned2.Line2
                     care - _leftShoulder.position);
                 return;
             }
+            // Player third-person equipment is parented to real hand hooks
+            // and blends an upper-body item pose over locomotion. Match that
+            // division of responsibility: walking holds the gun, sprinting
+            // lowers it, and crouching retains a supported aiming pose.
+            bool sprinting = _actor != null && _actor.IsMoving &&
+                _actor.CurrentGait == Line2MobileNPCLocomotionPolicy.Gait.Sprint;
+            if (_weaponAnimation != null && _weaponHoldState != null)
+            {
+                AnimationState held = _weaponAnimation[_weaponHoldState];
+                if (held != null)
+                {
+                    float desiredWeight = sprinting ? 0.18f : 1f;
+                    float nextWeight = Mathf.MoveTowards(_lastPoseBlend,
+                        desiredWeight, 4f * Time.deltaTime);
+                    if (Mathf.Abs(nextWeight - _lastPoseBlend) > 0.001f)
+                    {
+                        _lastPoseBlend = nextWeight;
+                        held.weight = nextWeight;
+                    }
+                }
+            }
             Vector3 facing = transform.forward;
             Transform opponent = _combatPerception != null
                 ? _combatPerception.VisibleTarget : null;
@@ -430,7 +460,21 @@ namespace Unturned2.Line2
                 if (toOpponent.sqrMagnitude > 0.2f)
                     facing = toOpponent.normalized;
             }
-            // Acoustic clues never grant aim at invisible actors.
+            // A live, verified target may change elevation or bearing.
+            // Track its current aim vector smoothly rather than snapping
+            // a firearm to a newly sampled position every sensory tick.
+            if (_smoothedAimDirection.sqrMagnitude < 0.2f)
+                _smoothedAimDirection = facing;
+            else
+                _smoothedAimDirection = Vector3.RotateTowards(
+                    _smoothedAimDirection, facing, 260f * Mathf.Deg2Rad *
+                    Time.deltaTime, 0f);
+            facing = _smoothedAimDirection.normalized;
+            // During sprint follow body heading instead of retaining ADS
+            // on a target while running; player third-person sprint lowers
+            // the rifle as the running clip takes precedence.
+            if (sprinting)
+                facing = (transform.forward + Vector3.down * 0.42f).normalized;
             Vector3 right = transform.right;
             RotateShoulderToward(_rightShoulder, _rightGrip,
                 (facing - right * 0.12f + Vector3.down * 0.08f).normalized);
