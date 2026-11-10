@@ -24,6 +24,22 @@ namespace Unturned2.Line2
                 Valid(randomRoll) && randomRoll >= 0f && randomRoll < 0.5f;
         }
 
+        // Rare independent heavy-support selection. This never implies
+        // a working tank: engine, seat and turret adapters are mandatory
+        // before creating any native/Workshop armored vehicle.
+        internal const float ArmoredMinimumDistanceMeters = 350f;
+        internal const float ArmoredDeploymentChance = 0.02f;
+        internal static bool RollArmoredSupport(bool combatTotal,
+            bool hostile, bool freshlySpawned, float playerDistance,
+            float randomRoll)
+        {
+            return combatTotal && hostile && freshlySpawned &&
+                Valid(playerDistance) &&
+                playerDistance >= ArmoredMinimumDistanceMeters &&
+                Valid(randomRoll) && randomRoll >= 0f &&
+                randomRoll < ArmoredDeploymentChance;
+        }
+
         internal static bool MayPursueVehicle(bool combatTotal,
             bool hostile, bool verifiedPlayerVehicle,
             bool ownsRoadVehicle, bool hasSafeRoute,
