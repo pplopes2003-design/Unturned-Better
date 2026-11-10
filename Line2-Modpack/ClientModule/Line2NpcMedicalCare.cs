@@ -163,6 +163,9 @@ namespace Unturned2.Line2
             // still debited exclusively by CommitTreatment after 2 seconds.
             PrototypeAnimation visual = GetComponent<PrototypeAnimation>();
             if (visual != null) visual.PlayMedicalTreatment(2f);
+            Line2NpcWeaponPresentation weaponVisual =
+                GetComponent<Line2NpcWeaponPresentation>();
+            if (weaponVisual != null) weaponVisual.BeginMedicalPose(2f);
             ProbeLogger.Log("NPC_MEDICAL_BEGIN: actor=" + _actor.Identity +
                 " item=" + itemID + " care=" + type);
         }
