@@ -61,8 +61,26 @@ namespace Unturned2.Line2
             }
             else if (resolvedEffect == null)
             {
-                ProbeLogger.Log("ACID_GRENADE_EFFECT_UNAVAILABLE: Thrower effect GUID not loaded");
+                // Zombie.askAcid() uses the original blue effect 121.
+                // Fall back only when that real native asset is available.
+                EffectAsset legacyEffect =
+                    Assets.FindEffectAssetByGuidOrLegacyId(Guid.Empty, 121);
+                if (legacyEffect != null &&
+                    Assets.FindEffectAssetByGuidOrLegacyId(
+                        native.explosionEffectGuid, native.explosion) == null)
+                {
+                    native.explosionEffectGuid = Guid.Empty;
+                    native.explosion = 121;
+                    ProbeLogger.Log("ACID_GRENADE_EFFECT_RESTORED: native blue effect 121");
+                }
+                else
+                    ProbeLogger.Log("ACID_GRENADE_EFFECT_UNAVAILABLE: no Thrower effect loaded");
             }
+            // This ID is our own 3m weak splash, not a generic Workshop
+            // throwable. Recover missing damage metadata only when the
+            // installed asset accidentally supplies an inert payload.
+            if (native.range <= 0.5f) native.range = 3.0f;
+            if (native.zombieDamage <= 0.5f) native.zombieDamage = 24.0f;
             ProbeLogger.Log("ACID_GRENADE_NATIVE_CONFIG: radius=" +
                 native.range.ToString("F1") + " zombieDamage=" +
                 native.zombieDamage.ToString("F1") + " fuse=" +
