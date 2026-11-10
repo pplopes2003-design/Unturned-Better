@@ -99,6 +99,13 @@ namespace Unturned2.Line2
                 {
                     _pending = Treatment.None;
                     _nextAttempt = Time.time + 3f;
+                    PrototypeAnimation anim = GetComponent<PrototypeAnimation>();
+                    if (anim != null) anim.CancelMedicalTreatment();
+                    Line2NpcWeaponPresentation presentation =
+                        GetComponent<Line2NpcWeaponPresentation>();
+                    if (presentation != null) presentation.CancelMedicalPose();
+                    ProbeLogger.Log("NPC_MEDICAL_INTERRUPTED: actor=" +
+                        _actor.Identity + " (verified danger)");
                     return;
                 }
                 if (Time.time >= _finishesAt)
