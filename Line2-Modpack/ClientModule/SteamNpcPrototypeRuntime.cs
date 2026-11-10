@@ -1092,6 +1092,33 @@ namespace Unturned2.Line2
         private Line2NPCRangedExecutor _rangedExecutor;
         internal bool IsMoving { get; private set; }
         internal Line2MobileNPCLocomotionPolicy.Gait CurrentGait { get; private set; }
+        private float _nextPrecisionSightRefresh;
+        private float _cachedPrecisionSightRange = 20f;
+        internal float EffectiveVisualRange
+        {
+            get
+            {
+                if (Time.time >= _nextPrecisionSightRefresh)
+                {
+                    _nextPrecisionSightRefresh = Time.time + 2.0f;
+                    _cachedPrecisionSightRange = 20f;
+                    if (_inventory != null)
+                    {
+                        uint gunInstance;
+                        Item owned;
+                        ItemGunAsset weapon;
+                        if (_inventory.TryGetBestGun(out gunInstance,
+                            out owned, out weapon) &&
+                            weapon != null &&
+                            Line2NpcSniperPolicy.IsPrecisionWeapon(
+                                weapon.hasSemi, weapon.hasAuto, weapon.range))
+                            _cachedPrecisionSightRange =
+                                Line2NpcSniperPolicy.SightRange(true, weapon.range);
+                    }
+                }
+                return _cachedPrecisionSightRange;
+            }
+        }
         internal bool HasUsableGun
         {
             get { return _rangedExecutor != null && _rangedExecutor.HasUsableGun; }
@@ -1615,7 +1642,8 @@ namespace Unturned2.Line2
             bool clearSight = player != null && player.life != null &&
                 !player.life.isDead &&
                 (player.transform.position - transform.position).sqrMagnitude <=
-                    ThreatRadius * ThreatRadius && CanSeePlayer(player, true);
+                    EffectiveVisualRange * EffectiveVisualRange &&
+                    CanSeePlayer(player, true);
             float observedSpeed = 0f;
             if (player != null)
             {
@@ -1659,7 +1687,7 @@ namespace Unturned2.Line2
             Line2NpcVisualRecognitionPolicy.Recognition recognition =
                 _visualRecognition.Sample(Time.time, clearSight, dot,
                     bearing.magnitude, observedSpeed,
-                    ambientRecognition, silhouette);
+                    ambientRecognition, silhouette, EffectiveVisualRange);
             if (clearSight && player != null && _animation != null &&
                 recognition ==
                     Line2NpcVisualRecognitionPolicy.Recognition.Suspicious)
@@ -2798,7 +2826,7 @@ namespace Unturned2.Line2
                 Vector3.up * targetHeight;
             Vector3 to = target - source;
             float distance = to.magnitude;
-            if (distance < 0.15f || distance > ThreatRadius + 0.5f)
+            if (distance < 0.15f || distance > EffectiveVisualRange + 0.5f)
                 return false;
             // Filter physics like the combat perception adapter: ignore our
             // own six anatomical triggers but respect actual walls, CLIP,
