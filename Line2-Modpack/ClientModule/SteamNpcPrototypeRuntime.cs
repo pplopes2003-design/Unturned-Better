@@ -42,6 +42,7 @@ namespace Unturned2.Line2
         private const float SaveIntervalSeconds = 30f;
 
 
+        internal bool CombatTotalMode { get { return _mode == "total"; } }
         internal int SceneActorCount { get { return ActiveCount; } }
         public int ActiveCount
         {
