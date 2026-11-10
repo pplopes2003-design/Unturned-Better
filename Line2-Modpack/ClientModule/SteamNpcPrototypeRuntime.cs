@@ -572,6 +572,19 @@ namespace Unturned2.Line2
                             " kit=" + kitStatus +
                             " (civilian A-Life suspended)");
                     }
+                    if (_mode == "total")
+                    {
+                        // Real 50% selection for FRESH distant Combat Total
+                        // soldiers. Vehicle creation is intentionally gated
+                        // until native NPC driving/seat authority is real.
+                        var mission =
+                            instance.AddComponent<Line2NpcVehicleMissionState>();
+                        float distanceFromPlayer = Player.player != null
+                            ? Vector3.Distance(location,
+                                Player.player.transform.position) : 0f;
+                        mission.Initialize(actor, !_restoringActor,
+                            distanceFromPlayer);
+                    }
                     actor.Died += OnActorDied;
                     created.Add(actor);
                 }
