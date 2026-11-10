@@ -327,6 +327,42 @@ internal static class Program
             Console.Error.WriteLine("Legacy locomotion did not stop without destination.");
             return 17;
         }
+        // Investigation should cover distance promptly, then slow down
+        // near the last observed clue. Commitment prevents gait flicker.
+        var searchGait = new Line2MobileNPCLocomotionPolicy();
+        var searchApproach = new Line2MobileNPCLocomotionPolicy.Situation
+        {
+            HasDestination = true, Investigating = true,
+            TargetVisible = false, DestinationDistance = 24f
+        };
+        if (searchGait.Decide(searchApproach, 1f) !=
+                Line2MobileNPCLocomotionPolicy.Gait.Sprint)
+        {
+            Console.Error.WriteLine("NPC_SEARCH_GAIT_FAILED: far clue approach.");
+            return 87;
+        }
+        searchApproach.DestinationDistance = 12f;
+        if (searchGait.Decide(searchApproach, 2.2f) !=
+                Line2MobileNPCLocomotionPolicy.Gait.Walk)
+        {
+            Console.Error.WriteLine("NPC_SEARCH_GAIT_FAILED: middle-distance approach.");
+            return 88;
+        }
+        searchApproach.DestinationDistance = 4f;
+        if (searchGait.Decide(searchApproach, 3.4f) !=
+                Line2MobileNPCLocomotionPolicy.Gait.Sneak)
+        {
+            Console.Error.WriteLine("NPC_SEARCH_GAIT_FAILED: final careful sweep.");
+            return 89;
+        }
+        searchApproach.Injured = true;
+        if (searchGait.Decide(searchApproach, 6f) !=
+                Line2MobileNPCLocomotionPolicy.Gait.Walk)
+        {
+            Console.Error.WriteLine("NPC_SEARCH_GAIT_FAILED: injury must slow search.");
+            return 90;
+        }
+        Console.WriteLine("NPC_SEARCH_GAIT_OK: sprint, walk, near-clue sneak and injury.");
         Console.WriteLine("LINE1_PORT_REGRESSION_OK: lost-LOS memory, physical search spiral,");
         Console.WriteLine("return to spawn, evidence expiry, pursuit sprint and no-destination hold.");
 
