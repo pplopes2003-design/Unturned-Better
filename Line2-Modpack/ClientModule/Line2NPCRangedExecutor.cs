@@ -16,7 +16,7 @@ namespace Unturned2.Line2
     /// </summary>
     internal sealed class Line2NPCRangedExecutor : MonoBehaviour
     {
-        private const float HardMaximumRange = 65f;
+        private const float HardMaximumRange = Line2NpcSniperPolicy.MaximumRange;
         private const int MaxShotsPerFrame = 3;
         private readonly RaycastHit[] _hits = new RaycastHit[24];
         private static int _lastFrame = -1;
@@ -165,7 +165,11 @@ namespace Unturned2.Line2
             // reaction delay forever and NPCs could never fire.
             if (!Line2NpcFireCadencePolicy.MayFire(
                     Time.time, _acquiredAt, _nextShotAt)) return;
-            float gunRange = Mathf.Min(gun.range, HardMaximumRange);
+            bool sniper = Line2NpcSniperPolicy.IsPrecisionWeapon(
+                gun.hasSemi, gun.hasAuto, gun.range);
+            float gunRange = sniper
+                ? Mathf.Min(gun.range, HardMaximumRange)
+                : Mathf.Min(gun.range, 65f);
             if (!_perception.HasVerifiedSight(target, kind, gunRange))
                 return;
             if (_actor.ShouldHoldPreparedAmbushShot(target))
@@ -175,6 +179,12 @@ namespace Unturned2.Line2
             Vector3 offset = target.position + Vector3.up * 1.0f - origin;
             float length = offset.magnitude;
             if (length < 1f || length > gunRange) return;
+            if (sniper && !Line2NpcSniperPolicy.MayTakePrecisionShot(
+                    true, true, HasMovement(),
+                    _actor.IsTacticallyRetreating,
+                    _actor.UnderVerifiedSuppression,
+                    Time.time - _acquiredAt, length, gun.range))
+                return;
 
             Vector3 facing = transform.forward;
             facing.y = 0f;
@@ -208,6 +218,10 @@ namespace Unturned2.Line2
                 length, HasMovement(), _burstRemaining,
                 _actor.RecentlyDamaged, _actor.UnderVerifiedSuppression,
                 _actor.HealthFraction);
+            if (sniper)
+                spread = Line2NpcSniperPolicy.PrecisionSpread(
+                    length, _actor.RecentlyDamaged ||
+                        _actor.HealthFraction < 0.60f, spread);
             // Vanilla magazines may fire multiple pellets per spent shell.
             // Consume ammunition ONCE, then independently trace each pellet.
             // Cap untrusted custom asset data to a bounded hit budget.
@@ -250,9 +264,12 @@ namespace Unturned2.Line2
                     UnityEngine.Random.Range(2, 6));
                 // Semi mode has a human trigger-reset delay, while
                 // native burst and auto modes regroup between volleys.
-                _nextShotAt = Time.time + (semi
-                    ? UnityEngine.Random.Range(0.38f, 0.82f)
-                    : UnityEngine.Random.Range(0.55f, 1.3f));
+                _nextShotAt = Time.time + (sniper
+                    ? Line2NpcSniperPolicy.NextShotDelay(gun.reloadTime) +
+                        UnityEngine.Random.Range(0.12f, 0.65f)
+                    : semi
+                        ? UnityEngine.Random.Range(0.38f, 0.82f)
+                        : UnityEngine.Random.Range(0.55f, 1.3f));
             }
             else
             {
@@ -274,6 +291,7 @@ namespace Unturned2.Line2
                     " nativeGun=" + gun.id + " ammo=" + left +
                     " firemode=" + nativeMode +
                     " pelletHits=" + pelletHits + "/" + pellets +
+                    " sniper=" + sniper +
                     " spreadDeg=" + spread.ToString("F1") +
                     " nearMissSuppressed=" + suppressionCommitted);
                 _nextLogAt = Time.time + 12f;
