@@ -12,13 +12,15 @@ namespace Unturned2.Line2
     internal static class Line2NpcVehicleMissionPolicy
     {
         internal enum Mission { OnFoot, RoadDeployment, VehiclePursuit, ArmoredSupport }
+        // 200 yards = 182.88 m. Round up to an intuitive 200m threshold.
+        internal const float DistantDeploymentMeters = 200f;
 
         internal static bool RollDistantDeployment(bool combatTotal,
             bool hostile, bool newlySpawned, float playerDistance,
             float randomRoll)
         {
             return combatTotal && hostile && newlySpawned &&
-                Valid(playerDistance) && playerDistance >= 85f &&
+                Valid(playerDistance) && playerDistance >= DistantDeploymentMeters &&
                 Valid(randomRoll) && randomRoll >= 0f && randomRoll < 0.5f;
         }
 
