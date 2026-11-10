@@ -1,6 +1,6 @@
 # Linha 2 — ADR: NPC brain and vehicle controller are separate
 
-Status: **Accepted, partially implemented** (2026-11-10). The controller, car discovery, reservation, native A* approach, local test command and pure driving decisions are implemented. NPC seating, ignition, physics authorization and replication remain pending.
+Status: **Accepted, partially implemented** (2026-11-10). The controller, car discovery, reservation, native A* approach, local test command and pure driving decisions are implemented. NPC native seating, ignition and replication remain pending; local WheelCollider movement now has an explicit, isolated experimental test.
 
 ## Ownership
 
@@ -85,3 +85,17 @@ Vehicles and drivers should have their own identity and finite spawn budget in f
 The original manual `spawn hostile` still creates NPCs near the user intentionally. For a deliberate remote test, issue **`spawn distant 1`** in Combat Total from the F7 console (or the local chat command wrapper). If no map spawnpoints and physics are loaded at this distance, the command fails rather than substituting a nearby spawn. Natural remote spawning likewise defers until a real safe anchor is eligible.
 
 Vehicle sightings no longer create permanent tracking: `Line2NpcVehicleObservationMemory` stores an approximate 20m sector for at most 8 seconds after firsthand visual contact. Engine-authorized road driving and tank/turret use remain blocked until they can be represented without fake player seats and without bypassing multiplayer state.
+
+## Explicit singleplayer WheelCollider test (not production driving)
+
+`Line2NpcCarWheelDriveTest` is now wired **only** behind the local admin command **`car drive-test`**. It first asks the nearest eligible NPC to reserve a stationary native car and reach its actual seat via native A*. Then a conservative four-wheel physics experiment temporarily parents the NPC avatar to the seat and disables its humanoid movement controller while applying **bounded real WheelCollider motor/brake/steer torque**. The vehicle still has **no SteamPlayer occupant**, meaning `InteractableVehicle.isDriven` remains false, native engine ignition/audio and multiplayer driving replication are not claimed to work. This tests local Rigidbody motion only; it is NOT the final native vehicle adapter.
+
+Safety restrictions: one local host with cheats, four valid physical wheels, >=2 powered wheels, recognizable front/rear axles, dynamic rigidbody with limited mass, empty unlocked car, real fuel >=2, a ground-verified 18m waypoint ahead, obstacle checks, reverse safety, capped speed ~9m/s, <=25s duration, player entry denied during test, native fuel debited, wheels restored and NPC dismounted on stop. If dismount ground is unsafe the experimental test falls back to its previously validated boarding position, with an explicit recovery log. Tanks, tracked vehicles, Workshop special physics, remote multiplayer and automated Combat Total waves are **not** allowed to activate this experimental path.
+
+Test commands on **F7** (after recompiling and installing):
+- `car audit` — inspect actual car, wheels and seats
+- `car approach` — NPC walks to driver seat but does not move car
+- `car drive-test` — attempts one 18m local physics trial (use on open flat roads with a compatible parked car)
+- `car stop-test` — cancels the active trial.
+
+Log markers: `NPC_CAR_WHEEL_TEST_BEGIN`, `NPC_CAR_WHEEL_TEST_PROGRESS`, `NPC_CAR_WHEEL_TEST_STOP`, `NPC_CAR_TEST_EXIT_FALLBACK`. **Do not consider actual NPC driving or pursuit finished unless this local experiment passes and a native seat/authority/replication adapter is implemented.**
