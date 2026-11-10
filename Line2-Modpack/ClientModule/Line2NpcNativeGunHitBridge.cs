@@ -74,7 +74,20 @@ namespace Unturned2.Line2
             if (!Line2MobileNPCDamageBridge.TryResolvePhysicalServerHit(
                 start, reported, asset.range, out realHit,
                 out physicalDistance))
+            {
+                // Diagnostic only: most bullet reports correctly hit terrain,
+                // so rate-limit rather than logging every ordinary shot.
+                // Helps distinguish an absent native event from an NPC
+                // anatomy/occlusion failure on a real Windows test.
+                if (Time.time >= _nextLogAt)
+                {
+                    ProbeLogger.Log("NPC_GUN_RAY_UNRESOLVED: asset=" + asset.id +
+                        " reportedDistance=" + distance.ToString("F1") +
+                        " (first-hit validation rejected or no NPC volume)");
+                    _nextLogAt = Time.time + 8f;
+                }
                 return;
+            }
             Line2MobileNPCInjurySystem.BodyPart part;
             if (!Line2MobileNPCBodyHitbox.TryResolve(realHit, out part))
                 return;
