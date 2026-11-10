@@ -2184,18 +2184,26 @@ namespace Unturned2.Line2
                         Transform enemy = _combatPerception.VisibleTarget;
                         float firingDistance = Vector3.Distance(
                             transform.position, enemy.position);
+                        bool precision =
+                            Line2NpcSniperPolicy.IsPrecisionWeapon(
+                                gunAsset.hasSemi, gunAsset.hasAuto,
+                                gunAsset.range);
                         bool sightNow = _combatPerception.HasVerifiedSight(
                             enemy, _combatPerception.Kind,
-                            Mathf.Min(65f, gunAsset.range));
+                            Mathf.Min(precision
+                                ? Line2NpcSniperPolicy.MaximumRange : 65f,
+                                gunAsset.range));
                         if (Line2NpcFiringPositionPolicy.ShouldHoldPosition(
-                            sightNow, true, false, RecentlyDamaged,
-                            firingDistance, gunAsset.range))
+                            sightNow, true, false, RecentlyDamaged ||
+                                UnderVerifiedSuppression,
+                            firingDistance, gunAsset.range, precision))
                         {
                             // Line 1: a long static firing lane needs a
                             // physically traversable lateral improvement,
                             // not indefinite stationary target practice.
                             bool relocated = false;
-                            if (Time.time >= _nextFiringRepositionAt &&
+                            if (!precision &&
+                                Time.time >= _nextFiringRepositionAt &&
                                 _tacticalRouteGate != null &&
                                 !UnderVerifiedSuppression)
                             {
