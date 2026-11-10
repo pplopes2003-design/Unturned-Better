@@ -69,11 +69,15 @@ namespace Unturned2.Line2
 
         private bool IsActiveDanger()
         {
+            // Never stop to bandage while the NPC is fleeing, being shot at,
+            // or has a verified enemy in sight. In particular critical health
+            // is a reason to seek safety, not permission to heal in the open.
+            if (_actor != null && (_actor.IsTacticallyRetreating ||
+                _actor.RecentlyDamaged))
+                return true;
             return _sight != null &&
                 _sight.Kind != Line2NPCCombatPerception.TargetKind.None &&
-                _sight.VisibleTarget != null && _actor != null &&
-                !_actor.IsTacticallyRetreating &&
-                _vitals != null && _vitals.HealthFraction > 0.25f;
+                _sight.VisibleTarget != null;
         }
 
         private void Update()
