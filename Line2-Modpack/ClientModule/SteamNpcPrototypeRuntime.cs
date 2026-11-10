@@ -1147,6 +1147,11 @@ namespace Unturned2.Line2
         private readonly Line2MobileNPCBrain _legacyBrain = new Line2MobileNPCBrain();
         private readonly Line2MobileNPCPlayerKnowledge _knowledge =
             new Line2MobileNPCPlayerKnowledge();
+        private readonly Line2NpcVisualRecognitionPolicy _visualRecognition =
+            new Line2NpcVisualRecognitionPolicy();
+        private Vector3 _visualPreviousPlayerPosition;
+        private float _visualPreviousPlayerAt = -1f;
+        private float _nextVisualSuspicionLogAt;
         private readonly Line2NpcInvestigationProbe _investigationProbe =
             new Line2NpcInvestigationProbe();
         private readonly Line2NpcConcealedApproachPlanner _stalkPlanner =
@@ -1211,6 +1216,9 @@ namespace Unturned2.Line2
             _legacyBrain.SetSpawnPosition(transform.position);
             _legacyBrain.Reset();
             _knowledge.Clear();
+            _visualRecognition.Reset();
+            _visualPreviousPlayerAt = -1f;
+            _nextVisualSuspicionLogAt = 0f;
             _locomotion.Reset();
             _nextLegacyArrivalCheckAt = Time.time + 0.75f;
             string[] names = { "Alex", "Morgan", "Sam", "Casey", "Jordan", "Riley", "Taylor", "Robin" };
@@ -1600,10 +1608,50 @@ namespace Unturned2.Line2
             visible = false;
             lastKnown = null;
             if (_disposition != "hostile" || _combatMode == "passive") return;
-            if (player != null && player.life != null &&
+            bool clearSight = player != null && player.life != null &&
                 !player.life.isDead &&
-                (player.transform.position - transform.position).sqrMagnitude <= ThreatRadius * ThreatRadius &&
-                CanSeePlayer(player))
+                (player.transform.position - transform.position).sqrMagnitude <=
+                    ThreatRadius * ThreatRadius && CanSeePlayer(player);
+            float observedSpeed = 0f;
+            if (player != null)
+            {
+                if (_visualPreviousPlayerAt >= 0f &&
+                    Time.time > _visualPreviousPlayerAt)
+                {
+                    Vector3 delta = player.transform.position -
+                        _visualPreviousPlayerPosition;
+                    delta.y = 0f;
+                    observedSpeed = Mathf.Clamp(delta.magnitude /
+                        (Time.time - _visualPreviousPlayerAt), 0f, 9f);
+                }
+                _visualPreviousPlayerPosition = player.transform.position;
+                _visualPreviousPlayerAt = Time.time;
+            }
+            Vector3 bearing = player != null
+                ? player.transform.position - transform.position : Vector3.zero;
+            bearing.y = 0f;
+            Vector3 forward = transform.forward;
+            forward.y = 0f;
+            float dot = bearing.sqrMagnitude > 0.001f &&
+                forward.sqrMagnitude > 0.001f
+                ? Vector3.Dot(bearing.normalized, forward.normalized) : -1f;
+            // Neutral light factor until a verified native lighting sample
+            // exists; do not invent visibility from clock time or weather.
+            Line2NpcVisualRecognitionPolicy.Recognition recognition =
+                _visualRecognition.Sample(Time.time, clearSight, dot,
+                    bearing.magnitude, observedSpeed, 1f);
+            if (recognition ==
+                Line2NpcVisualRecognitionPolicy.Recognition.Suspicious &&
+                Time.time >= _nextVisualSuspicionLogAt)
+            {
+                _nextVisualSuspicionLogAt = Time.time + 12f;
+                ProbeLogger.Log("NPC_VISUAL_SUSPICION: actor=" + _identity +
+                    " confidence=" +
+                    _visualRecognition.Evidence.ToString("F2") +
+                    " (not a combat target; no live coordinate transfer)");
+            }
+            if (clearSight && recognition ==
+                Line2NpcVisualRecognitionPolicy.Recognition.Confirmed)
             {
                 visible = true;
                 _threatVisible = true;
