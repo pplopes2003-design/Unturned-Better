@@ -30,6 +30,8 @@ internal static class Program
             return 1;
         }
 
+        if (!VisualRecognitionTests.Run())
+            return 91;
         if (!NativeArrivalTests.Run())
             return 63;
         if (!PhysicalProgressTests.Run())
