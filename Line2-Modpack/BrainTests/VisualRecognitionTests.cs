@@ -55,6 +55,29 @@ internal static class VisualRecognitionTests
         }
         if (darkness.Evidence >= daylight.Evidence)
             return Fail("night does not delay recognition");
+        var standing = new Line2NpcVisualRecognitionPolicy();
+        var crouching = new Line2NpcVisualRecognitionPolicy();
+        var prone = new Line2NpcVisualRecognitionPolicy();
+        for (int i = 0; i < 7; ++i)
+        {
+            float now = i * 0.15f;
+            standing.Sample(now, true, 0.9f, 14f, 0f, 1f, 1f);
+            crouching.Sample(now, true, 0.9f, 14f, 0f, 1f, 0.70f);
+            prone.Sample(now, true, 0.9f, 14f, 0f, 1f, 0.42f);
+        }
+        if (!(standing.Evidence > crouching.Evidence &&
+              crouching.Evidence > prone.Evidence))
+            return Fail("native player posture does not modify silhouette");
+        var nearbyStand = new Line2NpcVisualRecognitionPolicy();
+        var nearbyProne = new Line2NpcVisualRecognitionPolicy();
+        for (int i = 0; i < 8; ++i)
+        {
+            float now = i * 0.15f;
+            nearbyStand.Sample(now, true, 1f, 0f, 0f, 1f, 1f);
+            nearbyProne.Sample(now, true, 1f, 0f, 0f, 1f, 0.42f);
+        }
+        if (Math.Abs(nearbyStand.Evidence - nearbyProne.Evidence) > 0.0001f)
+            return Fail("prone posture falsely hides a point-blank target");
         sight.Reset();
         for (int i = 0; i < 20; i++)
             if (sight.Sample(i * 0.15f, true, 0.99f, 24f, 4f, 1f) !=
