@@ -12,7 +12,6 @@ namespace Unturned2.Line2
     internal sealed class Line2NpcStanceController : MonoBehaviour
     {
         private const float CrouchedHeight = 1.24f;
-        private const float StandProbeMargin = 0.04f;
         private const float MinimumCommitment = 0.75f;
         private CharacterController _motor;
         private float _standingHeight;
@@ -65,16 +64,32 @@ namespace Unturned2.Line2
 
         private bool CanStand()
         {
-            // Do not stand through ceilings. Native BLOCK_COLLISION covers
-            // the physical world without including the actor's own
-            // anatomical Entity-layer trigger hitboxes.
-            float radius = Mathf.Max(0.05f, _motor.radius - 0.025f);
-            Vector3 center = transform.TransformPoint(_standingCenter);
-            float halfSegment = Mathf.Max(0f, _standingHeight * 0.5f - radius);
-            Vector3 bottom = center - Vector3.up * halfSegment;
-            Vector3 top = center + Vector3.up * halfSegment;
-            return !Physics.CheckCapsule(bottom, top, radius,
-                RayMasks.BLOCK_COLLISION, QueryTriggerInteraction.Ignore);
+            // Port the Line 1 motor's proven clearance approach: inspect
+            // only the NEW head space. Testing the entire standing capsule
+            // also overlaps floor contact and can trap NPCs in crouch.
+            float radius = Mathf.Max(0.05f, _motor.radius * 0.9f);
+            float currentTop = transform.position.y + _motor.center.y +
+                _motor.height * 0.5f;
+            float desiredTop = transform.position.y + _standingCenter.y +
+                _standingHeight * 0.5f;
+            Vector3 lowerHead = new Vector3(transform.position.x,
+                Mathf.Max(currentTop + radius * 0.2f, desiredTop - radius),
+                transform.position.z);
+            Vector3 upperHead = new Vector3(transform.position.x,
+                Mathf.Max(lowerHead.y, desiredTop - radius * 0.2f),
+                transform.position.z);
+            Collider[] hits = Physics.OverlapCapsule(
+                lowerHead, upperHead, radius, RayMasks.BLOCK_COLLISION,
+                QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < hits.Length; i++)
+            {
+                Collider hit = hits[i];
+                if (hit != null && hit.transform != transform &&
+                    !hit.transform.IsChildOf(transform))
+                    return false;
+            }
+            return true;
         }
+
     }
 }
