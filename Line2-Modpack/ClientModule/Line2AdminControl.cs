@@ -237,7 +237,7 @@ namespace Unturned2.Line2
                         }
                         SteamNpcPrototypeRuntime runtime =
                             GetComponent<SteamNpcPrototypeRuntime>();
-                        string detail;
+                        string detail = "NPC runtime not ready";
                         bool succeeded = runtime != null &&
                             runtime.TrySpawnDistantCombatUnit(
                                 countDistant, out detail);
