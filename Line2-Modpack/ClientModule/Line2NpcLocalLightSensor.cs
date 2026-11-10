@@ -70,7 +70,7 @@ namespace Unturned2.Line2
             _nextCacheAt = Time.time + CacheSeconds;
             // Shared snapshot avoids per-NPC scene-wide Light scanning.
             // Disabled/missing lights are filtered when sampled.
-            _lights = Object.FindObjectsOfType<Light>();
+            _lights = UnityEngine.Object.FindObjectsOfType<Light>();
             if (_lights == null) _lights = new Light[0];
         }
     }
