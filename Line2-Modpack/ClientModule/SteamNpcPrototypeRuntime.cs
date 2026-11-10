@@ -2196,7 +2196,7 @@ namespace Unturned2.Line2
             IsMoving = Time.deltaTime > 0f &&
                 actualStep.sqrMagnitude > (Time.deltaTime * 0.12f) *
                     (Time.deltaTime * 0.12f);
-            if (_animation != null) _animation.SetMoving(IsMoving);
+            if (_animation != null) _animation.SetGait(gait, IsMoving);
             // Arrival is a physical observation, not merely a requested
             // waypoint. The migrated Line 1 brain advances its three-point
             // investigation spiral only when the CharacterController arrives.
