@@ -1611,7 +1611,7 @@ namespace Unturned2.Line2
             bool clearSight = player != null && player.life != null &&
                 !player.life.isDead &&
                 (player.transform.position - transform.position).sqrMagnitude <=
-                    ThreatRadius * ThreatRadius && CanSeePlayer(player);
+                    ThreatRadius * ThreatRadius && CanSeePlayer(player, true);
             float observedSpeed = 0f;
             if (player != null)
             {
@@ -1635,11 +1635,14 @@ namespace Unturned2.Line2
             float dot = bearing.sqrMagnitude > 0.001f &&
                 forward.sqrMagnitude > 0.001f
                 ? Vector3.Dot(bearing.normalized, forward.normalized) : -1f;
-            // Neutral light factor until a verified native lighting sample
-            // exists; do not invent visibility from clock time or weather.
+            // Use the game's authoritative outdoor day/night state only as
+            // a COARSE exposure modifier. This does not pretend to sample
+            // room shadows, artificial lights or the player's equipment.
+            // Sunlit daytime remains the baseline; night delays recognition.
+            float ambientRecognition = LightingManager.isNighttime ? 0.45f : 1f;
             Line2NpcVisualRecognitionPolicy.Recognition recognition =
                 _visualRecognition.Sample(Time.time, clearSight, dot,
-                    bearing.magnitude, observedSpeed, 1f);
+                    bearing.magnitude, observedSpeed, ambientRecognition);
             if (recognition ==
                 Line2NpcVisualRecognitionPolicy.Recognition.Suspicious &&
                 Time.time >= _nextVisualSuspicionLogAt)
@@ -2732,7 +2735,7 @@ namespace Unturned2.Line2
             return false;
         }
 
-        private bool CanSeePlayer(Player player)
+        private bool CanSeePlayer(Player player, bool peripheral = false)
         {
             if (player == null || player.life == null || player.life.isDead)
                 return false;
@@ -2742,8 +2745,10 @@ namespace Unturned2.Line2
             facing.y = 0f;
             if (flat.sqrMagnitude < 0.0001f ||
                 facing.sqrMagnitude < 0.0001f ||
-                !Line2NPCCombatRules.WithinVisualArc(
-                    Vector3.Dot(flat.normalized, facing.normalized)))
+                (peripheral
+                    ? Vector3.Dot(flat.normalized, facing.normalized) < 0.15f
+                    : !Line2NPCCombatRules.WithinVisualArc(
+                        Vector3.Dot(flat.normalized, facing.normalized))))
                 return false;
             Vector3 source = transform.position + Vector3.up * 1.5f;
             Vector3 target = player.transform.position + Vector3.up * 1.3f;
