@@ -67,3 +67,13 @@ The tactical vehicle subsystem has **three separately tested intents**, not a un
 **Source of truth:** the AI issues the mission, `Line2NpcVehicleController` owns car reservations and entry, `Line2NpcVehicleSteeringPolicy` produces control demands, and a *future* Steam-authoritative driving/replication adapter will apply vehicle physics. Vehicles from Workshop are never assumed compatible based solely on `EEngine.CAR`. The driver adapter must not change `Passenger.player`, bypass networking, or spawn unmanageable vehicles.
 
 **Acceptance tests before activation:** a complete car trip on Washington, steering/braking/collision avoidance, stop and dismount, pursuit without teleport or infinite fuel, and a separate supported tracked-vehicle trial with turret, ammo and destructibility. None is claimed to pass today.
+
+## Progress: tactical missions wired to live Combat Total NPCs
+
+`Line2NpcVehicleMissionState` is attached to fresh Combat Total fighters by `SteamNpcPrototypeRuntime` and performs the 50% distant deployment roll at >=85m. It records the selected NPC identity, never invents an actual car, and logs `NPC_VEHICLE_DEPLOYMENT_DEFERRED` because the Steam native driver adapter is not implemented. This makes the **policy and its wiring** testable without littering the world with empty vehicles.
+
+The state checks `PrototypeActor.PlayerVisible` plus the *actual* current `PlayerMovement.getVehicle()` to log `NPC_VEHICLE_ESCAPE_OBSERVED` if the player drives away under observation. This is an observed car, **not** persistent GPS tracking.
+
+`Line2NpcVehicleMissionPolicy` has independently tested rules for road pursuit, the 50% deployment roll and gated tank/armed vehicle deployment. An armored unit needs **both** validated native driver capability and weapon/turret capability before any heavy asset can be spawned. Vehicle spawn and actual pursuit are not wired until these gates are satisfied.
+
+Vehicles and drivers should have their own identity and finite spawn budget in future work so a failed reinforcement wave or NPC death never creates duplicate cars.
