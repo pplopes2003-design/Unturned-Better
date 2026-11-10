@@ -17,7 +17,6 @@ namespace Unturned2.Line2
         private bool _wantsArmoredSupport;
         private readonly Line2NpcVehicleObservationMemory _escape =
             new Line2NpcVehicleObservationMemory();
-        private bool _playerVehicleObserved;
         internal bool WantsRoadDeployment { get { return _wantsRoadDeployment; } }
         internal bool WantsArmoredSupport { get { return _wantsArmoredSupport; } }
         internal bool HasObservedVehicleEscape
@@ -79,7 +78,6 @@ namespace Unturned2.Line2
             if (!_actor.PlayerVisible || Player.player == null ||
                 Player.player.movement == null)
             {
-                _playerVehicleObserved = HasObservedVehicleEscape;
                 return;
             }
             // No omniscient car-pursuit signal: the actor must currently
@@ -94,7 +92,6 @@ namespace Unturned2.Line2
                     true, observed.transform.position.x,
                     observed.transform.position.z))
                 return;
-            _playerVehicleObserved = true;
             if (newEscape)
                 ProbeLogger.Log("NPC_VEHICLE_ESCAPE_OBSERVED: npc=" +
                     _actor.Identity + " vehicle=" + observed.instanceID +
