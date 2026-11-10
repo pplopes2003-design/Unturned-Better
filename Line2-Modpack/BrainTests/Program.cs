@@ -38,6 +38,8 @@ internal static class Program
             return 93;
         if (!VehicleReservationTests.Run())
             return 94;
+        if (!VehicleSteeringTests.Run())
+            return 95;
         if (!NativeArrivalTests.Run())
             return 63;
         if (!PhysicalProgressTests.Run())
