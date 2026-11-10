@@ -28,6 +28,15 @@ internal static class VehicleMissionTests
                 true, true, true, true, true, 80f, true))
             return Fail("pursuit requires observed car and safe maneuver");
 
+        if (!Line2NpcVehicleMissionPolicy.RollArmoredSupport(
+                true, true, true, 351f, 0.019f) ||
+            Line2NpcVehicleMissionPolicy.RollArmoredSupport(
+                true, true, true, 349f, 0.01f) ||
+            Line2NpcVehicleMissionPolicy.RollArmoredSupport(
+                true, true, true, 400f, 0.02f) ||
+            Line2NpcVehicleMissionPolicy.RollArmoredSupport(
+                false, true, true, 400f, 0.01f))
+            return Fail("rare 2pct distant armored roll");
         if (!Line2NpcVehicleMissionPolicy.MayDeployArmoredSupport(
                 true, true, true, true, true, true, true) ||
             Line2NpcVehicleMissionPolicy.MayDeployArmoredSupport(
