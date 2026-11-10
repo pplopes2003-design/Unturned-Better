@@ -480,6 +480,10 @@ namespace Unturned2.Line2
                     instance.AddComponent<Line2NpcDeathLoot>();
                     instance.AddComponent<Line2MobileNPCInjurySystem>();
                     instance.AddComponent<Line2MobileNPCDoorNavigation>();
+                    // Separate vehicle controller: reserves a real parked car
+                    // and validates the approach, but cannot fake the native
+                    // SteamPlayer-only driver seat or engine authority.
+                    instance.AddComponent<Line2NpcVehicleController>();
                     var coarseNav = instance.AddComponent<Line2CoarseRouteBridge>();
                     coarseNav.Initialize();
                     follower.AttachCoarseFallback(coarseNav);
