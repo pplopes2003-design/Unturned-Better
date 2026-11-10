@@ -46,9 +46,26 @@ namespace Unturned2.Line2
                 return 12f;
             // Never a perfect laser: angular dispersion and target movement
             // still matter, as do the original game ballistic trajectories.
-            float minimum = 0.50f + distance / 220f +
-                (injured ? 0.65f : 0f);
-            return Math.Min(normalSpread, Math.Max(0.50f, minimum));
+            float minimum = 0.30f + distance / 350f +
+                (injured ? 0.55f : 0f);
+            return Math.Min(normalSpread, Math.Max(0.30f, minimum));
+        }
+
+        /// <summary>
+        /// Approximate drop correction from the original game muzzle
+        /// velocity and gravity factor. The actual impact is still traced
+        /// by native segmented ballistics, including world obstructions.
+        /// </summary>
+        internal static float VerticalDropCompensation(float distance,
+            float muzzleVelocity, float gravityMagnitude)
+        {
+            if (!Valid(distance) || !Valid(muzzleVelocity) ||
+                !Valid(gravityMagnitude) || muzzleVelocity < 1f ||
+                muzzleVelocity > 1500f || distance > MaximumRange)
+                return 0f;
+            float time = distance / muzzleVelocity;
+            return Math.Min(3f, Math.Max(0f,
+                0.5f * gravityMagnitude * time * time));
         }
 
         internal static float NextShotDelay(float nativeReload)
