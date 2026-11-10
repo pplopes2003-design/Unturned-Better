@@ -1671,7 +1671,12 @@ namespace Unturned2.Line2
             // a COARSE exposure modifier. This does not pretend to sample
             // room shadows, artificial lights or the player's equipment.
             // Sunlit daytime remains the baseline; night delays recognition.
-            float ambientRecognition = LightingManager.isNighttime ? 0.45f : 1f;
+            // Nighttime local exposure is sampled from a shared bounded
+            // light cache and one obstruction ray, not a per-NPC scene scan.
+            float ambientRecognition = Line2NpcLocalLightSensor.Sample(
+                player != null
+                    ? player.transform.position + Vector3.up * 1.1f
+                    : transform.position, LightingManager.isNighttime);
             // Read the native stance rather than inferring it from speed:
             // a stationary crouched player and a prone player both present
             // less visible silhouette, particularly at longer range.
