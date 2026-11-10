@@ -359,7 +359,7 @@ namespace Unturned2.Line2
                 Quaternion.FromToRotation(current.normalized, direction.normalized)
                 * shoulder.rotation;
             shoulder.rotation = Quaternion.RotateTowards(
-                shoulder.rotation, requested, 63f);
+                shoulder.rotation, requested, 320f * Time.deltaTime);
         }
 
         private void LateUpdate()
@@ -405,7 +405,7 @@ namespace Unturned2.Line2
                             bore.normalized, facing) * _rightShoulder.rotation;
                         _rightShoulder.rotation = Quaternion.RotateTowards(
                             _rightShoulder.rotation, desired,
-                            Mathf.Min(angularError, 65f));
+                            Mathf.Min(angularError, 320f * Time.deltaTime));
                     }
                 }
             }
