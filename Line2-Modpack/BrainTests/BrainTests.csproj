@@ -15,6 +15,8 @@
     <Compile Include="SniperTests.cs" />
     <Compile Include="ShotCorrectionMemoryTests.cs" />
     <Compile Include="VehicleReservationTests.cs" />
+    <Compile Include="VehicleSteeringTests.cs" />
+    <Compile Include="../ClientModule/Line2NpcVehicleSteeringPolicy.cs" Link="Line2NpcVehicleSteeringPolicy.cs" />
     <Compile Include="../ClientModule/Line2NpcShotCorrectionMemory.cs" Link="Line2NpcShotCorrectionMemory.cs" />
     <Compile Include="../ClientModule/Line2NpcVehicleReservation.cs" Link="Line2NpcVehicleReservation.cs" />
     <Compile Include="../ClientModule/Line2NpcSniperPolicy.cs" Link="Line2NpcSniperPolicy.cs" />
