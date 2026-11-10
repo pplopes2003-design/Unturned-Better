@@ -380,6 +380,14 @@ namespace Unturned2.Line2
             ProbeLogger.Log("NPC_MEDICAL_POSE_BEGIN: actor=" + gameObject.name);
         }
 
+        internal void CancelMedicalPose()
+        {
+            _medicalPoseUntil = 0f;
+            if (_model != null && _medicalModelHidden)
+                _model.gameObject.SetActive(true);
+            _medicalModelHidden = false;
+        }
+
         private void LateUpdate()
         {
             if (_model != null && _medicalModelHidden &&
