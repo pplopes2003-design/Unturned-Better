@@ -30,7 +30,7 @@ $checks = [ordered]@{
 }
 foreach ($name in $checks.Keys) {
     $marker = $checks[$name]
-    $found = @($entries | Select-String -SimpleMatch $marker -Quiet).Count -gt 0
+    $found = @($entries -match [regex]::Escape($marker)).Count -gt 0
     $result = if ($found) { 'OBSERVED' } else { 'NOT OBSERVED' }
     Write-Host ('[{0}] {1} ({2})' -f $result, $name, $marker)
 }
