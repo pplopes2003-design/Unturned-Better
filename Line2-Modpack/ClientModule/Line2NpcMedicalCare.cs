@@ -38,13 +38,12 @@ namespace Unturned2.Line2
 
         private static float DressingHeal(ushort itemID)
         {
-            switch (itemID)
-            {
-                case 393: return 5f;
-                case 95: return 15f;
-                case 394: return 35f;
-                default: return 0f;
-            }
+            // Source of truth is the native asset, not hard-coded values.
+            // In particular the Combat Total starter medkit (15) was
+            // carried but never considered by the treatment executor.
+            ItemMedicalAsset asset =
+                Assets.find(EAssetType.ITEM, itemID) as ItemMedicalAsset;
+            return asset != null && !asset.isPro ? asset.health : 0f;
         }
 
         private bool Carries(ushort id)
@@ -65,7 +64,8 @@ namespace Unturned2.Line2
             // Prefer a small native dressing and preserve stronger medicine.
             return Carries(393) ? (ushort)393 :
                 Carries(95) ? (ushort)95 :
-                Carries(394) ? (ushort)394 : (ushort)0;
+                Carries(394) ? (ushort)394 :
+                Carries(15) ? (ushort)15 : (ushort)0;
         }
 
         private bool IsActiveDanger()
@@ -129,7 +129,15 @@ namespace Unturned2.Line2
                 return;
             }
             if (_vitals.HealthFraction < 0.55f && dressing != 0)
-                Begin(Treatment.Heal, dressing, DressingHeal(dressing));
+            {
+                // Preserve high-value medkits for critical wounds when a
+                // smaller genuine dressing can handle moderate injuries.
+                ushort selected = _vitals.HealthFraction < 0.30f && Carries(15)
+                    ? (ushort)15 : dressing;
+                float healAmount = DressingHeal(selected);
+                if (healAmount > 0f)
+                    Begin(Treatment.Heal, selected, healAmount);
+            }
             else if (Time.time >= _nextNoSupplyLog &&
                      (_vitals.HealthFraction < 0.55f ||
                       _injuries.HasFracturedLeg ||
