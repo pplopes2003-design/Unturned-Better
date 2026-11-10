@@ -37,6 +37,8 @@ namespace Unturned2.Line2
         private readonly System.Collections.Generic.List<string> _itemStates =
             new System.Collections.Generic.List<string>(8);
         private float _nextPoseDiagnostic;
+        private float _medicalPoseUntil;
+        private bool _medicalModelHidden;
 
         private void OnEnable()
         {
@@ -64,6 +66,8 @@ namespace Unturned2.Line2
             }
             if (_melee != null)
                 _melee.AttackCommitted -= OnMeleeCommitted;
+            _medicalPoseUntil = 0f;
+            _medicalModelHidden = false;
             ClearVisual();
             _rightHand = null;
             _leftHand = null;
@@ -362,14 +366,49 @@ namespace Unturned2.Line2
                 shoulder.rotation, requested, 320f * Time.deltaTime);
         }
 
+        internal void BeginMedicalPose(float duration)
+        {
+            if (!Provider.isServer || Dedicator.IsDedicatedServer ||
+                _vitals == null || _vitals.IsDead)
+                return;
+            _medicalPoseUntil = Time.time + Mathf.Max(0.1f, duration);
+            if (_model != null)
+            {
+                _model.gameObject.SetActive(false);
+                _medicalModelHidden = true;
+            }
+            ProbeLogger.Log("NPC_MEDICAL_POSE_BEGIN: actor=" + gameObject.name);
+        }
+
         private void LateUpdate()
         {
+            if (_model != null && _medicalModelHidden &&
+                Time.time >= _medicalPoseUntil)
+            {
+                _model.gameObject.SetActive(true);
+                _medicalModelHidden = false;
+            }
             if (_model == null || _rightShoulder == null ||
                 _leftShoulder == null || _rightGrip == null ||
                 _leftGrip == null || _vitals == null || _vitals.IsDead ||
                 Time.time < _meleeUntil ||
                 !Provider.isServer || Dedicator.IsDedicatedServer)
                 return;
+            if (Time.time < _medicalPoseUntil)
+            {
+                // Line 1's verified fallback for NPC_Client visuals with no
+                // authentic Use/Aid clip: move REAL arm bones toward the
+                // abdomen after regular animation evaluation. Presentation
+                // only; the medical executor owns inventory and health.
+                Vector3 care = (_leftShoulder.position +
+                    _rightShoulder.position) * 0.5f +
+                    transform.forward * 0.32f + Vector3.down * 0.34f;
+                RotateShoulderToward(_rightShoulder, _rightGrip,
+                    care - _rightShoulder.position);
+                RotateShoulderToward(_leftShoulder, _leftGrip,
+                    care - _leftShoulder.position);
+                return;
+            }
             Vector3 facing = transform.forward;
             Transform opponent = _combatPerception != null
                 ? _combatPerception.VisibleTarget : null;
