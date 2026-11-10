@@ -779,6 +779,7 @@ namespace Unturned2.Line2
                 Line2NPCGroupMember group = actor.GetComponent<Line2NPCGroupMember>();
                 var experience = actor.GetComponent<Line2MobileNPCAdaptiveMemory>();
                 var travel = actor.GetComponent<Line2MobileNPCTravelMemory>();
+                var sniper = actor.GetComponent<Line2NPCRangedExecutor>();
                 Vector3 p = actor.transform.position;
                 Vector3 h = actor.HomePosition;
                 records.Add(new Line2NpcPersistence.ActorRecord
@@ -799,7 +800,9 @@ namespace Unturned2.Line2
                     experiences = experience != null
                         ? experience.ExportSnapshotServer().ToArray() : null,
                     learnedRoutes = travel != null
-                        ? travel.ExportSnapshotServer().ToArray() : null
+                        ? travel.ExportSnapshotServer().ToArray() : null,
+                    sniperExperience = sniper != null
+                        ? sniper.ExportSniperExperience() : null
                 });
             }
             string detail;
@@ -902,6 +905,11 @@ namespace Unturned2.Line2
                     saved.learnedRoutes != null
                         ? new List<Line2MobileNPCTravelMemory.LearnedRoute>(
                             saved.learnedRoutes) : null);
+                var sniper = actor.GetComponent<Line2NPCRangedExecutor>();
+                if (sniper == null ||
+                    !sniper.RestoreSniperExperience(saved.sniperExperience))
+                    throw new InvalidOperationException(
+                        "saved survivor sniper practice rejected");
                 ProbeLogger.Log("NPC_MEMORY_RESTORED: actor=" + actor.Identity +
                     " experiences=" + experience.RecordCount +
                     " routes=" + travel.RouteCount);
