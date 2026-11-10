@@ -123,13 +123,13 @@ namespace Unturned2.Line2
                 return;
             }
             _zombies.Clear();
-            // One native navigation region, with the original zombie list
-            // supplied by the game. No FindObjectsOfType scans per actor.
+            float zombieSight = Mathf.Max(MaxZombieSight,
+                _owner.EffectiveVisualRange);
+            // One native navigation region; cap native query by the actual
+            // configured rifle sight range, never full-map scans.
             ZombieManager.getZombiesInRadius(transform.position,
                 zombieSight * zombieSight, _zombies);
             Zombie best = null;
-            float zombieSight = Mathf.Max(MaxZombieSight,
-                _owner.EffectiveVisualRange);
             float bestZombieSq = zombieSight * zombieSight;
             int checkedCount = 0;
             foreach (Zombie candidate in _zombies)
@@ -141,7 +141,7 @@ namespace Unturned2.Line2
                 float sq = (candidate.transform.position - transform.position).sqrMagnitude;
                 if (sq >= bestZombieSq ||
                     !HasVerifiedSight(candidate.transform, TargetKind.Zombie,
-                        MaxZombieSight))
+                        zombieSight))
                     continue;
                 bestZombieSq = sq;
                 best = candidate;
