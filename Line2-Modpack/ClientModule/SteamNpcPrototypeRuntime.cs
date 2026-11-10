@@ -1640,9 +1640,22 @@ namespace Unturned2.Line2
             // room shadows, artificial lights or the player's equipment.
             // Sunlit daytime remains the baseline; night delays recognition.
             float ambientRecognition = LightingManager.isNighttime ? 0.45f : 1f;
+            // Read the native stance rather than inferring it from speed:
+            // a stationary crouched player and a prone player both present
+            // less visible silhouette, particularly at longer range.
+            float silhouette = 1f;
+            if (player != null && player.stance != null)
+            {
+                switch (player.stance.stance)
+                {
+                    case EPlayerStance.CROUCH: silhouette = 0.70f; break;
+                    case EPlayerStance.PRONE: silhouette = 0.42f; break;
+                }
+            }
             Line2NpcVisualRecognitionPolicy.Recognition recognition =
                 _visualRecognition.Sample(Time.time, clearSight, dot,
-                    bearing.magnitude, observedSpeed, ambientRecognition);
+                    bearing.magnitude, observedSpeed,
+                    ambientRecognition, silhouette);
             if (recognition ==
                 Line2NpcVisualRecognitionPolicy.Recognition.Suspicious &&
                 Time.time >= _nextVisualSuspicionLogAt)
