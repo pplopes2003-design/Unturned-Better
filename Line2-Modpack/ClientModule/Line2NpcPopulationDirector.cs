@@ -15,6 +15,7 @@ namespace Unturned2.Line2
     {
         private const float SpawnInterval = 18f;
         private const float MinDistanceFromPlayer = 48f;
+        private const float MaxRemoteSpawnDistance = 420f;
         private float _nextSpawn;
         private float _nextWarning;
         private SteamNpcPrototypeRuntime _runtime;
@@ -45,6 +46,14 @@ namespace Unturned2.Line2
                 return;
             }
             Vector3 player = Player.player.transform.position;
+            // Combat Total reinforcements use actual map-authored spawn
+            // anchors at least 200m away; this is not a teleport toward
+            // the current, unobserved player position by an existing NPC.
+            // The local Player position is used solely to select a birth
+            // region. Native ground and loaded-region checks must still pass.
+            float minimum = _runtime.CombatTotalMode
+                ? Line2NpcVehicleMissionPolicy.DistantDeploymentMeters
+                : MinDistanceFromPlayer;
             // Compare only a bounded number of real map-authored anchors;
             // do not synthesize an omniscient world destination or use NPC
             // positions to determine where they should spawn.
@@ -57,14 +66,17 @@ namespace Unturned2.Line2
                 Vector3 site = anchor.point;
                 Vector3 difference = site - player;
                 difference.y = 0f;
-                if (difference.sqrMagnitude <
-                    MinDistanceFromPlayer * MinDistanceFromPlayer ||
+                if (difference.sqrMagnitude < minimum * minimum ||
+                    difference.sqrMagnitude >
+                        MaxRemoteSpawnDistance * MaxRemoteSpawnDistance ||
                     !Level.checkSafeIncludingClipVolumes(site))
                     continue;
                 if (_runtime.TryDirectorNaturalSpawn(site))
                     return;
             }
-            Warn("no safe native spawn anchor currently eligible");
+            Warn(_runtime.CombatTotalMode
+                ? "no loaded, safe, map-authored Combat Total anchor at least 200m away"
+                : "no safe native spawn anchor currently eligible");
         }
 
         private void Warn(string message)
