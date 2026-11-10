@@ -103,6 +103,11 @@ namespace Unturned2.Line2
                 Mathf.Max(0.2f, action.length));
         }
 
+        internal void CancelMedicalTreatment()
+        {
+            _medicalUntil = 0f;
+        }
+
         internal void SetMoving(bool moving)
         {
             SetGait(Line2MobileNPCLocomotionPolicy.Gait.Walk, moving, false);
