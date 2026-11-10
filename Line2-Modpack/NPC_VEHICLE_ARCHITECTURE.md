@@ -55,3 +55,15 @@ Related source: `ClientModule/Line2NpcVehicleDiscovery.cs` is currently read-onl
 - Why no direct seat hack: `Passenger.player` is `SteamPlayer`, `InteractableVehicle.isDriven` uses it, ignition is tied to the driver and native `simulate` assumes a real networked player. Calling `simulate` or overwriting `Passenger.player` would violate those invariants. A separate native-authority/replication solution and real Workshop capability inspection are prerequisites.
 
 Tests: `BrainTests/VehicleReservationTests.cs` and `BrainTests/VehicleSteeringTests.cs`; run with `dotnet run --project Line2-Modpack/BrainTests/BrainTests.csproj -c Release`. Windows Steam DLL compile/gameplay still required.
+
+## Combat Total vehicle behavior decision (2026-11-10)
+
+The tactical vehicle subsystem has **three separately tested intents**, not a universal rule that every NPC grabs a car.
+
+1. **Distant deployment:** newly spawned hostile Combat Total soldiers at least **85 meters** from the player's position get a **50% independent vehicle-mission assignment**. Existing cars are considered before creating new ones. This roll is wired to fresh spawns in `SteamNpcPrototypeRuntime`. Until there is a native NPC driver adapter, the game logs `NPC_VEHICLE_DEPLOYMENT_DEFERRED` and **does not actually spawn a car**. This avoids accumulating vehicles without capable occupants.
+2. **Pursuit:** only when the hostile NPC has personally and currently identified the player inside a real vehicle may a pursuit intent be recorded. A chase requires an NPC-operated car, a verified drivable road route, separation >=25m and <=180m, and no overriding incoming-fire retreat. Current code records `NPC_VEHICLE_ESCAPE_OBSERVED`; the driving action is not yet enabled.
+3. **Armored assault:** tanks and other heavy tracked Workshop vehicles need a supported wheel/track physics profile, real NPC driver authority, independently validated turret operator, accessible spawn route, and a rare authorized deployment slot. The `Line2NpcVehicleMissionPolicy.MayDeployArmoredSupport` gate ensures no tank spawns without all these capabilities. A turret must use the original vehicle ammunition and hit validation, not apply script damage by pretending to be a player.
+
+**Source of truth:** the AI issues the mission, `Line2NpcVehicleController` owns car reservations and entry, `Line2NpcVehicleSteeringPolicy` produces control demands, and a *future* Steam-authoritative driving/replication adapter will apply vehicle physics. Vehicles from Workshop are never assumed compatible based solely on `EEngine.CAR`. The driver adapter must not change `Passenger.player`, bypass networking, or spawn unmanageable vehicles.
+
+**Acceptance tests before activation:** a complete car trip on Washington, steering/braking/collision avoidance, stop and dismount, pursuit without teleport or infinite fuel, and a separate supported tracked-vehicle trial with turret, ammo and destructibility. None is claimed to pass today.
