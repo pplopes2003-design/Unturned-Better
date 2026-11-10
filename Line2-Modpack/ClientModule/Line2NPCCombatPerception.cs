@@ -257,7 +257,8 @@ namespace Unturned2.Line2
             facing.y = 0f;
             if (flattened.sqrMagnitude < 0.0001f ||
                 facing.sqrMagnitude < 0.0001f ||
-                Vector3.Dot(flattened.normalized, facing.normalized) < 0.15f)
+                !Line2NPCCombatRules.WithinVisualArc(
+                    Vector3.Dot(flattened.normalized, facing.normalized)))
                 return false;
 
             // DAMAGE_SERVER omits CLIP and VEHICLE in the original
