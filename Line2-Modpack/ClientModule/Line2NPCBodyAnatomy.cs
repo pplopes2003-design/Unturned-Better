@@ -113,6 +113,15 @@ namespace Unturned2.Line2
                     ProbeLogger.Log("NPC_ANATOMY_LAYER_ADAPTED: " +
                         Regions[i].Name + " original=" + originalLayer +
                         " entity=" + entityLayer);
+                // Crucial Steam listen-host integration: PlayerInput.sendRaycast
+                // discards unknown tags entirely, BEFORE UseableGun.onBulletHit.
+                // A native Environment-tagged contact is serialized as type NONE
+                // with its real impact point. The Line2 server bridge then
+                // independently raycasts the first physical NPC bone and owns
+                // damage. Do not claim Player/Enemy/Zombie identity or change
+                // the AGENT motor's tag. This applies ONLY to these six NPC
+                // anatomy triggers on the spawned runtime instance.
+                collider.gameObject.tag = "Environment";
                 collider.isTrigger = true; // no extra physical movement owner
                 var marker = collider.GetComponent<Line2MobileNPCBodyHitbox>();
                 if (marker == null)
@@ -120,7 +129,8 @@ namespace Unturned2.Line2
                 marker.Configure(Regions[i].Part);
                 collider.enabled = true;
             }
-            ProbeLogger.Log("NPC_NATIVE_ANATOMY_OK: six original NPC_Client bone colliders enabled");
+            ProbeLogger.Log("NPC_NATIVE_ANATOMY_OK: six original NPC_Client bone colliders enabled" +
+                " (ENTITY layer, Environment report tag, server NONE-ray validation)");
             return true;
         }
     }
