@@ -26,10 +26,11 @@ namespace Unturned2.Line2
 
         internal Recognition Sample(float now, bool lineOfSight,
             float forwardDot, float distance, float observedSpeed,
-            float illumination)
+            float illumination, float silhouette = 1f)
         {
             if (!Finite(now) || !Finite(forwardDot) || !Finite(distance) ||
-                !Finite(observedSpeed) || !Finite(illumination) || distance < 0f)
+                !Finite(observedSpeed) || !Finite(illumination) ||
+                !Finite(silhouette) || distance < 0f)
                 return Recognition.None;
             float dt = _lastSampleAt < 0f ? 0.1f
                 : Math.Max(0f, Math.Min(0.5f, now - _lastSampleAt));
@@ -52,6 +53,11 @@ namespace Unturned2.Line2
             float proximity = Math.Max(0f, Math.Min(1f, 1f - distance / 20f));
             float motion = Math.Max(0f, Math.Min(1f, observedSpeed / 5f));
             float light = Math.Max(0.2f, Math.Min(1f, illumination));
+            // A crouched or prone target is harder to recognize at a
+            // distance, but posture never negates a verified close-up LOS.
+            float posture = Math.Max(0.35f, Math.Min(1f, silhouette));
+            float posturePenalty = 1f - (1f - posture) *
+                Math.Max(0f, Math.Min(1f, distance / 20f));
             float rate = (0.32f + angleQuality * 0.85f +
                 proximity * 0.75f + motion * 0.4f) * light;
             if (peripheral)
@@ -60,11 +66,13 @@ namespace Unturned2.Line2
                 // only. Never let repeated lateral movement grant exact
                 // target identity or attack permission.
                 _evidence = Math.Min(0.44f, _evidence +
-                    (0.20f + motion * 0.45f) * light * dt);
+                    (0.20f + motion * 0.45f) * light *
+                    posturePenalty * dt);
                 return _evidence >= 0.22f
                     ? Recognition.Suspicious : Recognition.None;
             }
-            _evidence = Math.Min(1.5f, _evidence + rate * dt);
+            _evidence = Math.Min(1.5f, _evidence +
+                rate * posturePenalty * dt);
 
             // Continue tracking a recently confirmed *visible* actor with
             // hysteresis. Loss of LOS always cancels direct recognition.
