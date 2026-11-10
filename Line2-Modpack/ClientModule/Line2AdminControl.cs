@@ -224,6 +224,29 @@ namespace Unturned2.Line2
                         ". Local combat adapters are experimental and not gameplay-validated.";
                     break;
                 case "spawn":
+                    if (args.Length >= 2 && args[1] == "distant")
+                    {
+                        int countDistant = 1;
+                        if (args.Length > 3 ||
+                            (args.Length == 3 &&
+                             (!int.TryParse(args[2], out countDistant) ||
+                              countDistant < 1 || countDistant > 5)))
+                        {
+                            _feedback = "Use spawn distant [1..5] in Combat Total";
+                            break;
+                        }
+                        SteamNpcPrototypeRuntime runtime =
+                            GetComponent<SteamNpcPrototypeRuntime>();
+                        string detail;
+                        bool succeeded = runtime != null &&
+                            runtime.TrySpawnDistantCombatUnit(
+                                countDistant, out detail);
+                        _feedback = succeeded
+                            ? "REMOTE_COMBAT_SPAWN_OK: " + detail
+                            : "Distant spawn denied: inspect loaded map anchors " +
+                              "(200-420m), NPC state and Combat Total mode";
+                        break;
+                    }
                     if (args.Length < 2 || args.Length > 3 ||
                         (args[1] != "friendly" && args[1] != "neutral" && args[1] != "hostile"))
                     { _feedback = "Use spawn friendly/neutral/hostile [1..5]"; break; }
