@@ -13,6 +13,10 @@
     <Compile Include="Program.cs" />
     <Compile Include="VisualRecognitionTests.cs" />
     <Compile Include="SniperTests.cs" />
+    <Compile Include="ShotCorrectionMemoryTests.cs" />
+    <Compile Include="VehicleReservationTests.cs" />
+    <Compile Include="../ClientModule/Line2NpcShotCorrectionMemory.cs" Link="Line2NpcShotCorrectionMemory.cs" />
+    <Compile Include="../ClientModule/Line2NpcVehicleReservation.cs" Link="Line2NpcVehicleReservation.cs" />
     <Compile Include="../ClientModule/Line2NpcSniperPolicy.cs" Link="Line2NpcSniperPolicy.cs" />
     <Compile Include="../ClientModule/Line2NpcVisualRecognitionPolicy.cs" Link="Line2NpcVisualRecognitionPolicy.cs" />
     <Compile Include="ZombieSoundPolicyTests.cs" />
