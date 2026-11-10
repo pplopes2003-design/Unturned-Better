@@ -17,6 +17,9 @@ namespace Unturned2.Line2
             public int distanceBand; // 0=short, 1=medium, 2=long
             public int shots;
             public int strikes;
+            // Calibrated from real observed impact errors; never a target
+            // location or guaranteed hit, unlike transient engagement data.
+            public float lateralBias, verticalBias;
         }
 
         private readonly Record[] _records = new Record[12];
@@ -52,6 +55,49 @@ namespace Unturned2.Line2
                 record.strikes = Math.Min(record.shots, record.strikes + 1);
         }
 
+        internal bool TryGetBallisticBias(ushort weapon, float distance,
+            out float lateral, out float vertical)
+        {
+            lateral = 0f;
+            vertical = 0f;
+            int band = Band(distance);
+            if (weapon == 0 || band < 0) return false;
+            foreach (Record r in _records)
+            {
+                if (r == null || r.weaponId != weapon ||
+                    r.distanceBand != band || r.shots < 3)
+                    continue;
+                // Calibration is deliberately partial. The current
+                // engagement still has fresh imperfect feedback.
+                lateral = r.lateralBias * 0.50f;
+                vertical = r.verticalBias * 0.50f;
+                return true;
+            }
+            return false;
+        }
+
+        internal void ObserveImpact(ushort weapon, float distance,
+            bool firsthandSight, bool realFirstImpact,
+            float lateralError, float verticalError, float missDistance)
+        {
+            int band = Band(distance);
+            if (weapon == 0 || band < 0 || distance > 120f ||
+                !firsthandSight || !realFirstImpact ||
+                !Finite(lateralError) || !Finite(verticalError) ||
+                !Finite(missDistance) || missDistance > 6f)
+                return;
+            foreach (Record r in _records)
+            {
+                if (r == null || r.weaponId != weapon ||
+                    r.distanceBand != band) continue;
+                r.lateralBias = Clamp(r.lateralBias -
+                    lateralError * 0.06f, -0.60f, 0.60f);
+                r.verticalBias = Clamp(r.verticalBias -
+                    verticalError * 0.06f, -0.60f, 0.60f);
+                return;
+            }
+        }
+
         internal float SpreadMultiplier(ushort weapon, float distance)
         {
             int band = Band(distance);
@@ -72,6 +118,16 @@ namespace Unturned2.Line2
             return 1f;
         }
 
+        private static float Clamp(float x, float min, float max)
+        {
+            return Math.Max(min, Math.Min(max, x));
+        }
+
+        private static bool Finite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
+        }
+
         internal Record[] Export()
         {
             int count = 0;
@@ -82,7 +138,9 @@ namespace Unturned2.Line2
                 if (r != null)
                     data[at++] = new Record { weaponId = r.weaponId,
                         distanceBand = r.distanceBand, shots = r.shots,
-                        strikes = r.strikes };
+                        strikes = r.strikes,
+                        lateralBias = r.lateralBias,
+                        verticalBias = r.verticalBias };
             return data;
         }
 
@@ -96,7 +154,11 @@ namespace Unturned2.Line2
                         r.weaponId > ushort.MaxValue ||
                         r.distanceBand < 0 || r.distanceBand > 2 ||
                         r.shots < 0 || r.shots > 400 ||
-                        r.strikes < 0 || r.strikes > r.shots)
+                        r.strikes < 0 || r.strikes > r.shots ||
+                        !Finite(r.lateralBias) ||
+                        !Finite(r.verticalBias) ||
+                        Math.Abs(r.lateralBias) > 0.60f ||
+                        Math.Abs(r.verticalBias) > 0.60f)
                         return false;
             }
             Array.Clear(_records, 0, _records.Length);
@@ -111,7 +173,9 @@ namespace Unturned2.Line2
                 Record r = snapshot[i];
                 _records[i] = new Record { weaponId = r.weaponId,
                     distanceBand = r.distanceBand, shots = r.shots,
-                    strikes = r.strikes };
+                    strikes = r.strikes,
+                    lateralBias = r.lateralBias,
+                    verticalBias = r.verticalBias };
             }
             return true;
         }
