@@ -31,6 +31,21 @@ internal static class SniperTests
         if (stable <= 0f || stable >= 3f ||
             Line2NpcSniperPolicy.PrecisionSpread(80f, true, 6f) <= stable)
             return Fail("inaccurate or perfectly accurate sniper");
+        float drop = Line2NpcSniperPolicy.VerticalDropCompensation(
+            100f, 300f, 9.81f);
+        if (drop < 0.50f || drop > 0.60f ||
+            Line2NpcSniperPolicy.VerticalDropCompensation(
+                100f, 0f, 9.81f) != 0f ||
+            Line2NpcSniperPolicy.VerticalDropCompensation(
+                200f, 300f, 9.81f) != 0f)
+            return Fail("ballistic drop compensation safety");
+        if (!Line2NpcFiringPositionPolicy.ShouldHoldPosition(
+                true, true, false, false, 80f, 120f, true) ||
+            Line2NpcFiringPositionPolicy.ShouldHoldPosition(
+                true, true, false, false, 80f, 120f, false) ||
+            Line2NpcFiringPositionPolicy.ShouldHoldPosition(
+                false, true, false, false, 80f, 120f, true))
+            return Fail("sniper stationary firing lane");
         if (Line2NPCCombatRules.CanEngagePlayer(
                 "hostile", "total", false, 6400f, 120f) ||
             !Line2NPCCombatRules.CanEngagePlayer(
