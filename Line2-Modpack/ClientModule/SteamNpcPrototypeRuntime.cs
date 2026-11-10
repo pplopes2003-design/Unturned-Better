@@ -2258,8 +2258,8 @@ namespace Unturned2.Line2
             if (holdingVerifiedCover && !RecentlyDamaged)
                 _goal = _coverHoldPoint;
             if (_vehicleDriver != null &&
-                _vehicleDriver.CurrentState ==
-                    Line2NpcVehicleController.State.Approaching)
+                _vehicleDriver.CurrentState !=
+                    Line2NpcVehicleController.State.Idle)
             {
                 if (RecentlyDamaged || UnderVerifiedSuppression ||
                     (_combatPerception != null &&
@@ -2267,15 +2267,18 @@ namespace Unturned2.Line2
                     _vehicleDriver.Cancel("verified combat takes priority");
                 else
                 {
-                    // Normal native A* is the only movement executor.
-                    // A failed/disconnected path cancels the vehicle plan.
-                    bool routeValid = _astarFollower == null ||
+                    // Normal native A* owns the approach. Missing native
+                    // driver-seat authority cannot be bypassed or faked.
+                    bool routeValid = _astarFollower != null &&
                         _astarFollower.Status != "line1-no-connected-route";
                     _vehicleDriver.ReportMovement(transform.position,
                         routeValid);
                     if (_vehicleDriver.CurrentState ==
                         Line2NpcVehicleController.State.Approaching)
                         _goal = _vehicleDriver.ApproachDestination;
+                    else if (_vehicleDriver.CurrentState ==
+                        Line2NpcVehicleController.State.AtDoor)
+                        _goal = transform.position; // Short readiness hold
                 }
             }
             Vector3 delta = _goal - transform.position;
