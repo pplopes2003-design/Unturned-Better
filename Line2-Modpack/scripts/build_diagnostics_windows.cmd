@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 rem Windows CMD entrypoint avoids PowerShell execution-policy restrictions.
 rem Builds diagnostic-only F8-F12 module; it does not enable NPC control.
 if "%~1"=="" (
@@ -43,17 +43,17 @@ if exist "%DEST%" (
     echo ERROR: Could not create a backup timestamp. Existing module was left untouched.
     exit /b 8
   )
-  set "BACKUP=%DEST%.backup-%STAMP%"
-  if exist "%BACKUP%" (
-    echo ERROR: Backup destination already exists: "%BACKUP%"
+  set "BACKUP=%DEST%.backup-!STAMP!"
+  if exist "!BACKUP!" (
+    echo ERROR: Backup destination already exists: "!BACKUP!"
     exit /b 8
   )
-  move "%DEST%" "%BACKUP%" >nul
+  move "%DEST%" "!BACKUP!" >nul
   if errorlevel 1 (
     echo ERROR: Could not back up existing module. Nothing was replaced.
     exit /b 8
   )
-  echo Previous module backed up to "%BACKUP%"
+  echo Previous module backed up to "!BACKUP!"
 )
 mkdir "%DEST%"
 if errorlevel 1 exit /b 9
