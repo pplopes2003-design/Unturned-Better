@@ -235,11 +235,11 @@ namespace Unturned2.Line2
                             _feedback = "Use spawn distant [1..5] in Combat Total";
                             break;
                         }
-                        SteamNpcPrototypeRuntime runtime =
+                        SteamNpcPrototypeRuntime distantRuntime =
                             GetComponent<SteamNpcPrototypeRuntime>();
                         string detail = "NPC runtime not ready";
-                        bool succeeded = runtime != null &&
-                            runtime.TrySpawnDistantCombatUnit(
+                        bool succeeded = distantRuntime != null &&
+                            distantRuntime.TrySpawnDistantCombatUnit(
                                 countDistant, out detail);
                         _feedback = succeeded
                             ? "REMOTE_COMBAT_SPAWN_OK: " + detail
