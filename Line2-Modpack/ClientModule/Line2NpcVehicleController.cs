@@ -154,7 +154,7 @@ namespace Unturned2.Line2
                 return false;
             Passenger driver = vehicle.GetSeatByIndex(0);
             return driver != null && driver.seat != null &&
-                driver.player == null && vehicle.rootRigidbody != null;
+                driver.player == null && vehicle.GetComponent<Rigidbody>() != null;
         }
 
         private static bool Authorized()
