@@ -47,9 +47,9 @@ namespace Unturned2.Line2
                 car.asset == null || car.asset.engine != EEngine.CAR ||
                 car.isDead || car.isExploded || car.isLocked ||
                 car.isDriven || !car.isEmpty || car.fuel < 2 ||
-                car.rootRigidbody == null ||
-                car.rootRigidbody.isKinematic ||
-                car.rootRigidbody.mass < 50f)
+                car.GetComponent<Rigidbody>() == null ||
+                car.GetComponent<Rigidbody>().isKinematic ||
+                car.GetComponent<Rigidbody>().mass < 50f)
                 return false;
             Passenger seat = car.GetSeatByIndex(0);
             _character = driver.GetComponent<CharacterController>();
@@ -89,9 +89,9 @@ namespace Unturned2.Line2
             if (!Line2NpcCarWheelTestGate.CanStart(
                     Authorized(), !car.isDead && !car.isExploded,
                     seat.player == null, car.asset.engine == EEngine.CAR,
-                    !car.rootRigidbody.isKinematic,
+                    !car.GetComponent<Rigidbody>().isKinematic,
                     nativeWheels.Length, powered, frontMost - backMost,
-                    car.rootRigidbody.mass, car.fuel))
+                    car.GetComponent<Rigidbody>().mass, car.fuel))
             {
                 reason = "unsupported four-wheel test topology/mass/authority";
                 return false;
@@ -187,8 +187,8 @@ namespace Unturned2.Line2
             if (!Authorized() || _car == null || _driver == null ||
                 _driver.IsDead || _car.isDead || _car.isExploded ||
                 _car.isDriven || _car.fuel == 0 ||
-                _car.rootRigidbody == null ||
-                _car.rootRigidbody.isKinematic ||
+                _car.GetComponent<Rigidbody>() == null ||
+                _car.GetComponent<Rigidbody>().isKinematic ||
                 Time.time >= _endAt)
             {
                 Stop("authority/vehicle invalid or test timed out");
@@ -202,7 +202,7 @@ namespace Unturned2.Line2
                 Stop("test waypoint reached");
                 return;
             }
-            float speed = _car.rootRigidbody.velocity.magnitude;
+            float speed = _car.GetComponent<Rigidbody>().velocity.magnitude;
             if (speed > MaxSafeSpeed + 3f)
             {
                 Stop("overspeed safety guard");
@@ -230,9 +230,9 @@ namespace Unturned2.Line2
                 drive.Brake = true;
             }
             float torque = Mathf.Min(650f,
-                Mathf.Max(150f, _car.rootRigidbody.mass * 0.25f));
+                Mathf.Max(150f, _car.GetComponent<Rigidbody>().mass * 0.25f));
             float braking = Mathf.Min(4500f,
-                Mathf.Max(800f, _car.rootRigidbody.mass * 1.2f));
+                Mathf.Max(800f, _car.GetComponent<Rigidbody>().mass * 1.2f));
             for (int i = 0; i < _wheels.Length; ++i)
             {
                 WheelCollider wheel = _wheels[i];
@@ -329,11 +329,11 @@ namespace Unturned2.Line2
             }
             // Stop the small controlled 18m test without leaving an
             // unoccupied, coasting vehicle to collide with the dismount.
-            if (_car != null && _car.rootRigidbody != null &&
-                !_car.rootRigidbody.isKinematic)
+            if (_car != null && _car.GetComponent<Rigidbody>() != null &&
+                !_car.GetComponent<Rigidbody>().isKinematic)
             {
-                _car.rootRigidbody.velocity = Vector3.zero;
-                _car.rootRigidbody.angularVelocity = Vector3.zero;
+                _car.GetComponent<Rigidbody>().velocity = Vector3.zero;
+                _car.GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
             }
             if (_driver != null)
             {
