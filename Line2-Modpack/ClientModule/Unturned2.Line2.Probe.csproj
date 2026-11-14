@@ -13,6 +13,7 @@
     <Reference Include="com.rlabrecque.steamworks.net"><HintPath>$(GameManaged)\com.rlabrecque.steamworks.net.dll</HintPath><Private>False</Private></Reference>
     <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameManaged)\UnityEngine.CoreModule.dll</HintPath><Private>False</Private></Reference>
     <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(GameManaged)\UnityEngine.PhysicsModule.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="UnityEngine.VehiclesModule"><HintPath>$(GameManaged)\UnityEngine.VehiclesModule.dll</HintPath><Private>False</Private></Reference>
     <Reference Include="UnityEngine.JSONSerializeModule"><HintPath>$(GameManaged)\UnityEngine.JSONSerializeModule.dll</HintPath><Private>False</Private></Reference>
     <Reference Include="UnityEngine.AnimationModule"><HintPath>$(GameManaged)\UnityEngine.AnimationModule.dll</HintPath><Private>False</Private></Reference>
     <Reference Include="UnityEngine.AudioModule"><HintPath>$(GameManaged)\UnityEngine.AudioModule.dll</HintPath><Private>False</Private></Reference>
