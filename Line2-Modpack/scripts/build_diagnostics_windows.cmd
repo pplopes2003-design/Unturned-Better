@@ -37,9 +37,23 @@ if not errorlevel 1 (
   exit /b 7
 )
 if exist "%DEST%" (
-  echo ERROR: Existing diagnostic module found at "%DEST%".
-  echo Do not overwrite it. Back up or remove that folder before retrying.
-  exit /b 8
+  rem Preserve the previously installed module before replacing it.
+  for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmmss"') do set "STAMP=%%i"
+  if not defined STAMP (
+    echo ERROR: Could not create a backup timestamp. Existing module was left untouched.
+    exit /b 8
+  )
+  set "BACKUP=%DEST%.backup-%STAMP%"
+  if exist "%BACKUP%" (
+    echo ERROR: Backup destination already exists: "%BACKUP%"
+    exit /b 8
+  )
+  move "%DEST%" "%BACKUP%" >nul
+  if errorlevel 1 (
+    echo ERROR: Could not back up existing module. Nothing was replaced.
+    exit /b 8
+  )
+  echo Previous module backed up to "%BACKUP%"
 )
 mkdir "%DEST%"
 if errorlevel 1 exit /b 9
