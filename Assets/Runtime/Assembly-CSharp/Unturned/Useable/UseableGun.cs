@@ -1491,6 +1491,15 @@ namespace SDG.Unturned
 						}
 					}
 				}
+				else if (info.type == ERaycastInfoType.NPC)
+				{
+					IDamageMultiplier npcMultiplier = meleeProperties?.MeleePlayerDamageMultiplier;
+					if (info.npcVitals != null && npcMultiplier != null)
+					{
+						float npcDamage = npcMultiplier.multiply(info.limb) * times;
+						info.npcVitals.ApplyDamage(npcDamage, info.direction * npcDamage, player.transform);
+					}
+				}
 				else if (info.type == ERaycastInfoType.ZOMBIE)
 				{
 					if (info.zombie != null && meleeProperties?.MeleeZombieOrPlayerDamageMultiplier != null)
@@ -2025,6 +2034,19 @@ namespace SDG.Unturned
 
 								DamageTool.damagePlayer(parameters, out kill);
 							}
+						}
+					}
+					else if (info.type == ERaycastInfoType.NPC)
+					{
+						if (info.npcVitals != null)
+						{
+							IDamageMultiplier npcMultiplier = equippedGunAsset.playerDamageMultiplier;
+							float npcDamage = npcMultiplier.multiply(info.limb) * times;
+							if (player.input.IsUnderFakeLagPenalty)
+							{
+								npcDamage *= Provider.configData.Server.Fake_Lag_Damage_Penalty_Multiplier;
+							}
+							info.npcVitals.ApplyDamage(npcDamage, info.direction * npcDamage, player.transform);
 						}
 					}
 					else if (info.type == ERaycastInfoType.ZOMBIE)
