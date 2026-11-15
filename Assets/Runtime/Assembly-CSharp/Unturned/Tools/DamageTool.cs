@@ -1472,7 +1472,17 @@ namespace SDG.Unturned
 
 			if (info.transform != null)
 			{
-				if (info.transform.CompareTag("Barricade"))
+				info.npcVitals = info.transform.GetComponentInParent<MobileNPCHumanoidVitals>();
+				if (info.npcVitals != null && info.npcVitals.IsDead)
+				{
+					info.npcVitals = null;
+				}
+
+				if (info.npcVitals != null)
+				{
+					info.limb = getLimb(info.transform);
+				}
+				else if (info.transform.CompareTag("Barricade"))
 				{
 					info.transform = getBarricadeRootTransform(info.transform);
 				}
