@@ -17,6 +17,7 @@ namespace SDG.Unturned
 		public Player player;
 		public Zombie zombie;
 		public Animal animal;
+		public MobileNPCHumanoidVitals npcVitals;
 		public ELimb limb;
 		public string materialName;
 		[System.Obsolete]
@@ -43,7 +44,7 @@ namespace SDG.Unturned
 
 		public override string ToString()
 		{
-			return $"(Transform: {transform?.GetSceneHierarchyPath()}, Collider: {collider?.GetSceneHierarchyPath()}, Distance: {distance}, Point: {point}, Direction: {direction}, Normal: {normal}, Player: {player}, Zombie: {zombie}, Animal: {animal}, Limb: {limb}, Material: {materialName}, Vehicle: {vehicle}, Section: {section})";
+			return $"(Transform: {transform?.GetSceneHierarchyPath()}, Collider: {collider?.GetSceneHierarchyPath()}, Distance: {distance}, Point: {point}, Direction: {direction}, Normal: {normal}, Player: {player}, Zombie: {zombie}, Animal: {animal}, NPC: {npcVitals}, Limb: {limb}, Material: {materialName}, Vehicle: {vehicle}, Section: {section})";
 		}
 	}
 }
