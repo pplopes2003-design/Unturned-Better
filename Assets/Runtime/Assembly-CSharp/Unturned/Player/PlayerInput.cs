@@ -133,6 +133,30 @@ namespace SDG.Unturned
 						case ERaycastInfoType.SKIP:
 							info = null;
 							break;
+						case ERaycastInfoType.NPC:
+							reader.ReadEnum(out info.usage);
+							reader.ReadClampedVector3(out info.point);
+							reader.ReadNormalVector3(out info.direction);
+							reader.ReadNormalVector3(out info.normal);
+							reader.ReadEnum(out info.limb);
+							reader.ReadTransform(out info.colliderTransform);
+							MobileNPCHumanoidVitals npcVitals = info.colliderTransform != null
+								? info.colliderTransform.GetComponentInParent<MobileNPCHumanoidVitals>() : null;
+							if (npcVitals != null && !npcVitals.IsDead
+								&& (info.point - npcVitals.transform.position).sqrMagnitude < 4096.0f)
+							{
+								info.npcVitals = npcVitals;
+								info.transform = npcVitals.transform;
+								info.materialName = "Flesh_Dynamic";
+#pragma warning disable
+								info.material = EPhysicsMaterial.FLESH_DYNAMIC;
+#pragma warning restore
+							}
+							else
+							{
+								info = null;
+							}
+							break;
 						case ERaycastInfoType.PLAYER:
 							reader.ReadEnum(out info.usage);
 							reader.ReadClampedVector3(out info.point);
@@ -468,6 +492,16 @@ namespace SDG.Unturned
 						writer.WriteEnum(info.limb);
 						writer.WriteSteamID(info.player.channel.owner.playerID.steamID);
 					}
+					else if (info.npcVitals != null)
+					{
+						writer.WriteEnum(ERaycastInfoType.NPC);
+						writer.WriteEnum(usage);
+						writer.WriteClampedVector3(info.point);
+						writer.WriteNormalVector3(info.direction);
+						writer.WriteNormalVector3(info.normal);
+						writer.WriteEnum(info.limb);
+						writer.WriteTransform(info.collider != null ? info.collider.transform : info.transform);
+					}
 					else if (info.zombie != null)
 					{
 						writer.WriteEnum(ERaycastInfoType.ZOMBIE);
@@ -795,7 +829,8 @@ namespace SDG.Unturned
 		VEHICLE,
 		BARRICADE,
 		STRUCTURE,
-		RESOURCE
+		RESOURCE,
+		NPC
 	}
 
 	/// <summary>
@@ -1074,7 +1109,7 @@ namespace SDG.Unturned
 
 		public bool isRaycastInvalid(RaycastInfo info)
 		{
-			return info.player == null && info.zombie == null && info.animal == null && info.vehicle == null && info.transform == null;
+			return info.player == null && info.zombie == null && info.animal == null && info.npcVitals == null && info.vehicle == null && info.transform == null;
 		}
 
 		public void sendRaycast(RaycastInfo info, ERaycastInfoUsage usage)
@@ -1089,6 +1124,7 @@ namespace SDG.Unturned
 				InputInfo input = new InputInfo();
 				input.usage = usage;
 				input.animal = info.animal;
+				input.npcVitals = info.npcVitals;
 				input.direction = info.direction;
 				input.limb = info.limb;
 				input.materialName = info.materialName;
@@ -1115,6 +1151,10 @@ namespace SDG.Unturned
 				else if (input.animal != null)
 				{
 					input.type = ERaycastInfoType.ANIMAL;
+				}
+				else if (input.npcVitals != null)
+				{
+					input.type = ERaycastInfoType.NPC;
 				}
 				else if (input.vehicle != null)
 				{
