@@ -546,6 +546,14 @@ namespace SDG.Unturned
 						}
 					}
 				}
+				else if (info.type == ERaycastInfoType.NPC)
+				{
+					if (info.npcVitals != null)
+					{
+						float npcDamage = equippedMeleeAsset.playerDamageMultiplier.multiply(info.limb) * times;
+						info.npcVitals.ApplyDamage(npcDamage, info.direction * npcDamage, player.transform);
+					}
+				}
 				else if (info.type == ERaycastInfoType.ZOMBIE)
 				{
 					if (info.zombie != null)
