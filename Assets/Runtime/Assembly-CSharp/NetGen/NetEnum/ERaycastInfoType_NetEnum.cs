@@ -8,7 +8,7 @@ namespace SDG.Unturned
 			uint index;
 			bool result = reader.ReadBits(4, out index);
 			// Casting out of range index to enum would throw an exception.
-			if (index <= 9)
+			if (index <= 10)
 			{
 				value = (ERaycastInfoType) index;
 				return result;
@@ -27,7 +27,7 @@ namespace SDG.Unturned
 		{
 			uint index = (uint) value;
 #if WITH_NETPAK_EXCEPTIONS
-			if (index > 9)
+			if (index > 10)
 				throw new System.IndexOutOfRangeException();
 #endif // WITH_NETPAK_EXCEPTIONS
 			return writer.WriteBits(index, 4);
